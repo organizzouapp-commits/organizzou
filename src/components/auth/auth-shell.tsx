@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
@@ -7,6 +9,7 @@ import { Logo } from "@/components/organizzou/Logo"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
 import { cn } from "@/lib/utils"
 
+import { authLinkClass, authMotion } from "./auth-parts"
 import { ForgotPasswordForm } from "./forgot-password-form"
 import { ResetPasswordForm } from "./reset-password-form"
 import { SignInForm } from "./sign-in-form"
@@ -22,101 +25,188 @@ function modeFor(pathname: string): Mode {
 }
 
 const COPY = {
-  login: { badge: "Bom te ver de novo", headline: "Sua vida, organizada.", subtitle: "Entre para ver o seu dia." },
-  signup: { badge: "Comece agora", headline: "Comece a se organizar", subtitle: "Três passos e pronto." },
+  login: {
+    badge: "Bom te ver de novo",
+    headline: "Sua vida, organizada.",
+    subtitle: "Entre para ver o seu dia.",
+    steps: ["Veja seu dia", "Fale com o assistente", "Receba lembretes no WhatsApp"],
+  },
+  signup: {
+    badge: "Comece agora",
+    headline: "Comece a se organizar",
+    subtitle: "Três passos e pronto.",
+    steps: ["Crie sua conta", "Conecte seu WhatsApp", "Organize seu dia"],
+  },
 } as const
 
-const STEPS = ["Crie sua conta", "Conecte seu WhatsApp", "Organize seu dia"]
+type CopyKey = keyof typeof COPY
 
 // One easing for every movement in the shell (DESIGN-SYSTEM §6).
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-function HighlightCopy({ copy, active, compact }: { copy: (typeof COPY)[keyof typeof COPY]; active: boolean; compact?: boolean }) {
+/** Tinta scrim (max 40%, heavier at the bottom) that keeps Papel text readable over the photo. */
+const SCRIM = "bg-gradient-to-b from-palette-tinta/15 via-palette-tinta/25 to-palette-tinta/40"
+
+const glass = "border border-palette-papel/12 bg-palette-papel/10 backdrop-blur-[16px]"
+
+function HighlightCopy({
+  copyKey,
+  active,
+  activeStep,
+  onStep,
+}: {
+  copyKey: CopyKey
+  active: boolean
+  activeStep: number
+  onStep: (index: number) => void
+}) {
+  const copy = COPY[copyKey]
+  const enter = cn("duration-300", authMotion, active ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0")
   return (
-    <div
-      data-crossfade
-      aria-hidden={!active}
-      className={cn(
-        "col-start-1 row-start-1 flex flex-col gap-4 transition-opacity duration-500",
-        active ? "opacity-100" : "pointer-events-none opacity-0"
-      )}
-    >
-      <span className="inline-flex w-fit items-center rounded-full bg-palette-papel/10 px-3 py-1 text-[13px] leading-5 font-medium text-palette-papel">
+    <div aria-hidden={!active} inert={!active} className={cn("col-start-1 row-start-1 flex flex-col gap-4", !active && "pointer-events-none")}>
+      <span className={cn("inline-flex w-fit items-center rounded-full px-3 py-1 text-[13px] leading-5 font-medium text-palette-papel", glass, enter)}>
         {copy.badge}
       </span>
-      <h2 className={cn("font-semibold tracking-[-0.02em] text-palette-papel", compact ? "text-[28px] leading-9" : "text-[40px] leading-[48px]")}>
+      <h2 className={cn("text-[40px] leading-[48px] font-semibold tracking-[-0.02em] text-palette-papel", enter)} style={{ transitionDelay: active ? "60ms" : "0ms" }}>
         {copy.headline}
       </h2>
-      <p className="text-base leading-6 text-palette-papel/70">{copy.subtitle}</p>
-      {compact ? null : (
-        <ol className="mt-4 grid grid-cols-3 gap-3">
-          {STEPS.map((label, index) => {
-            const activeStep = index === 0
-            return (
-              <li
-                key={label}
+      <p className={cn("text-base leading-6 text-palette-papel/80", enter)} style={{ transitionDelay: active ? "120ms" : "0ms" }}>
+        {copy.subtitle}
+      </p>
+      <ol className="mt-4 grid grid-cols-3 gap-3">
+        {copy.steps.map((label, index) => {
+          const isActive = index === activeStep
+          return (
+            // Entrance: fade + 8 px slide, staggered 60 ms. The hover lift lives on the inner button.
+            <li key={label} className={enter} style={{ transitionDelay: active ? `${180 + index * 60}ms` : "0ms" }}>
+              <button
+                type="button"
+                onClick={() => onStep(index)}
+                aria-current={isActive ? "step" : undefined}
                 className={cn(
-                  "flex min-h-32 flex-col justify-between gap-4 rounded-[20px] p-4",
-                  activeStep ? "bg-highlight text-highlight-foreground" : "bg-palette-papel/8 text-palette-papel/70"
+                  "group/step flex min-h-32 w-full cursor-pointer flex-col justify-between gap-4 rounded-[20px] border p-4 text-left outline-none",
+                  "hover:-translate-y-1 hover:border-highlight/40 focus-visible:-translate-y-1 focus-visible:border-highlight/40 focus-visible:ring-3 focus-visible:ring-ring/50",
+                  authMotion,
+                  isActive
+                    ? "border-palette-papel/12 bg-highlight text-highlight-foreground"
+                    : "border-palette-papel/12 bg-palette-papel/8 text-palette-papel/80 backdrop-blur-[16px] hover:bg-palette-papel/12 focus-visible:bg-palette-papel/12"
                 )}
-                aria-current={activeStep ? "step" : undefined}
               >
                 <span
                   className={cn(
-                    "tabular flex size-8 items-center justify-center rounded-full text-[14px] leading-5 font-semibold",
-                    activeStep ? "bg-highlight-foreground text-highlight" : "border border-palette-papel/40"
+                    "tabular flex size-8 items-center justify-center rounded-full border text-[14px] leading-5 font-semibold",
+                    authMotion,
+                    isActive
+                      ? "border-transparent bg-highlight-foreground text-highlight"
+                      : "border-palette-papel/40 group-hover/step:border-transparent group-hover/step:bg-highlight group-hover/step:text-highlight-foreground group-focus-visible/step:border-transparent group-focus-visible/step:bg-highlight group-focus-visible/step:text-highlight-foreground"
                   )}
                 >
                   {index + 1}
                 </span>
                 <span className="text-[15px] leading-5 font-medium">{label}</span>
-              </li>
-            )
-          })}
-        </ol>
-      )}
+              </button>
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }
 
-function HighlightPanel({ mode, className }: { mode: Mode; className?: string }) {
-  const signup = mode === "signup"
+function HighlightPanel({ signup, className }: { signup: boolean; className?: string }) {
+  // Active step per copy (visual only).
+  const [steps, setSteps] = useState<Record<CopyKey, number>>({ login: 0, signup: 0 })
   return (
-    <aside
-      aria-label="Organizzou"
-      className={cn(
-        "relative flex flex-col justify-between gap-10 overflow-hidden rounded-[24px] bg-palette-tinta p-6 text-palette-papel dark:bg-palette-grafite lg:p-10",
-        className
-      )}
-    >
-      {/* Soft Lima glow: the only decoration, 10–15% opacity. */}
-      <span aria-hidden className="pointer-events-none absolute -top-24 -right-20 size-80 rounded-full bg-highlight/15 blur-3xl" />
-      <span aria-hidden className="pointer-events-none absolute -bottom-32 -left-24 size-96 rounded-full bg-highlight/10 blur-3xl" />
-
+    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden p-10 text-palette-papel", className)}>
+      {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
+      <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative">
         <Logo tone="on-dark" className="h-9" />
       </div>
       <div className="relative grid">
-        <HighlightCopy copy={COPY.login} active={!signup} compact={false} />
-        <HighlightCopy copy={COPY.signup} active={signup} compact={false} />
+        <HighlightCopy copyKey="login" active={!signup} activeStep={steps.login} onStep={(i) => setSteps((s) => ({ ...s, login: i }))} />
+        <HighlightCopy copyKey="signup" active={signup} activeStep={steps.signup} onStep={(i) => setSteps((s) => ({ ...s, signup: i }))} />
       </div>
     </aside>
   )
 }
 
-function CompactHeader({ mode }: { mode: Mode }) {
+/** Mobile hero: logo, theme toggle, centered headline and the "Entrar | Criar conta" segmented control. */
+function MobileHero({ mode }: { mode: Mode }) {
   const copy = mode === "signup" ? COPY.signup : COPY.login
+  const items = [
+    { href: "/entrar", label: "Entrar", on: mode === "login" },
+    { href: "/cadastro", label: "Criar conta", on: mode === "signup" },
+  ]
   return (
-    <header className="relative flex flex-col gap-6 overflow-hidden rounded-[24px] bg-palette-tinta p-6 text-palette-papel dark:bg-palette-grafite lg:hidden">
-      <span aria-hidden className="pointer-events-none absolute -top-20 -right-16 size-64 rounded-full bg-highlight/15 blur-3xl" />
-      <div className="relative">
+    <header className="relative flex min-h-[max(320px,38dvh)] flex-col justify-between gap-6 px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-12 text-palette-papel lg:hidden">
+      <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
+      <div className="relative flex items-center justify-between">
         <Logo tone="on-dark" className="h-8" />
+        <ThemeToggle
+          round
+          className={cn(glass, "text-palette-papel hover:bg-palette-papel/20 hover:text-palette-papel dark:bg-palette-papel/10 dark:hover:bg-palette-papel/20", authMotion)}
+        />
       </div>
-      <div key={mode === "signup" ? "signup" : "login"} className="relative flex animate-in flex-col gap-2 duration-300 fade-in">
-        <h2 className="text-[26px] leading-8 font-semibold tracking-[-0.02em]">{copy.headline}</h2>
-        <p className="text-[15px] leading-6 text-palette-papel/70">{copy.subtitle}</p>
+      <div key={mode === "signup" ? "signup" : "login"} className="relative flex animate-in flex-col items-center gap-2 text-center duration-300 fade-in slide-in-from-bottom-2">
+        <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">{copy.headline}</h2>
+        <p className="text-[15px] leading-6 text-palette-papel/80">{copy.subtitle}</p>
       </div>
+      <nav aria-label="Entrar ou criar conta" className={cn("relative grid grid-cols-2 gap-1 rounded-full p-1", glass)}>
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={item.on ? "page" : undefined}
+            className={cn(
+              "flex h-11 items-center justify-center rounded-full text-[15px] leading-6 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              authMotion,
+              item.on ? "bg-highlight text-highlight-foreground" : "text-palette-papel hover:bg-palette-papel/10"
+            )}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </header>
+  )
+}
+
+function LegalLinks({ className }: { className?: string }) {
+  return (
+    <nav aria-label="Informações legais" className={cn("flex justify-center gap-4 text-[13px] leading-5 text-muted-foreground", className)}>
+      <Link href="/termos" className={cn(authLinkClass, "hover:text-foreground hover:underline")}>
+        Termos de uso
+      </Link>
+      <Link href="/privacidade" className={cn(authLinkClass, "hover:text-foreground hover:underline")}>
+        Política de privacidade
+      </Link>
+    </nav>
+  )
+}
+
+/** One side of the card: solid form area with the theme toggle (top-right) and the legal links (bottom, centered). */
+function FormPane({ active, side, children }: { active: boolean; side: "left" | "right"; children: React.ReactNode }) {
+  return (
+    <section
+      data-crossfade
+      aria-hidden={!active}
+      inert={!active}
+      className={cn(
+        "relative flex-col px-6 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:px-10 lg:pt-16 lg:pb-8",
+        authMotion,
+        side === "left" ? "lg:col-start-1" : "lg:col-start-2",
+        active
+          ? cn("flex opacity-100 lg:translate-x-0 max-lg:animate-in max-lg:duration-300 max-lg:fade-in", side === "left" ? "max-lg:slide-in-from-left-6" : "max-lg:slide-in-from-right-6")
+          : cn("hidden lg:pointer-events-none lg:flex lg:opacity-0", side === "left" ? "lg:-translate-x-6" : "lg:translate-x-6")
+      )}
+    >
+      <div className="absolute top-4 right-4 hidden lg:block">
+        <ThemeToggle round />
+      </div>
+      <div className="flex flex-1 items-center justify-center py-2">{children}</div>
+      <LegalLinks className="mt-8 lg:mt-6" />
+    </section>
   )
 }
 
@@ -129,83 +219,59 @@ export function AuthShell() {
   const nextParam = params.get("next")
   const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/hoje"
 
-  const paneBase = cn(
-    "items-center justify-center px-0 py-4 transition-[opacity,transform] duration-[550ms] lg:flex lg:px-10 lg:py-10",
-    EASE
-  )
+  const solidHalf = "pointer-events-none absolute inset-y-0 hidden w-1/2 bg-background transition-opacity duration-[275ms] lg:block"
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[1200px] flex-col justify-center gap-6 px-4 py-6 lg:px-6 lg:py-10">
-      <div
-        className={cn(
-          "relative flex flex-col gap-8 lg:grid lg:min-h-[720px] lg:grid-cols-2 lg:gap-0 lg:rounded-[28px] lg:border lg:border-border lg:bg-background lg:p-3"
-        )}
-      >
-        <CompactHeader mode={mode} />
+    <div className="relative min-h-dvh">
+      {/* Full-screen photo behind everything (public/images/auth-background.png). */}
+      <Image src="/images/auth-background.png" alt="" fill priority sizes="100vw" className="-z-10 object-cover object-center" />
 
-        {/* Desktop: the highlight panel slides between the halves. */}
+      <div className="mx-auto flex min-h-dvh w-full max-w-[1200px] flex-col lg:justify-center lg:px-6 lg:py-10">
+        <MobileHero mode={mode} />
+
         <div
-          data-crossfade
           className={cn(
-            "pointer-events-none absolute top-3 bottom-3 left-3 hidden w-[calc(50%-12px)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
-            EASE,
-            signup ? "translate-x-full" : "translate-x-0"
+            "relative -mt-6 flex flex-1 flex-col rounded-t-[28px] bg-background",
+            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent"
           )}
         >
-          <HighlightPanel mode={mode} className="pointer-events-auto size-full" />
+          {/* Desktop: solid form halves under the panes. They swap sides with the panel, after it has left. */}
+          <span aria-hidden className={cn(solidHalf, "left-0", EASE, signup ? "opacity-100 delay-[275ms]" : "opacity-0 delay-0")} />
+          <span aria-hidden className={cn(solidHalf, "right-0", EASE, signup ? "opacity-0 delay-0" : "opacity-100 delay-[275ms]")} />
+
+          {/* Desktop: the transparent highlight panel slides between the halves. */}
+          <div
+            data-crossfade
+            className={cn(
+              "pointer-events-none absolute inset-y-0 left-0 hidden w-1/2 transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
+              EASE,
+              signup ? "translate-x-full" : "translate-x-0"
+            )}
+          >
+            <HighlightPanel signup={signup} className="pointer-events-auto size-full" />
+          </div>
+
+          <FormPane active={signup} side="left">
+            <SignUpForm />
+          </FormPane>
+
+          <FormPane active={!signup} side="right">
+            {mode === "forgot" ? (
+              <div key="forgot" className="flex w-full animate-in justify-center duration-300 fade-in">
+                <ForgotPasswordForm />
+              </div>
+            ) : mode === "reset" ? (
+              <div key="reset" className="flex w-full animate-in justify-center duration-300 fade-in">
+                <ResetPasswordForm />
+              </div>
+            ) : (
+              <div key="login" className="flex w-full justify-center">
+                <SignInForm next={next} linkError={params.get("erro") === "link"} />
+              </div>
+            )}
+          </FormPane>
         </div>
-
-        {/* Left half: sign-up form. */}
-        <section
-          data-crossfade
-          aria-hidden={!signup}
-          inert={!signup}
-          className={cn(
-            paneBase,
-            "lg:col-start-1 lg:row-start-1",
-            signup ? "flex opacity-100 lg:translate-x-0" : "hidden lg:flex lg:pointer-events-none lg:-translate-x-6 lg:opacity-0"
-          )}
-        >
-          <SignUpForm />
-        </section>
-
-        {/* Right half: sign in, or password recovery. */}
-        <section
-          data-crossfade
-          aria-hidden={signup}
-          inert={signup}
-          className={cn(
-            paneBase,
-            "lg:col-start-2 lg:row-start-1",
-            !signup ? "flex opacity-100 lg:translate-x-0" : "hidden lg:flex lg:pointer-events-none lg:translate-x-6 lg:opacity-0"
-          )}
-        >
-          {mode === "forgot" ? (
-            <div key="forgot" className="flex w-full animate-in justify-center duration-300 fade-in">
-              <ForgotPasswordForm />
-            </div>
-          ) : mode === "reset" ? (
-            <div key="reset" className="flex w-full animate-in justify-center duration-300 fade-in">
-              <ResetPasswordForm />
-            </div>
-          ) : (
-            <div key="login" className="flex w-full justify-center">
-              <SignInForm next={next} linkError={params.get("erro") === "link"} />
-            </div>
-          )}
-        </section>
       </div>
-      <footer className="flex items-center justify-between gap-4 text-[13px] leading-5 text-muted-foreground">
-        <nav aria-label="Informações legais" className="flex gap-4">
-          <Link href="/termos" className="underline-offset-4 hover:text-foreground hover:underline">
-            Termos de uso
-          </Link>
-          <Link href="/privacidade" className="underline-offset-4 hover:text-foreground hover:underline">
-            Política de privacidade
-          </Link>
-        </nav>
-        <ThemeToggle round />
-      </footer>
     </div>
   )
 }

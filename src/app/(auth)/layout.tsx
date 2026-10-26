@@ -1,7 +1,11 @@
 import { Suspense } from "react"
+import type { Viewport } from "next"
 
 import { AuthShell } from "@/components/auth/auth-shell"
 import { Skeleton } from "@/components/ui/skeleton"
+
+// Safe areas for the mobile sheet; the on-screen keyboard resizes the page so the active input stays visible.
+export const viewport: Viewport = { viewportFit: "cover", interactiveWidget: "resizes-content" }
 
 // One shared client shell for every auth route: it stays mounted while the URL changes,
 // which is what lets the highlight panel slide between /entrar and /cadastro.

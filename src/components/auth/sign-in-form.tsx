@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { signIn } from "@/features/auth/actions"
+import { cn } from "@/lib/utils"
 import { signInSchema, type SignInInput } from "@/features/auth/schemas"
 
-import { authButtonClass, authInputClass, GoogleButton, OrDivider, PasswordInput } from "./auth-parts"
+import { authButtonClass, authInputClass, authLinkClass, GoogleButton, OrDivider, PasswordInput } from "./auth-parts"
 
 export function SignInForm({ next, linkError }: { next: string; linkError?: boolean }) {
   const router = useRouter()
@@ -41,8 +42,8 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-7">
-      <div className="flex flex-col gap-2">
+    <div className="flex w-full max-w-[420px] flex-col gap-6">
+      <div className="flex flex-col gap-2 text-center">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Entrar</h1>
         <p className="text-base leading-6 text-muted-foreground">Use seu e-mail e senha para acessar o Organizzou.</p>
       </div>
@@ -67,7 +68,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
             <Label htmlFor="login-password">Senha</Label>
             <Link
               href="/recuperar-senha"
-              className="text-[13px] leading-5 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className={cn(authLinkClass, "text-[13px] leading-5 text-muted-foreground hover:text-foreground hover:underline")}
             >
               Esqueci a senha
             </Link>
@@ -84,9 +85,9 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
       <OrDivider />
       <GoogleButton next={next} />
 
-      <p className="text-[15px] leading-6 text-muted-foreground">
+      <p className="text-center text-[15px] leading-6 text-muted-foreground">
         Ainda não tem conta?{" "}
-        <Link href="/cadastro" className="font-medium text-foreground underline underline-offset-4">
+        <Link href="/cadastro" className={cn(authLinkClass, "font-medium text-foreground underline hover:text-muted-foreground")}>
           Criar conta
         </Link>
       </p>

@@ -148,21 +148,40 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 
 ### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
 
-- **Desktop (≥ 1024 px)**: um contêiner centralizado com raio 28 px (máx. 1200 px, altura mínima 720 px) dividido em duas metades.
-  O **painel de destaque** (Tinta no claro, Grafite no escuro, raio 24 px, padding 40 px) tem um brilho suave feito só de Lima a
-  10–15% de opacidade, o logotipo do modo escuro no topo e, embaixo: selo, título grande, subtítulo e 3 passos
-  ("Crie sua conta", "Conecte seu WhatsApp", "Organize seu dia"). Passo ativo = Lima com texto Tinta e círculo numerado;
-  inativos = Papel 8% com texto Papel 70% e número contornado.
-- **Formulário**: título, campos de 48 px (raio 12), botão primário de largura total, divisor "ou", "Continuar com Google" (contorno),
-  link para trocar de tela. Cadastro: Nome completo, E-mail, Telefone (máscara brasileira, prefixo +55, salvo em E.164) e Senha com
-  olho de mostrar/ocultar e checklist ao vivo (8 caracteres, maiúscula, minúscula, número). Validação com zod no cliente e no servidor.
-- **Animação**: no login o painel fica à ESQUERDA; em "Criar conta" ele desliza para a DIREITA (`translateX`, 550 ms,
-  `cubic-bezier(0.2, 0.8, 0.2, 1)`) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no
-  voltar/avançar do navegador). `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo
-  `(auth)`, que não remonta. Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda.
-  Com `prefers-reduced-motion` não há deslize: só troca com fade.
-- **Mobile (< 1024 px)**: sem painel deslizante; o painel vira um cabeçalho compacto (logotipo + título, Tinta/Grafite com o brilho
-  Lima, raio 24) acima do formulário, e entrar/criar conta trocam com fade.
+- **Fundo**: a foto `public/images/auth-background.png` (original em `imagens/Imagem-fundo-site2.png`) cobre a tela inteira
+  (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
+  com raio 28 px e borda de 1 px a 10%.
+- **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
+  - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
+    Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
+  - Conteúdo: logotipo do modo escuro, selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
+    "Fale com o assistente", "Receba lembretes no WhatsApp". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
+    "Organize seu dia". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
+  - **Cartões de passo de vidro**: Papel 8% + `backdrop-blur(16px)` + borda de 1 px em Papel 12%. O passo ativo é Lima com texto
+    Tinta. Hover e foco do teclado: sobe 4 px, borda Lima 40%, fundo Papel 12% e círculo do número preenchido de Lima
+    (o foco soma o anel). Clicar num passo o torna o ativo (apenas visual).
+  - **Metade do formulário sólida**: token `background` (Tinta no escuro, Papel no claro). Alterna de lado junto com o painel.
+- **Formulário**: coluna de no máx. ~420 px, centralizada na horizontal e na vertical. Título, subtítulo, divisor "ou", texto do
+  botão do Google, link de troca de tela e linha legal **centralizados**; rótulos dos campos alinhados à esquerda.
+  Seletor de tema no canto superior direito da metade do formulário; "Termos de uso" e "Política de privacidade" centralizados no
+  rodapé da mesma metade (dentro do cartão).
+- **Controles do mesmo tamanho**: campos, botão primário e "Continuar com Google" têm 48 px de altura, raio 12 px e 16 px de
+  padding horizontal; texto dos botões 15 px / 600. Cadastro: Nome completo, E-mail, Telefone (máscara BR, +55, E.164),
+  Senha com olho e checklist ao vivo. Validação com zod no cliente e no servidor.
+- **Transições**: todo estado hover/foco/ativo (botões, links, campos, cartões de passo, alternância de tema, olho) usa
+  `transition` de cor, fundo, borda, transform e sombra, 200 ms, `cubic-bezier(0.2, 0.8, 0.2, 1)` (`authMotion` em
+  `auth-parts.tsx`). Com `prefers-reduced-motion`, sem movimento.
+- **Animação do painel**: no login o painel fica à ESQUERDA; em "Criar conta" ele desliza para a DIREITA (`translateX`, 550 ms,
+  mesma curva) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no voltar/avançar).
+  `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
+  Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
+- **Mobile (< 1024 px)**: sem painel e sem cartões de passo.
+  - **Hero** (~38% da altura): a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
+    título + subtítulo centralizados e, embaixo, o controle segmentado "Entrar | Criar conta" (vidro; ativo = Lima com texto Tinta).
+  - **Bottom sheet**: cartão sólido (token `background`) com raio de 28 px só nos cantos de cima, sobrepondo o hero em 24 px, com
+    o formulário centralizado (mesmos campos de 48 px), botão do Google, link de troca e Termos/Privacidade no fim.
+  - Entrar ⇄ criar conta troca o conteúdo da sheet com fade + deslize horizontal. Respeita `env(safe-area-inset-*)`
+    (`viewportFit: "cover"`) e `interactiveWidget: "resizes-content"` para o teclado não cobrir o campo ativo.
 
 ---
 

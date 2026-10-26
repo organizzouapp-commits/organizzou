@@ -34,7 +34,7 @@ export function GoogleButton({ next = "/hoje" }: { next?: string }) {
         type="button"
         variant="outline"
         disabled={pending}
-        className="h-12 w-full rounded-xl text-[15px]"
+        className={authButtonClass}
         onClick={() =>
           startTransition(async () => {
             setError(null)
@@ -67,7 +67,7 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
   return (
     <div className="relative">
-      <Input type={visible ? "text" : "password"} className={cn("h-12 rounded-xl pr-12 md:h-12 md:text-base", className)} {...props} />
+      <Input type={visible ? "text" : "password"} className={cn(authInputClass, "pr-12", className)} {...props} />
       <Button
         type="button"
         variant="ghost"
@@ -75,7 +75,7 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
         aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
         aria-pressed={visible}
         onClick={() => setVisible((v) => !v)}
-        className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full"
+        className={cn("absolute inset-y-0 right-2 my-auto rounded-full", authMotion)}
       >
         {visible ? <EyeOffIcon strokeWidth={1.75} /> : <EyeIcon strokeWidth={1.75} />}
       </Button>
@@ -83,7 +83,13 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   )
 }
 
-/** Big auth field styling shared by every input in the split-card forms (48 px high, radius 12). */
-export const authInputClass = "h-12 rounded-xl md:h-12 md:text-base"
+/** One transition for every hover/focus/active state on the auth screens (DESIGN-SYSTEM §5.3). */
+export const authMotion =
+  "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 
-export const authButtonClass = "h-12 w-full rounded-xl text-[15px]"
+/** Inputs, primary button and Google button share the same height, radius and horizontal padding (48 px, radius 12, 16 px). */
+export const authInputClass = cn("h-12 rounded-xl px-4 py-0 text-base md:h-12 md:text-base", authMotion)
+
+export const authButtonClass = cn("h-12 w-full rounded-xl px-4 text-[15px] leading-6 font-semibold", authMotion)
+
+export const authLinkClass = cn("rounded-sm underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", authMotion)

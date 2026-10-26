@@ -64,6 +64,33 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
   ok("zod errors in pt-BR", (await page.getByText("Informe seu nome completo.").count()) === 1)
   await ctx.close()
 }
+// highlight steps: different copy per screen, clickable, glass hover
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await ctx.newPage()
+  await page.goto(base + "/entrar", { waitUntil: "networkidle" })
+  await page.waitForTimeout(700)
+  ok("login steps", (await page.getByRole("button", { name: "Receba lembretes no WhatsApp" }).count()) === 1)
+  const step = page.getByRole("button", { name: "Fale com o assistente" })
+  await step.click()
+  ok("clicking a step makes it active", (await step.getAttribute("aria-current")) === "step")
+  await page.getByRole("link", { name: "Criar conta" }).first().click()
+  await page.waitForURL("**/cadastro")
+  await page.waitForTimeout(900)
+  ok("sign-up steps", (await page.getByRole("button", { name: "Conecte seu WhatsApp" }).count()) === 1)
+  await ctx.close()
+}
+// mobile: segmented control switches screens, steps hidden
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  const page = await ctx.newPage()
+  await page.goto(base + "/entrar", { waitUntil: "networkidle" })
+  ok("mobile hides the steps", (await page.getByRole("button", { name: "Veja seu dia" }).isVisible()) === false)
+  await page.getByRole("navigation", { name: "Entrar ou criar conta" }).getByRole("link", { name: "Criar conta" }).click()
+  await page.waitForURL("**/cadastro")
+  ok("segmented control marks Criar conta", (await page.getByRole("navigation", { name: "Entrar ou criar conta" }).getByRole("link", { name: "Criar conta" }).getAttribute("aria-current")) === "page")
+  await ctx.close()
+}
 await browser.close()
 console.log(results.join("\n"))
 console.log(problems.length ? [...new Set(problems)].join("\n") : "no console problems")

@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label"
 import { requestPasswordReset } from "@/features/auth/actions"
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/features/auth/schemas"
 
-import { authButtonClass, authInputClass } from "./auth-parts"
+import { cn } from "@/lib/utils"
+
+import { authButtonClass, authInputClass, authLinkClass } from "./auth-parts"
 
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition()
@@ -37,8 +39,8 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-7">
-      <div className="flex flex-col gap-2">
+    <div className="flex w-full max-w-[420px] flex-col gap-6">
+      <div className="flex flex-col gap-2 text-center">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Recuperar senha</h1>
         <p className="text-base leading-6 text-muted-foreground">Informe seu e-mail e enviaremos um link para criar uma nova senha.</p>
       </div>
@@ -69,8 +71,8 @@ export function ForgotPasswordForm() {
         </form>
       )}
 
-      <p className="text-[15px] leading-6">
-        <Link href="/entrar" className="font-medium underline underline-offset-4">
+      <p className="text-center text-[15px] leading-6">
+        <Link href="/entrar" className={cn(authLinkClass, "font-medium underline hover:text-muted-foreground")}>
           Voltar para entrar
         </Link>
       </p>

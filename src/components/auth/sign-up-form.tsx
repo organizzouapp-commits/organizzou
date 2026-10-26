@@ -15,7 +15,7 @@ import { signUp } from "@/features/auth/actions"
 import { maskPhone, PASSWORD_RULES, signUpSchema, type SignUpInput } from "@/features/auth/schemas"
 import { cn } from "@/lib/utils"
 
-import { authButtonClass, authInputClass, GoogleButton, OrDivider, PasswordInput } from "./auth-parts"
+import { authButtonClass, authInputClass, authLinkClass, GoogleButton, OrDivider, PasswordInput } from "./auth-parts"
 
 export function SignUpForm() {
   const router = useRouter()
@@ -48,8 +48,8 @@ export function SignUpForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    <div className="flex w-full max-w-[420px] flex-col gap-5">
+      <div className="flex flex-col gap-2 text-center">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Criar conta</h1>
         <p className="text-base leading-6 text-muted-foreground">Leva menos de um minuto.</p>
       </div>
@@ -82,7 +82,7 @@ export function SignUpForm() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="signup-phone">Telefone</Label>
             <div className="flex gap-2">
-              <span className="flex h-12 shrink-0 items-center rounded-xl border border-input px-4 text-base" aria-label="Código do Brasil">
+              <span className="flex h-12 shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">
                 +55
               </span>
               <Controller
@@ -132,20 +132,20 @@ export function SignUpForm() {
       <OrDivider />
       <GoogleButton />
 
-      <p className="text-[13px] leading-5 text-muted-foreground">
+      <p className="text-center text-[13px] leading-5 text-muted-foreground">
         Ao criar sua conta você concorda com os{" "}
-        <Link href="/termos" className="underline underline-offset-4 hover:text-foreground">
+        <Link href="/termos" className={cn(authLinkClass, "underline hover:text-foreground")}>
           Termos de uso
         </Link>{" "}
         e a{" "}
-        <Link href="/privacidade" className="underline underline-offset-4 hover:text-foreground">
+        <Link href="/privacidade" className={cn(authLinkClass, "underline hover:text-foreground")}>
           Política de privacidade
         </Link>
         .
       </p>
-      <p className="text-[15px] leading-6 text-muted-foreground">
+      <p className="text-center text-[15px] leading-6 text-muted-foreground">
         Já tem conta?{" "}
-        <Link href="/entrar" className="font-medium text-foreground underline underline-offset-4">
+        <Link href="/entrar" className={cn(authLinkClass, "font-medium text-foreground underline hover:text-muted-foreground")}>
           Entrar
         </Link>
       </p>

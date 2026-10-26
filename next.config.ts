@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // A second dev server (screenshots) can use its own build folder: NEXT_DIST_DIR=.next-preview
   distDir: process.env.NEXT_DIST_DIR || ".next",
   cacheComponents: true,
+  images: { formats: ["image/avif", "image/webp"] },
   partialPrefetching: true,
   async redirects() {
     // Authenticated users land on the dashboard; the proxy sends everyone else to /entrar.

@@ -43,8 +43,8 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-7">
-      <div className="flex flex-col gap-2">
+    <div className="flex w-full max-w-[420px] flex-col gap-6">
+      <div className="flex flex-col gap-2 text-center">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Criar nova senha</h1>
         <p className="text-base leading-6 text-muted-foreground">Escolha uma senha que você não use em outros lugares.</p>
       </div>
