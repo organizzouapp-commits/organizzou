@@ -26,7 +26,7 @@ const navItems: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem] = [
 ]
 
 // The profile is the source of truth for the theme across devices.
-function ThemeSync({ theme }: { theme: string }) {
+function ThemeSync({ theme }: { theme?: string }) {
   const { setTheme } = useTheme()
   useEffect(() => {
     if (theme === "dark" || theme === "light") setTheme(theme)
@@ -36,7 +36,8 @@ function ThemeSync({ theme }: { theme: string }) {
 
 type AppShellProps = {
   user: ShellUser
-  theme: string
+  /** Saved preference from the profile; undefined keeps whatever the browser has. */
+  theme?: string
   children: React.ReactNode
 }
 

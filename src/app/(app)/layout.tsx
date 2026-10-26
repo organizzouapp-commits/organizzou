@@ -16,7 +16,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   const name = profile?.display_name || email.split("@")[0] || "Você"
 
   return (
-    <AppShell user={{ name, email }} theme={profile?.theme ?? "dark"}>
+    <AppShell user={{ name, email }} theme={profile?.theme}>
       {children}
     </AppShell>
   )

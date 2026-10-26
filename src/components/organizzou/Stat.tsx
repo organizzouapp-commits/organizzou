@@ -9,11 +9,13 @@ type StatProps = {
   support?: string
   /** Financial trend: shown with an arrow and the sign, never with color alone. */
   trend?: "up" | "down"
+  /** "sm" fits long values such as currency in narrow columns. */
+  size?: "default" | "sm"
   className?: string
 }
 
 // Label + hero number + support text, no box (DESIGN-SYSTEM §8).
-export function Stat({ label, value, support, trend, className }: StatProps) {
+export function Stat({ label, value, support, trend, size = "default", className }: StatProps) {
   const TrendIcon = trend === "down" ? ArrowDownRightIcon : ArrowUpRightIcon
 
   return (
@@ -21,8 +23,13 @@ export function Stat({ label, value, support, trend, className }: StatProps) {
       <span className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
         {label}
       </span>
-      <span className="tabular flex items-center gap-1.5 text-[30px] leading-9 font-semibold tracking-[-0.02em] md:text-4xl md:leading-10">
-        {trend ? <TrendIcon aria-hidden strokeWidth={1.75} className="size-6" /> : null}
+      <span
+        className={cn(
+          "tabular flex items-center gap-1.5 font-semibold tracking-[-0.02em]",
+          size === "sm" ? "text-2xl leading-8" : "text-[30px] leading-9 md:text-4xl md:leading-10"
+        )}
+      >
+        {trend ? <TrendIcon aria-hidden strokeWidth={1.75} className={size === "sm" ? "size-5" : "size-6"} /> : null}
         {value}
       </span>
       {support ? (
