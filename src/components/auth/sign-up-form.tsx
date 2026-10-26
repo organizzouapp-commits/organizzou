@@ -48,7 +48,7 @@ export function SignUpForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-5">
+    <div className="flex w-full max-w-[420px] flex-col gap-4">
       <div className="flex flex-col gap-2 text-center">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Criar conta</h1>
         <p className="text-base leading-6 text-muted-foreground">Leva menos de um minuto.</p>
@@ -109,7 +109,7 @@ export function SignUpForm() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="signup-password">Senha</Label>
             <PasswordInput id="signup-password" autoComplete="new-password" aria-invalid={Boolean(errors.password)} aria-describedby="password-rules" {...register("password")} />
-            <ul id="password-rules" className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <ul id="password-rules" className="grid grid-cols-2 gap-x-3">
               {PASSWORD_RULES.map((rule) => {
                 const ok = rule.test(password)
                 return (

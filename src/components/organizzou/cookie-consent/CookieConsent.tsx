@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
+import { ArrowRightIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -49,11 +50,13 @@ type CookieConsentProps = {
 
 /**
  * LGPD cookie bar: shows once per browser, until the choice is stored or CONSENT_VERSION changes.
+ * The preferences dialog (per-category switches) opens only through openCookiePreferences().
  * Mount it once in the root layout. Self-contained: only the shadcn Button, Dialog and Switch are used.
  */
 export function CookieConsent({ privacyHref = "/privacidade" }: CookieConsentProps) {
   const stored = useStoredConsent()
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [draft, setDraft] = useState({ analytics: false, marketing: false })
 
   useEffect(() => {
@@ -66,7 +69,14 @@ export function CookieConsent({ privacyHref = "/privacidade" }: CookieConsentPro
     return () => window.removeEventListener(OPEN_PREFERENCES_EVENT, openPreferences)
   }, [])
 
-  const showBar = stored === null
+  // The bar stays mounted for the exit animation after a choice.
+  const showBar = stored === null || closing
+
+  function choose(action: () => void) {
+    action()
+    setClosing(true)
+    window.setTimeout(() => setClosing(false), 400)
+  }
 
   return (
     <>
@@ -75,38 +85,28 @@ export function CookieConsent({ privacyHref = "/privacidade" }: CookieConsentPro
           role="region"
           aria-label="Aviso de cookies"
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 flex justify-center sm:inset-x-4 sm:bottom-4",
-            "animate-in duration-[400ms] fade-in slide-in-from-bottom-4 motion-reduce:animate-none"
+            "fixed inset-x-4 bottom-4 z-50 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-full sm:max-w-[440px]",
+            "fill-mode-forwards duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:animate-none",
+            closing ? "animate-out fade-out slide-out-to-bottom-4" : "animate-in fade-in slide-in-from-bottom-4"
           )}
         >
-          <div
-            className={cn(
-              "flex w-full max-w-[720px] flex-col gap-4 rounded-t-[20px] border border-border bg-popover p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-popover-foreground sm:rounded-[20px] sm:pb-5",
-              "sm:flex-row sm:items-center sm:gap-5"
-            )}
-          >
-            <p className="flex-1 text-[14px] leading-5">
-              Usamos cookies essenciais para o Organizzou funcionar e, com a sua permissão, cookies de análise para melhorar o app.{" "}
-              <a href={privacyHref} className={cn("rounded-sm underline underline-offset-4 outline-none hover:underline-offset-[6px] focus-visible:ring-3 focus-visible:ring-ring/50", motion)}>
-                Política de privacidade
+          <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-popover p-7 text-left text-popover-foreground">
+            <h2 className="text-[20px] leading-7 font-semibold">Antes de continuar…</h2>
+            <p className="text-[15px] leading-6 text-muted-foreground">
+              Usamos cookies para o Organizzou funcionar bem e melhorar sua experiência. Saiba mais na nossa
+              <a
+                href={privacyHref}
+                className={cn("block w-fit rounded-sm font-semibold text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:ring-3 focus-visible:ring-ring/50", motion)}
+              >
+                Política de privacidade.
               </a>
             </p>
-            <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row">
-              <Button className={motion} onClick={acceptAll}>
-                Aceitar todos
+            <div className="mt-3 flex flex-col-reverse gap-3 sm:grid sm:grid-cols-2">
+              <Button variant="outline" size="xl" className={motion} onClick={() => choose(rejectOptional)}>
+                Não, obrigado
               </Button>
-              <Button variant="outline" className={motion} onClick={rejectOptional}>
-                Recusar opcionais
-              </Button>
-              <Button
-                variant="ghost"
-                className={motion}
-                onClick={() => {
-                  setDraft({ analytics: false, marketing: false })
-                  setOpen(true)
-                }}
-              >
-                Personalizar
+              <Button size="xl" className={motion} onClick={() => choose(acceptAll)}>
+                Aceitar cookies <ArrowRightIcon strokeWidth={1.75} />
               </Button>
             </div>
           </div>

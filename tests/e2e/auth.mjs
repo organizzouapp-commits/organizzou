@@ -71,7 +71,7 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
   const page = await ctx.newPage()
   await page.goto(base + "/entrar", { waitUntil: "networkidle" })
   await page.waitForTimeout(700)
-  ok("login steps", (await page.getByRole("button", { name: "Receba lembretes no WhatsApp" }).count()) === 1)
+  ok("login steps", (await page.getByRole("button", { name: "Receba lembretes" }).count()) === 1)
   const step = page.getByRole("button", { name: "Fale com o assistente" })
   await step.click()
   ok("clicking a step makes it active", (await step.getAttribute("aria-current")) === "step")

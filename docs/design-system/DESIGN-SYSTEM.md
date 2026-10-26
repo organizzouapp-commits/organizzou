@@ -152,13 +152,19 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
   com raio 28 px e borda de 1 px a 10%.
 - **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
-  - **Moldura (passe-partout)**: o fundo sólido do cartão (Tinta no escuro, Papel no claro) envolve o painel com 20 px em todos os
-    lados, inclusive o lado voltado ao formulário. O painel é uma "janela" de raio 20 px para a foto e desliza junto com a moldura
-    (a moldura é uma sombra enorme da cor `background` presa ao painel, recortada pelo cartão).
+  - **Espaçamento uniforme P = 24 px**: o padding do cartão é P nos quatro lados; o painel e a área do formulário ficam recuados P
+    das bordas do cartão, com P de espaço entre eles, e têm exatamente a mesma altura (topo e base alinhados). O fundo sólido do
+    cartão (Tinta no escuro, Papel no claro) é o passe-partout: o painel é uma "janela" de raio 20 px para a foto e desliza junto com a
+    moldura (sombra enorme da cor `background` presa ao painel, recortada pelo cartão). Vale nas duas posições e durante a animação.
+  - **Área do formulário**: mesmo padding interno do painel (40 px). Linha de cabeçalho no topo com o seletor de tema à direita
+    (nunca sobre o título), formulário centralizado na vertical no espaço restante e "Termos de uso · Política de privacidade"
+    fixados embaixo, alinhados com a base dos cartões de passo do painel. No cadastro (mais campos) o ritmo é compacto (rótulo a
+    8 px do campo, 16 px entre campos, checklist de senha compacto); se não couber na altura da janela, o cartão cresce com os
+    mesmos paddings, sem sobrepor nada.
   - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
-  - Conteúdo: logotipo do modo escuro, selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
-    "Fale com o assistente", "Receba lembretes no WhatsApp". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
+  - Conteúdo: logotipo `public/brand/logo-preta.png` (32 px de altura; só no painel das telas de acesso), selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
+    "Fale com o assistente", "Receba lembretes". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
     "Organize seu dia". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
   - **Cartões de passo de vidro**: Papel 8% + `backdrop-blur(16px)` + borda de 1 px em Papel 12%. O passo ativo é Lima com texto
     Tinta. Hover e foco do teclado: sobe 4 px, borda Lima 40%, fundo Papel 12% e círculo do número preenchido de Lima
@@ -180,8 +186,8 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   mesma curva) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no voltar/avançar).
   `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
   Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
-- **Mobile (< 1024 px)**: sem painel e sem cartões de passo.
-  - **Hero** (~38% da altura) inserido na moldura: margem de 12 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
+- **Mobile (< 1024 px)**: sem painel e sem cartões de passo. Usa P = 16 px (margem do hero, padding da sheet).
+  - **Hero** (~38% da altura) inserido na moldura: margem de 16 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
     título + subtítulo centralizados e, embaixo, o controle segmentado "Entrar | Criar conta" (vidro; ativo = Lima com texto Tinta).
   - **Bottom sheet**: cartão sólido (token `background`) com raio de 28 px só nos cantos de cima, sobrepondo o hero em 24 px, com
     o formulário centralizado (mesmos campos de 48 px), botão do Google, link de troca e Termos/Privacidade no fim.
@@ -197,11 +203,14 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
 - **Aparece uma vez por navegador.** A escolha fica no cookie próprio `organizzou_consent` = `{version, necessary: true, analytics,
   marketing, decidedAt}`, 12 meses, `SameSite=Lax`, `Secure` em produção, `Domain` vindo de `NEXT_PUBLIC_COOKIE_DOMAIN` (vazio em
   localhost; `.organizzou.com.br` no futuro, para app e site compartilharem a escolha). Aumentar `CONSENT_VERSION` mostra o aviso de novo.
-- **Barra**: flutuante, no centro inferior (máx. 720 px, raio 20 px, fundo `popover`, borda 1 px a 10%), com o texto padrão e o link
-  "Política de privacidade". Botões: "Aceitar todos" (primário), "Recusar opcionais" (contorno), "Personalizar" (ghost), com as
-  mesmas transições de 0,4 s. No celular vira uma sheet de largura total na base, botões empilhados e respeitando as safe areas.
-- **Personalizar** abre um Dialog com chaves: Essenciais (sempre ligada, desativada), Análise e Marketing, e "Salvar preferências".
-  `Esc` fecha só o diálogo. A barra é `role="region"`.
+- **Barra**: fixa no canto inferior ESQUERDO, a 24 px das bordas (16 px no celular, largura total menos as margens), máx. 440 px,
+  raio 20 px, padding 28 px, fundo `popover`, borda 1 px a 10%, acima do cartão de acesso. De cima para baixo, alinhado à esquerda:
+  título "Antes de continuar…" (20 px / 600), texto de 15 px em `muted` com o link **Política de privacidade.** (600, foreground,
+  sublinhado no hover) na linha seguinte, e dois botões `xl` lado a lado de mesma largura: "Não, obrigado" (contorno = recusa os
+  opcionais) e "Aceitar cookies" (primário, com seta). No celular os botões empilham, primário em cima.
+  Entrada: sobe + fade em 0,4 s; saída: o inverso. A barra é `role="region"`.
+- **Preferências por categoria**: a barra não tem "Personalizar". O Dialog com chaves (Essenciais sempre ligada e desativada, Análise e
+  Marketing, "Salvar preferências") abre só por `openCookiePreferences()`, a partir de Configurações. `Esc` fecha só o diálogo.
 - **Uso**: `hasConsent("analytics")` e `<ConsentGate category="analytics">` envolvem qualquer script futuro, que só carrega após o
   consentimento. `openCookiePreferences()` reabre o diálogo (item "Preferências de cookies" em Configurações → Segurança e dados).
   A página `/privacidade` tem a seção "Cookies" com as três categorias.
