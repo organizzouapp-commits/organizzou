@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 
+import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -66,6 +67,7 @@ export function AppShell({ user, theme, nowIso, children }: AppShellProps) {
   }
 
   return (
+    <AssistantProvider value={{ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }}>
     <SidebarProvider>
       <ThemeSync theme={theme} />
       <div className="hidden md:contents">
@@ -134,5 +136,6 @@ export function AppShell({ user, theme, nowIso, children }: AppShellProps) {
         </SheetContent>
       </Sheet>
     </SidebarProvider>
+    </AssistantProvider>
   )
 }
