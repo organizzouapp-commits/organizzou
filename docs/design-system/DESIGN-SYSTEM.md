@@ -1,6 +1,7 @@
-# Organizzou — Design System (v2 · clean)
+# Organizzou — Design System (v2 · clean, layout v3)
 
 Fonte da verdade visual do app. Todo componente, tela e PR deve seguir este documento.
+O **layout v3** (seções 5.1 a 5.3: cartões bento, sidebar flutuante, barra superior e telas de acesso) vale para todas as fases futuras.
 Stack: Next.js (App Router) + Tailwind CSS v4 + shadcn/ui (Radix, preset Nova) + ícones Lucide.
 Tokens prontos: `organizzou-tokens.css` (mesclar em `src/app/globals.css`).
 
@@ -36,7 +37,7 @@ Transparências permitidas (sempre de Papel no escuro, de Tinta no claro): 4–8
 
 | Token | Escuro (padrão) | Claro |
 |---|---|---|
-| `background` | Tinta | Papel |
+| `background` | Tinta | Papel + Tinta 4% (para os cartões Papel se destacarem) |
 | `foreground` | Papel | Tinta |
 | `card` / `popover` | Grafite | Papel (com borda) |
 | `primary` / `primary-foreground` | Lima / Tinta | Tinta / Papel |
@@ -48,6 +49,11 @@ Transparências permitidas (sempre de Papel no escuro, de Tinta no claro): 4–8
 | `highlight` / `highlight-foreground` | Lima / Tinta | Lima / Tinta |
 | `destructive` / `destructive-foreground` | Papel / Tinta | Tinta / Papel |
 | `chart-1…5` | Lima, Lima verso, Papel, Papel 45%, Tinta verso | Tinta verso, Tinta, Lima verso, Tinta 35%, Grafite |
+| `sidebar` / `sidebar-foreground` | Grafite / Papel | **Tinta / Papel** (sidebar escura sobre app claro) |
+| `sidebar-accent` (hover) · `sidebar-border` | Papel 6% · Papel 10% | Papel 6% · Papel 10% |
+| `sidebar-primary` / `sidebar-ring` | Lima / Lima | Lima / Lima |
+
+A sidebar é **escura nos dois modos**: use sempre o logotipo do modo escuro nela e no painel de destaque do acesso.
 
 `highlight` é o lima nos dois modos, sempre com texto/ícone em Tinta por cima: pílula do item ativo na navegação,
 seleção de texto, badges de "hoje". **Lima nunca é usado como texto ou linha sobre Papel** (contraste 1,1:1).
@@ -72,6 +78,10 @@ seleção de texto, badges de "hoje". **Lima nunca é usado como texto ou linha 
 | `organizzou-logotipo-modo-escuro.svg` | Tema escuro (nome em Papel) |
 | `organizzou-logotipo-modo-claro.svg` | Tema claro (nome em Tinta) |
 | `organizzou-icone.svg` | Ícone do app, favicon, PWA |
+
+**Exceção única à paleta de 6 cores:** a marca "G" multicolorida do Google no botão "Continuar com Google" (ativo de terceiros,
+seguir as diretrizes de login do Google: botão neutro, "G" sem alteração, texto "Continuar com Google"). Nenhuma outra tela,
+ícone ou componente pode sair da paleta. Em código, só `GoogleMark` (`src/components/auth/auth-parts.tsx`) contém essas cores.
 
 Respiro mínimo: altura de uma barra do zz. Logotipo mín. 96 px de largura; ícone mín. 16 px.
 Não recolorir, não aplicar sombra. A Surgena existe só dentro do logo (em curvas); não usar na interface.
@@ -107,11 +117,58 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 - **Listas antes de cards:** itens separados por linha `border` com ícone em `muted-foreground`.
 - Alvos de toque mínimos de 44 × 44 px.
 
+### 5.1 Cartões e grade bento (layout v3)
+
+- Conteúdo em **grade de 12 colunas**, `gap` 20 px, largura máxima 1440 px. Cada cartão escolhe suas colunas
+  (`col-span-12 lg:col-span-7`, etc.); no celular tudo empilha em 1 coluna.
+- **Cartão**: raio **24 px**, padding 24 px, fundo Grafite (escuro) / Papel (claro), borda 1 px a 10%, **sem sombra**.
+  Cabeçalho = título (H3) + botão redondo com contorno e seta `arrow-up-right` à direita + link "Ver tudo" quando fizer sentido.
+- **Um único cartão de destaque por tela**: o KPI mais importante em Lima com texto Tinta (`KpiCard tone="highlight"`).
+  Os demais KPIs são neutros. Números grandes em `tabular-nums`, com uma linha de apoio/variação embaixo. Valores longos
+  (moeda, kg) descem um tamanho para nunca quebrar linha.
+- Listas dentro de cartões continuam limpas: linhas finas, sem caixas aninhadas. Componentes: `Bento`, `BentoCard`, `KpiCard`
+  (`src/components/organizzou/Bento.tsx`).
+
+### 5.2 Estrutura do app (sidebar e barra superior)
+
+- **Fundo da página**: Tinta no escuro; Papel + overlay de Tinta 4% no claro.
+- **Sidebar flutuante** (≥ 768 px): cartão com 16 px de margem, raio 24 px, 260 px de largura (rail de 80 px recolhida), altura total
+  menos as margens, fundo Grafite (escuro) / Tinta (claro). De cima para baixo: logotipo; grupos com rótulo overline
+  **MENU** (Hoje, Tarefas, Rotina, Agenda), **VIDA** (Finanças, Treinos, Dieta, Estudos), **ORGANIZAÇÃO** (Notas e lembretes, Metas,
+  Diário, Cofre); cartão Lima "Conecte seu WhatsApp" (some no rail); Configurações, Ajuda, Sair.
+  Item: 44 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Papel 6%; contador opcional
+  (círculo Papel 10%). O botão de recolher alterna entre sidebar e rail com dicas (tooltips); o estado é guardado **por usuário em cookie**.
+  Em tablet (768–1023 px) a sidebar começa como rail.
+- **Barra superior** (dentro da área de conteúdo, sem fundo, ~80 px): à esquerda a saudação grande ("Bom dia, Patrick", pelo horário)
+  com a data embaixo; nas telas de módulo, o título da página e um subtítulo curto. À direita: pílula de busca (Ctrl K abre a paleta
+  de comandos), sino com ponto Lima quando há novidades, alternância de tema, avatar com menu da conta e o botão primário
+  contextual "+ Novo" (cada tela registra o seu com `usePrimaryAction`; sem registro abre a captura rápida).
+- **Mobile (< 768 px)**: sem sidebar. `BottomNav` (Hoje · Tarefas · + · Finanças · Mais) e barra superior compacta (avatar, título da
+  página, sino e busca). "Mais" abre um sheet com os grupos de navegação e o cartão do WhatsApp.
+
+### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
+
+- **Desktop (≥ 1024 px)**: um contêiner centralizado com raio 28 px (máx. 1200 px, altura mínima 720 px) dividido em duas metades.
+  O **painel de destaque** (Tinta no claro, Grafite no escuro, raio 24 px, padding 40 px) tem um brilho suave feito só de Lima a
+  10–15% de opacidade, o logotipo do modo escuro no topo e, embaixo: selo, título grande, subtítulo e 3 passos
+  ("Crie sua conta", "Conecte seu WhatsApp", "Organize seu dia"). Passo ativo = Lima com texto Tinta e círculo numerado;
+  inativos = Papel 8% com texto Papel 70% e número contornado.
+- **Formulário**: título, campos de 48 px (raio 12), botão primário de largura total, divisor "ou", "Continuar com Google" (contorno),
+  link para trocar de tela. Cadastro: Nome completo, E-mail, Telefone (máscara brasileira, prefixo +55, salvo em E.164) e Senha com
+  olho de mostrar/ocultar e checklist ao vivo (8 caracteres, maiúscula, minúscula, número). Validação com zod no cliente e no servidor.
+- **Animação**: no login o painel fica à ESQUERDA; em "Criar conta" ele desliza para a DIREITA (`translateX`, 550 ms,
+  `cubic-bezier(0.2, 0.8, 0.2, 1)`) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no
+  voltar/avançar do navegador). `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo
+  `(auth)`, que não remonta. Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda.
+  Com `prefers-reduced-motion` não há deslize: só troca com fade.
+- **Mobile (< 1024 px)**: sem painel deslizante; o painel vira um cabeçalho compacto (logotipo + título, Tinta/Grafite com o brilho
+  Lima, raio 24) acima do formulário, e entrar/criar conta trocam com fade.
+
 ---
 
 ## 6. Movimento
 
-120 ms (hover/press) · 200 ms (abrir/fechar) · 300 ms (sheets, troca de tela), curva
+120 ms (hover/press) · 200 ms (abrir/fechar) · 300 ms (sheets, troca de tela) · 550 ms (painel das telas de acesso), curva
 `cubic-bezier(0.2, 0.8, 0.2, 1)`. Micro-animações discretas: check (escala 0.9→1), progresso preenchendo,
 card levantando 2 px ao arrastar. Respeitar `prefers-reduced-motion`.
 
@@ -155,7 +212,8 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 | `calendar` | Hoje com anel `ring`; selecionado `primary`. |
 | `chart` | Somente `chart-1…5`. Linhas finas, sem grade pesada. |
 | `sonner` | Toasts do assistente, fundo `popover`, ícone + texto. |
-| `sidebar`, `avatar`, `separator`, `skeleton`, `tooltip`, `scroll-area`, `dropdown-menu`, `popover`, `sheet` | Padrão com os tokens. |
+| `sidebar` | Variante `floating` (seção 5.2): raio 24 px, 260 px / rail de 80 px, itens de 44 px. |
+| `avatar`, `separator`, `skeleton`, `tooltip`, `scroll-area`, `dropdown-menu`, `popover`, `sheet` | Padrão com os tokens. |
 
 Componentes próprios (`src/components/organizzou/`): `Logo`, `ModuleIcon` (só ícone + nome), `Stat`
 (rótulo + número herói + apoio, sem caixa), `HabitCheck`, `ListRow`, `BottomNav` (4 itens + "+" central;

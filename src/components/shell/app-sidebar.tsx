@@ -48,7 +48,7 @@ export function AppSidebar({ counts }: AppSidebarProps) {
 
   return (
     <Sidebar variant="floating" collapsible="icon">
-      <SidebarHeader className={cn("gap-3 px-5 pt-6", collapsed && "items-center px-0")}>
+      <SidebarHeader className={cn("gap-3 px-5 pt-5 pb-1", collapsed && "items-center px-0")}>
         <div className={cn("flex items-center justify-between gap-2", collapsed && "flex-col")}>
           <Link href="/hoje" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
             {collapsed ? <Logo iconOnly className="size-10" /> : <Logo tone="on-dark" className="h-8" />}
@@ -64,14 +64,14 @@ export function AppSidebar({ counts }: AppSidebarProps) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="gap-2 px-3">
+      <SidebarContent className="gap-1 px-3">
         {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label} className="px-0">
+          <SidebarGroup key={group.label} className="px-0 py-1">
             <SidebarGroupLabel className="px-4 text-[11px] leading-4 font-semibold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
+              <SidebarMenu className="gap-0.5">
                 {group.items.map((id) => {
                   const m = modules[id]
                   const count = counts[id]
@@ -80,7 +80,7 @@ export function AppSidebar({ counts }: AppSidebarProps) {
                       <SidebarMenuButton asChild tooltip={m.name} isActive={isActivePath(pathname, m.href)} className={itemClass}>
                         <Link href={m.href}>
                           <m.icon strokeWidth={1.75} className="size-5!" />
-                          <span>{m.name}</span>
+                          <span className="group-data-[collapsible=icon]:hidden">{m.name}</span>
                         </Link>
                       </SidebarMenuButton>
                       {count ? (
@@ -100,26 +100,26 @@ export function AppSidebar({ counts }: AppSidebarProps) {
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="gap-1 px-3 pb-5">
-        <SidebarMenu className="gap-1">
+      <SidebarFooter className="gap-0 px-3 pb-4">
+        <SidebarMenu className="gap-0.5">
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/configuracoes")} className={itemClass}>
               <Link href="/configuracoes">
                 <SettingsIcon strokeWidth={1.75} className="size-5!" />
-                <span>Configurações</span>
+                <span className="group-data-[collapsible=icon]:hidden">Configurações</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Ajuda" className={itemClass} onClick={openAssistant}>
               <CircleHelpIcon strokeWidth={1.75} className="size-5!" />
-              <span>Ajuda</span>
+              <span className="group-data-[collapsible=icon]:hidden">Ajuda</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Sair" className={itemClass} onClick={() => void signOut()}>
               <LogOutIcon strokeWidth={1.75} className="size-5!" />
-              <span>Sair</span>
+              <span className="group-data-[collapsible=icon]:hidden">Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

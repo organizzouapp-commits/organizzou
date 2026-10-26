@@ -209,7 +209,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                         key={entry.id}
                         type="button"
                         onClick={() => setEditing(entry)}
-                        className="flex min-h-14 items-center gap-4 border-b border-border py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className="flex min-h-14 w-full items-center gap-4 border-b border-border py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="truncate text-[15px] leading-6">{foodRow.name}</span>

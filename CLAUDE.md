@@ -31,7 +31,10 @@ Read these before any UI or product work:
    44 px minimum touch targets, Geist font, `tabular-nums` for numbers, Lucide icons (stroke 1.75).
 8. Build new UI from **shadcn/ui components (via the shadcn MCP)** and the shared components in
    `src/components/organizzou/`. Don't create one-off styled duplicates.
-9. If a requirement seems to need something outside the design system, **stop and ask**.
+9. **Layout v3** (DESIGN-SYSTEM §5.1–5.3): bento grid with 24 px cards and one Lima KPI per screen, floating sidebar + top bar
+   (register the screen's "+ Novo" with `usePrimaryAction`), split-card auth with the sliding panel. The Google "G" is the only
+   allowed color outside the palette.
+10. If a requirement seems to need something outside the design system, **stop and ask**.
 
 ## Engineering conventions
 - Next.js App Router + TypeScript `strict`. Server Components by default; Server Actions / Route Handlers for writes.

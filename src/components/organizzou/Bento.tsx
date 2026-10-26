@@ -90,7 +90,13 @@ export function KpiCard({ label, value, support, trend, href, tone = "default", 
         </span>
         {href ? <ArrowLink href={href} label={`Abrir ${label}`} tone={tone} /> : null}
       </header>
-      <span className="tabular flex items-center gap-1.5 text-[30px] leading-9 font-semibold tracking-[-0.02em] md:text-4xl md:leading-10">
+      <span
+        className={cn(
+          "tabular flex items-center gap-1.5 font-semibold tracking-[-0.02em] whitespace-nowrap",
+          // Long values (currency, kg) step down so they never wrap inside a quarter-width card.
+          value.length > 8 ? "text-2xl leading-8 xl:text-[26px]" : "text-[30px] leading-9 md:text-4xl md:leading-10"
+        )}
+      >
         {trend === "up" ? <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-6" /> : null}
         {trend === "down" ? <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-6 rotate-90" /> : null}
         {value}
