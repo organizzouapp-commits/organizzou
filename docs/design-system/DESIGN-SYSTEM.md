@@ -152,18 +152,21 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
   com raio 28 px e borda de 1 px a 10%.
 - **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
-  - **Espaçamento uniforme P = 24 px**: o padding do cartão é P nos quatro lados; o painel e a área do formulário ficam recuados P
-    das bordas do cartão, com P de espaço entre eles, e têm exatamente a mesma altura (topo e base alinhados). O fundo sólido do
-    cartão (Tinta no escuro, Papel no claro) é o passe-partout: o painel é uma "janela" de raio 20 px para a foto e desliza junto com a
+  - **Espaçamento uniforme P = 16 px**: o padding do cartão é P nos quatro lados; o painel fica recuado P das bordas do cartão, com P de
+    espaço até a área do formulário, e os dois têm exatamente a mesma altura (topo e base alinhados). O fundo sólido do cartão
+    (Tinta no escuro, Papel no claro) é o passe-partout: o painel é uma "janela" de raio 20 px para a foto e desliza junto com a
     moldura (sombra enorme da cor `background` presa ao painel, recortada pelo cartão). Vale nas duas posições e durante a animação.
-  - **Área do formulário**: mesmo padding interno do painel (40 px). Linha de cabeçalho no topo com o seletor de tema à direita
-    (nunca sobre o título), formulário centralizado na vertical no espaço restante e "Termos de uso · Política de privacidade"
-    fixados embaixo, alinhados com a base dos cartões de passo do painel. No cadastro (mais campos) o ritmo é compacto (rótulo a
-    8 px do campo, 16 px entre campos, checklist de senha compacto); se não couber na altura da janela, o cartão cresce com os
-    mesmos paddings, sem sobrepor nada.
+  - **Padding interno 28 px** no painel e na área do formulário: a linha do logotipo e o topo do formulário alinham; a base dos
+    cartões de passo fica 28 px acima da base do painel. O formulário fica centralizado na vertical no espaço restante.
+  - **Termos/Privacidade** ficam sem padding inferior, centralizados, com a base exatamente na base do painel (a linha da moldura).
+    No cadastro o ritmo é compacto (rótulo a 8 px do campo, 16 px entre campos, checklist de senha compacto) em vez de aumentar paddings.
+  - **Seletor de tema flutuante**: botão redondo de 44 px fixo no canto superior direito da *viewport* (24 px; 16 px no celular, com
+    safe areas), fora do cartão, em vidro: no escuro Papel 8% + blur 16 px + borda Papel 12%; no claro Tinta 6% + blur + borda Tinta 12%.
+    Transição de 0,4 s no hover.
   - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
-  - Conteúdo: logotipo `public/brand/logo-preta.png` (32 px de altura; só no painel das telas de acesso), selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
+  - Conteúdo: logotipo por tema, 32 px de altura, só no painel das telas de acesso: tema escuro `public/brand/logo-preta.png`, tema
+    claro `public/brand/logo-branca.png` (as duas imagens ficam no DOM e alternam pela classe `dark`: sem flash nem hydration mismatch), selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
     "Fale com o assistente", "Receba lembretes". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
     "Organize seu dia". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
   - **Cartões de passo de vidro**: Papel 8% + `backdrop-blur(16px)` + borda de 1 px em Papel 12%. O passo ativo é Lima com texto
@@ -172,8 +175,8 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   - **Metade do formulário sólida**: token `background` (Tinta no escuro, Papel no claro). Alterna de lado junto com o painel.
 - **Formulário**: coluna de no máx. ~420 px, centralizada na horizontal e na vertical. Título, subtítulo, divisor "ou", texto do
   botão do Google, link de troca de tela e linha legal **centralizados**; rótulos dos campos alinhados à esquerda.
-  Seletor de tema no canto superior direito da metade do formulário; "Termos de uso" e "Política de privacidade" centralizados no
-  rodapé da mesma metade (dentro do cartão).
+  O seletor de tema fica fora do cartão (flutuante na viewport); "Termos de uso" e "Política de privacidade" ficam centralizados no
+  rodapé da metade do formulário.
 - **Controles do mesmo tamanho**: campos, botão primário e "Continuar com Google" têm 52 px de altura e raio 12 px. Os botões usam
   o tamanho `xl` do `Button` (52 px, texto 16 px / 600, padding horizontal 24 px); os campos usam `authInputClass`. O cadastro não
   repete a frase legal: só os links "Termos de uso · Política de privacidade" no rodapé do cartão. Cadastro: Nome completo, E-mail, Telefone (máscara BR, +55, E.164),
@@ -187,7 +190,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
   Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
 - **Mobile (< 1024 px)**: sem painel e sem cartões de passo. Usa P = 16 px (margem do hero, padding da sheet).
-  - **Hero** (~38% da altura) inserido na moldura: margem de 16 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
+  - **Hero** (~38% da altura) inserido na moldura: margem de 16 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, (o seletor de tema flutuante fica no canto da viewport),
     título + subtítulo centralizados e, embaixo, o controle segmentado "Entrar | Criar conta" (vidro; ativo = Lima com texto Tinta).
   - **Bottom sheet**: cartão sólido (token `background`) com raio de 28 px só nos cantos de cima, sobrepondo o hero em 24 px, com
     o formulário centralizado (mesmos campos de 48 px), botão do Google, link de troca e Termos/Privacidade no fim.

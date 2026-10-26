@@ -117,11 +117,13 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
   // Active step per copy (visual only).
   const [steps, setSteps] = useState<Record<CopyKey, number>>({ login: 0, signup: 0 })
   return (
-    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden rounded-[20px] p-10 text-palette-papel", className)}>
+    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden rounded-[20px] p-7 text-palette-papel", className)}>
       {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative">
-        <Image src="/brand/logo-preta.png" alt="Organizzou" width={3000} height={683} className="h-8 w-auto" priority />
+        {/* One logo per theme, swapped with CSS so there is no flash or hydration mismatch. Same size in both. */}
+        <Image src="/brand/logo-preta.png" alt="Organizzou" width={3000} height={683} className="hidden h-8 w-auto dark:block" />
+        <Image src="/brand/logo-branca.png" alt="Organizzou" width={3000} height={683} className="block h-8 w-auto dark:hidden" />
       </div>
       <div className="relative grid">
         <HighlightCopy copyKey="login" active={!signup} activeStep={steps.login} onStep={(i) => setSteps((s) => ({ ...s, login: i }))} />
@@ -144,10 +146,6 @@ function MobileHero({ mode }: { mode: Mode }) {
       <span aria-hidden className={cn("pointer-events-none absolute inset-0 rounded-[24px]", SCRIM)} />
       <div className="relative flex items-center justify-between">
         <Logo tone="on-dark" className="h-8" />
-        <ThemeToggle
-          round
-          className={cn(glass, "text-palette-papel hover:bg-palette-papel/20 hover:text-palette-papel dark:bg-palette-papel/10 dark:hover:bg-palette-papel/20", authMotion)}
-        />
       </div>
       <div key={mode === "signup" ? "signup" : "login"} className="relative flex animate-in flex-col items-center gap-2 text-center duration-300 fade-in slide-in-from-bottom-2">
         <h2 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">{copy.headline}</h2>
@@ -197,17 +195,13 @@ function FormPane({ active, side, children }: { active: boolean; side: "left" | 
       className={cn(
         authMotion,
         // Mobile P = 16 px; desktop panes use the panel's 40 px inner padding.
-        "relative flex-col px-4 pt-8 pb-[max(1rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:p-10",
+        "relative flex-col px-4 pt-8 pb-[max(1rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:px-7 lg:pt-7 lg:pb-0",
         side === "left" ? "lg:col-start-1" : "lg:col-start-2",
         active
           ? cn("flex opacity-100 lg:translate-x-0 max-lg:animate-in max-lg:duration-300 max-lg:fade-in", side === "left" ? "max-lg:slide-in-from-left-6" : "max-lg:slide-in-from-right-6")
           : cn("hidden lg:pointer-events-none lg:flex lg:opacity-0", side === "left" ? "lg:-translate-x-6" : "lg:translate-x-6")
       )}
     >
-      {/* Header row: the toggle never overlaps the title. */}
-      <div className="hidden h-9 justify-end lg:flex">
-        <ThemeToggle round />
-      </div>
       <div className="flex flex-1 items-center justify-center py-4">{children}</div>
       <LegalLinks className="mt-6 lg:mt-0" />
     </section>
@@ -228,24 +222,34 @@ export function AuthShell() {
       {/* Full-screen photo behind everything (public/images/auth-background.png). */}
       <Image src="/images/auth-background.png" alt="" fill priority sizes="100vw" className="-z-10 object-cover object-center" />
 
+      {/* Floating glass theme toggle, fixed to the viewport corner (outside the card). */}
+      <ThemeToggle
+        round
+        className={cn(
+          "fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-40 size-11 backdrop-blur-[16px] md:size-11 lg:top-6 lg:right-6",
+          "border-palette-tinta/12 bg-palette-tinta/6 hover:bg-palette-tinta/12 dark:border-palette-papel/12 dark:bg-palette-papel/8 dark:hover:bg-palette-papel/12",
+          authMotion
+        )}
+      />
+
       <div className="mx-auto flex min-h-dvh w-full max-w-[1200px] flex-col lg:justify-center lg:px-6 lg:py-6">
         <MobileHero mode={mode} />
 
         <div
           className={cn(
             "relative -mt-6 flex flex-1 flex-col rounded-t-[28px] bg-background",
-            // P = 24 px: card padding, and the gap between the panel and the form area.
-            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-6 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-6"
+            // P = 16 px: card padding, and the gap between the panel and the form area.
+            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-4 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-4"
           )}
         >
           {/* Desktop: the transparent highlight panel slides between the halves. */}
           <div
             data-crossfade
             className={cn(
-              // Same box as the form area, inset P (24 px) from the card. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
-              "pointer-events-none absolute inset-y-6 left-6 hidden w-[calc(50%-36px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
+              // Same box as the form area, inset P (16 px) from the card. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
+              "pointer-events-none absolute inset-y-4 left-4 hidden w-[calc(50%-24px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
               EASE,
-              signup ? "translate-x-[calc(100%+24px)]" : "translate-x-0"
+              signup ? "translate-x-[calc(100%+16px)]" : "translate-x-0"
             )}
           >
             <HighlightPanel signup={signup} className="pointer-events-auto size-full" />
