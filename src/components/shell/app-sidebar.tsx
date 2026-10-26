@@ -80,7 +80,7 @@ export function AppSidebar({ counts }: AppSidebarProps) {
                       <SidebarMenuButton asChild tooltip={m.name} isActive={isActivePath(pathname, m.href)} className={itemClass}>
                         <Link href={m.href}>
                           <m.icon strokeWidth={1.75} className="size-5!" />
-                          <span className="group-data-[collapsible=icon]:hidden">{m.name}</span>
+                          <span className="group-data-[collapsible=icon]:sr-only">{m.name}</span>
                         </Link>
                       </SidebarMenuButton>
                       {count ? (
@@ -106,20 +106,20 @@ export function AppSidebar({ counts }: AppSidebarProps) {
             <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/configuracoes")} className={itemClass}>
               <Link href="/configuracoes">
                 <SettingsIcon strokeWidth={1.75} className="size-5!" />
-                <span className="group-data-[collapsible=icon]:hidden">Configurações</span>
+                <span className="group-data-[collapsible=icon]:sr-only">Configurações</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Ajuda" className={itemClass} onClick={openAssistant}>
               <CircleHelpIcon strokeWidth={1.75} className="size-5!" />
-              <span className="group-data-[collapsible=icon]:hidden">Ajuda</span>
+              <span className="group-data-[collapsible=icon]:sr-only">Ajuda</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="Sair" className={itemClass} onClick={() => void signOut()}>
               <LogOutIcon strokeWidth={1.75} className="size-5!" />
-              <span className="group-data-[collapsible=icon]:hidden">Sair</span>
+              <span className="group-data-[collapsible=icon]:sr-only">Sair</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
