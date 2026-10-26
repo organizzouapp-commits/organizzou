@@ -31,9 +31,6 @@ async function FirstBoardRedirect() {
 export default function TasksIndexPage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[28px] md:leading-[34px]">
-        Tarefas
-      </h1>
       <Suspense fallback={<Skeleton className="h-48 w-full" />}>
         <FirstBoardRedirect />
       </Suspense>

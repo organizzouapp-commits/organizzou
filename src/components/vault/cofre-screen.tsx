@@ -14,7 +14,6 @@ import {
   KeyRoundIcon,
   LockIcon,
   LockOpenIcon,
-  PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   ShieldAlertIcon,
@@ -25,8 +24,9 @@ import {
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -86,12 +86,21 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
   const [toDelete, setToDelete] = useState<VaultItemRow | null>(null)
   const [autoLock, setAutoLock] = useState("5")
 
+  usePrimaryAction("Novo item", () => {
+    if (!unlocked) {
+      toast("Desbloqueie o cofre para guardar um item.")
+      return
+    }
+    setCreating(true)
+  })
+
   if (!unlocked) {
     return (
-      <div className="flex flex-col gap-8">
-        <PageHeader title="Cofre" description="Suas senhas e documentos, criptografados no seu aparelho." />
+      <div className="flex flex-col gap-5">
+        <PageHeader />
+        <BentoCard className="max-w-md">
         <form
-          className="flex max-w-sm flex-col gap-5"
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault()
             if (!master.trim()) return
@@ -111,6 +120,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             <LockOpenIcon strokeWidth={1.75} /> Desbloquear
           </Button>
         </form>
+        </BentoCard>
       </div>
     )
   }
@@ -127,19 +137,12 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
   const reusedIds = new Set(reusedGroups.flat())
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        title="Cofre"
-        description="Criptografado no seu aparelho. O assistente nunca vê o que está aqui."
         actions={
-          <>
-            <Button variant="outline" onClick={() => { setUnlocked(false); setOpenId(null) }}>
-              <LockIcon strokeWidth={1.75} /> Bloquear
-            </Button>
-            <Button onClick={() => setCreating(true)}>
-              <PlusIcon strokeWidth={1.75} /> Novo item
-            </Button>
-          </>
+          <Button variant="outline" onClick={() => { setUnlocked(false); setOpenId(null) }}>
+            <LockIcon strokeWidth={1.75} /> Bloquear
+          </Button>
         }
       />
 
@@ -150,7 +153,9 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="itens" className="flex flex-col gap-6 pt-6">
+        <TabsContent value="itens" className="pt-5">
+          <Bento>
+          <BentoCard className="col-span-12 lg:col-span-9" bodyClassName="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 basis-48 md:max-w-80">
               <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -184,7 +189,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             </Select>
           </div>
 
-          <div className="max-w-3xl">
+          <div>
             {visible.map((item) => {
               const Icon = TYPE_ICONS[item.type]
               const strength = item.password ? passwordStrength(item.password) : null
@@ -214,27 +219,38 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             })}
             {visible.length === 0 ? <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nenhum item encontrado.</p> : null}
           </div>
+          </BentoCard>
+          <BentoCard title="Resumo" className="col-span-12 lg:col-span-3" bodyClassName="flex flex-col gap-3 text-[15px] leading-6">
+            <p className="flex justify-between"><span className="text-muted-foreground">Itens</span><span className="tabular">{items.length}</span></p>
+            <p className="flex justify-between"><span className="text-muted-foreground">Senhas fracas</span><span className="tabular">{weak.length}</span></p>
+            <p className="flex justify-between"><span className="text-muted-foreground">Repetidas</span><span className="tabular">{reusedIds.size}</span></p>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="gerador" className="pt-6">
-          <Generator />
+        <TabsContent value="gerador" className="pt-5">
+          <Bento>
+            <BentoCard title="Gerador de senhas" className="col-span-12 lg:col-span-7">
+              <Generator />
+            </BentoCard>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="seguranca" className="flex max-w-3xl flex-col gap-10 pt-6">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-            <Stat size="sm" label="Itens" value={`${items.length}`} support="no cofre" />
-            <Stat size="sm" label="Senhas fracas" value={`${weak.length}`} support="para trocar" />
-            <Stat size="sm" label="Repetidas" value={`${reusedIds.size}`} support={`${reusedGroups.length} grupo(s)`} />
-            <Stat size="sm" label="Fortes" value={`${logins.length - weak.length}`} support={`de ${logins.length} logins`} />
-          </div>
+        <TabsContent value="seguranca" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Itens" value={`${items.length}`} support="no cofre" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Senhas fracas" value={`${weak.length}`} support="para trocar" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Repetidas" value={`${reusedIds.size}`} support={`${reusedGroups.length} grupo(s)`} className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Fortes" value={`${logins.length - weak.length}`} support={`de ${logins.length} logins`} className="col-span-6 lg:col-span-3" />
 
           {weak.length + reusedIds.size === 0 ? (
+            <BentoCard className="col-span-12 lg:col-span-7">
             <p className="flex items-center gap-2 text-[15px] leading-6">
               <ShieldCheckIcon aria-hidden strokeWidth={1.75} className="size-5" /> Tudo certo: nenhuma senha fraca ou repetida.
             </p>
+            </BentoCard>
           ) : (
-            <section className="flex flex-col gap-2">
-              <SectionTitle>Para corrigir</SectionTitle>
+            <BentoCard title="Para corrigir" className="col-span-12 lg:col-span-7">
               {[...new Set([...weak.map((i) => i.id), ...reusedIds])].map((id) => {
                 const item = items.find((i) => i.id === id)
                 if (!item) return null
@@ -254,11 +270,10 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
                   </div>
                 )
               })}
-            </section>
+            </BentoCard>
           )}
 
-          <section className="flex max-w-md flex-col gap-4">
-            <SectionTitle>Proteção</SectionTitle>
+          <BentoCard title="Proteção" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="autolock">Bloquear automaticamente</Label>
               <Select value={autoLock} onValueChange={setAutoLock}>
@@ -279,7 +294,8 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             <p className="text-[13px] leading-5 text-muted-foreground">
               O backup só pode ser aberto com a sua senha mestra. O cofre nunca é exportado em texto aberto.
             </p>
-          </section>
+          </BentoCard>
+          </Bento>
         </TabsContent>
       </Tabs>
 

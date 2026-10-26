@@ -3,13 +3,15 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { ModuleIcon } from "@/components/organizzou/ModuleIcon"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -72,7 +74,7 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
   function renderGoals(list: GoalWithDetails[]) {
     if (list.length === 0) return <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nada por aqui ainda.</p>
     return (
-      <Accordion type="single" collapsible className="max-w-3xl">
+      <Accordion type="single" collapsible className="w-full">
         {list.map((goal) => {
           const progress = goalProgress(goal.links, goal.milestones)
           const left = goal.deadline ? daysUntil(goal.deadline, today) : null
@@ -153,17 +155,24 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
     )
   }
 
+  usePrimaryAction("Nova meta", () => setCreating(true))
+  const averageProgress =
+    active.length === 0 ? 0 : Math.round(active.reduce((sum, g) => sum + goalProgress(g.links, g.milestones), 0) / active.length)
+  const nextDeadline = [...active].filter((g) => g.deadline).sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))[0]
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Metas"
-        description="Objetivos de vida alimentados por tarefas, hábitos, finanças e estudos."
-        actions={
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon strokeWidth={1.75} /> Nova meta
-          </Button>
-        }
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
+      <Bento>
+        <KpiCard tone="highlight" label="Em andamento" value={`${active.length}`} support={`${averageProgress}% de progresso médio`} className="col-span-12 sm:col-span-4" />
+        <KpiCard label="Concluídas" value={`${done.length}`} support="metas fechadas" className="col-span-6 sm:col-span-4" />
+        <KpiCard
+          label="Próximo prazo"
+          value={nextDeadline?.deadline ? `${daysUntil(nextDeadline.deadline, today)} dias` : "—"}
+          support={nextDeadline?.title ?? "Sem prazos"}
+          className="col-span-6 sm:col-span-4"
+        />
+        <BentoCard className="col-span-12">
       <Tabs defaultValue="ativas">
         <TabsList>
           <TabsTrigger value="ativas">
@@ -180,6 +189,8 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
           {renderGoals(done)}
         </TabsContent>
       </Tabs>
+        </BentoCard>
+      </Bento>
 
       <GoalDialog
         open={creating}

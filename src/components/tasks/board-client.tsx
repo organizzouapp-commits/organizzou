@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation"
 import { SearchXIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { bentoCardClass } from "@/components/organizzou/Bento"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { BoardApi } from "@/features/tasks/board-api"
 import {
@@ -267,6 +269,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/ta
     router.push(result.data.nextBoardId ? `/tarefas/${result.data.nextBoardId}` : "/tarefas")
   }
 
+  usePrimaryAction("Nova tarefa", () => setNewTaskOpen(true))
+
   const listTaskCount = listToDelete ? tasks.filter((t) => t.list_id === listToDelete.id).length : 0
   const viewProps = {
     lists,
@@ -281,7 +285,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/ta
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
+      <div className={bentoCardClass()}>
       <BoardToolbar
         boards={boards.map((b) => (b.id === boardId ? { ...b, name: boardName } : b))}
         boardId={boardId}
@@ -300,6 +305,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/ta
         tags={tags}
         visibleCount={visible.length}
       />
+      </div>
 
       {view !== "kanban" && filtering && visible.length === 0 ? (
         <EmptyState
@@ -324,9 +330,13 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/ta
           onDeleteList={setListToDelete}
         />
       ) : view === "lista" ? (
-        <ListView {...viewProps} />
+        <div className={bentoCardClass()}>
+          <ListView {...viewProps} />
+        </div>
       ) : (
-        <CalendarView {...viewProps} />
+        <div className={bentoCardClass()}>
+          <CalendarView {...viewProps} />
+        </div>
       )}
 
       <TaskSheet

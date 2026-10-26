@@ -26,6 +26,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { bentoCardClass } from "@/components/organizzou/Bento"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,7 +75,7 @@ function Column({
   return (
     <section
       aria-label={list.name}
-      className="flex w-[85vw] max-w-80 shrink-0 snap-center flex-col gap-3 md:w-72 md:snap-align-none"
+      className={cn(bentoCardClass(), "flex w-[85vw] max-w-80 shrink-0 snap-center flex-col gap-3 p-4 md:w-72 md:snap-align-none")}
     >
       <header className="flex items-center gap-2 px-1">
         <h3 className="min-w-0 flex-1 truncate text-[17px] leading-6 font-semibold">{list.name}</h3>

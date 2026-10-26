@@ -7,7 +7,8 @@ import { getSession } from "@/lib/supabase/session"
 
 export const metadata: Metadata = { title: "Configurações — Organizzou" }
 
-async function SettingsContent() {
+async function SettingsContent({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
+  const { aba } = await searchParams
   const { supabase, userId, email } = await getSession()
 
   const { data: profile } = await supabase
@@ -16,17 +17,14 @@ async function SettingsContent() {
     .eq("id", userId)
     .maybeSingle()
 
-  return <SettingsTabs displayName={profile?.display_name ?? ""} email={email} />
+  return <SettingsTabs displayName={profile?.display_name ?? ""} email={email} initialTab={aba} />
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[28px] md:leading-[34px]">
-        Configurações
-      </h1>
-      <Suspense fallback={<Skeleton className="h-72 w-full max-w-xl" />}>
-        <SettingsContent />
+      <Suspense fallback={<Skeleton className="h-72 w-full rounded-[24px]" />}>
+        <SettingsContent searchParams={searchParams} />
       </Suspense>
     </div>
   )

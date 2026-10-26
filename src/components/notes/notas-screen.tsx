@@ -23,7 +23,9 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
+import { Bento, BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -160,6 +162,8 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
     updateNote(open.id, { body: open.body + addition })
   }
 
+  usePrimaryAction("Nova nota", createNote)
+
   const sections = [
     { key: "all", label: "Todas as notas", icon: NotebookPenIcon, count: notes.length },
     { key: "pinned", label: "Fixadas", icon: PinIcon, count: notes.filter((n) => n.pinned).length },
@@ -185,8 +189,8 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader title="Notas e lembretes" description="Anote agora, encontre depois e seja lembrado na hora certa." />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
 
       <Tabs defaultValue="notas">
         <TabsList>
@@ -194,10 +198,10 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
           <TabsTrigger value="lembretes">Lembretes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="notas" className="pt-6">
-          <div className="grid gap-8 md:grid-cols-[13rem_minmax(0,20rem)_minmax(0,1fr)]">
+        <TabsContent value="notas" className="pt-5">
+          <div className="grid gap-5 md:grid-cols-[13rem_minmax(0,20rem)_minmax(0,1fr)]">
             {/* folders */}
-            <nav aria-label="Pastas" className={cn("flex flex-col gap-1", open && "hidden md:flex")}>
+            <nav aria-label="Pastas" className={cn(bentoCardClass(), "flex flex-col gap-1 p-4", open && "hidden md:flex")}>
               {sections.map(({ key, label, icon: Icon, count }) => (
                 <button
                   key={key}
@@ -217,7 +221,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
             </nav>
 
             {/* list */}
-            <section className={cn("flex min-w-0 flex-col gap-3", open && "hidden md:flex")}>
+            <section aria-label="Lista de notas" className={cn(bentoCardClass(), "flex flex-col gap-3 p-4", open && "hidden md:flex")}>
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -263,7 +267,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
             </section>
 
             {/* editor */}
-            <section className={cn("min-w-0", !open && "hidden md:block")}>
+            <section aria-label="Editor" className={cn(bentoCardClass(), !open && "hidden md:block")}>
               {!open ? (
                 <EmptyState icon={NotebookPenIcon} title="Selecione uma nota" description="Escolha uma nota na lista ou crie uma nova." />
               ) : (
@@ -340,15 +344,21 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
           </div>
         </TabsContent>
 
-        <TabsContent value="lembretes" className="flex max-w-3xl flex-col gap-8 pt-6">
-          <div>
-            <Button onClick={() => setCreatingReminder(true)}>
-              <PlusIcon strokeWidth={1.75} /> Novo lembrete
-            </Button>
-          </div>
-          {groups.map((group) => (
-            <section key={group.label} className="flex flex-col">
-              <SectionTitle className="mb-1">{group.label}</SectionTitle>
+        <TabsContent value="lembretes" className="pt-5">
+          <Bento>
+          {groups.map((group, index) => (
+            <BentoCard
+              key={group.label}
+              title={group.label}
+              className="col-span-12 lg:col-span-6"
+              actions={
+                index === 0 ? (
+                  <Button variant="outline" size="sm" onClick={() => setCreatingReminder(true)}>
+                    <PlusIcon strokeWidth={1.75} /> Novo lembrete
+                  </Button>
+                ) : undefined
+              }
+            >
               {group.items.map((r) => (
                 <div key={r.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                   <Checkbox
@@ -389,11 +399,10 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   </DropdownMenu>
                 </div>
               ))}
-            </section>
+            </BentoCard>
           ))}
           {done.length > 0 ? (
-            <section className="flex flex-col">
-              <SectionTitle className="mb-1">Concluídos</SectionTitle>
+            <BentoCard title="Concluídos" className="col-span-12 lg:col-span-6">
               {done.map((r) => (
                 <div key={r.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 text-muted-foreground last:border-b-0">
                   <Checkbox
@@ -405,8 +414,9 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   <Badge variant="outline">Feito</Badge>
                 </div>
               ))}
-            </section>
+            </BentoCard>
           ) : null}
+          </Bento>
         </TabsContent>
       </Tabs>
 

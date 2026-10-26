@@ -121,7 +121,7 @@ export function BoardToolbar(props: BoardToolbarProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button onClick={props.onNewTask} className="ml-auto">
+        <Button onClick={props.onNewTask} className="ml-auto md:hidden">
           <PlusIcon strokeWidth={1.75} /> <span className="hidden sm:inline">Nova tarefa</span>
           <span className="sm:hidden">Nova</span>
         </Button>

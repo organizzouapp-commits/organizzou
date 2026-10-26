@@ -19,12 +19,13 @@ import {
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { moodInsights } from "@/features/journal/insights"
+import { average, moodInsights } from "@/features/journal/insights"
 import { MOOD_LABELS, type JournalDay, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
 import { buildMockJournal } from "@/mocks/journal"
@@ -81,12 +82,19 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
   const insights = moodInsights(sorted.filter((d) => d.entry_date !== today))
   const history = [...sorted].reverse().slice(0, 12)
 
-  return (
-    <div className="flex flex-col gap-10">
-      <PageHeader title="Diário" description="Um minuto por dia para entender o que melhora o seu humor." />
+  const moodAverage = average(sorted.map((d) => d.mood))
+  const sleepAverage = average(sorted.map((d) => d.sleep_hours ?? 0).filter((h) => h > 0))
+  const loggedDays = sorted.length
 
-      <section className="flex max-w-xl flex-col gap-5">
-        <SectionTitle>Como foi hoje?</SectionTitle>
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader />
+      <Bento>
+      <KpiCard tone="highlight" label="Humor médio" value={moodAverage === null ? "—" : moodAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} support="nos últimos 30 dias" className="col-span-12 sm:col-span-4" />
+      <KpiCard label="Sono médio" value={sleepAverage === null ? "—" : `${sleepAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} h`} support="por noite" className="col-span-6 sm:col-span-4" />
+      <KpiCard label="Check-ins" value={`${loggedDays}`} support="dias registrados" className="col-span-6 sm:col-span-4" />
+
+      <BentoCard title="Como foi hoje?" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-5">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button
@@ -127,10 +135,9 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
             {todayEntry ? "Atualizar check-in" : "Salvar check-in"}
           </Button>
         </div>
-      </section>
+      </BentoCard>
 
-      <section className="flex max-w-3xl flex-col gap-4">
-        <SectionTitle>O que combina com seus melhores dias</SectionTitle>
+      <BentoCard title="O que combina com seus melhores dias" className="col-span-12 lg:col-span-5">
         <div>
           {insights.map((insight) => {
             const Icon = INSIGHT_ICONS[insight.key]
@@ -152,11 +159,10 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
             )
           })}
         </div>
-      </section>
+      </BentoCard>
 
-      <section className="flex max-w-3xl flex-col gap-3">
-        <SectionTitle>Humor nos últimos 30 dias</SectionTitle>
-        <ChartContainer config={moodConfig} className="aspect-[16/6] w-full">
+      <BentoCard title="Humor nos últimos 30 dias" className="col-span-12 lg:col-span-6">
+        <ChartContainer config={moodConfig} className="aspect-[16/8] w-full">
           <LineChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
@@ -165,8 +171,10 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
             <Line dataKey="mood" type="monotone" stroke="var(--color-mood)" strokeWidth={1.75} dot={false} />
           </LineChart>
         </ChartContainer>
-        <SectionTitle className="pt-2">Horas de sono</SectionTitle>
-        <ChartContainer config={sleepConfig} className="aspect-[16/5] w-full">
+      </BentoCard>
+
+      <BentoCard title="Horas de sono" className="col-span-12 lg:col-span-6">
+        <ChartContainer config={sleepConfig} className="aspect-[16/8] w-full">
           <BarChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
@@ -175,10 +183,9 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
             <Bar dataKey="sleep" fill="var(--color-sleep)" radius={4} />
           </BarChart>
         </ChartContainer>
-      </section>
+      </BentoCard>
 
-      <section className="flex max-w-3xl flex-col">
-        <SectionTitle className="mb-1">Últimos registros</SectionTitle>
+      <BentoCard title="Últimos registros" className="col-span-12">
         {history.map((entry) => {
           const Icon = MOODS.find((m) => m.value === entry.mood)?.icon ?? MehIcon
           return (
@@ -195,7 +202,8 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
             </div>
           )
         })}
-      </section>
+      </BentoCard>
+      </Bento>
     </div>
   )
 }
