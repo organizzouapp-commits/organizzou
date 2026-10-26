@@ -149,7 +149,8 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 ### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
 
 - **Fundo**: a foto `public/images/auth-background.png` (original em `imagens/Imagem-fundo-site2.png`) cobre a tela inteira
-  (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
+  (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). Abaixo de 768 px usa `public/images/auth-background-mobile.png`
+  (direção de arte com `<picture>` + `getImageProps`: o celular só baixa a imagem mobile). O contêiner grande flutua sobre ela,
   com raio 28 px e borda de 1 px a 10%.
 - **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
   - **Espaçamento uniforme P = 24 px (desktop)**: o padding do cartão é P nos quatro lados; o painel fica recuado P das bordas do cartão, com P de
@@ -166,7 +167,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
     Lima, ícone Tinta, escala 1,05. Foco com anel visível. Tooltip "Modo claro" / "Modo escuro".
   - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
-  - Conteúdo: logotipo por tema, 32 px de altura, só no painel das telas de acesso: tema escuro `public/brand/logo-preta.png`, tema
+  - Conteúdo: logotipo por tema, 40 px de altura (`h-10`, também na tela de boas-vindas e acima da sheet no mobile), só nas telas de acesso: tema escuro `public/brand/logo-preta.png`, tema
     claro `public/brand/logo-branca.png` (as duas imagens ficam no DOM e alternam pela classe `dark`: sem flash nem hydration mismatch), selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
     "Fale com o assistente", "Receba lembretes". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
     "Organize seu dia". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
@@ -195,6 +196,10 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   título → subtítulo → cartões de passo (um a um) e, no formulário, título → subtítulo → campos → botões → link de troca → links legais.
   Implementada com a classe `.auth-reveal` + `--reveal` (índice) em `globals.css`; o `AuthShell` remove o atributo `data-intro` quando
   termina, então nada se repete ao trocar entre entrar e criar conta (que tem a própria animação). Com `prefers-reduced-motion`: só fade.
+- **Placeholders**: e-mail "Seu e-mail aqui" e senha "Sua senha aqui" em entrar, cadastro e recuperação.
+- **Entrar ⇄ recuperar senha**: os dois formulários ficam montados no mesmo palco dentro do `AuthShell` (desktop e sheet). Ao trocar, o atual
+  some com fade deslizando 12 px para o lado e o outro entra com fade vindo de 12 px do outro lado (0,4 s); a altura do palco anima até a
+  do formulário visível. A URL acompanha (`/entrar` ⇄ `/recuperar-senha`), inclusive no voltar/avançar do navegador, sem remontar nada.
 - **Senha no cadastro**: sem checklist. Uma única mensagem de erro abaixo do campo (ex.: "Use pelo menos 8 caracteres."), exibida depois
   de sair do campo ou ao enviar; a validação com zod (cliente e servidor) segue igual.
 - **Mobile (< 1024 px): duas etapas**, sem painel e sem cartões de passo.
@@ -206,8 +211,10 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   - **Etapa 2, sheet com o formulário**: tocar em "Entrar" ou "Criar conta" abre uma sheet que sobe de baixo (`translateY` 100% → 0, 0,5 s),
     cobrindo ~72% da altura (até 92%, com rolagem interna) sobre a foto. Fundo `background`, raio de 32 px nos cantos de cima, padding de
     24 px e alça de arrastar. Conteúdo centralizado: título grande, campos de 52 px, botão principal, "ou", Google, link de troca (a troca
-    faz crossfade dentro da sheet) e "Termos de uso · Política de privacidade" no fim. O botão "‹ Voltar" (pílula de vidro, Papel) aparece no
-    canto superior esquerdo sobre a foto. Fecham a sheet: Voltar, deslizar a sheet para baixo, Esc ou o botão Voltar do navegador.
+    faz crossfade dentro da sheet) e "Termos de uso · Política de privacidade" no fim. Não há botão "Voltar": o logotipo (tema atual, 40 px) aparece centralizado
+    na foto visível acima da sheet, com fade + escala ao subir, e é o botão "Voltar para o início". Fecham a sheet (descendo em 0,5 s): tocar
+    no logotipo, tocar na foto fora da sheet, arrastar a sheet ou a alça para baixo (acompanha o dedo; fecha após 100 px ou num gesto
+    rápido), Esc ou o botão Voltar do navegador.
   - **Rotas**: visita direta mostra a etapa 1. `/cadastro`, `/recuperar-senha`, `/redefinir-senha`, `?next=`, `?erro=` e `?saiu=1` (redirecionamento
     do logout) abrem a sheet direto no modo certo. Abrir a sheet adiciona uma entrada ao histórico; trocar de modo dentro dela usa `replace`.
   - **Teclado e safe areas**: `viewportFit: "cover"`, `interactiveWidget: "resizes-content"` e rolagem interna da sheet mantêm o campo

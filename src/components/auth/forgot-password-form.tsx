@@ -59,6 +59,7 @@ export function ForgotPasswordForm() {
             <Input
               id="forgot-email"
               type="email"
+              placeholder="Seu e-mail aqui"
               autoComplete="email"
               inputMode="email"
               className={authInputClass}

@@ -59,7 +59,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
             type="email"
             autoComplete="email"
             inputMode="email"
-            placeholder="voce@exemplo.com"
+            placeholder="Seu e-mail aqui"
             className={authInputClass}
             aria-invalid={Boolean(errors.email)}
             {...register("email")}
@@ -73,7 +73,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
               Esqueci a senha
             </AuthLink>
           </div>
-          <PasswordInput id="login-password" autoComplete="current-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
+          <PasswordInput id="login-password" placeholder="Sua senha aqui" autoComplete="current-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
           {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}

@@ -55,7 +55,7 @@ export function ResetPasswordForm() {
       <form onSubmit={handleSubmit(onSubmit)} noValidate className={cn("flex flex-col gap-5", R)} style={rs(2)}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="reset-password">Nova senha</Label>
-          <PasswordInput id="reset-password" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
+          <PasswordInput id="reset-password" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
           <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
             {PASSWORD_RULES.map((rule) => {
               const ok = rule.test(password)
@@ -70,7 +70,7 @@ export function ResetPasswordForm() {
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="reset-confirm">Confirmar nova senha</Label>
-          <PasswordInput id="reset-confirm" autoComplete="new-password" aria-invalid={Boolean(errors.confirmPassword)} {...register("confirmPassword")} />
+          <PasswordInput id="reset-confirm" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.confirmPassword)} {...register("confirmPassword")} />
           {errors.confirmPassword ? <FormMessage kind="error">{errors.confirmPassword.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}

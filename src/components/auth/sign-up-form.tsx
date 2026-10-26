@@ -74,7 +74,7 @@ export function SignUpForm() {
               type="email"
               autoComplete="email"
               inputMode="email"
-              placeholder="voce@exemplo.com"
+              placeholder="Seu e-mail aqui"
               className={authInputClass}
               aria-invalid={Boolean(errors.email)}
               {...register("email")}
@@ -110,7 +110,7 @@ export function SignUpForm() {
           </div>
           <div className={cn("flex flex-col gap-2", R)} style={rs(5)}>
             <Label htmlFor="signup-password">Senha</Label>
-            <PasswordInput id="signup-password" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
+            <PasswordInput id="signup-password" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
             {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
           </div>
           {error ? <FormMessage kind="error">{error}</FormMessage> : null}

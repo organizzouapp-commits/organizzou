@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { ChevronLeftIcon } from "lucide-react"
-import Image from "next/image"
+import Image, { getImageProps } from "next/image"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
@@ -155,7 +154,7 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
       {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className={cn("relative", R)} style={rs(0)}>
-        <ThemedLogo className="h-8" />
+        <ThemedLogo className="h-10" />
       </div>
       <div className="relative grid">
         <HighlightCopy copyKey="login" active={!signup} activeStep={steps.login} onStep={(i) => setSteps((s) => ({ ...s, login: i }))} />
@@ -168,7 +167,11 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
 /** Mobile screen 1: welcome over the photo, with the Entrar / Criar conta bottom bar. */
 function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: Target) => void }) {
   return (
-    <div inert={hidden} aria-hidden={hidden} className="fixed inset-0 z-10 flex flex-col text-palette-papel lg:hidden">
+    <div
+      inert={hidden}
+      aria-hidden={hidden}
+      className={cn("fixed inset-0 z-10 flex flex-col text-palette-papel transition-opacity duration-500 lg:hidden", hidden && "opacity-0")}
+    >
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
         <div className={R} style={rs(0)}>
@@ -222,6 +225,53 @@ function LegalLinks({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Login and recovery live side by side in one stage, so switching never remounts anything: the current form fades
+ * out sliding 12 px away while the next one fades in from 12 px on the other side (0.4 s), and the stage height
+ * follows the visible form. Browser back/forward just changes the URL and runs the same transition.
+ */
+function SwapStage({ active, login, recovery }: { active: "login" | "recovery"; login: React.ReactNode; recovery: React.ReactNode }) {
+  const loginRef = useRef<HTMLDivElement>(null)
+  const recoveryRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number>()
+
+  useEffect(() => {
+    const el = (active === "login" ? loginRef : recoveryRef).current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      // A hidden pane (phones, sign-up mode) measures 0: keep the last height instead.
+      if (el.offsetHeight > 0) setHeight(el.offsetHeight)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [active])
+
+  const slot = "col-start-1 row-start-1 flex w-full justify-center self-start transition-[opacity,translate] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+  return (
+    <div
+      className="-mx-1 grid w-full max-w-[420px] overflow-hidden px-1 transition-[height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+      style={height === undefined ? undefined : { height }}
+    >
+      <div
+        ref={loginRef}
+        inert={active !== "login"}
+        aria-hidden={active !== "login"}
+        className={cn(slot, active === "login" ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0")}
+      >
+        {login}
+      </div>
+      <div
+        ref={recoveryRef}
+        inert={active !== "recovery"}
+        aria-hidden={active !== "recovery"}
+        className={cn(slot, active === "recovery" ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0")}
+      >
+        {recovery}
+      </div>
+    </div>
+  )
+}
+
 /** One side of the card (and, on phones, the content of the bottom sheet). */
 function FormPane({ active, side, children }: { active: boolean; side: "left" | "right"; children: React.ReactNode }) {
   return (
@@ -260,7 +310,9 @@ export function AuthShell() {
   const [intro, setIntro] = useState(true)
   const [drag, setDrag] = useState(0)
   const pushed = useRef(false)
-  const touchStart = useRef(0)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const logoAreaRef = useRef<HTMLDivElement>(null)
+  const gesture = useRef({ startY: 0, lastY: 0, lastT: 0, velocity: 0, scrollTop: 0, dragging: false })
 
   // The entrance reveal runs once per page load; afterwards the attribute goes away so nothing replays.
   useEffect(() => {
@@ -299,6 +351,25 @@ export function AuthShell() {
     }
   }, [below, sheetOpen])
 
+  // The logo sits centered in the photo that stays visible above the sheet, wherever the sheet's top edge is.
+  useEffect(() => {
+    const sheet = sheetRef.current
+    const area = logoAreaRef.current
+    if (!below || !sheet || !area) return
+    function place() {
+      if (!sheet || !area) return
+      area.style.height = `${Math.max(72, window.innerHeight - sheet.offsetHeight)}px`
+    }
+    place()
+    const observer = new ResizeObserver(place)
+    observer.observe(sheet)
+    window.addEventListener("resize", place)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", place)
+    }
+  }, [below])
+
   function openSheet(target: Target) {
     const path = target === "signup" ? "/cadastro" : "/entrar"
     const query = params.toString()
@@ -325,10 +396,25 @@ export function AuthShell() {
 
   const sheetClosedOnPhone = below && !sheetOpen
 
+  // Background art direction (public/images/auth-background*.png), optimized by next/image.
+  const imageBase = { alt: "", fill: true, priority: true, sizes: "100vw" } as const
+  const {
+    props: { srcSet: desktopSrcSet, ...desktopRest },
+  } = getImageProps({ ...imageBase, src: "/images/auth-background.png" })
+  const {
+    props: { srcSet: mobileSrcSet },
+  } = getImageProps({ ...imageBase, src: "/images/auth-background-mobile.png" })
+  const desktopBackground = { srcSet: desktopSrcSet, rest: desktopRest }
+  const mobileBackground = { srcSet: mobileSrcSet }
+
   return (
     <div className="relative min-h-dvh" data-intro={intro ? "" : undefined}>
       {/* Full-screen photo behind everything (public/images/auth-background.png). */}
-      <Image src="/images/auth-background.png" alt="" fill priority sizes="100vw" className="-z-10 object-cover object-center" />
+      <picture>
+        <source media="(max-width: 767px)" srcSet={mobileBackground.srcSet} />
+        <source media="(min-width: 768px)" srcSet={desktopBackground.srcSet} />
+        <img {...desktopBackground.rest} alt="" className="-z-10 object-cover object-center" />
+      </picture>
 
       {/* Solid so it stays visible over the photo: Tinta with a Lima icon in both themes; Lima with a Tinta icon on hover. */}
       <ThemeToggle
@@ -344,49 +430,72 @@ export function AuthShell() {
 
       {/* Phones: screen 1 (welcome), the "Voltar" pill, and screen 2 (the sheet, below). */}
       <MobileWelcome hidden={sheetOpen} onOpen={openSheet} />
-      <button
-        type="button"
-        onClick={closeSheet}
-        inert={!sheetOpen}
-        className={cn(
-          "fixed top-[max(1rem,env(safe-area-inset-top))] left-[max(1rem,env(safe-area-inset-left))] z-40 inline-flex h-11 items-center gap-1 rounded-full pr-4 pl-3 text-[15px] leading-6 font-semibold text-palette-papel outline-none focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden",
-          glass,
-          authMotion,
-          sheetOpen ? "opacity-100" : "pointer-events-none opacity-0"
-        )}
-      >
-        <ChevronLeftIcon aria-hidden strokeWidth={2} className="size-5" />
-        Voltar
-      </button>
+      {/* Sheet open on a phone: tapping the photo closes it, and the logo above the sheet is the "back" button. */}
+      <div aria-hidden onClick={closeSheet} className={cn("fixed inset-0 z-20 lg:hidden", !sheetOpen && "pointer-events-none")} />
+      <div ref={logoAreaRef} className="pointer-events-none fixed inset-x-0 top-0 z-[25] flex h-[28dvh] items-center justify-center lg:hidden">
+        <button
+          type="button"
+          onClick={closeSheet}
+          inert={!sheetOpen}
+          aria-label="Voltar para o início"
+          className={cn(
+            "rounded-xl p-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+            authMotion,
+            sheetOpen ? "pointer-events-auto scale-100 opacity-100 delay-200" : "pointer-events-none scale-90 opacity-0"
+          )}
+        >
+          <ThemedLogo className="h-10" />
+        </button>
+      </div>
 
       <div className="mx-auto flex min-h-dvh w-full max-w-[1200px] flex-col lg:justify-center lg:px-6 lg:py-6">
         <div
+          ref={sheetRef}
           inert={sheetClosedOnPhone}
           aria-hidden={sheetClosedOnPhone ? true : undefined}
-          style={drag ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}
+          // Drag-follow uses the same `translate` property as the open/closed classes, so releasing animates from where the finger left it.
+          style={drag ? { translate: `0 ${drag}px`, transition: "none" } : undefined}
+          onTouchStart={(event) => {
+            if (!below) return
+            const touch = event.touches[0]
+            gesture.current = { startY: touch.clientY, lastY: touch.clientY, lastT: event.timeStamp, velocity: 0, scrollTop: event.currentTarget.scrollTop, dragging: false }
+          }}
+          onTouchMove={(event) => {
+            if (!below) return
+            const g = gesture.current
+            const y = event.touches[0].clientY
+            const dy = y - g.startY
+            if (!g.dragging) {
+              if (dy > 6 && g.scrollTop <= 0 && event.currentTarget.scrollTop <= 0) g.dragging = true
+              else return
+            }
+            const dt = event.timeStamp - g.lastT
+            if (dt > 0) g.velocity = (y - g.lastY) / dt
+            g.lastY = y
+            g.lastT = event.timeStamp
+            setDrag(Math.max(0, dy))
+          }}
+          onTouchEnd={() => {
+            const g = gesture.current
+            if (!below || !g.dragging) return
+            g.dragging = false
+            // Past 100 px, or a quick flick down.
+            const shouldClose = drag > 100 || (g.velocity > 0.5 && drag > 24)
+            setDrag(0)
+            if (shouldClose) closeSheet()
+          }}
           className={cn(
             "relative flex flex-col",
             // Phones: bottom sheet over the photo (radius 32, slides up in 0.5 s).
-            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:mx-auto max-lg:max-h-[92dvh] max-lg:min-h-[72dvh] max-lg:w-full max-lg:max-w-[560px] max-lg:overflow-y-auto max-lg:rounded-t-[32px] max-lg:bg-background max-lg:transition-[translate] max-lg:duration-500 max-lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] max-lg:motion-reduce:transition-none",
+            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:mx-auto max-lg:max-h-[92dvh] max-lg:min-h-[72dvh] max-lg:w-full max-lg:max-w-[560px] max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:rounded-t-[32px] max-lg:bg-background max-lg:transition-[translate] max-lg:duration-500 max-lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] max-lg:motion-reduce:transition-none",
             sheetOpen ? "max-lg:translate-y-0" : "max-lg:translate-y-full",
             // Desktop: the card. P = 24 px: card padding, and the gap between the panel and the form area. It enters once, on page load.
             "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-6 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-6",
             "lg:animate-in lg:duration-[600ms] lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:fill-mode-backwards lg:fade-in lg:zoom-in-98 lg:slide-in-from-bottom-4"
           )}
         >
-          {/* Phones: drag handle. Swiping down closes the sheet. */}
-          <div
-            className="sticky top-0 z-10 flex h-8 shrink-0 touch-none items-center justify-center bg-background lg:hidden"
-            onTouchStart={(event) => {
-              touchStart.current = event.touches[0].clientY
-            }}
-            onTouchMove={(event) => setDrag(Math.max(0, event.touches[0].clientY - touchStart.current))}
-            onTouchEnd={() => {
-              const shouldClose = drag > 100
-              setDrag(0)
-              if (shouldClose) closeSheet()
-            }}
-          >
+          {/* Phones: drag handle. Swiping the handle or the sheet down closes it. */}
+          <div className="sticky top-0 z-10 flex h-8 shrink-0 touch-none items-center justify-center bg-background lg:hidden">
             <span aria-hidden className="h-1.5 w-10 rounded-full bg-border" />
           </div>
 
@@ -408,19 +517,11 @@ export function AuthShell() {
           </FormPane>
 
           <FormPane active={!signup} side="right">
-            {mode === "forgot" ? (
-              <div key="forgot" className="flex w-full animate-in justify-center duration-300 fade-in">
-                <ForgotPasswordForm />
-              </div>
-            ) : mode === "reset" ? (
-              <div key="reset" className="flex w-full animate-in justify-center duration-300 fade-in">
-                <ResetPasswordForm />
-              </div>
-            ) : (
-              <div key="login" className="flex w-full justify-center">
-                <SignInForm next={next} linkError={params.get("erro") === "link"} />
-              </div>
-            )}
+            <SwapStage
+              active={mode === "forgot" || mode === "reset" ? "recovery" : "login"}
+              login={<SignInForm next={next} linkError={params.get("erro") === "link"} />}
+              recovery={mode === "reset" ? <ResetPasswordForm /> : <ForgotPasswordForm />}
+            />
           </FormPane>
         </div>
       </div>
