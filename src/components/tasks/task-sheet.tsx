@@ -341,7 +341,7 @@ function TaskSheetBody({
             if (!value) return setTitle(task.title)
             if (value !== task.title) await patch({ title: value })
           }}
-          className="h-auto border-transparent bg-transparent px-0 text-xl font-semibold tracking-[-0.01em] shadow-none dark:bg-transparent"
+          className="h-auto border-transparent bg-transparent px-0 text-xl font-semibold tracking-[-0.01em] shadow-none md:text-xl dark:bg-transparent"
         />
       </SheetHeader>
 
