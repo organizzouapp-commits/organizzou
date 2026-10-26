@@ -86,7 +86,7 @@ function HighlightCopy({
                 className={cn(
                   "group/step flex min-h-32 w-full cursor-pointer flex-col justify-between gap-4 rounded-[20px] border p-4 text-left outline-none",
                   "hover:-translate-y-1 hover:border-highlight/40 focus-visible:-translate-y-1 focus-visible:border-highlight/40 focus-visible:ring-3 focus-visible:ring-ring/50",
-                  authMotion,
+                  "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   isActive
                     ? "border-palette-papel/12 bg-highlight text-highlight-foreground"
                     : "border-palette-papel/12 bg-palette-papel/8 text-palette-papel/80 backdrop-blur-[16px] hover:bg-palette-papel/12 focus-visible:bg-palette-papel/12"
@@ -95,7 +95,7 @@ function HighlightCopy({
                 <span
                   className={cn(
                     "tabular flex size-8 items-center justify-center rounded-full border text-[14px] leading-5 font-semibold",
-                    authMotion,
+                    "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                     isActive
                       ? "border-transparent bg-highlight-foreground text-highlight"
                       : "border-palette-papel/40 group-hover/step:border-transparent group-hover/step:bg-highlight group-hover/step:text-highlight-foreground group-focus-visible/step:border-transparent group-focus-visible/step:bg-highlight group-focus-visible/step:text-highlight-foreground"
@@ -117,7 +117,7 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
   // Active step per copy (visual only).
   const [steps, setSteps] = useState<Record<CopyKey, number>>({ login: 0, signup: 0 })
   return (
-    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden p-10 text-palette-papel", className)}>
+    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden rounded-[20px] p-8 text-palette-papel", className)}>
       {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative">
@@ -139,8 +139,9 @@ function MobileHero({ mode }: { mode: Mode }) {
     { href: "/cadastro", label: "Criar conta", on: mode === "signup" },
   ]
   return (
-    <header className="relative flex min-h-[max(320px,38dvh)] flex-col justify-between gap-6 px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-12 text-palette-papel lg:hidden">
-      <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
+    // Inset look: 12 px margin, radius 24. The solid frame around the photo window is a huge Tinta/Papel shadow clipped by the page.
+    <header className="relative mx-3 mt-[max(0.75rem,env(safe-area-inset-top))] flex min-h-[max(300px,38dvh)] flex-col justify-between gap-6 rounded-[24px] px-5 pt-5 pb-12 text-palette-papel shadow-[0_0_0_100vmax_var(--background)] lg:hidden">
+      <span aria-hidden className={cn("pointer-events-none absolute inset-0 rounded-[24px]", SCRIM)} />
       <div className="relative flex items-center justify-between">
         <Logo tone="on-dark" className="h-8" />
         <ThemeToggle
@@ -175,10 +176,11 @@ function MobileHero({ mode }: { mode: Mode }) {
 function LegalLinks({ className }: { className?: string }) {
   return (
     <nav aria-label="Informações legais" className={cn("flex justify-center gap-4 text-[13px] leading-5 text-muted-foreground", className)}>
-      <Link href="/termos" className={cn(authLinkClass, "hover:text-foreground hover:underline")}>
+      <Link href="/termos" className={cn(authLinkClass, "hover:underline")}>
         Termos de uso
       </Link>
-      <Link href="/privacidade" className={cn(authLinkClass, "hover:text-foreground hover:underline")}>
+      <span aria-hidden>·</span>
+      <Link href="/privacidade" className={cn(authLinkClass, "hover:underline")}>
         Política de privacidade
       </Link>
     </nav>
@@ -193,8 +195,8 @@ function FormPane({ active, side, children }: { active: boolean; side: "left" | 
       aria-hidden={!active}
       inert={!active}
       className={cn(
-        "relative flex-col px-6 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:px-10 lg:pt-16 lg:pb-8",
         authMotion,
+        "relative flex-col px-6 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:px-10 lg:pt-16 lg:pb-8",
         side === "left" ? "lg:col-start-1" : "lg:col-start-2",
         active
           ? cn("flex opacity-100 lg:translate-x-0 max-lg:animate-in max-lg:duration-300 max-lg:fade-in", side === "left" ? "max-lg:slide-in-from-left-6" : "max-lg:slide-in-from-right-6")
@@ -219,8 +221,6 @@ export function AuthShell() {
   const nextParam = params.get("next")
   const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/hoje"
 
-  const solidHalf = "pointer-events-none absolute inset-y-0 hidden w-1/2 bg-background transition-opacity duration-[275ms] lg:block"
-
   return (
     <div className="relative min-h-dvh">
       {/* Full-screen photo behind everything (public/images/auth-background.png). */}
@@ -235,17 +235,14 @@ export function AuthShell() {
             "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent"
           )}
         >
-          {/* Desktop: solid form halves under the panes. They swap sides with the panel, after it has left. */}
-          <span aria-hidden className={cn(solidHalf, "left-0", EASE, signup ? "opacity-100 delay-[275ms]" : "opacity-0 delay-0")} />
-          <span aria-hidden className={cn(solidHalf, "right-0", EASE, signup ? "opacity-0 delay-0" : "opacity-100 delay-[275ms]")} />
-
           {/* Desktop: the transparent highlight panel slides between the halves. */}
           <div
             data-crossfade
             className={cn(
-              "pointer-events-none absolute inset-y-0 left-0 hidden w-1/2 transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
+              // 20 px frame on every side. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
+              "pointer-events-none absolute inset-y-5 left-5 hidden w-[calc(50%-40px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
               EASE,
-              signup ? "translate-x-full" : "translate-x-0"
+              signup ? "translate-x-[calc(100%+40px)]" : "translate-x-0"
             )}
           >
             <HighlightPanel signup={signup} className="pointer-events-auto size-full" />

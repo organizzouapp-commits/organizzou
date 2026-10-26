@@ -152,6 +152,9 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
   com raio 28 px e borda de 1 px a 10%.
 - **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
+  - **Moldura (passe-partout)**: o fundo sólido do cartão (Tinta no escuro, Papel no claro) envolve o painel com 20 px em todos os
+    lados, inclusive o lado voltado ao formulário. O painel é uma "janela" de raio 20 px para a foto e desliza junto com a moldura
+    (a moldura é uma sombra enorme da cor `background` presa ao painel, recortada pelo cartão).
   - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
   - Conteúdo: logotipo do modo escuro, selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
@@ -165,23 +168,44 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   botão do Google, link de troca de tela e linha legal **centralizados**; rótulos dos campos alinhados à esquerda.
   Seletor de tema no canto superior direito da metade do formulário; "Termos de uso" e "Política de privacidade" centralizados no
   rodapé da mesma metade (dentro do cartão).
-- **Controles do mesmo tamanho**: campos, botão primário e "Continuar com Google" têm 48 px de altura, raio 12 px e 16 px de
-  padding horizontal; texto dos botões 15 px / 600. Cadastro: Nome completo, E-mail, Telefone (máscara BR, +55, E.164),
+- **Controles do mesmo tamanho**: campos, botão primário e "Continuar com Google" têm 52 px de altura e raio 12 px. Os botões usam
+  o tamanho `xl` do `Button` (52 px, texto 16 px / 600, padding horizontal 24 px); os campos usam `authInputClass`. O cadastro não
+  repete a frase legal: só os links "Termos de uso · Política de privacidade" no rodapé do cartão. Cadastro: Nome completo, E-mail, Telefone (máscara BR, +55, E.164),
   Senha com olho e checklist ao vivo. Validação com zod no cliente e no servidor.
 - **Transições**: todo estado hover/foco/ativo (botões, links, campos, cartões de passo, alternância de tema, olho) usa
-  `transition` de cor, fundo, borda, transform e sombra, 200 ms, `cubic-bezier(0.2, 0.8, 0.2, 1)` (`authMotion` em
-  `auth-parts.tsx`). Com `prefers-reduced-motion`, sem movimento.
+  `transition` de cor, fundo, borda, transform, sombra e, nos links, cor e deslocamento do sublinhado, **0,4 s**,
+  `cubic-bezier(0.2, 0.8, 0.2, 1)` (`authMotion` em `auth-parts.tsx`; `transition-all` nos cartões de passo e no círculo do número).
+  Links: a cor vai para `foreground` e o `underline-offset` anima de 4 para 6 px. Com `prefers-reduced-motion`, sem movimento.
 - **Animação do painel**: no login o painel fica à ESQUERDA; em "Criar conta" ele desliza para a DIREITA (`translateX`, 550 ms,
   mesma curva) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no voltar/avançar).
   `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
   Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
 - **Mobile (< 1024 px)**: sem painel e sem cartões de passo.
-  - **Hero** (~38% da altura): a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
+  - **Hero** (~38% da altura) inserido na moldura: margem de 12 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, botão redondo de tema de vidro no direito,
     título + subtítulo centralizados e, embaixo, o controle segmentado "Entrar | Criar conta" (vidro; ativo = Lima com texto Tinta).
   - **Bottom sheet**: cartão sólido (token `background`) com raio de 28 px só nos cantos de cima, sobrepondo o hero em 24 px, com
     o formulário centralizado (mesmos campos de 48 px), botão do Google, link de troca e Termos/Privacidade no fim.
   - Entrar ⇄ criar conta troca o conteúdo da sheet com fade + deslize horizontal. Respeita `env(safe-area-inset-*)`
     (`viewportFit: "cover"`) e `interactiveWidget: "resizes-content"` para o teclado não cobrir o campo ativo.
+
+
+### 5.4 Aviso de cookies (LGPD)
+
+Módulo autocontido em `src/components/organizzou/cookie-consent/` (`CookieConsent`, `ConsentGate` e `consent.ts`), pensado para ser
+copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `Dialog` e `Switch`.
+
+- **Aparece uma vez por navegador.** A escolha fica no cookie próprio `organizzou_consent` = `{version, necessary: true, analytics,
+  marketing, decidedAt}`, 12 meses, `SameSite=Lax`, `Secure` em produção, `Domain` vindo de `NEXT_PUBLIC_COOKIE_DOMAIN` (vazio em
+  localhost; `.organizzou.com.br` no futuro, para app e site compartilharem a escolha). Aumentar `CONSENT_VERSION` mostra o aviso de novo.
+- **Barra**: flutuante, no centro inferior (máx. 720 px, raio 20 px, fundo `popover`, borda 1 px a 10%), com o texto padrão e o link
+  "Política de privacidade". Botões: "Aceitar todos" (primário), "Recusar opcionais" (contorno), "Personalizar" (ghost), com as
+  mesmas transições de 0,4 s. No celular vira uma sheet de largura total na base, botões empilhados e respeitando as safe areas.
+- **Personalizar** abre um Dialog com chaves: Essenciais (sempre ligada, desativada), Análise e Marketing, e "Salvar preferências".
+  `Esc` fecha só o diálogo. A barra é `role="region"`.
+- **Uso**: `hasConsent("analytics")` e `<ConsentGate category="analytics">` envolvem qualquer script futuro, que só carrega após o
+  consentimento. `openCookiePreferences()` reabre o diálogo (item "Preferências de cookies" em Configurações → Segurança e dados).
+  A página `/privacidade` tem a seção "Cookies" com as três categorias.
+- É montado uma vez no layout raiz. Não há analytics no produto ainda.
 
 ---
 
@@ -231,6 +255,7 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 | `calendar` | Hoje com anel `ring`; selecionado `primary`. |
 | `chart` | Somente `chart-1…5`. Linhas finas, sem grade pesada. |
 | `sonner` | Toasts do assistente, fundo `popover`, ícone + texto. |
+| `button` | Tamanho `xl` (52 px, 16 px / 600) para os formulários de acesso. |
 | `sidebar` | Variante `floating` (seção 5.2): raio 24 px, 260 px / rail de 80 px, itens de 44 px. |
 | `avatar`, `separator`, `skeleton`, `tooltip`, `scroll-area`, `dropdown-menu`, `popover`, `sheet` | Padrão com os tokens. |
 

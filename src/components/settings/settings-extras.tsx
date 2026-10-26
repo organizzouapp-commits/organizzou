@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
 import { Badge } from "@/components/ui/badge"
@@ -257,6 +258,19 @@ export function SecuritySettings() {
           <span className="flex-1">Nubank e Itaú conectados</span>
           <Button asChild variant="outline" size="sm">
             <Link href="/financas">Gerenciar</Link>
+          </Button>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 border-b border-border py-8">
+        <SectionTitle>Privacidade</SectionTitle>
+        <div className="flex items-center gap-3 text-[15px] leading-6">
+          <span className="flex flex-1 flex-col">
+            Preferências de cookies
+            <span className="text-[13px] leading-5 text-muted-foreground">Escolha se podemos usar cookies de análise e de marketing.</span>
+          </span>
+          <Button variant="outline" onClick={openCookiePreferences}>
+            Personalizar
           </Button>
         </div>
       </section>

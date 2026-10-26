@@ -2,7 +2,8 @@
 // Needs the prototype dev server (see docs/PROTOTYPE.md):  node tests/e2e/shell.mjs
 import { chromium } from "@playwright/test"
 const base = "http://localhost:3100"
-const browser = await chromium.launch()
+import { skipConsent } from "./consent.mjs"
+const browser = skipConsent(await chromium.launch(), base)
 const results = []
 const problems = []
 const ok = (n, p) => results.push(`${p ? "PASS" : "FAIL"}  ${n}`)

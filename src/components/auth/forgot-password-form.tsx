@@ -65,14 +65,14 @@ export function ForgotPasswordForm() {
             {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
           </div>
           {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-          <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+          <Button type="submit" size="xl" className={authButtonClass} disabled={pending}>
             {pending ? "Enviando…" : "Enviar link"}
           </Button>
         </form>
       )}
 
       <p className="text-center text-[15px] leading-6">
-        <Link href="/entrar" className={cn(authLinkClass, "font-medium underline hover:text-muted-foreground")}>
+        <Link href="/entrar" className={cn(authLinkClass, "font-medium underline")}>
           Voltar para entrar
         </Link>
       </p>

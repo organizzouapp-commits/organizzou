@@ -33,6 +33,7 @@ export function GoogleButton({ next = "/hoje" }: { next?: string }) {
       <Button
         type="button"
         variant="outline"
+        size="xl"
         disabled={pending}
         className={authButtonClass}
         onClick={() =>
@@ -83,13 +84,17 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   )
 }
 
-/** One transition for every hover/focus/active state on the auth screens (DESIGN-SYSTEM §5.3). */
+/** One 0.4 s transition for every hover/focus/active state on the auth screens (DESIGN-SYSTEM §5.3). */
 export const authMotion =
-  "transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+  "transition-[color,background-color,border-color,box-shadow,transform,opacity,text-decoration-color,text-underline-offset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 
-/** Inputs, primary button and Google button share the same height, radius and horizontal padding (48 px, radius 12, 16 px). */
-export const authInputClass = cn("h-12 rounded-xl px-4 py-0 text-base md:h-12 md:text-base", authMotion)
+/** Inputs and the `xl` buttons share the same height (52 px) and radius (12 px). */
+export const authInputClass = cn("h-[52px] rounded-xl px-4 py-0 text-base md:h-[52px] md:text-base", authMotion)
 
-export const authButtonClass = cn("h-12 w-full rounded-xl px-4 text-[15px] leading-6 font-semibold", authMotion)
+/** Use with `<Button size="xl">`. */
+export const authButtonClass = cn("w-full", authMotion)
 
-export const authLinkClass = cn("rounded-sm underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", authMotion)
+export const authLinkClass = cn(
+  "rounded-sm underline-offset-4 outline-none hover:text-foreground hover:underline-offset-[6px] focus-visible:text-foreground focus-visible:underline-offset-[6px] focus-visible:ring-3 focus-visible:ring-ring/50",
+  authMotion
+)

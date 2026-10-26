@@ -77,7 +77,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
           {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-        <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+        <Button type="submit" size="xl" className={authButtonClass} disabled={pending}>
           {pending ? "Entrando…" : "Entrar"}
         </Button>
       </form>
@@ -87,7 +87,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
 
       <p className="text-center text-[15px] leading-6 text-muted-foreground">
         Ainda não tem conta?{" "}
-        <Link href="/cadastro" className={cn(authLinkClass, "font-medium text-foreground underline hover:text-muted-foreground")}>
+        <Link href="/cadastro" className={cn(authLinkClass, "font-medium text-foreground underline")}>
           Criar conta
         </Link>
       </p>

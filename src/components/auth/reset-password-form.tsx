@@ -70,7 +70,7 @@ export function ResetPasswordForm() {
           {errors.confirmPassword ? <FormMessage kind="error">{errors.confirmPassword.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-        <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+        <Button type="submit" size="xl" className={authButtonClass} disabled={pending}>
           {pending ? "Salvando…" : "Salvar nova senha"}
         </Button>
       </form>

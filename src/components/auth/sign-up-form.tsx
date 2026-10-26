@@ -82,7 +82,7 @@ export function SignUpForm() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="signup-phone">Telefone</Label>
             <div className="flex gap-2">
-              <span className="flex h-12 shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">
+              <span className="flex h-[52px] shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">
                 +55
               </span>
               <Controller
@@ -123,7 +123,7 @@ export function SignUpForm() {
             </ul>
           </div>
           {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-          <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+          <Button type="submit" size="xl" className={authButtonClass} disabled={pending}>
             {pending ? "Criando conta…" : "Criar conta"}
           </Button>
         </form>
@@ -132,20 +132,9 @@ export function SignUpForm() {
       <OrDivider />
       <GoogleButton />
 
-      <p className="text-center text-[13px] leading-5 text-muted-foreground">
-        Ao criar sua conta você concorda com os{" "}
-        <Link href="/termos" className={cn(authLinkClass, "underline hover:text-foreground")}>
-          Termos de uso
-        </Link>{" "}
-        e a{" "}
-        <Link href="/privacidade" className={cn(authLinkClass, "underline hover:text-foreground")}>
-          Política de privacidade
-        </Link>
-        .
-      </p>
       <p className="text-center text-[15px] leading-6 text-muted-foreground">
         Já tem conta?{" "}
-        <Link href="/entrar" className={cn(authLinkClass, "font-medium text-foreground underline hover:text-muted-foreground")}>
+        <Link href="/entrar" className={cn(authLinkClass, "font-medium text-foreground underline")}>
           Entrar
         </Link>
       </p>

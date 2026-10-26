@@ -8,7 +8,8 @@ const PAGES = ["/hoje", "/tarefas", "/rotina", "/agenda", "/financas", "/treinos
 const results = []
 const ok = (name, pass) => results.push(`${pass ? "PASS" : "FAIL"}  ${name}`)
 
-const browser = await chromium.launch()
+import { skipConsent } from "./consent.mjs"
+const browser = skipConsent(await chromium.launch(), base)
 
 // ---- every screen renders in both themes and sizes without console errors or sideways scrolling
 for (const [theme, size, viewport] of [
