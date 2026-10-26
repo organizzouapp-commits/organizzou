@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
 
-import { SettingsForm } from "@/components/settings/settings-form"
+import { SettingsTabs } from "@/components/settings/settings-tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSession } from "@/lib/supabase/session"
 
@@ -16,7 +16,7 @@ async function SettingsContent() {
     .eq("id", userId)
     .maybeSingle()
 
-  return <SettingsForm displayName={profile?.display_name ?? ""} email={email} />
+  return <SettingsTabs displayName={profile?.display_name ?? ""} email={email} />
 }
 
 export default function SettingsPage() {
