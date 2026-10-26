@@ -5,7 +5,6 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { EllipsisIcon, LayoutDashboardIcon, SearchIcon, SettingsIcon, SquareKanbanIcon, WalletIcon } from "lucide-react"
 import { useTheme } from "next-themes"
-import { toast } from "sonner"
 
 import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
@@ -14,6 +13,10 @@ import { moduleList } from "@/components/organizzou/modules"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+
+import { AssistantSheet } from "@/components/assistant/assistant-sheet"
+import { QuickCapture } from "@/components/assistant/quick-capture"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
 import { CommandPalette } from "./command-palette"
@@ -38,10 +41,15 @@ type AppShellProps = {
   user: ShellUser
   /** Saved preference from the profile; undefined keeps whatever the browser has. */
   theme?: string
+  /** Request time from the server, used by the prototype assistant to answer relative questions. */
+  nowIso: string
   children: React.ReactNode
 }
 
-export function AppShell({ user, theme, children }: AppShellProps) {
+export function AppShell({ user, theme, nowIso, children }: AppShellProps) {
+  const isMobile = useIsMobile()
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [captureOpen, setCaptureOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -87,18 +95,20 @@ export function AppShell({ user, theme, children }: AppShellProps) {
 
       <AssistantFab
         className="fixed right-4 bottom-24 z-40 md:right-6 md:bottom-6"
-        onClick={() => toast("O assistente chega em breve.")}
+        onClick={() => setAssistantOpen(true)}
       />
 
       <BottomNav
         items={navItems}
         activeId={activeId}
         onSelect={onSelect}
-        onAdd={() => toast("A captura rápida chega em breve.")}
+        onAdd={() => setCaptureOpen(true)}
         className="fixed inset-x-0 bottom-0 z-30 md:hidden"
       />
 
-      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
+      <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
+      <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="rounded-t-[20px]">
