@@ -10,6 +10,7 @@ import {
   resetPasswordSchema,
   signInSchema,
   signUpSchema,
+  toE164,
   type ForgotPasswordInput,
   type ResetPasswordInput,
   type SignInInput,
@@ -63,7 +64,7 @@ export async function signUp(input: SignUpInput): Promise<ActionResult> {
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      data: { display_name: parsed.data.displayName },
+      data: { display_name: parsed.data.fullName, phone: toE164(parsed.data.phone) },
       emailRedirectTo: `${getSiteUrl()}/auth/callback`,
     },
   })
@@ -102,6 +103,20 @@ export async function resetPassword(input: ResetPasswordInput): Promise<ActionRe
   if (error) return { ok: false, error: messageFor(error) }
 
   return { ok: true }
+}
+
+/** Starts the Google OAuth flow. Supabase sends the user back to /auth/callback, which lands on /hoje. */
+export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
+  const supabase = await createClient()
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/hoje"
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${getSiteUrl()}/auth/callback?next=${encodeURIComponent(safeNext)}` },
+  })
+  if (error || !data.url) {
+    return { ok: false, error: "Não consegui abrir o login com Google. Tente de novo em instantes." }
+  }
+  redirect(data.url)
 }
 
 export async function signOut() {

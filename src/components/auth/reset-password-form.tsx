@@ -3,15 +3,18 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { CheckIcon, CircleIcon } from "lucide-react"
+import { useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { resetPassword } from "@/features/auth/actions"
-import { resetPasswordSchema, type ResetPasswordInput } from "@/features/auth/schemas"
+import { PASSWORD_RULES, resetPasswordSchema, type ResetPasswordInput } from "@/features/auth/schemas"
+import { cn } from "@/lib/utils"
+
+import { authButtonClass, PasswordInput } from "./auth-parts"
 
 export function ResetPasswordForm() {
   const router = useRouter()
@@ -19,9 +22,11 @@ export function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<ResetPasswordInput>({ resolver: zodResolver(resetPasswordSchema) })
+  const password = useWatch({ control, name: "password" }) ?? ""
 
   function onSubmit(values: ResetPasswordInput) {
     setError(null)
@@ -38,36 +43,37 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+    <div className="flex w-full max-w-[420px] flex-col gap-7">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">Nova senha</Label>
-        <Input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          aria-invalid={Boolean(errors.password)}
-          {...register("password")}
-        />
-        <span className="text-[13px] leading-5 text-muted-foreground">Mínimo de 8 caracteres.</span>
-        {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
+        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Criar nova senha</h1>
+        <p className="text-base leading-6 text-muted-foreground">Escolha uma senha que você não use em outros lugares.</p>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
-        <Input
-          id="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          aria-invalid={Boolean(errors.confirmPassword)}
-          {...register("confirmPassword")}
-        />
-        {errors.confirmPassword ? (
-          <FormMessage kind="error">{errors.confirmPassword.message}</FormMessage>
-        ) : null}
-      </div>
-      {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Salvando…" : "Salvar nova senha"}
-      </Button>
-    </form>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="reset-password">Nova senha</Label>
+          <PasswordInput id="reset-password" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {PASSWORD_RULES.map((rule) => {
+              const ok = rule.test(password)
+              return (
+                <li key={rule.key} className={cn("flex items-center gap-1.5 text-[13px] leading-5", ok ? "text-foreground" : "text-muted-foreground")}>
+                  {ok ? <CheckIcon aria-hidden strokeWidth={2} className="size-3.5" /> : <CircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" />}
+                  {rule.label}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="reset-confirm">Confirmar nova senha</Label>
+          <PasswordInput id="reset-confirm" autoComplete="new-password" aria-invalid={Boolean(errors.confirmPassword)} {...register("confirmPassword")} />
+          {errors.confirmPassword ? <FormMessage kind="error">{errors.confirmPassword.message}</FormMessage> : null}
+        </div>
+        {error ? <FormMessage kind="error">{error}</FormMessage> : null}
+        <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+          {pending ? "Salvando…" : "Salvar nova senha"}
+        </Button>
+      </form>
+    </div>
   )
 }

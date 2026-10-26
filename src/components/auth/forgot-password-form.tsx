@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
@@ -10,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { requestPasswordReset } from "@/features/auth/actions"
 import { forgotPasswordSchema, type ForgotPasswordInput } from "@/features/auth/schemas"
+
+import { authButtonClass, authInputClass } from "./auth-parts"
 
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition()
@@ -33,33 +36,44 @@ export function ForgotPasswordForm() {
     })
   }
 
-  if (sent) {
-    return (
-      <FormMessage kind="success">
-        Se esse e-mail tiver uma conta, enviamos um link para criar uma nova senha. Confira também a
-        caixa de spam.
-      </FormMessage>
-    )
-  }
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+    <div className="flex w-full max-w-[420px] flex-col gap-7">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="email">E-mail</Label>
-        <Input
-          id="email"
-          type="email"
-          autoComplete="email"
-          inputMode="email"
-          aria-invalid={Boolean(errors.email)}
-          {...register("email")}
-        />
-        {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
+        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Recuperar senha</h1>
+        <p className="text-base leading-6 text-muted-foreground">Informe seu e-mail e enviaremos um link para criar uma nova senha.</p>
       </div>
-      {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-      <Button type="submit" size="lg" disabled={pending}>
-        {pending ? "Enviando…" : "Enviar link"}
-      </Button>
-    </form>
+
+      {sent ? (
+        <FormMessage kind="success">
+          Se esse e-mail tiver uma conta, enviamos um link para criar uma nova senha. Confira também a caixa de spam.
+        </FormMessage>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="forgot-email">E-mail</Label>
+            <Input
+              id="forgot-email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              className={authInputClass}
+              aria-invalid={Boolean(errors.email)}
+              {...register("email")}
+            />
+            {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
+          </div>
+          {error ? <FormMessage kind="error">{error}</FormMessage> : null}
+          <Button type="submit" size="lg" className={authButtonClass} disabled={pending}>
+            {pending ? "Enviando…" : "Enviar link"}
+          </Button>
+        </form>
+      )}
+
+      <p className="text-[15px] leading-6">
+        <Link href="/entrar" className="font-medium underline underline-offset-4">
+          Voltar para entrar
+        </Link>
+      </p>
+    </div>
   )
 }

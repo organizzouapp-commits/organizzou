@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
 
-const AUTH_PAGES = ["/entrar", "/cadastrar", "/recuperar-senha"]
+const AUTH_PAGES = ["/entrar", "/cadastro", "/recuperar-senha"]
 const PUBLIC_PREFIXES = ["/auth", "/termos", "/privacidade", "/design-system"]
 
 function isPublic(pathname: string) {
