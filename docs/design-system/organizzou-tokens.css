@@ -1,0 +1,115 @@
+/* =========================================================================
+   Organizzou — tokens do design system v2 (clean · 6 cores)
+   Paleta fechada: Lima #DBFD00 · Lima verso #8FA800 · Tinta #0C0E07 ·
+   Tinta verso #4B5A00 · Grafite #1A1D12 · Papel #F6F7F0.
+   Nenhuma outra cor: bordas, textos secundários e fundos suaves são essas
+   mesmas cores com transparência. Modo escuro é o PADRÃO (.dark no <html>).
+   Mesclar em src/app/globals.css: substituir :root e .dark do shadcn e
+   ADICIONAR as linhas do @theme inline abaixo ao @theme inline existente.
+   ========================================================================= */
+
+/* ---------- Modo claro ---------- */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --card: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --card-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --popover: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --popover-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --primary: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --primary-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --secondary: oklch(0.159 0.015 120.6 / 5%); /* Tinta #0C0E07 · 5% */
+  --secondary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --muted: oklch(0.159 0.015 120.6 / 4%); /* Tinta #0C0E07 · 4% */
+  --muted-foreground: oklch(0.159 0.015 120.6 / 65%); /* Tinta #0C0E07 · 65% */
+  --accent: oklch(0.159 0.015 120.6 / 6%); /* Tinta #0C0E07 · 6% */
+  --accent-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --destructive: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --destructive-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --border: oklch(0.159 0.015 120.6 / 10%); /* Tinta #0C0E07 · 10% */
+  --input: oklch(0.159 0.015 120.6 / 18%); /* Tinta #0C0E07 · 18% */
+  --ring: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --chart-1: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --chart-2: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --chart-3: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
+  --chart-4: oklch(0.159 0.015 120.6 / 35%); /* Tinta #0C0E07 · 35% */
+  --chart-5: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
+  --sidebar: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-primary: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-primary-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-accent: oklch(0.159 0.015 120.6 / 5%); /* Tinta #0C0E07 · 5% */
+  --sidebar-accent-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-border: oklch(0.159 0.015 120.6 / 10%); /* Tinta #0C0E07 · 10% */
+  --sidebar-ring: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --brand: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --brand-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --brand-fold: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+}
+
+/* ---------- Modo escuro (padrão) ---------- */
+.dark {
+  --background: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --card: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
+  --card-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --popover: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
+  --popover-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --primary: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --primary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --secondary: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
+  --secondary-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --muted: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
+  --muted-foreground: oklch(0.973 0.009 113.2 / 60%); /* Papel #F6F7F0 · 60% */
+  --accent: oklch(0.973 0.009 113.2 / 8%); /* Papel #F6F7F0 · 8% */
+  --accent-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --destructive: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --destructive-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --border: oklch(0.973 0.009 113.2 / 10%); /* Papel #F6F7F0 · 10% */
+  --input: oklch(0.973 0.009 113.2 / 16%); /* Papel #F6F7F0 · 16% */
+  --ring: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --chart-1: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --chart-2: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
+  --chart-3: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --chart-4: oklch(0.973 0.009 113.2 / 45%); /* Papel #F6F7F0 · 45% */
+  --chart-5: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --sidebar: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-primary: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --sidebar-primary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-accent: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
+  --sidebar-accent-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-border: oklch(0.973 0.009 113.2 / 10%); /* Papel #F6F7F0 · 10% */
+  --sidebar-ring: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --brand: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --brand-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --brand-fold: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
+  --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+}
+
+@theme inline {
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-fold: var(--brand-fold);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --ease-organizzou: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+  html { color-scheme: dark; }
+  html:not(.dark) { color-scheme: light; }
+  body { -webkit-font-smoothing: antialiased; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  ::selection { background: var(--highlight); color: var(--highlight-foreground); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
