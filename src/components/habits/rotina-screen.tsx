@@ -16,8 +16,9 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -143,17 +144,11 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) })
   const historyList = historyHabit === "all" ? habits : habits.filter((h) => h.id === historyHabit)
 
+  usePrimaryAction("Novo hábito", () => setCreating(true))
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Rotina"
-        description="Pequenos hábitos, todos os dias."
-        actions={
-          <Button onClick={() => setCreating(true)}>
-            <PlusIcon strokeWidth={1.75} /> Novo hábito
-          </Button>
-        }
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
 
       <Tabs defaultValue="hoje">
         <TabsList>
@@ -162,16 +157,19 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
           <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="hoje" className="flex flex-col gap-6 pt-6">
-          <div className="flex flex-col gap-2">
-            <div className="tabular flex justify-between text-[13px] leading-5">
-              <span>
-                {doneToday} de {todays.length} hábitos hoje
-              </span>
-              <span className="text-muted-foreground">
-                {todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}%
-              </span>
-            </div>
+        <TabsContent value="hoje" className="pt-5">
+          <Bento>
+          <KpiCard
+            tone="highlight"
+            label="Hábitos hoje"
+            value={`${doneToday}/${todays.length}`}
+            support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`}
+            className="col-span-12 sm:col-span-4"
+          />
+          <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 sm:col-span-4" />
+          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 sm:col-span-4" />
+          <BentoCard title="Hábitos de hoje" className="col-span-12">
+          <div className="flex flex-col gap-2 pb-4">
             <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
           </div>
 
@@ -263,27 +261,31 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
               )
             })}
           </div>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="historico" className="flex flex-col gap-6 pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">
-              {format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}
-            </h2>
-            <Select value={historyHabit} onValueChange={setHistoryHabit}>
-              <SelectTrigger aria-label="Hábito" className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os hábitos</SelectItem>
-                {habits.map((h) => (
-                  <SelectItem key={h.id} value={h.id}>
-                    {h.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <TabsContent value="historico" className="pt-5">
+          <Bento>
+          <BentoCard
+            title={format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}
+            className="col-span-12 lg:col-span-8"
+            actions={
+              <Select value={historyHabit} onValueChange={setHistoryHabit}>
+                <SelectTrigger aria-label="Hábito" className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os hábitos</SelectItem>
+                  {habits.map((h) => (
+                    <SelectItem key={h.id} value={h.id}>
+                      {h.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+          >
           <div role="grid" aria-label="Calendário de constância" className="grid max-w-xl grid-cols-7 gap-1.5">
             {WEEKDAY_LABELS.map((label, index) => (
               <span key={index} className="pb-1 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
@@ -317,18 +319,18 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
             ))}
             Mais
           </p>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="estatisticas" className="flex flex-col gap-8 pt-6">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-            <Stat label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" />
-            <Stat label="Melhor sequência" value={`${best}`} support="dias seguidos" />
-            <Stat label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} />
-            <Stat label="Check-ins no mês" value={`${monthCheckins}`} support="registros" />
-          </div>
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Constância por semana</SectionTitle>
-            <ChartContainer config={chartConfig} className="aspect-[16/7] w-full max-w-2xl">
+        <TabsContent value="estatisticas" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Check-ins no mês" value={`${monthCheckins}`} support="registros" className="col-span-6 lg:col-span-3" />
+          <BentoCard title="Constância por semana" className="col-span-12 lg:col-span-7">
+            <ChartContainer config={chartConfig} className="aspect-[16/7] w-full">
               <BarChart data={weekly} margin={{ left: -16, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
                 <XAxis dataKey="semana" tickLine={false} axisLine={false} tickMargin={8} />
@@ -337,9 +339,8 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
                 <Bar dataKey="rate" fill="var(--color-rate)" radius={6} />
               </BarChart>
             </ChartContainer>
-          </section>
-          <section className="flex max-w-2xl flex-col gap-4">
-            <SectionTitle>Por hábito</SectionTitle>
+          </BentoCard>
+          <BentoCard title="Por hábito" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
             {habits.map((habit) => {
               const rate = consistency(habit, logs, today)
               return (
@@ -352,7 +353,8 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
                 </div>
               )
             })}
-          </section>
+          </BentoCard>
+          </Bento>
         </TabsContent>
       </Tabs>
 

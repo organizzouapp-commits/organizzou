@@ -18,8 +18,9 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/organizzou/EmptyState"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -49,6 +50,7 @@ import {
 } from "@/features/finance/stats"
 import type { FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { formatBRL, formatSignedBRL, parseBRL } from "@/lib/money"
+import { cn } from "@/lib/utils"
 import {
   buildMockBills,
   buildMockGoals,
@@ -145,20 +147,15 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
     })
   }
 
+  usePrimaryAction("Novo lançamento", () => setNewTransaction(true))
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        title="Finanças"
-        description="Para onde o dinheiro vai, sem planilha."
         actions={
-          <>
-            <Button variant="outline" onClick={() => setBankOpen(true)}>
-              <LandmarkIcon strokeWidth={1.75} /> Conectar banco
-            </Button>
-            <Button onClick={() => setNewTransaction(true)}>
-              <PlusIcon strokeWidth={1.75} /> Novo lançamento
-            </Button>
-          </>
+          <Button variant="outline" onClick={() => setBankOpen(true)}>
+            <LandmarkIcon strokeWidth={1.75} /> Conectar banco
+          </Button>
         }
       />
 
@@ -171,23 +168,21 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         {/* ------------------------------------------------------ overview */}
-        <TabsContent value="visao" className="flex flex-col gap-10 pt-6">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-            <Stat size="sm" label="Saldo total" value={formatBRL(balance)} support={`${mockAccounts.length} contas`} />
-            <Stat size="sm" label="Entradas do mês" value={formatBRL(month_totals.income)} trend="up" support="+ recebido" />
-            <Stat size="sm" label="Saídas do mês" value={formatBRL(month_totals.expense)} trend="down" support="− gasto" />
-            <Stat
-              size="sm"
-              label="Sobra do mês"
-              value={formatBRL(Math.abs(month_totals.surplus))}
-              trend={month_totals.surplus >= 0 ? "up" : "down"}
-              support={month_totals.surplus >= 0 ? "no azul" : "acima da renda"}
-            />
-          </div>
+        <TabsContent value="visao" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Saldo total" value={formatBRL(balance)} support={`${mockAccounts.length} contas`} className="col-span-12 sm:col-span-6 lg:col-span-3" />
+          <KpiCard label="Entradas do mês" value={formatBRL(month_totals.income)} trend="up" support="+ recebido" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Saídas do mês" value={formatBRL(month_totals.expense)} trend="down" support="− gasto" className="col-span-6 lg:col-span-3" />
+          <KpiCard
+            label="Sobra do mês"
+            value={formatBRL(Math.abs(month_totals.surplus))}
+            trend={month_totals.surplus >= 0 ? "up" : "down"}
+            support={month_totals.surplus >= 0 ? "no azul" : "acima da renda"}
+            className="col-span-12 sm:col-span-6 lg:col-span-3"
+          />
 
           {attention.length > 0 ? (
-            <section className="flex flex-col gap-2">
-              <SectionTitle>Contas para ficar de olho</SectionTitle>
+            <BentoCard title="Contas para ficar de olho" className="col-span-12 lg:col-span-7">
               <div>
                 {attention.map(({ bill, status, daysLeft }) => (
                   <div key={bill.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
@@ -205,11 +200,10 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                   </div>
                 ))}
               </div>
-            </section>
+            </BentoCard>
           ) : null}
 
-          <section className="flex max-w-2xl flex-col gap-3">
-            <SectionTitle>Orçamento do mês</SectionTitle>
+          <BentoCard title="Orçamento do mês" className={cn("col-span-12", attention.length > 0 ? "lg:col-span-5" : "lg:col-span-12")} bodyClassName="flex flex-col gap-3">
             <div className="tabular flex justify-between text-[15px] leading-6">
               <span>
                 {formatBRL(spentInBudget)} <span className="text-muted-foreground">de {formatBRL(budget)}</span>
@@ -220,10 +214,9 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
             <p className="text-[13px] leading-5 text-muted-foreground">
               {spentInBudget <= budget ? `Restam ${formatBRL(budget - spentInBudget)} até o fim do mês.` : `Você passou ${formatBRL(spentInBudget - budget)} do orçamento.`}
             </p>
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-4">
-            <SectionTitle>Onde estou gastando</SectionTitle>
+          <BentoCard title="Onde estou gastando" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-4">
             {categories.map(({ category, spent, limit, ratio }) => (
               <div key={category.id} className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-3 text-[15px] leading-6">
@@ -247,11 +240,10 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                 <Progress value={ratio === null ? 0 : Math.min(100, ratio * 100)} aria-label={`Gasto em ${category.name}`} />
               </div>
             ))}
-          </section>
+          </BentoCard>
 
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Evolução nos últimos 6 meses</SectionTitle>
-            <ChartContainer config={chartConfig} className="aspect-[16/8] w-full max-w-3xl">
+          <BentoCard title="Evolução nos últimos 6 meses" className="col-span-12 lg:col-span-5">
+            <ChartContainer config={chartConfig} className="aspect-[16/10] w-full">
               <BarChart data={series} margin={{ left: 4, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
@@ -262,10 +254,9 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                 <Bar dataKey="expense" fill="var(--color-expense)" radius={6} />
               </BarChart>
             </ChartContainer>
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-2">
-            <SectionTitle>Contas e bancos</SectionTitle>
+          <BentoCard title="Contas e bancos" className="col-span-12">
             <div>
               {mockAccounts.map((account) => (
                 <div key={account.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
@@ -284,11 +275,14 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                 </div>
               ))}
             </div>
-          </section>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* --------------------------------------------------- transactions */}
-        <TabsContent value="lancamentos" className="flex flex-col gap-6 pt-6">
+        <TabsContent value="lancamentos" className="pt-5">
+          <Bento>
+          <BentoCard className="col-span-12" bodyClassName="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 basis-48 md:max-w-80">
               <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -341,17 +335,24 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
               ))}
             </div>
           )}
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* ------------------------------------------------------- bills */}
-        <TabsContent value="fixas" className="flex flex-col gap-8 pt-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <Stat size="sm" label="Total fixo por mês" value={formatBRL(monthlyFixedTotal(bills))} support={`${bills.filter((b) => b.active).length} contas e assinaturas`} />
-            <Button variant="outline" onClick={() => setNewBill(true)}>
-              <PlusIcon strokeWidth={1.75} /> Nova conta fixa
-            </Button>
-          </div>
-          <div className="max-w-3xl">
+        <TabsContent value="fixas" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Total fixo por mês" value={formatBRL(monthlyFixedTotal(bills))} support={`${bills.filter((b) => b.active).length} contas e assinaturas`} className="col-span-12 lg:col-span-4" />
+          <BentoCard
+            title="Contas fixas"
+            className="col-span-12 lg:col-span-8"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => setNewBill(true)}>
+                <PlusIcon strokeWidth={1.75} /> Nova conta fixa
+              </Button>
+            }
+          >
+          <div>
             {billViews.map(({ bill, status, daysLeft }) => (
               <div key={bill.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                 <div className="tabular flex w-12 shrink-0 flex-col items-center text-[13px] leading-4 text-muted-foreground">
@@ -384,14 +385,17 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
               </div>
             ))}
           </div>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* ------------------------------------------------------- goals */}
-        <TabsContent value="metas" className="flex max-w-3xl flex-col gap-6 pt-6">
+        <TabsContent value="metas" className="pt-5">
+          <Bento>
           {goals.map((goal) => {
             const ratio = Math.min(100, (goal.current_cents / goal.target_cents) * 100)
             return (
-              <div key={goal.id} className="flex flex-col gap-3 border-b border-border pb-6 last:border-b-0">
+              <BentoCard key={goal.id} className="col-span-12 lg:col-span-4" bodyClassName="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex flex-col">
                     <span className="text-[17px] leading-6 font-semibold">{goal.name}</span>
@@ -412,9 +416,10 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                     {Math.round(ratio)}% de {formatBRL(goal.target_cents)}
                   </span>
                 </div>
-              </div>
+              </BentoCard>
             )
           })}
+          </Bento>
         </TabsContent>
       </Tabs>
 

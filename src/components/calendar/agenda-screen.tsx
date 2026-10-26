@@ -23,7 +23,6 @@ import {
   DumbbellIcon,
   GraduationCapIcon,
   MapPinIcon,
-  PlusIcon,
   RepeatIcon,
   SquareCheckIcon,
   Trash2Icon,
@@ -32,7 +31,9 @@ import {
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
+import { Bento, BentoCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -229,18 +230,14 @@ export function AgendaScreen({ nowIso }: { nowIso: string }) {
 
   const weekDays = eachDayOfInterval({ start: parseISO(range.from), end: addDays(parseISO(range.to), -1) })
 
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Agenda"
-        description="Eventos, tarefas com data, treinos e estudos em um só lugar."
-        actions={
-          <Button onClick={() => setCreating(day)}>
-            <PlusIcon strokeWidth={1.75} /> Novo evento
-          </Button>
-        }
-      />
+  usePrimaryAction("Novo evento", () => setCreating(day))
 
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader />
+      <Bento>
+      <BentoCard className={cn("col-span-12", view === "mes" && "lg:col-span-8")}>
+      <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as View)}>
           <TabsList>
@@ -308,12 +305,14 @@ export function AgendaScreen({ nowIso }: { nowIso: string }) {
         </>
       ) : null}
 
+      </div>
+      </BentoCard>
       {view === "mes" ? (
-        <section className="flex flex-col gap-1">
-          <SectionTitle>{upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))}</SectionTitle>
+        <BentoCard title={upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))} className="col-span-12 lg:col-span-4">
           <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
-        </section>
+        </BentoCard>
       ) : null}
+      </Bento>
 
       <NewEventDialog
         day={creating}

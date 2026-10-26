@@ -10,7 +10,7 @@ type StatProps = {
   /** Financial trend: shown with an arrow and the sign, never with color alone. */
   trend?: "up" | "down"
   /** "sm" fits long values such as currency in narrow columns. */
-  size?: "default" | "sm"
+  size?: "default" | "sm" | "xs"
   className?: string
 }
 
@@ -26,10 +26,10 @@ export function Stat({ label, value, support, trend, size = "default", className
       <span
         className={cn(
           "tabular flex items-center gap-1.5 font-semibold tracking-[-0.02em]",
-          size === "sm" ? "text-2xl leading-8" : "text-[30px] leading-9 md:text-4xl md:leading-10"
+          size === "xs" ? "text-xl leading-7" : size === "sm" ? "text-2xl leading-8" : "text-[30px] leading-9 md:text-4xl md:leading-10"
         )}
       >
-        {trend ? <TrendIcon aria-hidden strokeWidth={1.75} className={size === "sm" ? "size-5" : "size-6"} /> : null}
+        {trend ? <TrendIcon aria-hidden strokeWidth={1.75} className={size === "default" ? "size-6" : "size-5"} /> : null}
         {value}
       </span>
       {support ? (

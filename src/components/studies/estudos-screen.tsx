@@ -20,8 +20,9 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -173,17 +174,11 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   const dueCards = cards.filter((c) => isDue(c, today))
   const todaysBlocks = studyTemplates.filter((t) => t.weekdays.includes(parseISO(today).getDay()))
 
+  usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Estudos"
-        description="Foco, constância e revisão no tempo certo."
-        actions={
-          <Button variant="outline" onClick={() => setCreatingSubject(true)}>
-            <PlusIcon strokeWidth={1.75} /> Nova matéria
-          </Button>
-        }
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
 
       <Tabs defaultValue="hoje">
         <TabsList>
@@ -194,8 +189,12 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         {/* ----------------------------------------------------------- today */}
-        <TabsContent value="hoje" className="flex flex-col gap-10 pt-6">
-          <section className="flex max-w-xl flex-col gap-5">
+        <TabsContent value="hoje" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" className="col-span-12 sm:col-span-4" />
+          <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} className="col-span-6 sm:col-span-4" />
+          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/estudos" className="col-span-6 sm:col-span-4" />
+          <BentoCard title="Foco" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-5">
             <Tabs value={mode} onValueChange={changeMode}>
               <TabsList>
                 {MODES.map((m) => (
@@ -244,17 +243,10 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
               </Button>
             </div>
-          </section>
+          </BentoCard>
 
-          <div className="grid grid-cols-3 gap-4 max-w-xl">
-            <Stat size="sm" label="Hoje" value={hours(todayMinutes)} />
-            <Stat size="sm" label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} />
-            <Stat size="sm" label="Flashcards" value={`${dueCards.length}`} support="para revisar" />
-          </div>
-
-          <section className="flex max-w-2xl flex-col gap-3">
-            <SectionTitle>Horas por matéria nesta semana</SectionTitle>
-            <ChartContainer config={hoursConfig} className="aspect-[16/8] w-full">
+          <BentoCard title="Horas por matéria nesta semana" className="col-span-12 lg:col-span-7">
+            <ChartContainer config={hoursConfig} className="aspect-[16/9] w-full">
               <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
                 <CartesianGrid horizontal={false} strokeOpacity={0.5} />
                 <XAxis type="number" tickLine={false} axisLine={false} unit=" h" />
@@ -263,10 +255,9 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 <Bar dataKey="hours" fill="var(--color-hours)" radius={6} />
               </BarChart>
             </ChartContainer>
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-2">
-            <SectionTitle>Blocos de hoje</SectionTitle>
+          <BentoCard title="Blocos de hoje" className="col-span-12 lg:col-span-4">
             {todaysBlocks.length === 0 ? (
               <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nenhum bloco no cronograma de hoje.</p>
             ) : (
@@ -280,10 +271,9 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 </div>
               ))
             )}
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-2">
-            <SectionTitle>Contagem regressiva</SectionTitle>
+          <BentoCard title="Contagem regressiva" className="col-span-12 md:col-span-6 lg:col-span-4">
             {upcoming.slice(0, 3).map((d) => (
               <div key={d.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                 <span className="flex-1 text-[15px] leading-6">{d.title}</span>
@@ -292,10 +282,9 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 </Badge>
               </div>
             ))}
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-2">
-            <SectionTitle>Ranking da semana</SectionTitle>
+          <BentoCard title="Ranking da semana" className="col-span-12 md:col-span-6 lg:col-span-4">
             {bySubject.map((r, index) => (
               <div key={r.subject.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
                 <span className="tabular w-5 text-[13px] leading-5 text-muted-foreground">{index + 1}</span>
@@ -303,16 +292,18 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 <span className="tabular text-[13px] leading-5 text-muted-foreground">{hours(r.minutes)}</span>
               </div>
             ))}
-          </section>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* -------------------------------------------------------- subjects */}
-        <TabsContent value="materias" className="flex max-w-3xl flex-col pt-6">
+        <TabsContent value="materias" className="pt-5">
+          <Bento>
           {subjects.map((s) => {
             const Icon = TYPE_ICONS[s.type]
             const done = weekMinutes(s.id)
             return (
-              <div key={s.id} className="flex flex-col gap-3 border-b border-border py-5 last:border-b-0">
+              <BentoCard key={s.id} className="col-span-12 lg:col-span-6" bodyClassName="flex flex-col gap-3">
                 <div className="flex items-start gap-4">
                   <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -342,18 +333,21 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                     </>
                   ) : null}
                 </div>
-              </div>
+              </BentoCard>
             )
           })}
+          </Bento>
         </TabsContent>
 
         {/* ------------------------------------------------------ flashcards */}
-        <TabsContent value="flashcards" className="flex max-w-3xl flex-col gap-6 pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[15px] leading-6 text-muted-foreground">
-              {dueCards.length === 0 ? "Nada para revisar hoje." : `${dueCards.length} cartões para revisar hoje.`}
-            </p>
+        <TabsContent value="flashcards" className="pt-5">
+          <Bento>
+          <BentoCard
+            title="Baralhos"
+            className="col-span-12 lg:col-span-8"
+            actions={
             <Button
+              size="sm"
               variant="outline"
               disabled={generating}
               onClick={() => {
@@ -379,7 +373,11 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             >
               <SparklesIcon strokeWidth={1.75} /> {generating ? "Gerando…" : "Gerar com IA"}
             </Button>
-          </div>
+            }
+          >
+          <p className="pb-2 text-[15px] leading-6 text-muted-foreground">
+            {dueCards.length === 0 ? "Nada para revisar hoje." : `${dueCards.length} cartões para revisar hoje.`}
+          </p>
           {generating ? <Skeleton className="h-16 w-full" /> : null}
           {mockDecks.map((deck) => {
             const list = cards.filter((c) => c.deck_id === deck.id)
@@ -399,15 +397,22 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
               </div>
             )
           })}
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* --------------------------------------------------------- deadlines */}
-        <TabsContent value="provas" className="flex max-w-3xl flex-col gap-4 pt-6">
-          <div>
-            <Button variant="outline" onClick={() => setCreatingDeadline(true)}>
-              <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
-            </Button>
-          </div>
+        <TabsContent value="provas" className="pt-5">
+          <Bento>
+          <BentoCard
+            title="Provas e prazos"
+            className="col-span-12 lg:col-span-8"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => setCreatingDeadline(true)}>
+                <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
+              </Button>
+            }
+          >
           {upcoming.map((d) => {
             const left = daysUntil(d.due_on, today)
             return (
@@ -426,6 +431,8 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
               </div>
             )
           })}
+          </BentoCard>
+          </Bento>
         </TabsContent>
       </Tabs>
 

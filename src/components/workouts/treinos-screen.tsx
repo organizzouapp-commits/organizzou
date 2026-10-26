@@ -16,8 +16,9 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -167,17 +168,11 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
   const weekly = weeklyVolume(history.sets, history.sessions, today, 8)
   const last4 = weekly.slice(-4).reduce((sum, w) => sum + w.sessions, 0)
 
+  usePrimaryAction("Novo treino", () => setCreatingPlan(true))
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Treinos"
-        description="Registre séries, carga e descanso sem sair da academia."
-        actions={
-          <Button variant="outline" onClick={() => setCreatingPlan(true)}>
-            <PlusIcon strokeWidth={1.75} /> Novo treino
-          </Button>
-        }
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
 
       <Tabs defaultValue="hoje">
         <TabsList>
@@ -187,8 +182,17 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         {/* --------------------------------------------------------- today */}
-        <TabsContent value="hoje" className="flex flex-col gap-8 pt-6">
-          <div className="grid max-w-xl grid-cols-7 gap-1" role="group" aria-label="Semana">
+        <TabsContent value="hoje" className="pt-5">
+          <Bento>
+          {activePlan ? (
+            <>
+              <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" className="col-span-12 sm:col-span-4" />
+              <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" className="col-span-6 sm:col-span-4" />
+              <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} className="col-span-6 sm:col-span-4" />
+            </>
+          ) : null}
+          <BentoCard title="Semana" className="col-span-12 lg:col-span-5">
+          <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semana">
             {week.map((date) => {
               const key = format(date, "yyyy-MM-dd")
               const planned = plans.some((p) => p.weekdays.includes(date.getDay()))
@@ -211,7 +215,9 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
               )
             })}
           </div>
+          </BentoCard>
 
+          <BentoCard className="col-span-12 lg:col-span-7">
           {!activePlan ? (
             <EmptyState
               icon={DumbbellIcon}
@@ -253,12 +259,6 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 max-w-md">
-                <Stat size="sm" label="Séries" value={`${doneSets}/${totalSets}`} />
-                <Stat size="sm" label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} />
-                <Stat size="sm" label="Exercícios" value={`${items.length}`} />
               </div>
 
               <div className="flex flex-col gap-8">
@@ -325,10 +325,14 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
               </div>
             </section>
           )}
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* ---------------------------------------------------------- plans */}
-        <TabsContent value="treinos" className="flex max-w-3xl flex-col gap-4 pt-6">
+        <TabsContent value="treinos" className="pt-5">
+          <Bento>
+          <BentoCard title="Meus treinos" className="col-span-12 lg:col-span-8">
           <Accordion type="single" collapsible defaultValue={plans[0]?.id}>
             {plans.map((p) => {
               const list = planExercises.filter((e) => e.plan_id === p.id).sort((a, b) => a.position - b.position)
@@ -370,22 +374,24 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
               )
             })}
           </Accordion>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
         {/* ------------------------------------------------------ progress */}
-        <TabsContent value="evolucao" className="flex flex-col gap-10 pt-6">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-            <Stat size="sm" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" />
-            <Stat size="sm" label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} />
-            <Stat size="sm" label="Recordes" value={`${records.length}`} support="exercícios com marca" />
-            <Stat size="sm" label="Frequência" value={`${(last4 / 4).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/sem`} />
-          </div>
+        <TabsContent value="evolucao" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Recordes" value={`${records.length}`} support="exercícios com marca" className="col-span-6 lg:col-span-3" />
+          <KpiCard label="Frequência" value={`${(last4 / 4).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/sem`} support="média de 4 semanas" className="col-span-6 lg:col-span-3" />
 
-          <section className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <SectionTitle>Carga por treino</SectionTitle>
+          <BentoCard
+            title="Carga por treino"
+            className="col-span-12 lg:col-span-7"
+            actions={
               <Select value={progressExercise} onValueChange={setProgressExercise}>
-                <SelectTrigger aria-label="Exercício" className="w-64">
+                <SelectTrigger aria-label="Exercício" className="w-56">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -396,8 +402,9 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <ChartContainer config={loadConfig} className="aspect-[16/7] w-full max-w-3xl">
+            }
+          >
+            <ChartContainer config={loadConfig} className="aspect-[16/8] w-full">
               <LineChart data={progress} margin={{ left: -8, right: 8 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
@@ -406,11 +413,10 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                 <Line dataKey="load" type="monotone" stroke="var(--color-load)" strokeWidth={1.75} dot={false} />
               </LineChart>
             </ChartContainer>
-          </section>
+          </BentoCard>
 
-          <section className="flex flex-col gap-3">
-            <SectionTitle>Volume por semana</SectionTitle>
-            <ChartContainer config={volumeConfig} className="aspect-[16/7] w-full max-w-3xl">
+          <BentoCard title="Volume por semana" className="col-span-12 lg:col-span-5">
+            <ChartContainer config={volumeConfig} className="aspect-[16/10] w-full">
               <BarChart data={weekly} margin={{ left: 4, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
                 <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
@@ -419,10 +425,9 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                 <Bar dataKey="volume" fill="var(--color-volume)" radius={6} />
               </BarChart>
             </ChartContainer>
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-2">
-            <SectionTitle>Recordes pessoais</SectionTitle>
+          <BentoCard title="Recordes pessoais" className="col-span-12">
             <div>
               {records.slice(0, 8).map((r) => (
                 <div key={r.exerciseId} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
@@ -437,7 +442,8 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                 </div>
               ))}
             </div>
-          </section>
+          </BentoCard>
+          </Bento>
         </TabsContent>
       </Tabs>
 

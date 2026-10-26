@@ -2,11 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import {
   AnnoyedIcon,
-  ArrowRightIcon,
   DumbbellIcon,
   FrownIcon,
   GlassWaterIcon,
@@ -22,6 +19,7 @@ import {
 import { toast } from "sonner"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { HabitCheck } from "@/components/organizzou/HabitCheck"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
 import { Stat } from "@/components/organizzou/Stat"
@@ -36,7 +34,7 @@ import { dayTotals } from "@/features/diet/stats"
 import { isDone, isScheduled } from "@/features/habits/stats"
 import { MOOD_LABELS, type Mood } from "@/features/journal/types"
 import { daysUntil, isDue } from "@/features/studies/spaced-repetition"
-import { dayDiff, formatDue, greeting, inTz, isOverdue } from "@/lib/dates"
+import { dayDiff, formatDue, inTz, isOverdue } from "@/lib/dates"
 import { formatBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import { buildMockEvents } from "@/mocks/calendar"
@@ -57,26 +55,12 @@ const MOODS: { value: Mood; icon: LucideIcon }[] = [
   { value: 5, icon: LaughIcon },
 ]
 
-function SectionHeader({ title, href, label = "Ver tudo" }: { title: string; href: string; label?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <SectionTitle>{title}</SectionTitle>
-      <Link
-        href={href}
-        className="inline-flex items-center gap-1 rounded-md text-[13px] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        {label} <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
-      </Link>
-    </div>
-  )
-}
-
 function formatTime(date: Date) {
   const local = inTz(date, MOCK_TIMEZONE)
   return `${String(local.getHours()).padStart(2, "0")}:${String(local.getMinutes()).padStart(2, "0")}`
 }
 
-export function HojeScreen({ nowIso, name }: { nowIso: string; name: string }) {
+export function HojeScreen({ nowIso }: { nowIso: string }) {
   const now = new Date(nowIso)
   const today = dayOf(nowIso)
   const { openAssistant } = useAssistant()
@@ -156,221 +140,220 @@ export function HojeScreen({ nowIso, name }: { nowIso: string; name: string }) {
   const nextExam = [...buildMockDeadlines(nowIso)].sort((a, b) => a.due_on.localeCompare(b.due_on))[0]
 
   const [mood, setMood] = useState<Mood | null>(null)
-  const firstName = name.split(" ")[0]
-  const dateText = format(parseISO(today), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
-
+  const workout = agenda.find((a) => a.kind === "workout")
   return (
-    <div className="flex flex-col gap-10">
-      <header className="flex flex-col gap-1">
-        <span className="text-[13px] leading-5 text-muted-foreground">{dateText}</span>
-        <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[28px] md:leading-[34px]">
-          {greeting(now, MOCK_TIMEZONE)}
-          {firstName ? `, ${firstName}` : ""}
-        </h1>
-        <p className="text-base leading-6 text-muted-foreground">
-          {pendingCount === 0 ? "Tudo certo por hoje." : pendingCount === 1 ? "1 tarefa para hoje." : `${pendingCount} tarefas para hoje.`}
-        </p>
-      </header>
+    <Bento>
+      {/* One highlighted KPI per screen: today's tasks. */}
+      <KpiCard
+        tone="highlight"
+        label="Tarefas hoje"
+        value={`${pendingCount}`}
+        support={`${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
+        href="/tarefas"
+        className="col-span-6 lg:col-span-3"
+      />
+      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/rotina" className="col-span-6 lg:col-span-3" />
+      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/financas" className="col-span-6 lg:col-span-3" />
+      <KpiCard
+        label="Água"
+        value={`${(water / 1000).toLocaleString("pt-BR")} L`}
+        support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`}
+        href="/dieta"
+        className="col-span-6 lg:col-span-3"
+      />
 
-      <button
-        type="button"
-        onClick={openAssistant}
-        className="flex max-w-3xl items-start gap-3 border-y border-border py-4 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <SparklesIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
-        <span className="flex flex-col gap-0.5">
-          <span className="text-[15px] leading-6">Você gastou 12% menos com restaurantes esta semana. Bom ritmo para fechar o mês dentro do orçamento.</span>
-          <span className="text-[13px] leading-5 text-muted-foreground">Insight do assistente · toque para conversar</span>
-        </span>
-      </button>
+      <BentoCard className="col-span-12" bodyClassName="flex-none">
+        <button
+          type="button"
+          onClick={openAssistant}
+          className="-m-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-2xl p-2 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <SparklesIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[15px] leading-6">Você gastou 12% menos com restaurantes esta semana. Bom ritmo para fechar o mês dentro do orçamento.</span>
+            <span className="text-[13px] leading-5 text-muted-foreground">Insight do assistente · toque para conversar</span>
+          </span>
+        </button>
+      </BentoCard>
 
-      <section aria-label="Resumo do dia" className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4">
-        <Stat size="sm" label="Tarefas hoje" value={`${pendingCount}`} support={`${doneToday} concluídas`} />
-        <Stat size="sm" label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia" />
-        <Stat size="sm" label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} />
-        <Stat size="sm" label="Água" value={`${(water / 1000).toLocaleString("pt-BR")} L`} support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`} />
-      </section>
-
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-x-16 gap-y-12 lg:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-12">
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Tarefas de hoje" href="/tarefas" />
-            <div className="flex flex-col gap-2">
-              <div className="tabular flex justify-between text-[13px] leading-5">
-                <span>Progresso do dia</span>
-                <span className="text-muted-foreground">{Math.min(100, progress)}%</span>
-              </div>
-              <Progress value={Math.min(100, progress)} aria-label="Progresso do dia" />
+      <BentoCard title="Tarefas de hoje" href="/tarefas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="tabular flex justify-between text-[13px] leading-5">
+              <span>Progresso do dia</span>
+              <span className="text-muted-foreground">{Math.min(100, progress)}%</span>
             </div>
-            {focus.length === 0 ? (
-              <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado para hoje. Aproveite o dia.</p>
-            ) : (
-              <div>
-                {focus.map((task) => {
-                  const checked = completed.has(task.id)
-                  const late = overdue.includes(task)
-                  return (
-                    <div key={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                      <Checkbox checked={checked} onCheckedChange={() => void toggleTask(task)} aria-label={checked ? `Reabrir ${task.title}` : `Concluir ${task.title}`} />
-                      <Link href={`/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-                        <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>{task.title}</span>
-                        <span className="flex items-center gap-3">
-                          <DueLabel task={task} now={now} timeZone={MOCK_TIMEZONE} />
-                          <span className="truncate text-[13px] leading-5 text-muted-foreground">{late ? "Atrasada · " : ""}{task.boardName}</span>
+            <Progress value={Math.min(100, progress)} aria-label="Progresso do dia" />
+          </div>
+          {focus.length === 0 ? (
+            <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado para hoje. Aproveite o dia.</p>
+          ) : (
+            <div>
+              {focus.map((task) => {
+                const checked = completed.has(task.id)
+                const late = overdue.includes(task)
+                return (
+                  <div key={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                    <Checkbox checked={checked} onCheckedChange={() => void toggleTask(task)} aria-label={checked ? `Reabrir ${task.title}` : `Concluir ${task.title}`} />
+                    <Link href={`/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>{task.title}</span>
+                      <span className="flex items-center gap-3">
+                        <DueLabel task={task} now={now} timeZone={MOCK_TIMEZONE} />
+                        <span className="truncate text-[13px] leading-5 text-muted-foreground">
+                          {late ? "Atrasada · " : ""}
+                          {task.boardName}
                         </span>
-                      </Link>
-                      <PriorityIcon priority={task.priority} className="shrink-0 text-muted-foreground" />
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <SectionHeader title="Agenda de hoje" href="/agenda" />
-            {agenda.length === 0 ? (
-              <p className="py-4 text-[15px] leading-6 text-muted-foreground">Dia livre, sem compromissos.</p>
-            ) : (
-              agenda.map((item) => (
-                <div key={item.key} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                  <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="flex items-center gap-2 text-[15px] leading-6">
-                      {item.kind === "workout" ? <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
-                      {item.kind === "study" ? <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
-                      <span className="truncate">{item.title}</span>
-                    </span>
-                    {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
-                  </span>
-                </div>
-              ))
-            )}
-            {upcomingTasks.length > 0 ? (
-              <div className="pt-4">
-                <SectionTitle className="mb-1">Próximas entregas</SectionTitle>
-                {upcomingTasks.map((task) => (
-                  <div key={task.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-                    <SquareCheckIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate text-[15px] leading-6">{task.title}</span>
-                    <span className="tabular text-[13px] leading-5 text-muted-foreground">{formatDue(task, now, MOCK_TIMEZONE)}</span>
+                      </span>
+                    </Link>
+                    <PriorityIcon priority={task.priority} className="shrink-0 text-muted-foreground" />
                   </div>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-12">
-          <section className="flex flex-col gap-2">
-            <SectionHeader title="Rotina" href="/rotina" />
-            {todaysHabits.map((habit) => (
-              <HabitCheck
-                key={habit.id}
-                label={habit.name}
-                support={habit.type === "goal" ? `meta: ${habit.target_qty?.toLocaleString("pt-BR")} ${habit.unit}` : undefined}
-                checked={isDone(habit, logs, today)}
-                onCheckedChange={(v) => toggleHabit(habit.id, v)}
-              />
-            ))}
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Finanças" href="/financas" />
-            <div className="grid grid-cols-2 gap-4">
-              <Stat size="sm" label="Sobra do mês" value={formatBRL(monthTotals.surplus)} trend={monthTotals.surplus >= 0 ? "up" : "down"} />
-              <Stat size="sm" label="Orçamento" value={`${budget === 0 ? 0 : Math.round((budgetSpent / budget) * 100)}%`} support={`${formatBRL(budgetSpent)} de ${formatBRL(budget)}`} />
+                )
+              })}
             </div>
-            <Progress value={budget === 0 ? 0 : Math.min(100, (budgetSpent / budget) * 100)} aria-label="Orçamento usado" />
-            {bills.slice(0, 2).map(({ bill, status, daysLeft }) => (
-              <div key={bill.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-                <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+          )}
+        </div>
+      </BentoCard>
+
+      <BentoCard title="Rotina" href="/rotina" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+        <div className="flex flex-col">
+          {todaysHabits.map((habit) => (
+            <HabitCheck
+              key={habit.id}
+              label={habit.name}
+              support={habit.type === "goal" ? `meta: ${habit.target_qty?.toLocaleString("pt-BR")} ${habit.unit}` : undefined}
+              checked={isDone(habit, logs, today)}
+              onCheckedChange={(v) => toggleHabit(habit.id, v)}
+            />
+          ))}
+        </div>
+      </BentoCard>
+
+      <BentoCard title="Agenda de hoje" href="/agenda" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+        {agenda.length === 0 ? (
+          <p className="py-4 text-[15px] leading-6 text-muted-foreground">Dia livre, sem compromissos.</p>
+        ) : (
+          <div>
+            {agenda.map((item) => (
+              <div key={item.key} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] leading-6">{bill.name}</span>
-                  <span className="text-[13px] leading-5 text-muted-foreground">
-                    {status === "overdue" ? `Venceu há ${Math.abs(daysLeft)} dias` : daysLeft === 0 ? "Vence hoje" : `Vence em ${daysLeft} dias`}
+                  <span className="flex items-center gap-2 text-[15px] leading-6">
+                    {item.kind === "workout" ? <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
+                    {item.kind === "study" ? <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
+                    <span className="truncate">{item.title}</span>
                   </span>
+                  {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
                 </span>
-                <span className="tabular text-[15px]">{formatBRL(bill.amount_cents)}</span>
               </div>
             ))}
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Dieta e água" href="/dieta" />
-            <div className="tabular flex justify-between text-[15px] leading-6">
-              <span>
-                {mealTotals.kcal} <span className="text-muted-foreground">de {mockDietGoal.kcal} kcal</span>
-              </span>
-              <span className="text-muted-foreground">P {Math.round(mealTotals.protein)} g</span>
-            </div>
-            <Progress value={Math.min(100, (mealTotals.kcal / mockDietGoal.kcal) * 100)} aria-label="Calorias do dia" />
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                Água: {(water / 1000).toLocaleString("pt-BR")} de {(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L
-              </span>
-              <Button variant="outline" size="sm" onClick={() => setWater((w) => w + 250)}>
-                <GlassWaterIcon strokeWidth={1.75} /> + 250 ml
-              </Button>
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Treino e estudos" href="/treinos" label="Treinos" />
-            {(() => {
-              const workout = agenda.find((a) => a.kind === "workout")
-              return (
-                <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
-                  <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 text-[15px] leading-6">{workout ? workout.title : "Dia de descanso"}</span>
-                  {workout ? <Badge variant="secondary">{formatTime(workout.start)}</Badge> : null}
-                </div>
-              )
-            })()}
-            <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
-              <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-              <span className="tabular flex-1 text-[15px] leading-6">
-                {Math.floor(studiedToday / 60)} h {studiedToday % 60} min hoje <span className="text-muted-foreground">· meta {Math.round(weeklyGoal / 60 * 10) / 10} h</span>
-              </span>
-              <Link href="/estudos" className="text-[13px] leading-5 text-muted-foreground underline underline-offset-4 hover:text-foreground">
-                {dueCards} cartões
-              </Link>
-            </div>
-            {nextExam ? (
-              <div className="flex min-h-12 items-center gap-3 py-2">
-                <span className="flex-1 truncate text-[15px] leading-6">{nextExam.title}</span>
-                <Badge variant="highlight">{daysUntil(nextExam.due_on, today)} dias</Badge>
+          </div>
+        )}
+        {upcomingTasks.length > 0 ? (
+          <div className="pt-5">
+            <SectionTitle className="mb-1">Próximas entregas</SectionTitle>
+            {upcomingTasks.map((task) => (
+              <div key={task.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
+                <SquareCheckIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate text-[15px] leading-6">{task.title}</span>
+                <span className="tabular text-[13px] leading-5 text-muted-foreground">{formatDue(task, now, MOCK_TIMEZONE)}</span>
               </div>
-            ) : null}
-          </section>
+            ))}
+          </div>
+        ) : null}
+      </BentoCard>
 
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Como você está?" href="/diario" label="Diário" />
-            <div role="radiogroup" aria-label="Humor de hoje" className="flex gap-2">
-              {MOODS.map(({ value, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={mood === value}
-                  aria-label={MOOD_LABELS[value]}
-                  title={MOOD_LABELS[value]}
-                  onClick={() => {
-                    setMood(value)
-                    toast.success(`Humor registrado: ${MOOD_LABELS[value].toLowerCase()}.`)
-                  }}
-                  className={cn(
-                    "flex size-12 items-center justify-center rounded-full border border-border outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-                    mood === value && "border-transparent bg-highlight text-highlight-foreground hover:bg-highlight"
-                  )}
-                >
-                  <Icon aria-hidden strokeWidth={1.75} className="size-6" />
-                </button>
-              ))}
+      <BentoCard title="Finanças" href="/financas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Stat size="xs" label="Sobra do mês" value={formatBRL(monthTotals.surplus)} trend={monthTotals.surplus >= 0 ? "up" : "down"} />
+            <Stat size="xs" label="Orçamento" value={`${budget === 0 ? 0 : Math.round((budgetSpent / budget) * 100)}%`} support={`${formatBRL(budgetSpent)} de ${formatBRL(budget)}`} />
+          </div>
+          <Progress value={budget === 0 ? 0 : Math.min(100, (budgetSpent / budget) * 100)} aria-label="Orçamento usado" />
+          {bills.slice(0, 2).map(({ bill, status, daysLeft }) => (
+            <div key={bill.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
+              <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[15px] leading-6">{bill.name}</span>
+                <span className="text-[13px] leading-5 text-muted-foreground">
+                  {status === "overdue" ? `Venceu há ${Math.abs(daysLeft)} dias` : daysLeft === 0 ? "Vence hoje" : `Vence em ${daysLeft} dias`}
+                </span>
+              </span>
+              <span className="tabular text-[15px]">{formatBRL(bill.amount_cents)}</span>
             </div>
-          </section>
+          ))}
         </div>
-      </div>
-    </div>
+      </BentoCard>
+
+      <BentoCard title="Dieta e água" href="/dieta" linkLabel="Ver tudo" className="col-span-12 md:col-span-6 lg:col-span-4">
+        <div className="flex flex-col gap-3">
+          <div className="tabular flex justify-between text-[15px] leading-6">
+            <span>
+              {mealTotals.kcal} <span className="text-muted-foreground">de {mockDietGoal.kcal} kcal</span>
+            </span>
+            <span className="text-muted-foreground">P {Math.round(mealTotals.protein)} g</span>
+          </div>
+          <Progress value={Math.min(100, (mealTotals.kcal / mockDietGoal.kcal) * 100)} aria-label="Calorias do dia" />
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <span className="tabular text-[13px] leading-5 text-muted-foreground">
+              Água: {(water / 1000).toLocaleString("pt-BR")} de {(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setWater((w) => w + 250)}>
+              <GlassWaterIcon strokeWidth={1.75} /> + 250 ml
+            </Button>
+          </div>
+        </div>
+      </BentoCard>
+
+      <BentoCard title="Treino e estudos" href="/treinos" linkLabel="Treinos" className="col-span-12 md:col-span-6 lg:col-span-4">
+        <div className="flex flex-col">
+          <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
+            <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
+            <span className="flex-1 text-[15px] leading-6">{workout ? workout.title : "Dia de descanso"}</span>
+            {workout ? <Badge variant="secondary">{formatTime(workout.start)}</Badge> : null}
+          </div>
+          <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
+            <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
+            <span className="tabular flex-1 text-[15px] leading-6">
+              {Math.floor(studiedToday / 60)} h {studiedToday % 60} min hoje <span className="text-muted-foreground">· meta {Math.round((weeklyGoal / 60) * 10) / 10} h</span>
+            </span>
+            <Link href="/estudos" className="text-[13px] leading-5 text-muted-foreground underline underline-offset-4 hover:text-foreground">
+              {dueCards} cartões
+            </Link>
+          </div>
+          {nextExam ? (
+            <div className="flex min-h-12 items-center gap-3 py-2">
+              <span className="flex-1 truncate text-[15px] leading-6">{nextExam.title}</span>
+              <Badge variant="highlight">{daysUntil(nextExam.due_on, today)} dias</Badge>
+            </div>
+          ) : null}
+        </div>
+      </BentoCard>
+
+      <BentoCard title="Como você está?" href="/diario" linkLabel="Diário" className="col-span-12 lg:col-span-4">
+        <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
+          {MOODS.map(({ value, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={mood === value}
+              aria-label={MOOD_LABELS[value]}
+              title={MOOD_LABELS[value]}
+              onClick={() => {
+                setMood(value)
+                toast.success(`Humor registrado: ${MOOD_LABELS[value].toLowerCase()}.`)
+              }}
+              className={cn(
+                "flex size-12 items-center justify-center rounded-full border border-border outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+                mood === value && "border-transparent bg-highlight text-highlight-foreground hover:bg-highlight"
+              )}
+            >
+              <Icon aria-hidden strokeWidth={1.75} className="size-6" />
+            </button>
+          ))}
+        </div>
+        <p className="pt-4 text-[13px] leading-5 text-muted-foreground">Um toque por dia alimenta o gráfico do Diário.</p>
+      </BentoCard>
+    </Bento>
   )
 }

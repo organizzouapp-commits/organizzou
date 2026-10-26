@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import { CopyIcon, EllipsisIcon, GlassWaterIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
-import { Stat } from "@/components/organizzou/Stat"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { PageHeader } from "@/components/organizzou/PageHeader"
+import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -41,7 +41,8 @@ import {
   mockDietGoal,
   mockFoods,
 } from "@/mocks/diet"
-import { dayOf, mockId } from "@/mocks/time"
+import { inTz } from "@/lib/dates"
+import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
 
 const MEALS = Object.keys(MEAL_LABELS) as MealKind[]
 const GLASS_ML = 250
@@ -98,12 +99,14 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
   const currentWeight = weights[weights.length - 1]?.weight_kg ?? 0
   const firstWeight = weights[0]?.weight_kg ?? currentWeight
 
+  // The "+ Novo" button adds a food to the meal that fits the time of day.
+  const hour = inTz(new Date(nowIso), MOCK_TIMEZONE).getHours()
+  const nextMeal: MealKind = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : hour < 18 ? "snack" : "dinner"
+  usePrimaryAction("Adicionar alimento", () => setAdding(nextMeal))
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Dieta"
-        description={format(parseISO(today), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}
-      />
+    <div className="flex flex-col gap-5">
+      <PageHeader />
 
       <Tabs defaultValue="hoje">
         <TabsList>
@@ -112,13 +115,12 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
           <TabsTrigger value="peso">Peso</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="hoje" className="flex flex-col gap-10 pt-6">
-          <section className="flex max-w-2xl flex-col gap-6">
-            <div className="grid grid-cols-3 gap-4">
-              <Stat label="Consumido" value={`${totals.kcal}`} support="kcal" />
-              <Stat label="Meta" value={`${goal.kcal}`} support="kcal" />
-              <Stat label={remaining >= 0 ? "Restam" : "Acima"} value={`${Math.abs(remaining)}`} support="kcal" />
-            </div>
+        <TabsContent value="hoje" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Consumido" value={`${totals.kcal}`} support="kcal hoje" className="col-span-12 sm:col-span-4" />
+          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 sm:col-span-4" />
+          <KpiCard label={remaining >= 0 ? "Restam" : "Acima"} value={`${Math.abs(remaining)}`} support="kcal" className="col-span-6 sm:col-span-4" />
+          <BentoCard title="Calorias e macros" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-6">
             <Progress value={Math.min(100, (totals.kcal / goal.kcal) * 100)} aria-label="Calorias do dia" />
             <div className="grid gap-4 sm:grid-cols-3">
               {macroRows.map((m) => (
@@ -133,10 +135,9 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                 </div>
               ))}
             </div>
-          </section>
+          </BentoCard>
 
-          <section className="flex max-w-2xl flex-col gap-3">
-            <SectionTitle>Água</SectionTitle>
+          <BentoCard title="Água" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <span className="tabular text-[15px] leading-6">
                 {liters(water)} <span className="text-muted-foreground">de {liters(goal.water_ml)}</span>
@@ -157,16 +158,18 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
               </div>
             </div>
             <Progress value={Math.min(100, (water / goal.water_ml) * 100)} aria-label="Água do dia" />
-          </section>
+          </BentoCard>
 
-          <div className="flex max-w-2xl flex-col gap-10">
             {MEALS.map((meal) => {
               const list = items.filter((i) => i.meal === meal)
               const subtotal = mealTotals(items, mockFoods, meal)
               return (
-                <section key={meal} className="flex flex-col">
-                  <div className="mb-1 flex items-center gap-2">
-                    <h2 className="flex-1 text-[17px] leading-6 font-semibold">{MEAL_LABELS[meal]}</h2>
+                <BentoCard
+                  key={meal}
+                  title={MEAL_LABELS[meal]}
+                  className="col-span-12 lg:col-span-6"
+                  actions={
+                    <>
                     <span className="tabular text-[13px] leading-5 text-muted-foreground">{subtotal.kcal} kcal</span>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -194,7 +197,9 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
+                    </>
+                  }
+                >
                   {list.map((entry) => {
                     const foodRow = findFood(entry.food_id)
                     if (!foodRow) return null
@@ -221,19 +226,19 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                       <PlusIcon strokeWidth={1.75} /> Adicionar alimento
                     </Button>
                   </div>
-                </section>
+                </BentoCard>
               )
             })}
-          </div>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="historico" className="flex flex-col gap-8 pt-6">
-          <div className="grid grid-cols-3 gap-4 max-w-xl">
-            <Stat size="sm" label="Média diária" value={`${averageKcal}`} support="kcal" />
-            <Stat size="sm" label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} />
-            <Stat size="sm" label="Meta" value={`${goal.kcal}`} support="kcal" />
-          </div>
-          <ChartContainer config={kcalConfig} className="aspect-[16/8] w-full max-w-3xl">
+        <TabsContent value="historico" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Média diária" value={`${averageKcal}`} support="kcal" className="col-span-12 sm:col-span-4" />
+          <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 sm:col-span-4" />
+          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 sm:col-span-4" />
+          <BentoCard title="Calorias nos últimos 15 dias" className="col-span-12">
+          <ChartContainer config={kcalConfig} className="aspect-[16/6] w-full">
             <BarChart data={kcalSeries} margin={{ left: -8, right: 4 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={1} />
@@ -243,26 +248,36 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
               <Bar dataKey="kcal" fill="var(--color-kcal)" radius={6} />
             </BarChart>
           </ChartContainer>
+          </BentoCard>
+          </Bento>
         </TabsContent>
 
-        <TabsContent value="peso" className="flex flex-col gap-8 pt-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="grid grid-cols-3 gap-6">
-              <Stat size="sm" label="Peso atual" value={`${currentWeight.toLocaleString("pt-BR")} kg`} />
-              <Stat
-                size="sm"
-                label="Variação"
-                value={`${Math.abs(Math.round((currentWeight - firstWeight) * 10) / 10).toLocaleString("pt-BR")} kg`}
-                trend={currentWeight <= firstWeight ? "down" : "up"}
-                support="em 12 semanas"
-              />
-              <Stat size="sm" label="Meta" value={`${goal.target_weight_kg} kg`} support={`faltam ${Math.max(0, Math.round((currentWeight - goal.target_weight_kg) * 10) / 10).toLocaleString("pt-BR")} kg`} />
-            </div>
-            <Button variant="outline" onClick={() => setWeighing(true)}>
-              <PlusIcon strokeWidth={1.75} /> Registrar peso
-            </Button>
-          </div>
-          <ChartContainer config={weightConfig} className="aspect-[16/8] w-full max-w-3xl">
+        <TabsContent value="peso" className="pt-5">
+          <Bento>
+          <KpiCard tone="highlight" label="Peso atual" value={`${currentWeight.toLocaleString("pt-BR")} kg`} support="último registro" className="col-span-12 sm:col-span-4" />
+          <KpiCard
+            label="Variação"
+            value={`${Math.abs(Math.round((currentWeight - firstWeight) * 10) / 10).toLocaleString("pt-BR")} kg`}
+            trend={currentWeight <= firstWeight ? "down" : "up"}
+            support="em 12 semanas"
+            className="col-span-6 sm:col-span-4"
+          />
+          <KpiCard
+            label="Meta"
+            value={`${goal.target_weight_kg} kg`}
+            support={`faltam ${Math.max(0, Math.round((currentWeight - goal.target_weight_kg) * 10) / 10).toLocaleString("pt-BR")} kg`}
+            className="col-span-6 sm:col-span-4"
+          />
+          <BentoCard
+            title="Evolução do peso"
+            className="col-span-12"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => setWeighing(true)}>
+                <PlusIcon strokeWidth={1.75} /> Registrar peso
+              </Button>
+            }
+          >
+          <ChartContainer config={weightConfig} className="aspect-[16/6] w-full">
             <LineChart data={weightSeries} margin={{ left: -8, right: 8 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
@@ -272,6 +287,8 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
               <Line dataKey="weight" type="monotone" stroke="var(--color-weight)" strokeWidth={1.75} dot={{ r: 3 }} />
             </LineChart>
           </ChartContainer>
+          </BentoCard>
+          </Bento>
         </TabsContent>
       </Tabs>
 
