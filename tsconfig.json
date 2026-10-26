@@ -39,6 +39,7 @@
     ".next-preview/dev/types/**/*.ts"
   ],
   "exclude": [
+    ".next-preview",
     "node_modules"
   ]
 }

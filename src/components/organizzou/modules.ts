@@ -1,5 +1,6 @@
 import {
   AppleIcon,
+  BookOpenIcon,
   CalendarDaysIcon,
   DumbbellIcon,
   GraduationCapIcon,
@@ -8,6 +9,7 @@ import {
   RepeatIcon,
   ShieldCheckIcon,
   SquareKanbanIcon,
+  TargetIcon,
   WalletIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -23,6 +25,8 @@ export type ModuleId =
   | "estudos"
   | "notas"
   | "cofre"
+  | "metas"
+  | "diario"
 
 export type ModuleDefinition = {
   id: ModuleId
@@ -43,6 +47,9 @@ export const modules: Record<ModuleId, ModuleDefinition> = {
   estudos: { id: "estudos", name: "Estudos", icon: GraduationCapIcon, href: "/estudos" },
   notas: { id: "notas", name: "Notas e lembretes", icon: NotebookPenIcon, href: "/notas" },
   cofre: { id: "cofre", name: "Cofre", icon: ShieldCheckIcon, href: "/cofre" },
+  // Not in DESIGN-SYSTEM §7 yet: target / book-open keep the same Lucide stroke style.
+  metas: { id: "metas", name: "Metas", icon: TargetIcon, href: "/metas" },
+  diario: { id: "diario", name: "Diário", icon: BookOpenIcon, href: "/diario" },
 }
 
 export const moduleList = Object.values(modules)
