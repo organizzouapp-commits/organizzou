@@ -10,19 +10,7 @@ import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
-import {
-  archiveBoard,
-  completeTask,
-  createBoard,
-  createList,
-  createTask,
-  deleteList,
-  deleteTask,
-  moveTasks,
-  renameBoard,
-  reorderLists,
-  updateList,
-} from "@/features/tasks/actions"
+import type { BoardApi } from "@/features/tasks/board-api"
 import {
   applyFilters,
   countActiveFilters,
@@ -42,13 +30,16 @@ import { TaskSheet } from "./task-sheet"
 
 type BoardClientProps = {
   initial: BoardData
-  userId: string
+  /** Backend adapter: server actions in production, in-memory mock in the prototype. */
+  api: BoardApi
   initialView: ViewMode
   /** Server time, so the server render and hydration agree on "today". */
   nowIso: string
+  /** Where board links point, e.g. "/tarefas". */
+  basePath?: string
 }
 
-export function BoardClient({ initial, userId, initialView, nowIso }: BoardClientProps) {
+export function BoardClient({ initial, api, initialView, nowIso, basePath = "/tarefas" }: BoardClientProps) {
   const router = useRouter()
   const isMobile = useIsMobile()
   const [now] = useState(() => new Date(nowIso))
@@ -91,7 +82,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
   // ------------------------------------------------------------ tasks
 
   async function quickAdd(listId: string, title: string) {
-    const result = await createTask({ boardId, listId, title })
+    const result = await api.createTask({ boardId, listId, title })
     if (!result.ok) {
       toast.error(result.error)
       return false
@@ -101,7 +92,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
   }
 
   async function createFromDialog(input: { listId: string; title: string; priority: Priority }) {
-    const result = await createTask({ boardId, ...input })
+    const result = await api.createTask({ boardId, ...input })
     if (!result.ok) {
       toast.error(result.error)
       return false
@@ -127,7 +118,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
         }
       })
     )
-    const result = await moveTasks({ listId, taskIds })
+    const result = await api.moveTasks({ listId, taskIds })
     if (!result.ok) {
       setTasks(snapshot)
       toast.error(result.error)
@@ -158,7 +149,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
       completed_at: done ? new Date().toISOString() : null,
       position: target && target.id !== task.list_id ? lastPosition + 1000 : task.position,
     })
-    const result = await completeTask({ id: task.id, done })
+    const result = await api.completeTask({ id: task.id, done })
     if (!result.ok) {
       setTasks(snapshot)
       toast.error(result.error)
@@ -174,7 +165,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
     const snapshot = tasks
     setOpenId(null)
     setTasks((current) => current.filter((t) => t.id !== task.id))
-    const result = await deleteTask(task.id)
+    const result = await api.deleteTask(task.id)
     if (!result.ok) {
       setTasks(snapshot)
       toast.error(result.error)
@@ -186,7 +177,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
   // ------------------------------------------------------------ lists
 
   async function addList(name: string) {
-    const result = await createList({ boardId, name })
+    const result = await api.createList({ boardId, name })
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -197,7 +188,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
   async function renameList(list: ListRow, name: string) {
     const snapshot = lists
     setLists((current) => current.map((l) => (l.id === list.id ? { ...l, name } : l)))
-    const result = await updateList({ id: list.id, name })
+    const result = await api.updateList({ id: list.id, name })
     if (!result.ok) {
       setLists(snapshot)
       toast.error(result.error)
@@ -208,7 +199,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
     const snapshot = lists
     const next = !list.is_done_list
     setLists((current) => current.map((l) => (l.id === list.id ? { ...l, is_done_list: next } : l)))
-    const result = await updateList({ id: list.id, isDoneList: next })
+    const result = await api.updateList({ id: list.id, isDoneList: next })
     if (!result.ok) {
       setLists(snapshot)
       toast.error(result.error)
@@ -223,7 +214,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
     const next = [...lists]
     ;[next[index], next[swapWith]] = [next[swapWith], next[index]]
     setLists(next.map((l, i) => ({ ...l, position: (i + 1) * 1000 })))
-    const result = await reorderLists({ boardId, listIds: next.map((l) => l.id) })
+    const result = await api.reorderLists({ boardId, listIds: next.map((l) => l.id) })
     if (!result.ok) {
       setLists(snapshot)
       toast.error(result.error)
@@ -234,7 +225,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
     const list = listToDelete
     setListToDelete(null)
     if (!list) return
-    const result = await deleteList(list.id)
+    const result = await api.deleteList(list.id)
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -247,16 +238,16 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
   // ----------------------------------------------------------- boards
 
   async function newBoard(name: string) {
-    const result = await createBoard({ name })
+    const result = await api.createBoard({ name })
     if (!result.ok) {
       toast.error(result.error)
       return
     }
-    router.push(`/tarefas/${result.data.id}`)
+    router.push(`${basePath}/${result.data.id}`)
   }
 
   async function doRenameBoard(name: string) {
-    const result = await renameBoard({ id: boardId, name })
+    const result = await api.renameBoard({ id: boardId, name })
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -267,7 +258,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
 
   async function confirmArchive() {
     setArchiveOpen(false)
-    const result = await archiveBoard(boardId)
+    const result = await api.archiveBoard(boardId)
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -294,7 +285,7 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
       <BoardToolbar
         boards={boards.map((b) => (b.id === boardId ? { ...b, name: boardName } : b))}
         boardId={boardId}
-        onSelectBoard={(id) => router.push(`/tarefas/${id}`)}
+        onSelectBoard={(id) => router.push(`${basePath}/${id}`)}
         onNewBoard={() => setNewBoardOpen(true)}
         onRenameBoard={() => setRenameOpen(true)}
         onArchiveBoard={() => setArchiveOpen(true)}
@@ -339,10 +330,10 @@ export function BoardClient({ initial, userId, initialView, nowIso }: BoardClien
       )}
 
       <TaskSheet
+        api={api}
         task={openTask}
         lists={lists}
         tags={tags}
-        userId={userId}
         timeZone={timeZone}
         isMobile={isMobile}
         onClose={() => setOpenId(null)}

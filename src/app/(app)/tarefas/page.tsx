@@ -7,10 +7,14 @@ import { CreateFirstBoard } from "@/components/tasks/create-first-board"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getBoards } from "@/features/tasks/queries"
+import { isMock } from "@/mocks/config"
+import { FIRST_MOCK_BOARD_ID } from "@/mocks/tasks-api"
 
 export const metadata: Metadata = { title: "Tarefas — Organizzou" }
 
 async function FirstBoardRedirect() {
+  if (isMock) redirect(`/tarefas/${FIRST_MOCK_BOARD_ID}`)
+
   const boards = await getBoards()
   if (boards.length > 0) redirect(`/tarefas/${boards[0].id}`)
 

@@ -35,20 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  addChecklistItem,
-  addComment,
-  createTag,
-  deleteAttachment,
-  deleteChecklistItem,
-  deleteComment,
-  getAttachmentUrl,
-  getTaskDetail,
-  registerAttachment,
-  setTaskTags,
-  updateChecklistItem,
-  updateTask,
-} from "@/features/tasks/actions"
+import type { BoardApi } from "@/features/tasks/board-api"
 import { MAX_ATTACHMENT_BYTES } from "@/features/tasks/schemas"
 import {
   PRIORITIES,
@@ -63,17 +50,16 @@ import {
   type TaskView,
 } from "@/features/tasks/types"
 import { splitDue, toDueIso } from "@/lib/dates"
-import { createClient } from "@/lib/supabase/client"
 import { SWATCH_IDS, getSwatch, type SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 
 import { SwatchDot, TagChip } from "./task-meta"
 
 type TaskSheetProps = {
+  api: BoardApi
   task: TaskView | null
   lists: ListRow[]
   tags: TagRow[]
-  userId: string
   timeZone: string
   onClose: () => void
   onTaskChange: (task: TaskView) => void
@@ -92,10 +78,6 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; 
       {children}
     </div>
   )
-}
-
-function safeFileName(name: string) {
-  return name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-80)
 }
 
 function formatSize(bytes: number | null) {
@@ -126,10 +108,10 @@ export function TaskSheet(props: TaskSheetProps) {
 }
 
 function TaskSheetBody({
+  api,
   task,
   lists,
   tags,
-  userId,
   timeZone,
   onTaskChange,
   onMoveToList,
@@ -157,7 +139,7 @@ function TaskSheetBody({
 
   useEffect(() => {
     let cancelled = false
-    getTaskDetail(task.id).then((result) => {
+    api.getTaskDetail(task.id).then((result) => {
       if (cancelled) return
       setLoading(false)
       if (!result.ok) {
@@ -171,10 +153,10 @@ function TaskSheetBody({
     return () => {
       cancelled = true
     }
-  }, [task.id])
+  }, [task.id, api])
 
-  async function patch(values: Parameters<typeof updateTask>[0]["patch"]) {
-    const result = await updateTask({ id: task.id, patch: values })
+  async function patch(values: Parameters<BoardApi["updateTask"]>[0]["patch"]) {
+    const result = await api.updateTask({ id: task.id, patch: values })
     if (!result.ok) {
       toast.error(result.error)
       return false
@@ -214,7 +196,7 @@ function TaskSheetBody({
   async function toggleTag(tag: TagRow) {
     const next = task.tagIds.includes(tag.id) ? task.tagIds.filter((id) => id !== tag.id) : [...task.tagIds, tag.id]
     onTaskChange({ ...task, tagIds: next })
-    const result = await setTaskTags({ taskId: task.id, tagIds: next })
+    const result = await api.setTaskTags({ taskId: task.id, tagIds: next })
     if (!result.ok) {
       toast.error(result.error)
       onTaskChange({ ...task })
@@ -224,7 +206,7 @@ function TaskSheetBody({
   async function makeTag() {
     const name = tagQuery.trim()
     if (!name) return
-    const result = await createTag({ name })
+    const result = await api.createTag({ name })
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -238,7 +220,7 @@ function TaskSheetBody({
     const text = newItem.trim()
     if (!text) return
     setNewItem("")
-    const result = await addChecklistItem({ taskId: task.id, text })
+    const result = await api.addChecklistItem({ taskId: task.id, text })
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -252,7 +234,7 @@ function TaskSheetBody({
     const next = checklist.map((i) => (i.id === item.id ? { ...i, done: !i.done } : i))
     setChecklist(next)
     syncCounters({ checklist: next })
-    const result = await updateChecklistItem({ id: item.id, done: !item.done })
+    const result = await api.updateChecklistItem({ id: item.id, done: !item.done })
     if (!result.ok) {
       toast.error(result.error)
       setChecklist(checklist)
@@ -264,7 +246,7 @@ function TaskSheetBody({
     const next = checklist.filter((i) => i.id !== item.id)
     setChecklist(next)
     syncCounters({ checklist: next })
-    const result = await deleteChecklistItem(item.id)
+    const result = await api.deleteChecklistItem(item.id)
     if (!result.ok) {
       toast.error(result.error)
       setChecklist(checklist)
@@ -276,7 +258,7 @@ function TaskSheetBody({
     const body = newComment.trim()
     if (!body) return
     setNewComment("")
-    const result = await addComment({ taskId: task.id, body })
+    const result = await api.addComment({ taskId: task.id, body })
     if (!result.ok) {
       toast.error(result.error)
       setNewComment(body)
@@ -291,7 +273,7 @@ function TaskSheetBody({
     const next = comments.filter((c) => c.id !== comment.id)
     setComments(next)
     syncCounters({ comments: next })
-    const result = await deleteComment(comment.id)
+    const result = await api.deleteComment(comment.id)
     if (!result.ok) {
       toast.error(result.error)
       setComments(comments)
@@ -302,30 +284,14 @@ function TaskSheetBody({
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return
     setUploading(true)
-    const supabase = createClient()
     let current = attachments
     for (const file of Array.from(files)) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
         toast.error(`${file.name} passa de 10 MB.`)
         continue
       }
-      const path = `${userId}/${task.id}/${crypto.randomUUID()}-${safeFileName(file.name)}`
-      const { error } = await supabase.storage.from("task-attachments").upload(path, file, {
-        contentType: file.type || undefined,
-      })
-      if (error) {
-        toast.error(`Não consegui enviar ${file.name}.`)
-        continue
-      }
-      const result = await registerAttachment({
-        taskId: task.id,
-        storagePath: path,
-        fileName: file.name,
-        mimeType: file.type || null,
-        sizeBytes: file.size,
-      })
+      const result = await api.uploadAttachment({ taskId: task.id, file })
       if (!result.ok) {
-        await supabase.storage.from("task-attachments").remove([path])
         toast.error(result.error)
         continue
       }
@@ -337,7 +303,7 @@ function TaskSheetBody({
   }
 
   async function download(file: AttachmentRow) {
-    const result = await getAttachmentUrl(file.id)
+    const result = await api.getAttachmentUrl(file.id)
     if (!result.ok) {
       toast.error(result.error)
       return
@@ -349,7 +315,7 @@ function TaskSheetBody({
     const file = removeFile
     setRemoveFile(null)
     if (!file) return
-    const result = await deleteAttachment(file.id)
+    const result = await api.deleteAttachment(file.id)
     if (!result.ok) {
       toast.error(result.error)
       return
