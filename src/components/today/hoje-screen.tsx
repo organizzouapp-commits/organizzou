@@ -191,8 +191,8 @@ export function HojeScreen({ nowIso, name }: { nowIso: string; name: string }) {
         <Stat size="sm" label="Água" value={`${(water / 1000).toLocaleString("pt-BR")} L`} support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`} />
       </section>
 
-      <div className="grid gap-x-16 gap-y-12 lg:grid-cols-2">
-        <div className="flex flex-col gap-12">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-x-16 gap-y-12 lg:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-12">
           <section className="flex flex-col gap-3">
             <SectionHeader title="Tarefas de hoje" href="/tarefas" />
             <div className="flex flex-col gap-2">
@@ -261,7 +261,7 @@ export function HojeScreen({ nowIso, name }: { nowIso: string; name: string }) {
           </section>
         </div>
 
-        <div className="flex flex-col gap-12">
+        <div className="flex min-w-0 flex-col gap-12">
           <section className="flex flex-col gap-2">
             <SectionHeader title="Rotina" href="/rotina" />
             {todaysHabits.map((habit) => (

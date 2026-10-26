@@ -250,7 +250,7 @@ export function KanbanView(props: KanbanViewProps) {
           setOverride(null)
         }}
       >
-        <div className="-mx-4 flex snap-x snap-mandatory items-start gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:px-0">
+        <div className="relative -mx-4 flex snap-x snap-mandatory items-start gap-4 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:px-0">
           {lists.map((list, index) => (
             <Column
               key={list.id}

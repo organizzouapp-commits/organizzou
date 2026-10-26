@@ -12,11 +12,13 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { signOut } from "@/features/auth/actions"
 import { updateDisplayName, updateTheme } from "@/features/settings/actions"
+import { useMounted } from "@/hooks/use-mounted"
 
 type SettingsFormProps = { displayName: string; email: string }
 
 export function SettingsForm({ displayName, email }: SettingsFormProps) {
-  const { theme, resolvedTheme, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
+  const mounted = useMounted()
   const [name, setName] = useState(displayName)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -68,7 +70,7 @@ export function SettingsForm({ displayName, email }: SettingsFormProps) {
 
       <section className="flex flex-col gap-5 border-b border-border py-8">
         <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Aparência</h2>
-        <RadioGroup value={theme === "light" ? "light" : (resolvedTheme ?? "dark")} onValueChange={changeTheme}>
+        <RadioGroup value={mounted && resolvedTheme === "light" ? "light" : "dark"} onValueChange={changeTheme}>
           <label className="flex min-h-11 items-center gap-3 text-[15px]">
             <RadioGroupItem value="dark" />
             <MoonIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
