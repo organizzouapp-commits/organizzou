@@ -64,7 +64,7 @@ const stored = async (ctx) => {
   await page.goto(base + "/entrar", { waitUntil: "networkidle" })
   await page.waitForTimeout(700)
   const box = await bar(page).boundingBox()
-  ok("mobile bar is full width minus 16px margins", box && Math.abs(box.x - 16) < 1 && Math.abs(box.width - 358) < 1 && Math.abs(844 - (box.y + box.height) - 16) < 1)
+  ok("mobile bar is full width minus 16px margins, above the 72px welcome bar", box && Math.abs(box.x - 16) < 1 && Math.abs(box.width - 358) < 1 && Math.abs(844 - (box.y + box.height) - 88) < 1)
   const [a, b] = await bar(page).getByRole("button").all()
   ok("mobile buttons stack with the primary on top", (await b.boundingBox()).y < (await a.boundingBox()).y)
   await ctx.close()

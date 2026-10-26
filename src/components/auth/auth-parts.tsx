@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
 
 import { FormMessage } from "@/components/organizzou/FormMessage"
@@ -94,7 +96,33 @@ export const authInputClass = cn("h-[52px] rounded-xl px-4 py-0 text-base md:h-[
 /** Use with `<Button size="xl">`. */
 export const authButtonClass = cn("w-full", authMotion)
 
+/** Entrance reveal: class + per-item index (see .auth-reveal in globals.css). */
+export const R = "auth-reveal"
+export const rs = (index: number) => ({ "--reveal": index }) as React.CSSProperties
+
 export const authLinkClass = cn(
   "rounded-sm underline-offset-4 outline-none hover:text-foreground hover:underline-offset-[6px] focus-visible:text-foreground focus-visible:underline-offset-[6px] focus-visible:ring-3 focus-visible:ring-ring/50",
   authMotion
 )
+
+/**
+ * Link between auth screens. On phones the screens live in a bottom sheet, so switching replaces the history entry
+ * (Back closes the sheet instead of walking through every mode); on desktop it is a normal navigation.
+ */
+export function AuthLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  const router = useRouter()
+  return (
+    <Link
+      href={href}
+      className={className}
+      onClick={(event) => {
+        if (window.matchMedia("(max-width: 1023px)").matches) {
+          event.preventDefault()
+          router.replace(href)
+        }
+      }}
+    >
+      {children}
+    </Link>
+  )
+}

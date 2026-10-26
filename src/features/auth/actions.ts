@@ -122,5 +122,5 @@ export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  redirect("/entrar")
+  redirect("/entrar?saiu=1")
 }

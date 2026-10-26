@@ -190,14 +190,30 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   mesma curva) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no voltar/avançar).
   `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
   Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
-- **Mobile (< 1024 px)**: sem painel e sem cartões de passo. Usa P = 16 px (margem do hero, padding da sheet).
-  - **Hero** (~38% da altura) inserido na moldura: margem de 16 px e raio 24 px, com a foto, logotipo no canto superior esquerdo, (o seletor de tema flutuante fica no canto da viewport),
-    título + subtítulo centralizados e, embaixo, o controle segmentado "Entrar | Criar conta" (vidro; ativo = Lima com texto Tinta).
-  - **Bottom sheet**: cartão sólido (token `background`) com raio de 28 px só nos cantos de cima, sobrepondo o hero em 24 px, com
-    o formulário centralizado (mesmos campos de 48 px), botão do Google, link de troca e Termos/Privacidade no fim.
-  - Entrar ⇄ criar conta troca o conteúdo da sheet com fade + deslize horizontal. Respeita `env(safe-area-inset-*)`
-    (`viewportFit: "cover"`) e `interactiveWidget: "resizes-content"` para o teclado não cobrir o campo ativo.
-
+- **Entrada (ao carregar a página, uma vez)**: o cartão aparece com fade, sobe 16 px e vai de 0,98 a 1 de escala em 0,6 s
+  (`cubic-bezier(0.2, 0.8, 0.2, 1)`). Depois, revelação escalonada, 80 ms entre itens, 0,5 s cada (fade + 12 px): logotipo → selo →
+  título → subtítulo → cartões de passo (um a um) e, no formulário, título → subtítulo → campos → botões → link de troca → links legais.
+  Implementada com a classe `.auth-reveal` + `--reveal` (índice) em `globals.css`; o `AuthShell` remove o atributo `data-intro` quando
+  termina, então nada se repete ao trocar entre entrar e criar conta (que tem a própria animação). Com `prefers-reduced-motion`: só fade.
+- **Senha no cadastro**: sem checklist. Uma única mensagem de erro abaixo do campo (ex.: "Use pelo menos 8 caracteres."), exibida depois
+  de sair do campo ou ao enviar; a validação com zod (cliente e servidor) segue igual.
+- **Mobile (< 1024 px): duas etapas**, sem painel e sem cartões de passo.
+  - **Etapa 1, boas-vindas**: a foto em tela cheia com escurecimento sutil de Tinta, e no centro o logotipo do tema (`logo-preta` no escuro,
+    `logo-branca` no claro), "Sua vida, organizada." e "Tudo do seu dia em um só lugar.". Embaixo, uma barra de ~72 px (+ safe area) com
+    dois botões lado a lado: "Entrar" (transparente, Papel, 600) e "Criar conta" em bloco sólido (Papel com texto Tinta no escuro; Tinta
+    com texto Papel no claro), com raio de 28 px no canto superior esquerdo, ocupando a metade direita até a borda. Transições de 0,4 s.
+    O seletor de tema flutuante continua no canto superior direito.
+  - **Etapa 2, sheet com o formulário**: tocar em "Entrar" ou "Criar conta" abre uma sheet que sobe de baixo (`translateY` 100% → 0, 0,5 s),
+    cobrindo ~72% da altura (até 92%, com rolagem interna) sobre a foto. Fundo `background`, raio de 32 px nos cantos de cima, padding de
+    24 px e alça de arrastar. Conteúdo centralizado: título grande, campos de 52 px, botão principal, "ou", Google, link de troca (a troca
+    faz crossfade dentro da sheet) e "Termos de uso · Política de privacidade" no fim. O botão "‹ Voltar" (pílula de vidro, Papel) aparece no
+    canto superior esquerdo sobre a foto. Fecham a sheet: Voltar, deslizar a sheet para baixo, Esc ou o botão Voltar do navegador.
+  - **Rotas**: visita direta mostra a etapa 1. `/cadastro`, `/recuperar-senha`, `/redefinir-senha`, `?next=`, `?erro=` e `?saiu=1` (redirecionamento
+    do logout) abrem a sheet direto no modo certo. Abrir a sheet adiciona uma entrada ao histórico; trocar de modo dentro dela usa `replace`.
+  - **Teclado e safe areas**: `viewportFit: "cover"`, `interactiveWidget: "resizes-content"` e rolagem interna da sheet mantêm o campo
+    focado visível; margens e padding usam `env(safe-area-inset-*)`.
+  - **Aviso de cookies**: na etapa 1 fica acima da barra inferior (`--cookie-bar-offset`); enquanto a sheet está aberta fica oculto
+    (`data-cookie-bar="hidden"` no `<html>`) e volta ao fechar.
 
 ### 5.4 Aviso de cookies (LGPD)
 

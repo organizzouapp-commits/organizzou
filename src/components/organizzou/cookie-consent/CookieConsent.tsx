@@ -85,7 +85,7 @@ export function CookieConsent({ privacyHref = "/privacidade" }: CookieConsentPro
           role="region"
           aria-label="Aviso de cookies"
           className={cn(
-            "fixed inset-x-4 bottom-4 z-50 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-full sm:max-w-[440px]",
+            "fixed inset-x-4 bottom-[calc(var(--cookie-bar-offset,0px)+1rem)] z-50 in-data-[cookie-bar=hidden]:hidden sm:inset-x-auto sm:left-6 sm:w-full sm:max-w-[440px] lg:bottom-6",
             "fill-mode-forwards duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:animate-none",
             closing ? "animate-out fade-out slide-out-to-bottom-4" : "animate-in fade-in slide-in-from-bottom-4"
           )}

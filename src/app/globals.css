@@ -174,3 +174,20 @@
   }
 }
 
+
+/* Auth entrance (DESIGN-SYSTEM §5.3): staggered reveal, once per page load. The shell drops [data-intro] when it is over. */
+@keyframes auth-reveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes auth-reveal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+[data-intro] .auth-reveal {
+  animation: auth-reveal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--reveal, 0) * 80ms + 250ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-intro] .auth-reveal { animation-name: auth-reveal-fade; }
+}

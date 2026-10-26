@@ -14,7 +14,7 @@ import { resetPassword } from "@/features/auth/actions"
 import { PASSWORD_RULES, resetPasswordSchema, type ResetPasswordInput } from "@/features/auth/schemas"
 import { cn } from "@/lib/utils"
 
-import { authButtonClass, PasswordInput } from "./auth-parts"
+import { authButtonClass, PasswordInput, R, rs } from "./auth-parts"
 
 export function ResetPasswordForm() {
   const router = useRouter()
@@ -45,10 +45,14 @@ export function ResetPasswordForm() {
   return (
     <div className="flex w-full max-w-[420px] flex-col gap-6">
       <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Criar nova senha</h1>
-        <p className="text-base leading-6 text-muted-foreground">Escolha uma senha que você não use em outros lugares.</p>
+        <h1 className={cn("text-[28px] leading-9 font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
+          Criar nova senha
+        </h1>
+        <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(1)}>
+          Escolha uma senha que você não use em outros lugares.
+        </p>
       </div>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className={cn("flex flex-col gap-5", R)} style={rs(2)}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="reset-password">Nova senha</Label>
           <PasswordInput id="reset-password" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
