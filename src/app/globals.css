@@ -71,7 +71,7 @@
   --palette-tinta-verso: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
   --palette-grafite: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
   --palette-papel: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
-  --background: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --background: color-mix(in oklab, oklch(0.973 0.009 113.2), oklch(0.159 0.015 120.6) 4%); /* Papel #F6F7F0 + Tinta 4% */
   --foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --card: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
   --card-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
@@ -95,14 +95,14 @@
   --chart-3: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
   --chart-4: oklch(0.159 0.015 120.6 / 35%); /* Tinta #0C0E07 · 35% */
   --chart-5: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
-  --sidebar: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
-  --sidebar-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
-  --sidebar-primary: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
-  --sidebar-primary-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
-  --sidebar-accent: oklch(0.159 0.015 120.6 / 5%); /* Tinta #0C0E07 · 5% */
-  --sidebar-accent-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
-  --sidebar-border: oklch(0.159 0.015 120.6 / 10%); /* Tinta #0C0E07 · 10% */
-  --sidebar-ring: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
+  --sidebar: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 (dark sidebar on a light app) */
+  --sidebar-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-primary: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --sidebar-primary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-accent: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
+  --sidebar-accent-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar-border: oklch(0.973 0.009 113.2 / 10%); /* Papel #F6F7F0 · 10% */
+  --sidebar-ring: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --brand: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --brand-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --brand-fold: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
@@ -136,7 +136,7 @@
   --chart-3: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
   --chart-4: oklch(0.973 0.009 113.2 / 45%); /* Papel #F6F7F0 · 45% */
   --chart-5: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
-  --sidebar: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
   --sidebar-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
   --sidebar-primary: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --sidebar-primary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */

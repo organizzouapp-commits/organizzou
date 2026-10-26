@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 
 import { AppShell } from "@/components/shell/app-shell"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,8 +16,19 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
 
   const name = profile?.display_name || email.split("@")[0] || "Você"
 
+  // The collapsed/expanded sidebar is remembered per user in a cookie.
+  const sidebarCookie = `sidebar_state_${userId.replace(/-/g, "")}`
+  const stored = (await cookies()).get(sidebarCookie)?.value
+  const sidebarOpen = stored === "true" ? true : stored === "false" ? false : null
+
   return (
-    <AppShell user={{ name, email }} theme={profile?.theme} nowIso={new Date().toISOString()}>
+    <AppShell
+      user={{ name, email }}
+      theme={profile?.theme}
+      nowIso={new Date().toISOString()}
+      sidebarOpen={sidebarOpen}
+      sidebarCookie={sidebarCookie}
+    >
       {children}
     </AppShell>
   )

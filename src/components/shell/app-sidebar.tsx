@@ -2,118 +2,127 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon } from "lucide-react"
+import { CircleHelpIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon } from "lucide-react"
 
+import { useAssistant } from "@/components/assistant/assistant-context"
 import { Logo } from "@/components/organizzou/Logo"
-import { moduleList } from "@/components/organizzou/modules"
-import {
-  Avatar,
-  AvatarFallback,
-} from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { modules, type ModuleId } from "@/components/organizzou/modules"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { signOut } from "@/features/auth/actions"
 import { cn } from "@/lib/utils"
 
+import { NAV_GROUPS } from "./nav"
+import { WhatsAppCta } from "./whatsapp-cta"
+
 export type ShellUser = { name: string; email: string }
-
-const activeClass = "data-active:bg-highlight data-active:text-highlight-foreground"
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("")
-}
 
 export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function AppSidebar({ user }: { user: ShellUser }) {
+// Active item: Lima pill with Tinta icon and text. Hover: Papel 6%.
+const itemClass =
+  "h-11 rounded-full px-4 text-[15px] hover:bg-sidebar-accent data-active:bg-highlight data-active:font-medium data-active:text-highlight-foreground data-active:hover:bg-highlight group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
+
+type AppSidebarProps = { counts: Partial<Record<ModuleId, number>> }
+
+export function AppSidebar({ counts }: AppSidebarProps) {
   const pathname = usePathname()
+  const { state, toggleSidebar } = useSidebar()
+  const { openAssistant } = useAssistant()
+  const collapsed = state === "collapsed"
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="px-4 py-4">
-        <Link href="/hoje" aria-label="Organizzou" className="group-data-[collapsible=icon]:hidden">
-          <Logo className="h-8" />
-        </Link>
-        <Link href="/hoje" aria-label="Organizzou" className="hidden group-data-[collapsible=icon]:block">
-          <Logo iconOnly className="size-8" />
-        </Link>
+    <Sidebar variant="floating" collapsible="icon">
+      <SidebarHeader className={cn("gap-3 px-5 pt-6", collapsed && "items-center px-0")}>
+        <div className={cn("flex items-center justify-between gap-2", collapsed && "flex-col")}>
+          <Link href="/hoje" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
+            {collapsed ? <Logo iconOnly className="size-10" /> : <Logo tone="on-dark" className="h-8" />}
+          </Link>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-sidebar-foreground/70 outline-none transition-colors duration-120 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-sidebar-ring/50"
+          >
+            {collapsed ? <PanelLeftOpenIcon strokeWidth={1.75} className="size-5" /> : <PanelLeftCloseIcon strokeWidth={1.75} className="size-5" />}
+          </button>
+        </div>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {moduleList.map((m) => (
-                <SidebarMenuItem key={m.id}>
-                  <SidebarMenuButton
-                    asChild
-                    size="lg"
-                    tooltip={m.name}
-                    isActive={isActivePath(pathname, m.href)}
-                    className={cn("rounded-full", activeClass)}
-                  >
-                    <Link href={m.href}>
-                      <m.icon strokeWidth={1.75} />
-                      <span>{m.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+
+      <SidebarContent className="gap-2 px-3">
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label} className="px-0">
+            <SidebarGroupLabel className="px-4 text-[11px] leading-4 font-semibold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
+              {group.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-1">
+                {group.items.map((id) => {
+                  const m = modules[id]
+                  const count = counts[id]
+                  return (
+                    <SidebarMenuItem key={id}>
+                      <SidebarMenuButton asChild tooltip={m.name} isActive={isActivePath(pathname, m.href)} className={itemClass}>
+                        <Link href={m.href}>
+                          <m.icon strokeWidth={1.75} className="size-5!" />
+                          <span>{m.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {count ? (
+                        <SidebarMenuBadge className="tabular right-3 h-6 min-w-6 rounded-full bg-sidebar-accent px-2 text-[12px] text-sidebar-foreground peer-data-active/menu-button:bg-highlight-foreground/10 peer-data-active/menu-button:text-highlight-foreground">
+                          {count}
+                        </SidebarMenuBadge>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+        <div className="mt-auto px-0 pt-2 pb-2 group-data-[collapsible=icon]:hidden">
+          <WhatsAppCta />
+        </div>
       </SidebarContent>
-      <SidebarFooter>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" className="rounded-full">
-              <Avatar className="size-8">
-                <AvatarFallback>{initials(user.name)}</AvatarFallback>
-              </Avatar>
-              <span className="flex min-w-0 flex-1 flex-col text-left leading-tight">
-                <span className="truncate text-sm font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-              </span>
-              <ChevronsUpDownIcon strokeWidth={1.75} className="ml-auto size-4" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start" className="w-56">
-            <DropdownMenuLabel className="truncate">{user.email}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+
+      <SidebarFooter className="gap-1 px-3 pb-5">
+        <SidebarMenu className="gap-1">
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/configuracoes")} className={itemClass}>
               <Link href="/configuracoes">
-                <SettingsIcon strokeWidth={1.75} /> Configurações
+                <SettingsIcon strokeWidth={1.75} className="size-5!" />
+                <span>Configurações</span>
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void signOut()}>
-              <LogOutIcon strokeWidth={1.75} /> Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Ajuda" className={itemClass} onClick={openAssistant}>
+              <CircleHelpIcon strokeWidth={1.75} className="size-5!" />
+              <span>Ajuda</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Sair" className={itemClass} onClick={() => void signOut()}>
+              <LogOutIcon strokeWidth={1.75} className="size-5!" />
+              <span>Sair</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

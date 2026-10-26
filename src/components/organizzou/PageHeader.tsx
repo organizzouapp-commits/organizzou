@@ -1,25 +1,18 @@
 import { cn } from "@/lib/utils"
 
 type PageHeaderProps = {
-  title: string
+  /** Kept for readability at call sites: the page title and subtitle live in the top bar. */
+  title?: string
   description?: string
-  /** Primary actions, aligned to the right on wide screens. */
+  /** Secondary actions for the page. The primary action is registered with `usePrimaryAction`. */
   actions?: React.ReactNode
   className?: string
 }
 
-export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
-  return (
-    <header className={cn("flex flex-col gap-4 md:flex-row md:items-end md:justify-between", className)}>
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.02em] md:text-[28px] md:leading-[34px]">
-          {title}
-        </h1>
-        {description ? <p className="text-base leading-6 text-muted-foreground">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </header>
-  )
+/** Page-level toolbar. It no longer repeats the title: the shell's top bar shows it (DESIGN-SYSTEM §5.2). */
+export function PageHeader({ actions, className }: PageHeaderProps) {
+  if (!actions) return null
+  return <div className={cn("flex flex-wrap items-center gap-2", className)}>{actions}</div>
 }
 
 export function SectionTitle({ children, className }: { children: React.ReactNode; className?: string }) {
