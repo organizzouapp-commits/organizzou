@@ -86,7 +86,7 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
 
 /** One 0.4 s transition for every hover/focus/active state on the auth screens (DESIGN-SYSTEM §5.3). */
 export const authMotion =
-  "transition-[color,background-color,border-color,box-shadow,transform,opacity,text-decoration-color,text-underline-offset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+  "transition-[color,background-color,border-color,box-shadow,transform,scale,opacity,text-decoration-color,text-underline-offset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 
 /** Inputs and the `xl` buttons share the same height (52 px) and radius (12 px). */
 export const authInputClass = cn("h-[52px] rounded-xl px-4 py-0 text-base md:h-[52px] md:text-base", authMotion)

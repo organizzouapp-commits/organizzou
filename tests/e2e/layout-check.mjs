@@ -1,4 +1,4 @@
-// Auth card spacing: the panel and the form area share the same top/bottom edges, and the card padding is P = 16px on all sides.
+// Auth card spacing: the panel and the form area share the same top/bottom edges, and the card padding is P = 24px on all sides.
 // Needs the prototype dev server:  node tests/e2e/layout-check.mjs
 import { chromium } from "@playwright/test"
 import { skipConsent } from "./consent.mjs"
@@ -43,11 +43,11 @@ for (const [w, h] of [[1440, 900], [1280, 800]])
         }
       }, route === "cadastro")
       const tag = `${w}x${h} ${theme} /${route}`
-      ok(`${tag}: card padding is 16px on all four sides`, m.card.pad.every((v) => v === "16px"))
+      ok(`${tag}: card padding is 24px on all four sides`, m.card.pad.every((v) => v === "24px"))
       ok(`${tag}: panel and form area share top and bottom`, near(m.panel.t, m.pane.t) && near(m.panel.b, m.pane.b), `panel ${m.panel.t.toFixed(0)}-${m.panel.b.toFixed(0)} form ${m.pane.t.toFixed(0)}-${m.pane.b.toFixed(0)}`)
-      ok(`${tag}: frame is 16px on all sides (+1px border)`, near(m.panel.t - m.card.t, 17, 1.5) && near(m.card.b - m.panel.b, 17, 1.5) && (route === "cadastro" ? near(m.card.r - m.panel.r, 17, 1.5) : near(m.panel.l - m.card.l, 17, 1.5)))
+      ok(`${tag}: frame is 24px on all sides (+1px border)`, near(m.panel.t - m.card.t, 25, 1.5) && near(m.card.b - m.panel.b, 25, 1.5) && (route === "cadastro" ? near(m.card.r - m.panel.r, 25, 1.5) : near(m.panel.l - m.card.l, 25, 1.5)))
       const gap = route === "cadastro" ? m.panel.l - m.pane.r : m.pane.l - m.panel.r
-      ok(`${tag}: 16px gap between panel and form area`, near(gap, 16), `gap ${gap.toFixed(1)}`)
+      ok(`${tag}: 24px gap between panel and form area`, near(gap, 24), `gap ${gap.toFixed(1)}`)
       ok(`${tag}: legal links bottom equals the panel bottom`, near(m.legalBottom, m.panel.b, 1), `legal ${m.legalBottom.toFixed(0)} panel ${m.panel.b.toFixed(0)}`)
       ok(`${tag}: step cards end 28px above the panel bottom, the form area starts 28px below its top`, near(m.panel.b - m.stepsBottom, 28, 1), `steps ${m.stepsBottom.toFixed(0)}`)
       ok(`${tag}: theme toggle is outside the card, 24px from the viewport corner`, m.toggleInCard === false && near(m.toggleTop, 24) && near(m.innerW - m.toggleRight, 24), `top ${m.toggleTop} right-gap ${m.innerW - m.toggleRight}`)

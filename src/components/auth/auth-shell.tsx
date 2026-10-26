@@ -223,11 +223,14 @@ export function AuthShell() {
       <Image src="/images/auth-background.png" alt="" fill priority sizes="100vw" className="-z-10 object-cover object-center" />
 
       {/* Floating glass theme toggle, fixed to the viewport corner (outside the card). */}
+      {/* Solid so it stays visible over the photo: Tinta with a Lima icon in both themes; Lima with a Tinta icon on hover. */}
       <ThemeToggle
         round
+        tooltip
         className={cn(
-          "fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-40 size-11 backdrop-blur-[16px] md:size-11 lg:top-6 lg:right-6",
-          "border-palette-tinta/12 bg-palette-tinta/6 hover:bg-palette-tinta/12 dark:border-palette-papel/12 dark:bg-palette-papel/8 dark:hover:bg-palette-papel/12",
+          "fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-40 size-12 md:size-12 lg:top-6 lg:right-6",
+          "border-palette-papel/12 bg-palette-tinta text-highlight hover:scale-105 hover:border-transparent hover:bg-highlight hover:text-palette-tinta dark:border-palette-papel/12 dark:bg-palette-tinta dark:hover:bg-highlight",
+          "shadow-[0_8px_24px_color-mix(in_oklab,var(--palette-tinta)_35%,transparent)] focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:size-5 [&_svg]:stroke-2",
           authMotion
         )}
       />
@@ -238,18 +241,18 @@ export function AuthShell() {
         <div
           className={cn(
             "relative -mt-6 flex flex-1 flex-col rounded-t-[28px] bg-background",
-            // P = 16 px: card padding, and the gap between the panel and the form area.
-            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-4 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-4"
+            // P = 24 px on desktop: card padding, and the gap between the panel and the form area.
+            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-6 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-6"
           )}
         >
           {/* Desktop: the transparent highlight panel slides between the halves. */}
           <div
             data-crossfade
             className={cn(
-              // Same box as the form area, inset P (16 px) from the card. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
-              "pointer-events-none absolute inset-y-4 left-4 hidden w-[calc(50%-24px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
+              // Same box as the form area, inset P (24 px) from the card. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
+              "pointer-events-none absolute inset-y-6 left-6 hidden w-[calc(50%-36px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
               EASE,
-              signup ? "translate-x-[calc(100%+16px)]" : "translate-x-0"
+              signup ? "translate-x-[calc(100%+24px)]" : "translate-x-0"
             )}
           >
             <HighlightPanel signup={signup} className="pointer-events-auto size-full" />

@@ -152,7 +152,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   (`next/image`, `fill`, `priority`, `sizes="100vw"`, `object-fit: cover`, AVIF/WebP). O contêiner grande flutua sobre ela,
   com raio 28 px e borda de 1 px a 10%.
 - **Desktop (≥ 1024 px)**: contêiner centralizado (máx. 1200 px, altura mínima 720 px) em duas metades.
-  - **Espaçamento uniforme P = 16 px**: o padding do cartão é P nos quatro lados; o painel fica recuado P das bordas do cartão, com P de
+  - **Espaçamento uniforme P = 24 px (desktop)**: o padding do cartão é P nos quatro lados; o painel fica recuado P das bordas do cartão, com P de
     espaço até a área do formulário, e os dois têm exatamente a mesma altura (topo e base alinhados). O fundo sólido do cartão
     (Tinta no escuro, Papel no claro) é o passe-partout: o painel é uma "janela" de raio 20 px para a foto e desliza junto com a
     moldura (sombra enorme da cor `background` presa ao painel, recortada pelo cartão). Vale nas duas posições e durante a animação.
@@ -160,9 +160,10 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
     cartões de passo fica 28 px acima da base do painel. O formulário fica centralizado na vertical no espaço restante.
   - **Termos/Privacidade** ficam sem padding inferior, centralizados, com a base exatamente na base do painel (a linha da moldura).
     No cadastro o ritmo é compacto (rótulo a 8 px do campo, 16 px entre campos, checklist de senha compacto) em vez de aumentar paddings.
-  - **Seletor de tema flutuante**: botão redondo de 44 px fixo no canto superior direito da *viewport* (24 px; 16 px no celular, com
-    safe areas), fora do cartão, em vidro: no escuro Papel 8% + blur 16 px + borda Papel 12%; no claro Tinta 6% + blur + borda Tinta 12%.
-    Transição de 0,4 s no hover.
+  - **Seletor de tema flutuante**: botão redondo de 48 px fixo no canto superior direito da *viewport* (24 px; 16 px no celular, com
+    safe areas), fora do cartão. Sólido para ser visto sobre a foto, nos dois temas: fundo Tinta, ícone Lima (sol/lua de 20 px, traço 2),
+    borda 1 px Papel 12% e sombra `0 8px 24px` de Tinta a 35% (exceção permitida: o botão flutua sobre uma foto). Hover (0,4 s): fundo
+    Lima, ícone Tinta, escala 1,05. Foco com anel visível. Tooltip "Modo claro" / "Modo escuro".
   - **Painel de destaque transparente**: sem cor de fundo e sem brilho Lima; a foto aparece através dele. Texto em Papel.
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
   - Conteúdo: logotipo por tema, 32 px de altura, só no painel das telas de acesso: tema escuro `public/brand/logo-preta.png`, tema
