@@ -36,7 +36,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     ".next-preview/types/**/*.ts",
-    ".next-preview/dev/types/**/*.ts"
+    ".next-preview/dev/types/**/*.ts",
+    ".next-flag/types/**/*.ts",
+    ".next-flag/dev/types/**/*.ts",
+    ".next-real/types/**/*.ts",
+    ".next-real/dev/types/**/*.ts"
   ],
   "exclude": [
     ".next-preview",
