@@ -53,14 +53,15 @@ type AppTopBarProps = {
   hideDesktop?: boolean
 }
 
-export function Bell() {
+/** `bare`: no border or fill of its own, for use inside a pill group (the collapsed header). */
+export function Bell({ bare = false }: { bare?: boolean }) {
   const [unread, setUnread] = useState(true)
   return (
     <Popover onOpenChange={(open) => open && setUnread(false)}>
       <PopoverTrigger asChild>
-        <Button variant="surface" size="icon" className="relative rounded-full" aria-label={unread ? "Notificações, há novas" : "Notificações"}>
+        <Button variant={bare ? "ghost" : "surface"} size="icon" className={cn("relative rounded-full", bare && "size-10 md:size-10")} aria-label={unread ? "Notificações, há novas" : "Notificações"}>
           <BellIcon strokeWidth={1.75} />
-          {unread ? <span aria-hidden className="absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2 ring-background" /> : null}
+          {unread ? <span aria-hidden className={cn("absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2", bare ? "ring-card" : "ring-background")} /> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-2">
@@ -79,7 +80,7 @@ export function Bell() {
 const menuItem = "min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]"
 const menuIcon = "size-[18px]"
 
-/** `header`: the collapsed layout's top header, where the name and e-mail only fit from 1700 px (the nav pills need the room). */
+/** `header`: the collapsed layout's top header, which sits inside its own pill group and shows the name and e-mail from 1440 px. */
 export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
   return (
@@ -88,13 +89,16 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
         <button
           type="button"
           aria-label="Menu da conta"
-          className="flex min-w-0 items-center gap-3 rounded-full p-1 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:pr-3"
+          className={cn(
+            "flex min-w-0 items-center gap-3 rounded-full text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
+            header ? "h-9 min-[1440px]:pr-3" : "p-1 md:pr-3"
+          )}
         >
-          <Avatar className="size-10 shrink-0">
+          <Avatar className={cn("shrink-0", header ? "size-9" : "size-10")}>
             <AvatarFallback>{initials(user.name)}</AvatarFallback>
           </Avatar>
           {compact ? null : (
-            <span className={header ? "hidden min-w-0 items-center gap-2 min-[1700px]:flex" : "hidden min-w-0 items-center gap-2 2xl:flex"}>
+            <span className={header ? "hidden min-w-0 items-center gap-2 min-[1440px]:flex" : "hidden min-w-0 items-center gap-2 2xl:flex"}>
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="max-w-40 truncate text-[15px] font-medium">{user.name}</span>
                 <span className="max-w-40 truncate text-[13px] text-muted-foreground">{user.email}</span>

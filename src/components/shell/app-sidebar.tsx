@@ -3,11 +3,10 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, type LucideIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, type LucideIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
-import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sidebar, SidebarRail, useSidebar } from "@/components/ui/sidebar"
@@ -17,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { NAV_GROUPS, type NavGroup } from "./nav"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { WhatsAppCta } from "./whatsapp-cta"
+import { WHATSAPP_HREF, WhatsAppCta } from "./whatsapp-cta"
 
 export type ShellUser = { name: string; email: string }
 
@@ -192,28 +191,51 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
   )
 }
 
-/** Collapsed layout: Ajuda and Sair live at the bottom of the rail (Perfil and Configurações are in the avatar menu of the top header). */
-function RailHelp({ pathname }: { pathname: string }) {
-  const help = ACCOUNT_ITEMS.find((item) => item.id === "ajuda")
-  if (!help) return null
-  const active = isActivePath(pathname, help.href)
-  return (
-    <RailTip label={help.label}>
-      <Link href={help.href} aria-label={help.label} aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
-        <help.icon aria-hidden strokeWidth={1.75} className="size-5" />
-      </Link>
-    </RailTip>
-  )
-}
-
-function RailSignOut() {
+/** Bottom of the collapsed rail: the same Configurações group as the expanded sidebar (plus the WhatsApp link), as a flyout like the other rail groups. */
+function RailAccount({ pathname }: { pathname: string }) {
   const requestSignOut = useRequestSignOut()
+  const [open, setOpen] = useState(false)
+  const hasActive = ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href))
+  const itemClass = "flex h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent"
   return (
-    <RailTip label="Sair">
-      <button type="button" aria-label="Sair" onClick={requestSignOut} className={cn(railBase, ease, focus, rowIdle)}>
-        <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
-      </button>
-    </RailTip>
+    <Popover open={open} onOpenChange={setOpen}>
+      <RailTip label={ACCOUNT_GROUP_LABEL}>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={ACCOUNT_GROUP_LABEL} className={cn(railBase, ease, focus, hasActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+            <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
+          </button>
+        </PopoverTrigger>
+      </RailTip>
+      {/* Aligned to the bottom edge of the trigger, so it opens upward instead of running off the screen. */}
+      <PopoverContent side="right" align="end" sideOffset={14} className="w-60 gap-0 p-2">
+        <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{ACCOUNT_GROUP_LABEL}</p>
+        {ACCOUNT_ITEMS.map((item) => {
+          const active = isActivePath(pathname, item.href)
+          return (
+            <Link key={item.id} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-[15px]", ease, focus, active ? rowActive : "hover:bg-accent")}>
+              <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          )
+        })}
+        <Link href={WHATSAPP_HREF} onClick={() => setOpen(false)} className={cn(itemClass, ease, focus)}>
+          <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          <span className="truncate">Conectar WhatsApp</span>
+        </Link>
+        <div role="separator" className="my-2 h-px bg-border" />
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            requestSignOut()
+          }}
+          className={cn(itemClass, ease, focus)}
+        >
+          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          Sair
+        </button>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -258,10 +280,15 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
   )
 
   if (collapsed) {
-    // The top header (AppTopHeader) sits above the rail: 16 px frame padding + 64 px header + 12 px gap.
+    // The top header (AppTopHeader) sits above the rail: 16 px frame padding + 44 px header row + 12 px gap.
     return (
-      <Sidebar variant="floating" collapsible="icon" className="md:pt-[5.75rem]">
-        <div className="flex flex-col items-center gap-1 pt-4 pb-2">{toggle}</div>
+      <Sidebar variant="floating" collapsible="icon" className="md:pt-[4.5rem]">
+        <div className="flex flex-col items-center gap-1 pt-4 pb-2">
+          <Link href="/dashboard" aria-label="Organizzou — Hoje" className={cn(railBase, "rounded-xl", focus)}>
+            <Logo iconOnly className="size-10" />
+          </Link>
+          {toggle}
+        </div>
         <nav aria-label="Módulos" className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto py-1">
           {MAIN_GROUP.items.map((id) => (
             <RailLink key={id} id={id} pathname={pathname} counts={counts} />
@@ -270,13 +297,9 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
           {FOLDED_GROUPS.map((group) => (
             <RailGroup key={group.label} group={group} pathname={pathname} counts={counts} />
           ))}
-          <span aria-hidden className="my-1 h-px w-6 shrink-0 bg-sidebar-border" />
-          <ThemeToggle tooltip tooltipSide="right" className="size-11 shrink-0 rounded-full text-sidebar-foreground hover:bg-sidebar-accent" />
         </nav>
         <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
-          <RailHelp pathname={pathname} />
-          <RailSignOut />
-          <WhatsAppCta iconOnly className="mt-1" />
+          <RailAccount pathname={pathname} />
         </div>
         <SidebarRail />
       </Sidebar>

@@ -147,7 +147,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           <AppSidebar counts={counts} />
           {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
               top, ends at its bottom and keeps P from the right edge. */}
-          <SidebarInset className={cn("min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0", topLayout && "md:pt-[5.75rem]")}>
+          <SidebarInset className={cn("min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0", topLayout && "md:pt-[4.5rem]")}>
             <AppTopBar user={user} nowIso={nowIso} onSearch={openSearch} hideDesktop={topLayout} />
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
