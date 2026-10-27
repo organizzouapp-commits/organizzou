@@ -30,7 +30,7 @@ node tests/e2e/prototype.mjs     # all screens in both themes and sizes, tasks, 
 
 ## Pages
 
-`/hoje` · `/tarefas` (Kanban, Lista, Calendário) · `/rotina` · `/agenda` (Mês, Semana, Dia) · `/financas` ·
-`/treinos` · `/dieta` · `/estudos` · `/notas` · `/cofre` · `/metas` · `/diario` · `/configuracoes`
+`/dashboard` · `/dashboard/tarefas` (Kanban, Lista, Calendário) · `/dashboard/rotina` · `/dashboard/agenda` (Mês, Semana, Dia) · `/dashboard/financas` ·
+`/dashboard/treinos` · `/dashboard/dieta` · `/dashboard/estudos` · `/dashboard/notas` · `/dashboard/cofre` · `/dashboard/metas` · `/dashboard/diario` · `/dashboard/configuracoes`
 
 The assistant opens from the floating button, `Ctrl/Cmd + K` searches every module, and the "+" in the mobile bar opens quick capture.

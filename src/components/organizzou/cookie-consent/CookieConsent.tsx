@@ -53,7 +53,7 @@ type CookieConsentProps = {
  * The preferences dialog (per-category switches) opens only through openCookiePreferences().
  * Mount it once in the root layout. Self-contained: only the shadcn Button, Dialog and Switch are used.
  */
-export function CookieConsent({ privacyHref = "/privacidade" }: CookieConsentProps) {
+export function CookieConsent({ privacyHref = "/politicas#privacidade" }: CookieConsentProps) {
   const stored = useStoredConsent()
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)

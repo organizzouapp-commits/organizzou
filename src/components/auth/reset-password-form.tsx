@@ -37,7 +37,7 @@ export function ResetPasswordForm() {
         return
       }
       toast.success("Senha alterada.")
-      router.replace("/hoje")
+      router.replace("/dashboard")
       router.refresh()
     })
   }

@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Organizzou",
     description: "Sua vida organizada em um só lugar.",
     lang: "pt-BR",
-    start_url: "/hoje",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

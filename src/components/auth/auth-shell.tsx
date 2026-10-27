@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
+import { safeNextPath } from "@/lib/safe-next"
 import { cn } from "@/lib/utils"
 
 import { authLinkClass, authMotion, R, rs, SlideSwap } from "./auth-parts"
@@ -19,8 +20,8 @@ type Target = "login" | "signup"
 
 function modeFor(pathname: string): Mode {
   if (pathname.startsWith("/cadastro")) return "signup"
+  if (pathname.startsWith("/recuperar-senha/nova-senha")) return "reset"
   if (pathname.startsWith("/recuperar-senha")) return "forgot"
-  if (pathname.startsWith("/redefinir-senha")) return "reset"
   return "login"
 }
 
@@ -225,11 +226,11 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
 function LegalLinks({ className }: { className?: string }) {
   return (
     <nav aria-label="Informações legais" className={cn("flex justify-center gap-4 text-[13px] leading-5 text-muted-foreground", R, className)} style={rs(10)}>
-      <Link href="/termos" className={cn(authLinkClass, "hover:underline")}>
+      <Link href="/politicas#termos" className={cn(authLinkClass, "hover:underline")}>
         Termos de uso
       </Link>
       <span aria-hidden>·</span>
-      <Link href="/privacidade" className={cn(authLinkClass, "hover:underline")}>
+      <Link href="/politicas#privacidade" className={cn(authLinkClass, "hover:underline")}>
         Política de privacidade
       </Link>
     </nav>
@@ -267,7 +268,7 @@ export function AuthShell() {
   const below = useBelowLg()
 
   const nextParam = params.get("next")
-  const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/hoje"
+  const next = safeNextPath(nextParam)
 
   // Phones: a direct visit shows the welcome screen; /cadastro, recovery, ?next= and the redirect after logout open the sheet.
   const [sheetOpen, setSheetOpen] = useState(() => mode !== "login" || params.has("next") || params.has("erro") || params.has("error") || params.has("saiu"))
@@ -335,7 +336,7 @@ export function AuthShell() {
   }, [below])
 
   function openSheet(target: Target) {
-    const path = target === "signup" ? "/cadastro" : "/entrar"
+    const path = target === "signup" ? "/cadastro" : "/login"
     const query = params.toString()
     window.history.pushState({ authSheet: true }, "", query ? `${path}?${query}` : path)
     pushed.current = true

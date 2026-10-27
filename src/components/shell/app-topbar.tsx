@@ -29,9 +29,9 @@ import { metaFor } from "./nav"
 import { usePrimaryActionValue } from "./primary-action"
 
 const NOTIFICATIONS = [
-  { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/financas" },
-  { id: "cards", title: "6 flashcards para revisar", detail: "Direito Constitucional e inglês", href: "/estudos" },
-  { id: "workout", title: "Treino A amanhã às 7h", detail: "Peito e tríceps", href: "/treinos" },
+  { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
+  { id: "cards", title: "6 flashcards para revisar", detail: "Direito Constitucional e inglês", href: "/dashboard/estudos" },
+  { id: "workout", title: "Treino A amanhã às 7h", detail: "Peito e tríceps", href: "/dashboard/treinos" },
 ]
 
 function initials(name: string) {
@@ -98,7 +98,7 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
         <DropdownMenuLabel className="truncate">{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/configuracoes">
+          <Link href="/dashboard/configuracoes">
             <SettingsIcon strokeWidth={1.75} /> Configurações
           </Link>
         </DropdownMenuItem>
@@ -118,7 +118,7 @@ export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
   const now = new Date(nowIso)
   const firstName = user.name.split(" ")[0]
   const meta = metaFor(pathname)
-  const isToday = pathname === "/hoje"
+  const isToday = pathname === "/dashboard"
   const title = isToday ? `${greeting(now, MOCK_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
   const subtitle = isToday
     ? format(inTz(now, MOCK_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())

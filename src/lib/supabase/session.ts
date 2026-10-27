@@ -12,7 +12,7 @@ export async function getSession() {
   if (bypassAuth) return { supabase, userId: "00000000-0000-4000-8000-000000000001", email: "visitante@organizzou.app" }
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims
-  if (!claims) redirect("/entrar")
+  if (!claims) redirect("/login")
 
   return {
     supabase,

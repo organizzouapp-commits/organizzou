@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 
 import { getSiteUrl, getSupabaseEnv } from "@/lib/supabase/env"
+import { safeNextPath } from "@/lib/safe-next"
 import { createClient } from "@/lib/supabase/server"
 
 import { GOOGLE_UNAVAILABLE } from "./messages"
@@ -82,7 +83,7 @@ export async function requestPasswordReset(input: ForgotPasswordInput): Promise<
 
   const supabase = await createClient()
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${getSiteUrl()}/auth/callback?next=/redefinir-senha`,
+    redirectTo: `${getSiteUrl()}/auth/callback?next=/recuperar-senha/nova-senha`,
   })
   // Same answer whether or not the e-mail exists, to avoid account enumeration.
   if (error && error.code === "over_email_send_rate_limit") {
@@ -121,12 +122,12 @@ async function isGoogleEnabled() {
 }
 
 /** Starts the Google OAuth flow. Supabase sends the user back to /auth/callback, which lands on /hoje. */
-export async function signInWithGoogle(next = "/hoje"): Promise<OAuthResult> {
+export async function signInWithGoogle(next = "/dashboard"): Promise<OAuthResult> {
   // signInWithOAuth only builds the authorize URL: with the provider disabled the browser would land on a raw JSON error,
   // so check the project's public settings first.
   if (!(await isGoogleEnabled())) return { ok: false, error: GOOGLE_UNAVAILABLE }
   const supabase = await createClient()
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/hoje"
+  const safeNext = safeNextPath(next)
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: `${getSiteUrl()}/auth/callback?provider=google&next=${encodeURIComponent(safeNext)}` },
@@ -141,5 +142,5 @@ export async function signInWithGoogle(next = "/hoje"): Promise<OAuthResult> {
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  redirect("/entrar?saiu=1")
+  redirect("/login?saiu=1")
 }

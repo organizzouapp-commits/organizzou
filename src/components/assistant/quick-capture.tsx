@@ -21,10 +21,10 @@ import { classifyCapture } from "@/mocks/assistant"
 type QuickCaptureProps = { open: boolean; onOpenChange: (open: boolean) => void }
 
 const SHORTCUTS = [
-  { label: "Nova tarefa", href: "/tarefas", module: "tarefas" },
-  { label: "Registrar gasto", href: "/financas", module: "financas" },
-  { label: "Nova nota", href: "/notas", module: "notas" },
-  { label: "Check-in de humor", href: "/diario", module: "diario" },
+  { label: "Nova tarefa", href: "/dashboard/tarefas", module: "tarefas" },
+  { label: "Registrar gasto", href: "/dashboard/financas", module: "financas" },
+  { label: "Nova nota", href: "/dashboard/notas", module: "notas" },
+  { label: "Check-in de humor", href: "/dashboard/diario", module: "diario" },
 ] as const
 
 export function QuickCapture({ open, onOpenChange }: QuickCaptureProps) {

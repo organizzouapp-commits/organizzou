@@ -4,7 +4,7 @@
 import { chromium } from "@playwright/test"
 
 const base = process.env.BASE ?? "http://localhost:3100"
-const PAGES = ["/hoje", "/tarefas", "/rotina", "/agenda", "/financas", "/treinos", "/dieta", "/estudos", "/notas", "/cofre", "/metas", "/diario", "/configuracoes"]
+const PAGES = ["/dashboard", "/dashboard/tarefas", "/dashboard/rotina", "/dashboard/agenda", "/dashboard/financas", "/dashboard/treinos", "/dashboard/dieta", "/dashboard/estudos", "/dashboard/notas", "/dashboard/cofre", "/dashboard/metas", "/dashboard/diario", "/dashboard/configuracoes"]
 const results = []
 const ok = (name, pass) => results.push(`${pass ? "PASS" : "FAIL"}  ${name}`)
 
@@ -34,7 +34,7 @@ for (const [theme, size, viewport] of [
 // ---- Tasks: search, drag and drop between lists, views
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  await page.goto(base + "/tarefas", { waitUntil: "networkidle" })
+  await page.goto(base + "/dashboard/tarefas", { waitUntil: "networkidle" })
   await page.getByLabel("Buscar tarefas").fill("proposta")
   ok("tasks: search narrows the board", (await page.getByText("Revisar proposta do cliente").count()) === 1 && (await page.getByText("Entrevistar candidata").count()) === 0)
   await page.getByLabel("Buscar tarefas").fill("")
@@ -60,7 +60,7 @@ for (const [theme, size, viewport] of [
 // ---- Assistant: records, asks before saving, confirms before deleting
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  await page.goto(base + "/hoje", { waitUntil: "networkidle" })
+  await page.goto(base + "/dashboard", { waitUntil: "networkidle" })
   await page.getByRole("button", { name: "Abrir o assistente" }).click()
   const box = page.getByLabel("Mensagem para o assistente")
   await box.fill("Gastei 45 no mercado")
@@ -81,7 +81,7 @@ for (const [theme, size, viewport] of [
 // ---- Global search (Ctrl+K)
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  await page.goto(base + "/hoje", { waitUntil: "networkidle" })
+  await page.goto(base + "/dashboard", { waitUntil: "networkidle" })
   await page.waitForTimeout(800)
   await page.keyboard.press("Control+k")
   await page.getByPlaceholder("Buscar em tudo ou ir para…").fill("proposta")

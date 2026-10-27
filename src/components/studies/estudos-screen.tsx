@@ -193,7 +193,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
           <Bento>
           <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" className="col-span-12 sm:col-span-4" />
           <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} className="col-span-6 sm:col-span-4" />
-          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/estudos" className="col-span-6 sm:col-span-4" />
+          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" className="col-span-6 sm:col-span-4" />
           <BentoCard title="Foco" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-5">
             <Tabs value={mode} onValueChange={changeMode}>
               <TabsList>

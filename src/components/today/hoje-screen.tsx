@@ -149,16 +149,16 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         label="Tarefas hoje"
         value={`${pendingCount}`}
         support={`${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
-        href="/tarefas"
+        href="/dashboard/tarefas"
         className="col-span-6 lg:col-span-3"
       />
-      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/rotina" className="col-span-6 lg:col-span-3" />
-      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/financas" className="col-span-6 lg:col-span-3" />
+      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/dashboard/rotina" className="col-span-6 lg:col-span-3" />
+      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/dashboard/financas" className="col-span-6 lg:col-span-3" />
       <KpiCard
         label="Água"
         value={`${(water / 1000).toLocaleString("pt-BR")} L`}
         support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`}
-        href="/dieta"
+        href="/dashboard/dieta"
         className="col-span-6 lg:col-span-3"
       />
 
@@ -176,7 +176,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </button>
       </BentoCard>
 
-      <BentoCard title="Tarefas de hoje" href="/tarefas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+      <BentoCard title="Tarefas de hoje" href="/dashboard/tarefas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <div className="tabular flex justify-between text-[13px] leading-5">
@@ -195,7 +195,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
                 return (
                   <div key={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                     <Checkbox checked={checked} onCheckedChange={() => void toggleTask(task)} aria-label={checked ? `Reabrir ${task.title}` : `Concluir ${task.title}`} />
-                    <Link href={`/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                    <Link href={`/dashboard/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                       <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>{task.title}</span>
                       <span className="flex items-center gap-3">
                         <DueLabel task={task} now={now} timeZone={MOCK_TIMEZONE} />
@@ -214,7 +214,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Rotina" href="/rotina" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+      <BentoCard title="Rotina" href="/dashboard/rotina" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
         <div className="flex flex-col">
           {todaysHabits.map((habit) => (
             <HabitCheck
@@ -228,7 +228,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Agenda de hoje" href="/agenda" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+      <BentoCard title="Agenda de hoje" href="/dashboard/agenda" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
         {agenda.length === 0 ? (
           <p className="py-4 text-[15px] leading-6 text-muted-foreground">Dia livre, sem compromissos.</p>
         ) : (
@@ -262,7 +262,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         ) : null}
       </BentoCard>
 
-      <BentoCard title="Finanças" href="/financas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+      <BentoCard title="Finanças" href="/dashboard/financas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Stat size="xs" label="Sobra do mês" value={formatBRL(monthTotals.surplus)} trend={monthTotals.surplus >= 0 ? "up" : "down"} />
@@ -284,7 +284,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Dieta e água" href="/dieta" linkLabel="Ver tudo" className="col-span-12 md:col-span-6 lg:col-span-4">
+      <BentoCard title="Dieta e água" href="/dashboard/dieta" linkLabel="Ver tudo" className="col-span-12 md:col-span-6 lg:col-span-4">
         <div className="flex flex-col gap-3">
           <div className="tabular flex justify-between text-[15px] leading-6">
             <span>
@@ -304,7 +304,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Treino e estudos" href="/treinos" linkLabel="Treinos" className="col-span-12 md:col-span-6 lg:col-span-4">
+      <BentoCard title="Treino e estudos" href="/dashboard/treinos" linkLabel="Treinos" className="col-span-12 md:col-span-6 lg:col-span-4">
         <div className="flex flex-col">
           <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
             <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
@@ -316,7 +316,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
             <span className="tabular flex-1 text-[15px] leading-6">
               {Math.floor(studiedToday / 60)} h {studiedToday % 60} min hoje <span className="text-muted-foreground">· meta {Math.round((weeklyGoal / 60) * 10) / 10} h</span>
             </span>
-            <Link href="/estudos" className="text-[13px] leading-5 text-muted-foreground underline underline-offset-4 hover:text-foreground">
+            <Link href="/dashboard/estudos" className="text-[13px] leading-5 text-muted-foreground underline underline-offset-4 hover:text-foreground">
               {dueCards} cartões
             </Link>
           </div>
@@ -329,7 +329,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Como você está?" href="/diario" linkLabel="Diário" className="col-span-12 lg:col-span-4">
+      <BentoCard title="Como você está?" href="/dashboard/diario" linkLabel="Diário" className="col-span-12 lg:col-span-4">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button

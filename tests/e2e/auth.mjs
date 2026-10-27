@@ -19,10 +19,10 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
   page.on("console", (m) => m.type() === "error" && problems.push(`[${theme}/${size}] ${m.text().slice(0, 200)}`))
   page.on("pageerror", (e) => problems.push(`[${theme}/${size}] pageerror ${e.message.slice(0, 200)}`))
 
-  await page.goto(base + "/entrar", { waitUntil: "networkidle" })
+  await page.goto(base + "/login", { waitUntil: "networkidle" })
   await page.waitForTimeout(700)
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-  ok(`/entrar ${theme}/${size}: no horizontal scroll`, overflow <= 1)
+  ok(`/login ${theme}/${size}: no horizontal scroll`, overflow <= 1)
 
   if (size === "d") {
     const panel = page.getByRole("complementary", { name: "Organizzou" })
@@ -33,7 +33,7 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
     const after = await panel.boundingBox()
     ok(`panel slides left→right on "Criar conta" (${theme})`, before && after && after.x > before.x + 300)
     await page.goBack()
-    await page.waitForURL("**/entrar")
+    await page.waitForURL("**/login")
     await page.waitForTimeout(900)
     const back = await panel.boundingBox()
     ok(`browser back slides it back (${theme})`, back && Math.abs(back.x - before.x) < 2)
@@ -43,7 +43,7 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
     const forgot = await panel.boundingBox()
     ok(`recovery keeps the panel on the left (${theme})`, forgot && Math.abs(forgot.x - before.x) < 2)
   } else {
-    ok(`/entrar ${theme}/${size}: shows the welcome screen, sheet closed`, (await page.getByRole("button", { name: "Criar conta" }).isVisible()) && (await page.getByRole("heading", { name: "Entrar", level: 1 }).count()) === 0)
+    ok(`/login ${theme}/${size}: shows the welcome screen, sheet closed`, (await page.getByRole("button", { name: "Criar conta" }).isVisible()) && (await page.getByRole("heading", { name: "Entrar", level: 1 }).count()) === 0)
     await page.getByRole("button", { name: "Criar conta" }).click()
     await page.waitForURL("**/cadastro")
     await page.waitForTimeout(800)
@@ -78,7 +78,7 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await ctx.newPage()
-  await page.goto(base + "/entrar", { waitUntil: "networkidle" })
+  await page.goto(base + "/login", { waitUntil: "networkidle" })
   await page.waitForTimeout(700)
   ok("login steps", (await page.getByRole("button", { name: "Receba lembretes" }).count()) === 1)
   const step = page.getByRole("button", { name: "Fale com o assistente" })
@@ -95,7 +95,7 @@ for (const theme of ["dark", "light"]) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true })
   await ctx.addInitScript((t) => localStorage.setItem("theme", t), theme)
   const page = await ctx.newPage()
-  await page.goto(base + "/entrar", { waitUntil: "networkidle" })
+  await page.goto(base + "/login", { waitUntil: "networkidle" })
   await page.waitForTimeout(1800)
   const sheet = page.locator("div.max-lg\\:fixed").first()
   const welcomeBar = page.getByRole("button", { name: "Entrar", exact: true })
@@ -106,7 +106,7 @@ for (const theme of ["dark", "light"]) {
   await welcomeBar.click()
   await page.waitForTimeout(900)
   const box = await sheet.boundingBox()
-  ok(`mobile ${theme}: sheet opens over ~72% of the height, URL /entrar`, box && box.y < 844 * 0.32 && box.y > 844 * 0.05 && page.url().endsWith("/entrar"), `top ${box?.y}`)
+  ok(`mobile ${theme}: sheet is content-sized, bottom-anchored and at most 88% of the height, URL /login`, box && box.y >= 844 * 0.12 - 1 && box.y < 844 * 0.7 && Math.abs(box.y + box.height - 844) < 2 && page.url().endsWith("/login"), `top ${box?.y}`)
   const logoBtn = page.getByRole("button", { name: "Voltar para o início" })
   const logoBox = await logoBtn.boundingBox()
   ok(`mobile ${theme}: logo is centered in the photo above the sheet, 40px tall, and there is no Voltar button`, logoBox && logoBox.y + logoBox.height <= box.y + 2 && Math.abs(logoBox.x + logoBox.width / 2 - 195) < 3 && (await page.getByRole("button", { name: "Voltar", exact: true }).count()) === 0 && Math.abs((await logoBtn.locator("img:visible").boundingBox()).height - 40) < 1.5)
@@ -139,7 +139,7 @@ for (const theme of ["dark", "light"]) {
   ok(`mobile ${theme}: forgot password swaps inside the sheet`, page.url().endsWith("/recuperar-senha") && (await page.getByRole("heading", { name: "Recuperar senha", level: 1 }).isVisible()))
   await page.getByRole("link", { name: "Voltar para entrar" }).click()
   await page.waitForTimeout(700)
-  ok(`mobile ${theme}: and back to login`, page.url().endsWith("/entrar") && (await page.getByRole("heading", { name: "Entrar", level: 1 }).isVisible()))
+  ok(`mobile ${theme}: and back to login`, page.url().endsWith("/login") && (await page.getByRole("heading", { name: "Entrar", level: 1 }).isVisible()))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(900)
   await page.getByRole("button", { name: "Entrar", exact: true }).click()
@@ -158,7 +158,7 @@ for (const theme of ["dark", "light"]) {
   await page.goto(base + "/cadastro", { waitUntil: "networkidle" })
   await page.waitForTimeout(1000)
   ok("mobile: direct /cadastro opens the sheet in sign-up mode", await page.getByRole("heading", { name: "Criar conta", level: 1 }).isVisible())
-  await page.goto(base + "/entrar?next=/tarefas", { waitUntil: "networkidle" })
+  await page.goto(base + "/login?next=/dashboard/tarefas", { waitUntil: "networkidle" })
   await page.waitForTimeout(1000)
   ok("mobile: ?next= opens the sheet in login mode", await page.getByRole("heading", { name: "Entrar", level: 1 }).isVisible())
   await ctx.close()
@@ -167,10 +167,11 @@ for (const theme of ["dark", "light"]) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await ctx.newPage()
-  await page.goto(base + "/entrar", { waitUntil: "load" })
+  await page.goto(base + "/login", { waitUntil: "load" })
   await page.waitForTimeout(3000)
   const panelLogo = page.getByRole("complementary", { name: "Organizzou" }).locator("img:visible").first()
-  ok("desktop: panel logo is 40px tall", Math.abs((await panelLogo.boundingBox()).height - 40) < 1.5)
+  const logoH = (await panelLogo.boundingBox()).height
+  ok("desktop: panel logo scales with the card (26-40px)", logoH >= 25.5 && logoH <= 40.5)
   ok("placeholders on login", (await page.getByPlaceholder("Seu e-mail aqui").first().isVisible()) && (await page.getByPlaceholder("Sua senha aqui").first().isVisible()))
   await page.evaluate(() => (window.__marker = "same-shell"))
   const loginHeight = await page.locator("#login-email").evaluate((el) => el.closest("div.grid").getBoundingClientRect().height)
@@ -183,7 +184,7 @@ for (const theme of ["dark", "light"]) {
   ok("desktop: the stage height follows the visible form", Math.abs(forgotHeight - loginHeight) > 20, `${loginHeight} -> ${forgotHeight}`)
   await page.getByRole("link", { name: "Voltar para entrar" }).click()
   await page.waitForTimeout(900)
-  ok("desktop: back to login", page.url().endsWith("/entrar") && (await page.getByRole("heading", { name: "Entrar", level: 1 }).isVisible()))
+  ok("desktop: back to login", page.url().endsWith("/login") && (await page.getByRole("heading", { name: "Entrar", level: 1 }).isVisible()))
   await page.goBack()
   await page.waitForTimeout(900)
   ok("desktop: browser back returns to the recovery form", page.url().endsWith("/recuperar-senha") && (await page.getByRole("heading", { name: "Recuperar senha", level: 1 }).isVisible()))
@@ -195,7 +196,7 @@ for (const theme of ["dark", "light"]) {
   const page = await ctx.newPage()
   const requested = []
   page.on("request", (r) => /auth-background/.test(r.url()) && requested.push(decodeURIComponent(r.url())))
-  await page.goto(base + "/entrar", { waitUntil: "load" })
+  await page.goto(base + "/login", { waitUntil: "load" })
   await page.waitForTimeout(1500)
   ok("mobile: only the mobile background is downloaded", requested.length > 0 && requested.every((u) => u.includes("auth-background-mobile")), requested.join(" | "))
   await ctx.close()
@@ -204,7 +205,7 @@ for (const theme of ["dark", "light"]) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await ctx.newPage()
-  await page.goto(base + "/entrar", { waitUntil: "domcontentloaded" })
+  await page.goto(base + "/login", { waitUntil: "domcontentloaded" })
   const early = await page.evaluate(() => {
     const el = document.querySelector("h1")
     return el ? getComputedStyle(el).opacity : "none"
@@ -213,3 +214,8 @@ for (const theme of ["dark", "light"]) {
   ok("entrance: items start hidden and the intro flag is removed afterwards", Number(early) < 1 && (await page.locator("[data-intro]").count()) === 0, `early opacity ${early}`)
   await ctx.close()
 }
+
+console.log(results.join("\n"))
+if (problems.length) console.log("console problems:\n" + problems.join("\n"))
+await browser.close()
+process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0)

@@ -43,8 +43,8 @@ product, with conversation as a first-class input.
 
 ## App structure and navigation
 
-- Routes (pt-BR slugs): `/hoje` (dashboard), `/tarefas`, `/rotina`, `/agenda`, `/financas`, `/treinos`, `/dieta`,
-  `/estudos`, `/notas`, `/cofre`, `/metas`, `/diario`, `/configuracoes`, plus auth routes.
+- Routes (pt-BR slugs): `/dashboard` (dashboard), `/dashboard/tarefas`, `/dashboard/rotina`, `/dashboard/agenda`, `/dashboard/financas`, `/dashboard/treinos`, `/dashboard/dieta`,
+  `/dashboard/estudos`, `/dashboard/notas`, `/dashboard/cofre`, `/dashboard/metas`, `/dashboard/diario`, `/dashboard/configuracoes`, plus auth routes.
 - Mobile: `BottomNav` with Hoje · Tarefas · **+** (quick capture) · Finanças · Mais (sheet with all modules).
   Desktop: collapsible shadcn `sidebar` with all modules, the logo, theme toggle and user menu.
 - Global: `AssistantFab` (floating Claude button) on every screen, global search with `Ctrl/Cmd + K` (shadcn

@@ -53,7 +53,7 @@ function invalid(error: z.ZodError): { ok: false; error: string } {
 }
 
 function refresh() {
-  revalidatePath("/hoje")
+  revalidatePath("/dashboard")
 }
 
 // ---------------------------------------------------------------- boards

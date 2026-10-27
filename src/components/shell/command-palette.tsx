@@ -70,7 +70,7 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso }: C
             >
               <SparklesIcon strokeWidth={1.75} /> Perguntar ao assistente
             </CommandItem>
-            <CommandItem value="Configurações" onSelect={() => go("/configuracoes")}>
+            <CommandItem value="Configurações" onSelect={() => go("/dashboard/configuracoes")}>
               <SettingsIcon strokeWidth={1.75} /> Configurações
             </CommandItem>
           </CommandGroup>

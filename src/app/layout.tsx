@@ -4,6 +4,7 @@ import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getSiteUrl } from "@/lib/supabase/env";
 import "./globals.css";
 
 // Outfit (Google Fonts, OFL) is the UI font. Surgena lives only inside the logo artwork.
@@ -19,10 +20,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const TITLE = { default: "Organizzou - Sua vida organizada", template: "Organizzou - %s" };
+const DESCRIPTION = "Sua vida organizada em um só lugar.";
+
 export const metadata: Metadata = {
-  title: "Organizzou",
-  description: "Sua vida organizada em um só lugar.",
-  icons: { icon: "/brand/organizzou-icone.svg" },
+  // Every absolute URL (canonical, Open Graph, sitemap) comes from NEXT_PUBLIC_SITE_URL.
+  metadataBase: new URL(getSiteUrl()),
+  title: TITLE,
+  description: DESCRIPTION,
+  applicationName: "Organizzou",
+  icons: {
+    icon: [{ url: "/brand/organizzou-icone.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/brand/organizzou-icone-1024.png", sizes: "1024x1024", type: "image/png" }],
+  },
+  openGraph: { type: "website", siteName: "Organizzou", locale: "pt_BR", title: TITLE, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

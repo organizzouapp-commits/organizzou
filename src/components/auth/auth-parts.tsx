@@ -27,7 +27,7 @@ export function GoogleMark({ className }: { className?: string }) {
   )
 }
 
-export function GoogleButton({ next = "/hoje" }: { next?: string }) {
+export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
   const [pending, startTransition] = useTransition()
   // Stays true after a successful call: the page is about to leave for Google.
   const [redirecting, setRedirecting] = useState(false)

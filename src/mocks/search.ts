@@ -14,13 +14,13 @@ export function buildSearchIndex(nowIso: string): SearchHit[] {
   const hits: SearchHit[] = []
   for (const board of getMockBoardsStore(nowIso).boards) {
     for (const task of board.tasks) {
-      hits.push({ id: task.id, title: task.title, hint: board.board.name, module: "tarefas", href: `/tarefas/${board.board.id}` })
+      hits.push({ id: task.id, title: task.title, hint: board.board.name, module: "tarefas", href: `/dashboard/tarefas/${board.board.id}` })
     }
   }
-  for (const note of buildMockNotes(nowIso)) hits.push({ id: note.id, title: note.title, hint: "Nota", module: "notas", href: "/notas" })
-  for (const event of buildMockEvents(nowIso)) hits.push({ id: event.id, title: event.title, hint: "Evento", module: "agenda", href: "/agenda" })
-  for (const habit of mockHabits) hits.push({ id: habit.id, title: habit.name, hint: "Hábito", module: "rotina", href: "/rotina" })
-  for (const subject of mockSubjects) hits.push({ id: subject.id, title: subject.name, hint: "Estudos", module: "estudos", href: "/estudos" })
-  for (const goal of buildMockGoals(nowIso)) hits.push({ id: goal.id, title: goal.title, hint: "Meta", module: "metas", href: "/metas" })
+  for (const note of buildMockNotes(nowIso)) hits.push({ id: note.id, title: note.title, hint: "Nota", module: "notas", href: "/dashboard/notas" })
+  for (const event of buildMockEvents(nowIso)) hits.push({ id: event.id, title: event.title, hint: "Evento", module: "agenda", href: "/dashboard/agenda" })
+  for (const habit of mockHabits) hits.push({ id: habit.id, title: habit.name, hint: "Hábito", module: "rotina", href: "/dashboard/rotina" })
+  for (const subject of mockSubjects) hits.push({ id: subject.id, title: subject.name, hint: "Estudos", module: "estudos", href: "/dashboard/estudos" })
+  for (const goal of buildMockGoals(nowIso)) hits.push({ id: goal.id, title: goal.title, hint: "Meta", module: "metas", href: "/dashboard/metas" })
   return hits
 }

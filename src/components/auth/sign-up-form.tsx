@@ -40,7 +40,7 @@ export function SignUpForm() {
         setSentTo(values.email)
         return
       }
-      router.replace("/hoje")
+      router.replace("/dashboard")
       router.refresh()
     })
   }
@@ -129,7 +129,7 @@ export function SignUpForm() {
 
       <p className={cn("text-center text-(length:--auth-text) leading-6 text-muted-foreground", R)} style={rs(9)}>
         Já tem conta?{" "}
-        <AuthLink href="/entrar" className={cn(authLinkClass, "font-medium text-foreground underline")}>
+        <AuthLink href="/login" className={cn(authLinkClass, "font-medium text-foreground underline")}>
           Entrar
         </AuthLink>
       </p>

@@ -257,7 +257,7 @@ export function SecuritySettings() {
           <LandmarkIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
           <span className="flex-1">Nubank e Itaú conectados</span>
           <Button asChild variant="outline" size="sm">
-            <Link href="/financas">Gerenciar</Link>
+            <Link href="/dashboard/financas">Gerenciar</Link>
           </Button>
         </div>
       </section>

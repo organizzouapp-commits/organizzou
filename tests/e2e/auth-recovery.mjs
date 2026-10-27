@@ -39,12 +39,12 @@ for (const [label, viewport] of [["desktop", { width: 1280, height: 800 }], ["mo
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } })
   const page = await ctx.newPage()
-  await page.goto(`${base}/entrar`, { waitUntil: "networkidle" })
+  await page.goto(`${base}/login`, { waitUntil: "networkidle" })
   await page.waitForTimeout(2500)
   await page.getByRole("button", { name: /Continuar com Google/ }).click()
   const toast = page.getByText("Login com Google indisponível no momento. Use e-mail e senha.")
   await toast.waitFor({ timeout: 10000 }).then(() => ok("google toast", true)).catch(() => ok("google toast", false, page.url()))
-  ok("stayed on /entrar (no raw JSON)", page.url().includes("/entrar"), page.url())
+  ok("stayed on /login (no raw JSON)", page.url().includes("/login"), page.url())
   await page.screenshot({ path: `${out}/google-toast.png` })
   await ctx.close()
 }

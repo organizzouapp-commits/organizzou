@@ -15,7 +15,7 @@ export function WhatsAppCta({ onNavigate, className }: WhatsAppCtaProps) {
         <p className="text-[13px] leading-5 text-highlight-foreground/75">Fale com o assistente e receba lembretes por lá.</p>
       </div>
       <Link
-        href="/configuracoes?aba=whatsapp"
+        href="/dashboard/configuracoes?aba=whatsapp"
         onClick={onNavigate}
         className="inline-flex h-9 items-center justify-center self-start rounded-lg bg-palette-tinta px-4 text-sm font-medium text-palette-papel outline-none transition-colors duration-120 hover:bg-palette-tinta/85 focus-visible:ring-3 focus-visible:ring-palette-tinta/40"
       >

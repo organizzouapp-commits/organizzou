@@ -31,6 +31,7 @@ import { WhatsAppCta } from "./whatsapp-cta"
 export type ShellUser = { name: string; email: string }
 
 export function isActivePath(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === href
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
@@ -50,7 +51,7 @@ export function AppSidebar({ counts }: AppSidebarProps) {
     <Sidebar variant="floating" collapsible="icon">
       <SidebarHeader className={cn("gap-3 px-5 pt-5 pb-1", collapsed && "items-center px-0")}>
         <div className={cn("flex items-center justify-between gap-2", collapsed && "flex-col")}>
-          <Link href="/hoje" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
+          <Link href="/dashboard" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
             {collapsed ? <Logo iconOnly className="size-10" /> : <Logo tone="on-dark" className="h-8" />}
           </Link>
           <button
@@ -103,8 +104,8 @@ export function AppSidebar({ counts }: AppSidebarProps) {
       <SidebarFooter className="gap-0 px-3 pb-4">
         <SidebarMenu className="gap-0.5">
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/configuracoes")} className={itemClass}>
-              <Link href="/configuracoes">
+            <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/dashboard/configuracoes")} className={itemClass}>
+              <Link href="/dashboard/configuracoes">
                 <SettingsIcon strokeWidth={1.75} className="size-5!" />
                 <span className="group-data-[collapsible=icon]:sr-only">Configurações</span>
               </Link>

@@ -35,7 +35,7 @@ async function open(viewport, theme, extra = {}) {
   page.on("response", (r) => {
     if (r.url().includes("auth-background")) images.push(decodeURIComponent(r.url()))
   })
-  await page.goto(`${base}/em-breve`, { waitUntil: "networkidle" })
+  await page.goto(`${base}/`, { waitUntil: "networkidle" })
   await page.waitForTimeout(2200)
   return { ctx, page, images }
 }

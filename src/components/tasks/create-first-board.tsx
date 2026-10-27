@@ -21,7 +21,7 @@ export function CreateFirstBoard() {
             toast.error(result.error)
             return
           }
-          router.push(`/tarefas/${result.data.id}`)
+          router.push(`/dashboard/tarefas/${result.data.id}`)
         })
       }
     >

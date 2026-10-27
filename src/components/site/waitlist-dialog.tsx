@@ -138,7 +138,7 @@ function WaitlistForm({ onClose }: { onClose: () => void }) {
           <Label htmlFor="wl-consent" className="text-[14px] leading-5 font-normal text-muted-foreground">
             <span>
               Concordo em receber novidades do Organizzou e com a{" "}
-              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-4">
+              <a href="/politicas#privacidade" target="_blank" rel="noopener noreferrer" className="text-foreground underline underline-offset-4">
                 Política de privacidade
               </a>
               .

@@ -4,15 +4,12 @@ import { NextResponse, type NextRequest } from "next/server"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
 
-const AUTH_PAGES = ["/entrar", "/cadastro", "/recuperar-senha"]
-const PUBLIC_PREFIXES = ["/auth", "/termos", "/privacidade", "/design-system", "/em-breve"]
+// Logged-in users are sent to the dashboard from these (the new-password page is NOT here: the reset e-mail link signs them in first).
+const AUTH_PAGES = ["/login", "/cadastro", "/recuperar-senha"]
 
-function isPublic(pathname: string) {
-  return (
-    AUTH_PAGES.includes(pathname) ||
-    pathname === "/redefinir-senha" ||
-    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
-  )
+/** Only the dashboard (and everything under it) needs a session; every other route is public. */
+function isProtected(pathname: string) {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard/")
 }
 
 /**
@@ -21,14 +18,8 @@ function isPublic(pathname: string) {
  */
 export const bypassAuth = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production"
 
-/** SITE_COMING_SOON=true: logged-out visitors of "/" see the coming-soon page. */
-const comingSoon = process.env.SITE_COMING_SOON === "true"
-
 export async function updateSession(request: NextRequest) {
-  if (bypassAuth) {
-    if (request.nextUrl.pathname === "/") return NextResponse.redirect(new URL("/hoje", request.url))
-    return NextResponse.next({ request })
-  }
+  if (bypassAuth) return NextResponse.next({ request })
   const { url, anonKey } = getSupabaseEnv()
   let response = NextResponse.next({ request })
 
@@ -52,23 +43,17 @@ export async function updateSession(request: NextRequest) {
   const isAuthenticated = Boolean(data?.claims)
   const { pathname } = request.nextUrl
 
-  if (pathname === "/") {
-    if (isAuthenticated) return NextResponse.redirect(new URL("/hoje", request.url))
-    if (comingSoon) return NextResponse.rewrite(new URL("/em-breve", request.url), { request })
-    return NextResponse.redirect(new URL("/hoje", request.url)) // the next hop sends visitors to /entrar
-  }
-
-  if (!isAuthenticated && !isPublic(pathname)) {
+  if (!isAuthenticated && isProtected(pathname)) {
     const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = "/entrar"
+    loginUrl.pathname = "/login"
     loginUrl.search = ""
-    loginUrl.searchParams.set("next", pathname)
+    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(loginUrl)
   }
 
   if (isAuthenticated && AUTH_PAGES.includes(pathname)) {
     const appUrl = request.nextUrl.clone()
-    appUrl.pathname = "/hoje"
+    appUrl.pathname = "/dashboard"
     appUrl.search = ""
     return NextResponse.redirect(appUrl)
   }

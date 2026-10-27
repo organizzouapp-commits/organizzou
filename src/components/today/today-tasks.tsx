@@ -61,7 +61,7 @@ export function TodayTasks({ tasks, now, timeZone, completable = true }: TodayTa
               />
             ) : null}
             <Link
-              href={`/tarefas/${task.boardId}`}
+              href={`/dashboard/tarefas/${task.boardId}`}
               className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>

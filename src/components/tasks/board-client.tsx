@@ -37,11 +37,11 @@ type BoardClientProps = {
   initialView: ViewMode
   /** Server time, so the server render and hydration agree on "today". */
   nowIso: string
-  /** Where board links point, e.g. "/tarefas". */
+  /** Where board links point, e.g. "/dashboard/tarefas". */
   basePath?: string
 }
 
-export function BoardClient({ initial, api, initialView, nowIso, basePath = "/tarefas" }: BoardClientProps) {
+export function BoardClient({ initial, api, initialView, nowIso, basePath = "/dashboard/tarefas" }: BoardClientProps) {
   const router = useRouter()
   const isMobile = useIsMobile()
   const [now] = useState(() => new Date(nowIso))
@@ -266,7 +266,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/ta
       return
     }
     toast("Quadro arquivado.")
-    router.push(result.data.nextBoardId ? `/tarefas/${result.data.nextBoardId}` : "/tarefas")
+    router.push(result.data.nextBoardId ? `/dashboard/tarefas/${result.data.nextBoardId}` : "/dashboard/tarefas")
   }
 
   usePrimaryAction("Nova tarefa", () => setNewTaskOpen(true))

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 export const viewport: Viewport = { viewportFit: "cover", interactiveWidget: "resizes-content" }
 
 // One shared client shell for every auth route: it stays mounted while the URL changes,
-// which is what lets the highlight panel slide between /entrar and /cadastro.
+// which is what lets the highlight panel slide between /login and /cadastro.
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <>

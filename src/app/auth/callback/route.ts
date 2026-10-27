@@ -1,17 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { safeNextPath } from "@/lib/safe-next"
 import { createClient } from "@/lib/supabase/server"
-
-// Only allow same-site relative paths to avoid open redirects.
-function safeNext(value: string | null) {
-  if (value && value.startsWith("/") && !value.startsWith("//")) return value
-  return "/hoje"
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl
   const code = searchParams.get("code")
-  const next = safeNext(searchParams.get("next"))
+  const next = safeNextPath(searchParams.get("next"))
   const fromGoogle = searchParams.get("provider") === "google"
   // Provider-side failure (access denied, provider error): Supabase sends `error` / `error_description` instead of a code.
   const failure = fromGoogle || searchParams.has("error") || searchParams.has("error_description") ? "oauth" : null

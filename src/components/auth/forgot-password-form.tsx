@@ -93,7 +93,7 @@ export function ForgotPasswordForm() {
         </Button>
       </form>
       <p className={cn("text-center text-(length:--auth-text) leading-6", R)} style={rs(3)}>
-        <AuthLink href="/entrar" className={cn(authLinkClass, "font-medium underline")}>
+        <AuthLink href="/login" className={cn(authLinkClass, "font-medium underline")}>
           Voltar para entrar
         </AuthLink>
       </p>
@@ -133,7 +133,7 @@ export function ForgotPasswordForm() {
         {pending ? "Enviando…" : cooldown > 0 ? `Reenviar e-mail (${cooldown}s)` : "Reenviar e-mail"}
       </Button>
       <p className="text-center text-(length:--auth-text) leading-6">
-        <AuthLink href="/entrar" className={cn(authLinkClass, "font-medium underline")}>
+        <AuthLink href="/login" className={cn(authLinkClass, "font-medium underline")}>
           ‹ Voltar para entrar
         </AuthLink>
       </p>

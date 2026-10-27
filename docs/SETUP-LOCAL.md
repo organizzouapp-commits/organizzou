@@ -60,7 +60,7 @@ Deixe as demais como estão:
 npm run dev
 ```
 
-Abra <http://localhost:3000>. Para criar uma conta, use `/cadastro`; para entrar, `/entrar`.
+Abra <http://localhost:3000>. Para criar uma conta, use `/cadastro`; para entrar, `/login`.
 
 Comandos úteis:
 

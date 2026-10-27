@@ -190,7 +190,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   Links: a cor vai para `foreground` e o `underline-offset` anima de 4 para 6 px. Com `prefers-reduced-motion`, sem movimento.
 - **Animação do painel**: no login o painel fica à ESQUERDA; em "Criar conta" ele desliza para a DIREITA (`translateX`, 550 ms,
   mesma curva) enquanto o formulário de cadastro aparece à esquerda; "Entrar" faz o caminho inverso (também no voltar/avançar).
-  `/entrar` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
+  `/login` e `/cadastro` são rotas reais, mas a tela é um único `AuthShell` (client) no layout do grupo `(auth)`, que não remonta.
   Recuperar/redefinir senha usam o mesmo shell com o painel à esquerda. Com `prefers-reduced-motion`: só fade.
 - **Entrada (ao carregar a página, uma vez)**: o cartão aparece com fade, sobe 16 px e vai de 0,98 a 1 de escala em 0,6 s
   (`cubic-bezier(0.2, 0.8, 0.2, 1)`). Depois, revelação escalonada, 80 ms entre itens, 0,5 s cada (fade + 12 px): logotipo → selo →
@@ -200,7 +200,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 - **Placeholders**: e-mail "Seu e-mail aqui" e senha "Sua senha aqui" em entrar, cadastro e recuperação.
 - **Entrar ⇄ recuperar senha**: os dois formulários ficam montados no mesmo palco dentro do `AuthShell` (desktop e sheet). Ao trocar, o atual
   some com fade deslizando 12 px para o lado e o outro entra com fade vindo de 12 px do outro lado (0,4 s); a altura do palco anima até a
-  do formulário visível. A URL acompanha (`/entrar` ⇄ `/recuperar-senha`), inclusive no voltar/avançar do navegador, sem remontar nada.
+  do formulário visível. A URL acompanha (`/login` ⇄ `/recuperar-senha`), inclusive no voltar/avançar do navegador, sem remontar nada.
 - **Senha no cadastro**: sem checklist. Uma única mensagem de erro abaixo do campo (ex.: "Use pelo menos 8 caracteres."), exibida depois
   de sair do campo ou ao enviar; a validação com zod (cliente e servidor) segue igual.
 - **Mobile (< 1024 px): duas etapas**, sem painel e sem cartões de passo.
@@ -216,7 +216,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
     na foto visível acima da sheet, com fade + escala ao subir, e é o botão "Voltar para o início". Fecham a sheet (descendo em 0,5 s): tocar
     no logotipo, tocar na foto fora da sheet, arrastar a sheet ou a alça para baixo (acompanha o dedo; fecha após 100 px ou num gesto
     rápido), Esc ou o botão Voltar do navegador.
-  - **Rotas**: visita direta mostra a etapa 1. `/cadastro`, `/recuperar-senha`, `/redefinir-senha`, `?next=`, `?erro=` e `?saiu=1` (redirecionamento
+  - **Rotas**: visita direta mostra a etapa 1. `/cadastro`, `/recuperar-senha`, `/recuperar-senha/nova-senha`, `?next=`, `?erro=` e `?saiu=1` (redirecionamento
     do logout) abrem a sheet direto no modo certo. Abrir a sheet adiciona uma entrada ao histórico; trocar de modo dentro dela usa `replace`.
   - **Teclado e safe areas**: `viewportFit: "cover"`, `interactiveWidget: "resizes-content"` e rolagem interna da sheet mantêm o campo
     focado visível; margens e padding usam `env(safe-area-inset-*)`.
@@ -241,7 +241,7 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
   Marketing, "Salvar preferências") abre só por `openCookiePreferences()`, a partir de Configurações. `Esc` fecha só o diálogo.
 - **Uso**: `hasConsent("analytics")` e `<ConsentGate category="analytics">` envolvem qualquer script futuro, que só carrega após o
   consentimento. `openCookiePreferences()` reabre o diálogo (item "Preferências de cookies" em Configurações → Segurança e dados).
-  A página `/privacidade` tem a seção "Cookies" com as três categorias.
+  A página `/politicas#privacidade` tem a seção "Cookies" com as três categorias.
 - É montado uma vez no layout raiz. Não há analytics no produto ainda.
 
 ---

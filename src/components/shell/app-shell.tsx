@@ -27,9 +27,9 @@ import { PrimaryActionProvider } from "./primary-action"
 import { WhatsAppCta } from "./whatsapp-cta"
 
 const navItems: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem] = [
-  { id: "/hoje", label: "Hoje", icon: LayoutDashboardIcon },
-  { id: "/tarefas", label: "Tarefas", icon: SquareKanbanIcon },
-  { id: "/financas", label: "Finanças", icon: WalletIcon },
+  { id: "/dashboard", label: "Hoje", icon: LayoutDashboardIcon },
+  { id: "/dashboard/tarefas", label: "Tarefas", icon: SquareKanbanIcon },
+  { id: "/dashboard/financas", label: "Finanças", icon: WalletIcon },
   { id: "mais", label: "Mais", icon: EllipsisIcon },
 ]
 
@@ -149,7 +149,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
                   </div>
                 ))}
                 <Link
-                  href="/configuracoes"
+                  href="/dashboard/configuracoes"
                   onClick={() => setMoreOpen(false)}
                   className="flex min-h-12 items-center gap-4 rounded-full px-3 text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >

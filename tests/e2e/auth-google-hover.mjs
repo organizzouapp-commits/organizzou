@@ -21,7 +21,7 @@ const TOAST = "Login com Google indisponível no momento. Use e-mail e senha."
     target = route.request().url()
     route.fulfill({ status: 200, contentType: "text/html", body: "<title>stub</title>" })
   })
-  await page.goto(`${base}/entrar`, { waitUntil: "networkidle" })
+  await page.goto(`${base}/login`, { waitUntil: "networkidle" })
   await page.waitForTimeout(2500)
   const button = page.getByRole("button", { name: /Continuar com Google|Conectando/ })
   await button.click()
@@ -46,7 +46,7 @@ for (const [path, expectOauth] of [
   await page.waitForTimeout(2500)
   const url = new URL(page.url())
   const msg = await page.getByText("Não foi possível entrar com o Google. Tente de novo.").count()
-  ok(`callback ${path}`, expectOauth ? url.pathname === "/entrar" && url.searchParams.get("error") === "oauth" && msg === 1 : url.searchParams.get("erro") === "link" && msg === 0, url.pathname + url.search)
+  ok(`callback ${path}`, expectOauth ? url.pathname === "/login" && url.searchParams.get("error") === "oauth" && msg === 1 : url.searchParams.get("erro") === "link" && msg === 0, url.pathname + url.search)
   if (expectOauth && path.includes("access_denied")) await page.screenshot({ path: `${out}/oauth-error.png` })
   await ctx.close()
 }

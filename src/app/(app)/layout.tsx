@@ -1,9 +1,13 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { cookies } from "next/headers"
 
 import { AppShell } from "@/components/shell/app-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSession } from "@/lib/supabase/session"
+
+// The app is private: keep it out of search results (robots.txt disallows /dashboard too).
+export const metadata: Metadata = { robots: { index: false, follow: false } }
 
 async function ShellLoader({ children }: { children: React.ReactNode }) {
   const { supabase, userId, email } = await getSession()
