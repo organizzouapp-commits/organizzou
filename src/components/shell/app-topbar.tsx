@@ -73,6 +73,9 @@ function Bell() {
   )
 }
 
+const menuItem = "min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]"
+const menuIcon = "size-[18px]"
+
 function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolean }) {
   const requestSignOut = useRequestSignOut()
   return (
@@ -81,33 +84,38 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
         <button
           type="button"
           aria-label="Menu da conta"
-          className="flex items-center gap-3 rounded-full p-1 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:pr-3"
+          className="flex min-w-0 items-center gap-3 rounded-full p-1 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:pr-3"
         >
-          <Avatar className="size-10">
+          <Avatar className="size-10 shrink-0">
             <AvatarFallback>{initials(user.name)}</AvatarFallback>
           </Avatar>
           {compact ? null : (
-            <span className="hidden min-w-0 flex-col leading-tight 2xl:flex">
-              <span className="max-w-40 truncate text-[15px] font-medium">{user.name}</span>
-              <span className="max-w-40 truncate text-[13px] text-muted-foreground">{user.email}</span>
+            <span className="hidden min-w-0 items-center gap-2 2xl:flex">
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="max-w-40 truncate text-[15px] font-medium">{user.name}</span>
+                <span className="max-w-40 truncate text-[13px] text-muted-foreground">{user.email}</span>
+              </span>
+              <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
             </span>
           )}
-          {compact ? null : <ChevronDownIcon aria-hidden strokeWidth={1.75} className="hidden size-4 text-muted-foreground 2xl:block" />}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuLabel className="truncate">{user.email}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+      <DropdownMenuContent align="end" sideOffset={8} className="w-auto max-w-[calc(100vw-2rem)] min-w-60 rounded-2xl p-2">
+        <DropdownMenuLabel className="flex min-w-0 flex-col px-3 py-3 leading-tight">
+          <span className="truncate text-[15px] font-medium text-foreground">{user.name}</span>
+          <span className="truncate text-[13px] font-normal text-muted-foreground">{user.email}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="mx-1 my-2" />
         {ACCOUNT_ITEMS.map((item) => (
-          <DropdownMenuItem key={item.id} asChild>
+          <DropdownMenuItem key={item.id} asChild className={menuItem}>
             <Link href={item.href}>
-              <item.icon strokeWidth={1.75} /> {item.label}
+              <item.icon strokeWidth={1.75} className={menuIcon} /> {item.label}
             </Link>
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={requestSignOut}>
-          <LogOutIcon strokeWidth={1.75} /> Sair
+        <DropdownMenuSeparator className="mx-1 my-2" />
+        <DropdownMenuItem onSelect={requestSignOut} className={menuItem}>
+          <LogOutIcon strokeWidth={1.75} className={menuIcon} /> Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

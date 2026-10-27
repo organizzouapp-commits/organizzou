@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, type LucideIcon } from "lucide-react"
@@ -32,56 +32,6 @@ const GROUP_ICONS: Record<string, LucideIcon> = { Vida: HeartPulseIcon, Organiza
 
 const ease = "transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50"
-
-// ---------- which groups are open (remembered per user, in localStorage) ----------
-
-const GROUPS_EVENT = "organizzou:nav-groups"
-
-function subscribeGroups(onChange: () => void) {
-  window.addEventListener("storage", onChange)
-  window.addEventListener(GROUPS_EVENT, onChange)
-  return () => {
-    window.removeEventListener("storage", onChange)
-    window.removeEventListener(GROUPS_EVENT, onChange)
-  }
-}
-
-/** Open/closed state of the folded groups. A string snapshot keeps useSyncExternalStore stable and hydration-safe. */
-function useOpenGroups(storageKey: string) {
-  const key = `${storageKey}_groups`
-  const raw = useSyncExternalStore(
-    subscribeGroups,
-    () => {
-      try {
-        return window.localStorage.getItem(key) ?? ""
-      } catch {
-        return ""
-      }
-    },
-    () => ""
-  )
-  const open = useMemo<Record<string, boolean>>(() => {
-    try {
-      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {}
-    } catch {
-      return {}
-    }
-  }, [raw])
-
-  const setGroup = useCallback(
-    (label: string, value: boolean) => {
-      try {
-        const current = JSON.parse(window.localStorage.getItem(key) ?? "{}") as Record<string, boolean>
-        window.localStorage.setItem(key, JSON.stringify({ ...current, [label]: value }))
-      } catch {
-        // Storage can be blocked (private windows): the groups just won't be remembered.
-      }
-      window.dispatchEvent(new Event(GROUPS_EVENT))
-    },
-    [key]
-  )
-  return { open, setGroup }
-}
 
 function groupCount(group: NavGroup, counts: Counts) {
   return group.items.reduce((sum, id) => sum + (counts[id] ?? 0), 0)
@@ -286,24 +236,30 @@ function RailAccount({ pathname }: { pathname: string }) {
 
 type AppSidebarProps = {
   counts: Counts
-  /** Per-user key (the sidebar cookie name), used to remember the open groups. */
-  storageKey: string
 }
 
-export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSidebarProps) {
+export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) {
   const pathname = usePathname()
   const { state, toggleSidebar } = useSidebar()
   const collapsed = state === "collapsed"
-  const { open, setGroup } = useOpenGroups(storageKey)
 
-  // The group that contains the current page opens by itself.
+  // The group that contains the current page, if any.
   const activeGroup =
     FOLDED_GROUPS.find((g) => g.items.some((id) => isActivePath(pathname, modules[id].href)))?.label ??
-    (ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href)) ? ACCOUNT_GROUP_LABEL : undefined)
-  useEffect(() => {
-    if (activeGroup && open[activeGroup] === undefined) setGroup(activeGroup, true)
-    // Only when navigating: a group the user closed on purpose stays closed.
-  }, [activeGroup]) // eslint-disable-line react-hooks/exhaustive-deps
+    (ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href)) ? ACCOUNT_GROUP_LABEL : null)
+
+  // Accordion: a single piece of state, so opening one group closes the others. It is not persisted: on load only the group
+  // that holds the current route is open (none on any other route), and navigating into a group opens it.
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup)
+  const [seenGroup, setSeenGroup] = useState(activeGroup)
+  if (seenGroup !== activeGroup) {
+    setSeenGroup(activeGroup)
+    if (activeGroup) setOpenGroup(activeGroup)
+  }
+  const groupProps = (label: string) => ({
+    open: openGroup === label,
+    onOpenChange: (value: boolean) => setOpenGroup(value ? label : null),
+  })
 
   const toggle = (
     <button
@@ -358,12 +314,12 @@ export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSi
           <NavRow key={id} id={id} pathname={pathname} counts={counts} />
         ))}
         {FOLDED_GROUPS.map((group) => (
-          <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} open={open[group.label] === true} onOpenChange={(value) => setGroup(group.label, value)} />
+          <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} {...groupProps(group.label)} />
         ))}
       </nav>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-3 pt-2 pb-4 [@media(max-height:900px)]:pb-3">
-        <AccountGroup pathname={pathname} open={open[ACCOUNT_GROUP_LABEL] === true} onOpenChange={(value) => setGroup(ACCOUNT_GROUP_LABEL, value)} />
+        <AccountGroup pathname={pathname} {...groupProps(ACCOUNT_GROUP_LABEL)} />
         {/* The very last element of the sidebar. */}
         <WhatsAppCta className="mt-3" />
       </div>

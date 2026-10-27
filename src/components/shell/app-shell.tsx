@@ -117,7 +117,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
         >
           <ThemeSync theme={theme} />
           <FrameGlass />
-          <AppSidebar counts={counts} storageKey={sidebarCookie} />
+          <AppSidebar counts={counts} />
           {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
               top, ends at its bottom and keeps P from the right edge. */}
           <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0">
