@@ -244,37 +244,39 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
   A página `/politicas#privacidade` tem a seção "Cookies" com as três categorias.
 - É montado uma vez no layout raiz. Não há analytics no produto ainda.
 
-### 5.5 Glass surfaces (vidro fosco no app)
+### 5.5 Glass surfaces (fundo e moldura do app)
 
-Só o aparelho do app (`/dashboard/**`) usa vidro. Nenhuma cor nova: tudo é Papel, Grafite ou Tinta com transparência.
-Os tokens estão em `globals.css` (`--glass-*`, `--app-bg-tint`) e viram utilitários Tailwind, aplicados nos componentes
-compartilhados (Card, BentoCard, sidebar, top bar, BottomNav), nunca como classe avulsa por página.
-
-**Camadas**
+Só o aparelho do app (`/dashboard/**`) tem esse visual, e **só duas coisas são translúcidas: a foto de fundo e a moldura grande**.
+**Não há `backdrop-filter` no app** (ele pesava na rolagem). Sidebar, cards, barras e botões redondos são superfícies sólidas. Nenhuma cor
+nova: tudo é Papel, Grafite ou Tinta, com ou sem transparência. Os tokens estão em `globals.css` (`--glass-frame-*`, `--app-bg-tint`).
 
 | Camada | O que é | Receita |
 |---|---|---|
-| 0 | Foto de fundo, fixa e sem rolagem | `public/images/app-bg-blur.webp` (desktop) e `app-bg-blur-mobile.webp` (<768 px), **já desfocadas** (gerar com `npm run glass-bg`; nada de `backdrop-filter` ao vivo). `scale(1.1)` para esconder as bordas. Tinta de tema por cima: escuro Tinta 66 %, claro Papel 60 % (`--app-bg-tint`) |
-| 1 | Moldura (`glass-frame`), só desktop/tablet | `fixed inset-5` (20 px), raio 32, escuro Papel 6 % / claro Papel 35 %, `blur(24px) saturate(1.2)`, borda 1 px Papel 14 % / 70 %, brilho interno no topo. O conteúdo rola **dentro** dela. Tem `contain: layout`, então sidebar e botões fixos se posicionam pela moldura |
-| 2 | Painel (`glass-panel`) | Sidebar flutuante: escuro Grafite 72 % / claro Papel 78 %, `blur(20px)`, borda 1 px a 10 %, raio 24 |
-| 2 | Card (`glass-card`) | Escuro Grafite 70 % / claro Papel 82 %, `blur(16px)`, borda 1 px Papel 8 % / Tinta 6 %, raio 24. Claro pode ter sombra `0 8px 24px rgb(12 14 7 / 0.06)`; escuro, nenhuma |
-| 2 | Linha (`glass-row`) | Mesmo preenchimento do card, **sem blur**: itens de lista e cards de kanban |
-| 2 | Barras mobile (`glass-bar-top`, `glass-bar-bottom`) | Receita do painel com uma linha fina na borda interna. No mobile não há moldura: fundo de tela cheia |
+| 0 | Foto de fundo, fixa e sem rolagem | `public/images/app-bg-blur.webp` (desktop) e `app-bg-blur-mobile.webp` (<768 px), **já desfocadas em ~32 px** (gerar com `npm run glass-bg`). O celular baixa só a imagem mobile. `scale(1.1)` esconde as bordas. Tinta de tema por cima (`--app-bg-tint`): escuro Tinta 35 %, claro Papel 40 %. A camada é `position: fixed` (nunca `background-attachment: fixed`), com `transform: translateZ(0)` e `contain: paint`, então a rolagem não a repinta |
+| 1 | Moldura (`glass-frame`), só desktop/tablet | `fixed inset-5` (20 px), raio 32. **Só preenchimento semitransparente** (a foto já está desfocada): escuro Papel 4 % / claro Papel 25 %, borda 1 px Papel 14 % / 60 %, brilho interno no topo. Tem `contain: layout`, então a sidebar e os botões fixos se posicionam pela moldura. O conteúdo rola **dentro** dela (`data-app-scroll`); a moldura não rola |
+| 2 | Sidebar | Sólida: `--sidebar` (Grafite no escuro, Papel no claro), borda 1 px a 10 %, raio 24, item ativo em pílula Lima |
+| 2 | Cards (Card, BentoCard, linhas de lista) | Sólidos: `--card` (Grafite / Papel), borda 1 px `--border` (10 %), raio 24, sem sombra pesada. O card de destaque (Lima) continua sólido |
+| 2 | Top bar, botões redondos, busca, BottomNav | Token do card (`Button variant="surface"`, `bg-card` + `border-border`); no mobile a top bar e a BottomNav também são sólidas |
 
-O card de destaque (Lima) continua sólido. Botões redondos e a busca da top bar usam o vidro do card (`Button variant="glass"`).
+**Sólidos (token `popover`)**: popovers, menus, dialogs, sheets, drawers e a paleta de comandos.
 
-**Fica sólido (token `popover`)**: popovers, menus, dialogs, sheets, drawers e a paleta de comandos.
+**Regras de desempenho**
 
-**Regras**
+- Nada de `backdrop-filter`, `will-change` ou animação contínua dentro do app. Sombras grandes só em poucos elementos.
+- A foto é desfocada **antes** (arquivo WebP de ~8 KB), não em tempo de execução.
+- Medida em `/dashboard` (rolagem do conteúdo, CPU 4× mais lenta, Chromium sem GPU, `tests/e2e/perf-scroll.mjs`): tempo médio por
+  quadro caiu de ~47–55 ms para ~27–38 ms, e os quadros acima de 40 ms de 72–96 % para ~15–32 %. No mobile (sem moldura) já era 60 fps.
 
-- No máximo moldura + **um** nível de blur (painéis e cards). Linhas de lista nunca têm `backdrop-filter`.
-- Contraste de texto ≥ 4,5:1 sobre o vidro, medido nos pixels renderizados (`tests/e2e/glass-contrast.mjs`). Se algo reprovar,
-  aumente a opacidade daquela superfície ou da tinta de fundo; não crie cor nova. Por isso `--muted-foreground` é Papel 68 % (escuro)
-  e Tinta 72 % (claro), e os rótulos de abas usam `text-foreground/75`.
-- Na sidebar, o tema claro agora usa texto Tinta (a sidebar deixou de ser escura no claro) e o logo segue o tema.
-- **Fallback**: sem `backdrop-filter` (`@supports not`) ou com `prefers-reduced-transparency: reduce`, os tokens trocam para os sólidos
-  (`--background`, `--card`, `--border`), os filtros viram `none` e a foto é coberta pela tinta opaca.
-- Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup; o seletor cobre `.recharts-cartesian-axis-tick-value`).
+**Contraste**: texto ≥ 4,5:1 medido nos pixels renderizados (`tests/e2e/glass-contrast.mjs`). Se algo reprovar, aumente a opacidade
+daquela superfície ou da tinta de fundo; não crie cor nova. Por isso `--muted-foreground` é Papel 68 % (escuro) e Tinta 72 % (claro),
+e os rótulos de abas usam `text-foreground/85`. Com `prefers-reduced-transparency: reduce`, a moldura vira sólida e a tinta cobre a foto.
+Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup).
+
+**Card "Conecte seu WhatsApp" da sidebar**: fica fora da área rolável, então nunca é cortado. Card completo (ícone, título, texto e botão
+"Conectar") com a tela ≥ 1150 px de altura; pílula Lima de uma linha entre 901 e 1149 px; escondido até 900 px (continua em
+Configurações → WhatsApp e no menu "Mais" do celular). Com a sidebar recolhida: só o ícone, com tooltip.
+
+---
 
 ---
 

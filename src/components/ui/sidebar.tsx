@@ -244,7 +244,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="glass-panel flex size-full flex-col group-data-[variant=floating]:rounded-[24px]"
+          className="flex size-full flex-col border border-sidebar-border bg-sidebar group-data-[variant=floating]:rounded-[24px]"
         >
           {children}
         </div>

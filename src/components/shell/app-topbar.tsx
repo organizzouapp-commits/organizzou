@@ -54,7 +54,7 @@ function Bell() {
   return (
     <Popover onOpenChange={(open) => open && setUnread(false)}>
       <PopoverTrigger asChild>
-        <Button variant="glass" size="icon" className="relative rounded-full" aria-label={unread ? "Notificações, há novas" : "Notificações"}>
+        <Button variant="surface" size="icon" className="relative rounded-full" aria-label={unread ? "Notificações, há novas" : "Notificações"}>
           <BellIcon strokeWidth={1.75} />
           {unread ? <span aria-hidden className="absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2 ring-background" /> : null}
         </Button>
@@ -137,17 +137,17 @@ export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
             type="button"
             onClick={onSearch}
             aria-label="Buscar"
-            className="hidden h-11 w-64 items-center gap-3 glass-card rounded-full px-4 text-left text-[15px] text-muted-foreground outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 2xl:flex"
+            className="hidden h-11 w-64 items-center gap-3 rounded-full border border-border bg-card px-4 text-left text-[15px] text-muted-foreground outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 2xl:flex"
           >
             <SearchIcon aria-hidden strokeWidth={1.75} className="size-4" />
             <span className="flex-1">Buscar…</span>
             <kbd className="rounded-md border border-border px-1.5 text-[11px] leading-5">Ctrl K</kbd>
           </button>
-          <Button variant="glass" size="icon" className="rounded-full 2xl:hidden" aria-label="Buscar" onClick={onSearch}>
+          <Button variant="surface" size="icon" className="rounded-full 2xl:hidden" aria-label="Buscar" onClick={onSearch}>
             <SearchIcon strokeWidth={1.75} />
           </Button>
           <Bell />
-          <ThemeToggle round glass />
+          <ThemeToggle round surface />
           <UserMenu user={user} />
           <Button size="lg" className="h-11 rounded-full px-5 md:h-11" onClick={primary?.onClick ?? openQuickCapture}>
             <PlusIcon strokeWidth={1.75} /> {primary?.label ?? "Novo"}
@@ -156,11 +156,11 @@ export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
       </header>
 
       {/* Mobile */}
-      <header className="glass-bar-top sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 px-4 py-2 md:hidden">
+      <header className="sticky top-0 z-20 border-b border-border bg-card flex min-h-16 items-center justify-between gap-3 px-4 py-2 md:hidden">
         <UserMenu user={user} compact />
         <h1 className="min-w-0 flex-1 truncate text-center text-[17px] leading-6 font-semibold">{isToday ? "Hoje" : title}</h1>
         <div className="flex items-center gap-2">
-          <Button variant="glass" size="icon" className="rounded-full" aria-label="Buscar" onClick={onSearch}>
+          <Button variant="surface" size="icon" className="rounded-full" aria-label="Buscar" onClick={onSearch}>
             <SearchIcon strokeWidth={1.75} />
           </Button>
           <Bell />

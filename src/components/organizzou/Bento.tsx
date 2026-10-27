@@ -25,7 +25,7 @@ type BentoCardProps = {
 const cardBase = "min-w-0 rounded-[24px] p-6"
 
 export function bentoCardClass(tone: "default" | "highlight" = "default") {
-  return cn(cardBase, tone === "highlight" ? "border border-transparent bg-highlight text-highlight-foreground" : "glass-card text-card-foreground")
+  return cn(cardBase, tone === "highlight" ? "border border-transparent bg-highlight text-highlight-foreground" : "border border-border bg-card text-card-foreground")
 }
 
 export function ArrowLink({ href, label, tone = "default" }: { href: string; label: string; tone?: "default" | "highlight" }) {

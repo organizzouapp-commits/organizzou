@@ -310,62 +310,28 @@ input:-webkit-autofill:focus-visible {
   .site-cta:hover, .site-cta:focus-visible { scale: none; }
 }
 
-/* ---------- Glass surfaces (app shell) ----------
-   Layer 0: pre-blurred photo + theme tint. Layer 1: the frosted frame (desktop/tablet). Layer 2: sidebar, cards, bars.
-   Only the frame and ONE level of panels/cards use backdrop-filter; list rows use glass-row (no blur).
-   Popovers, dropdowns, dialogs, sheets and the command palette stay solid (popover token). */
+/* ---------- App frame (app shell) ----------
+   Only two things are translucent: the photo layer (a PRE-BLURRED image + a theme tint) and the big frame, which is a plain
+   semi-transparent fill. There is no backdrop-filter anywhere in the app shell (it made scrolling heavy); the photo is already
+   blurred, so a fill is enough to fake the frosted look. Sidebar, cards, bars and round buttons are solid tokens
+   (--sidebar / --card with a 1px --border). Popovers, dialogs, sheets and the command palette stay solid as well. */
 :root {
-  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 35%, transparent);
-  --glass-frame-border: color-mix(in oklab, var(--palette-papel) 70%, transparent);
-  --glass-panel-bg: color-mix(in oklab, var(--palette-papel) 78%, transparent);
-  --glass-panel-border: color-mix(in oklab, var(--palette-tinta) 10%, transparent);
-  --glass-card-bg: color-mix(in oklab, var(--palette-papel) 82%, transparent);
-  --glass-card-border: color-mix(in oklab, var(--palette-tinta) 6%, transparent);
-  --glass-card-shadow: 0 8px 24px rgb(12 14 7 / 0.06);
-  --glass-edge: inset 0 1px 0 color-mix(in oklab, white 55%, transparent);
-  --glass-filter-frame: blur(24px) saturate(1.2);
-  --glass-filter-panel: blur(20px);
-  --glass-filter-card: blur(16px);
-  --app-bg-tint: color-mix(in oklab, var(--palette-papel) 60%, transparent);
+  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 25%, transparent);
+  --glass-frame-border: color-mix(in oklab, var(--palette-papel) 60%, transparent);
+  --glass-edge: inset 0 1px 0 color-mix(in oklab, white 45%, transparent);
+  --app-bg-tint: color-mix(in oklab, var(--palette-papel) 40%, transparent);
 }
 .dark {
-  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 6%, transparent);
+  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 4%, transparent);
   --glass-frame-border: color-mix(in oklab, var(--palette-papel) 14%, transparent);
-  --glass-panel-bg: color-mix(in oklab, var(--palette-grafite) 72%, transparent);
-  --glass-panel-border: color-mix(in oklab, var(--palette-papel) 10%, transparent);
-  --glass-card-bg: color-mix(in oklab, var(--palette-grafite) 70%, transparent);
-  --glass-card-border: color-mix(in oklab, var(--palette-papel) 8%, transparent);
-  --glass-card-shadow: none;
-  --glass-edge: inset 0 1px 0 color-mix(in oklab, var(--palette-papel) 14%, transparent);
-  --app-bg-tint: color-mix(in oklab, var(--palette-tinta) 66%, transparent);
+  --glass-edge: inset 0 1px 0 color-mix(in oklab, var(--palette-papel) 12%, transparent);
+  --app-bg-tint: color-mix(in oklab, var(--palette-tinta) 35%, transparent);
 }
-
-/* No backdrop-filter, or the user asked for less transparency: the solid tokens take over (and the photo is covered). */
+/* Less transparency requested: solid frame, and the tint covers the photo. */
 @media (prefers-reduced-transparency: reduce) {
   :root, .dark {
     --glass-frame-bg: var(--background);
     --glass-frame-border: var(--border);
-    --glass-panel-bg: var(--card);
-    --glass-panel-border: var(--border);
-    --glass-card-bg: var(--card);
-    --glass-card-border: var(--border);
-    --glass-card-shadow: none;
-    --glass-edge: none;
-    --glass-filter-frame: none;
-    --glass-filter-panel: none;
-    --glass-filter-card: none;
-    --app-bg-tint: var(--background);
-  }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root, .dark {
-    --glass-frame-bg: var(--background);
-    --glass-frame-border: var(--border);
-    --glass-panel-bg: var(--card);
-    --glass-panel-border: var(--border);
-    --glass-card-bg: var(--card);
-    --glass-card-border: var(--border);
-    --glass-card-shadow: none;
     --glass-edge: none;
     --app-bg-tint: var(--background);
   }
@@ -373,39 +339,6 @@ input:-webkit-autofill:focus-visible {
 
 @utility glass-frame {
   background-color: var(--glass-frame-bg);
-  -webkit-backdrop-filter: var(--glass-filter-frame);
-  backdrop-filter: var(--glass-filter-frame);
   border: 1px solid var(--glass-frame-border);
   box-shadow: var(--glass-edge);
-}
-@utility glass-panel {
-  background-color: var(--glass-panel-bg);
-  -webkit-backdrop-filter: var(--glass-filter-panel);
-  backdrop-filter: var(--glass-filter-panel);
-  border: 1px solid var(--glass-panel-border);
-}
-@utility glass-card {
-  background-color: var(--glass-card-bg);
-  -webkit-backdrop-filter: var(--glass-filter-card);
-  backdrop-filter: var(--glass-filter-card);
-  border: 1px solid var(--glass-card-border);
-  box-shadow: var(--glass-card-shadow);
-}
-/* Same fill as a card, no blur: rows and items inside lists and boards. */
-@utility glass-row {
-  background-color: var(--glass-card-bg);
-  border: 1px solid var(--glass-card-border);
-}
-/* Mobile top bar and BottomNav: the panel recipe with a single hairline on the inner edge. */
-@utility glass-bar-top {
-  background-color: var(--glass-panel-bg);
-  -webkit-backdrop-filter: var(--glass-filter-panel);
-  backdrop-filter: var(--glass-filter-panel);
-  border-bottom: 1px solid var(--glass-panel-border);
-}
-@utility glass-bar-bottom {
-  background-color: var(--glass-panel-bg);
-  -webkit-backdrop-filter: var(--glass-filter-panel);
-  backdrop-filter: var(--glass-filter-panel);
-  border-top: 1px solid var(--glass-panel-border);
 }

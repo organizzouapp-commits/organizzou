@@ -96,10 +96,23 @@ export function AppSidebar({ counts }: AppSidebarProps) {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        <div className="mt-auto px-0 pt-2 pb-2 group-data-[collapsible=icon]:hidden [@media(max-height:900px)]:hidden">
-          <WhatsAppCta />
-        </div>
       </SidebarContent>
+
+      {/* Pinned above the footer (never inside the scroll area, so it can't be cut). */}
+      {collapsed ? (
+        <div className="hidden justify-center pb-2 [@media(min-height:901px)]:flex">
+          <WhatsAppCta iconOnly />
+        </div>
+      ) : (
+        <>
+          <div className="hidden px-3 pb-2 [@media(min-height:1150px)]:block">
+            <WhatsAppCta />
+          </div>
+          <div className="hidden px-3 pb-2 [@media(min-height:901px)_and_(max-height:1149px)]:block">
+            <WhatsAppCta compact />
+          </div>
+        </>
+      )}
 
       <SidebarFooter className="gap-0 px-3 pb-4 [@media(max-height:820px)]:pb-3">
         <SidebarMenu className="gap-0.5 [@media(max-height:900px)]:gap-0">

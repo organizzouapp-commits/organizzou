@@ -109,14 +109,14 @@ for (const [w, h] of [[1440, 900], [390, 844]])
       await ctx.addInitScript((t) => localStorage.setItem("theme", t), theme)
       const page = await ctx.newPage()
       await page.goto(base + path, { waitUntil: "networkidle" })
-      await page.addStyleTag({ content: "nextjs-portal { display: none !important }" })
+      await page.addStyleTag({ content: "nextjs-portal { display: none !important } .fixed.z-40 { visibility: hidden !important }" })
       await page.waitForTimeout(1800)
       let items = await audit(page)
       if (w >= 1024) {
         // Second pass: the content scrolled down inside the frame, so charts and lower cards are covered too.
         await page.reload({ waitUntil: "networkidle" })
-        await page.addStyleTag({ content: "nextjs-portal { display: none !important }" })
-        await page.evaluate(() => document.querySelector("[data-slot='sidebar-inset'] .overflow-y-auto")?.scrollBy(0, 520))
+        await page.addStyleTag({ content: "nextjs-portal { display: none !important } .fixed.z-40 { visibility: hidden !important }" })
+        await page.evaluate(() => document.querySelector("[data-app-scroll]")?.scrollBy(0, 520))
         await page.waitForTimeout(800)
         items = items.concat(await audit(page))
       }

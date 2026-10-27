@@ -112,7 +112,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden">
             <AppTopBar user={user} nowIso={nowIso} onSearch={() => setSearchOpen(true)} />
             {/* Desktop/tablet: the frame stays put and the content scrolls inside it. */}
-            <div className="flex-1 md:min-h-0 md:overflow-y-auto">
+            <div data-app-scroll className="flex-1 md:min-h-0 md:overflow-y-auto">
               <div className="mx-auto w-full max-w-[1440px] px-4 pt-2 pb-28 md:px-6 md:pb-10">{children}</div>
             </div>
           </SidebarInset>
