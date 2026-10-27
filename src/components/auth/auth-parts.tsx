@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { LoadingOverlay } from "@/components/organizzou/loading-overlay"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signInWithGoogle } from "@/features/auth/actions"
@@ -35,6 +36,7 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {redirecting ? <LoadingOverlay /> : null}
       <Button
         type="button"
         variant="outline"

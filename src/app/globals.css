@@ -186,10 +186,10 @@
 }
 [data-intro] .auth-reveal {
   animation: auth-reveal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--reveal, 0) * 80ms + 250ms);
+  animation-delay: calc(var(--reveal, 0) * 80ms + 1200ms);
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-intro] .auth-reveal { animation-name: auth-reveal-fade; }
+  [data-intro] .auth-reveal { animation-name: auth-reveal-fade; animation-delay: 0ms; }
 }
 
 /* Typed and autofilled text always uses the foreground token. Chrome paints autofilled fields blue with its own text color:
@@ -356,3 +356,16 @@ input:-webkit-autofill:focus-visible {
   background-image: linear-gradient(to bottom, var(--glass-frame-top) 0, var(--glass-frame-top) 88px, transparent 230px);
   box-shadow: var(--glass-edge);
 }
+
+/* Animated logo: the auth card content fades in ~1.2 s after the logo starts (see [data-intro] above).
+   Blocking loading screens fade in only after ~300 ms, so fast navigations never flash them (pure CSS, no timers). */
+@keyframes loading-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.loading-delayed { animation: loading-in 0.2s ease-out 0.3s backwards; }
+
+/* Public site preloader: hidden outright on repeat visits and with reduced motion (set by the inline boot script); the page's own
+   entrance animations wait until it has left. */
+html[data-preloader="skip"] #site-preloader { display: none; }
+html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) { animation-play-state: paused; }

@@ -3,7 +3,8 @@ import { getImageProps } from "next/image"
 import Link from "next/link"
 
 import { CursorGlow } from "@/components/site/cursor-glow"
-import { ON_PHOTO, reveal, SiteLogo } from "@/components/site/site-parts"
+import { SiteHeroLogo } from "@/components/site/site-hero-logo"
+import { ON_PHOTO, reveal } from "@/components/site/site-parts"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -52,7 +53,7 @@ export default function ComingSoonPage() {
       <main className={cn("flex flex-1 flex-col items-center justify-center gap-[clamp(20px,4.5dvh,45px)] px-5 pt-16 text-center lg:px-8", ON_PHOTO)}>
         <div className="flex flex-col items-center gap-[clamp(16px,3dvh,30px)]">
           <div className="site-zoom" style={reveal(0)}>
-            <SiteLogo className="h-[72px] md:h-[clamp(72px,15dvh,120px)]" />
+            <SiteHeroLogo className="h-[72px] md:h-[clamp(72px,15dvh,120px)]" />
           </div>
           <div
             className={cn("site-zoom inline-flex items-center gap-3.5 rounded-full px-6 py-3 text-base md:text-lg", glass, pillGlass)}

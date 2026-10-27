@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import Image, { getImageProps } from "next/image"
+import { getImageProps } from "next/image"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
+import { AnimatedLogo } from "@/components/organizzou/animated-logo"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
 import { safeNextPath } from "@/lib/safe-next"
 import { cn } from "@/lib/utils"
@@ -69,14 +70,9 @@ function useBelowLg() {
   )
 }
 
-/** One logo per theme, swapped with CSS so there is no flash or hydration mismatch. Same size in both. */
+/** The animated entrance logo over the photo: dark theme gets dark text, light theme light text (inverse of the theme). */
 function ThemedLogo({ className }: { className: string }) {
-  return (
-    <>
-      <Image src="/brand/logo-preta.png" alt="Organizzou" width={3000} height={683} loading="eager" className={cn("hidden w-auto dark:block", className)} />
-      <Image src="/brand/logo-branca.png" alt="Organizzou" width={3000} height={683} loading="eager" className={cn("block w-auto dark:hidden", className)} />
-    </>
-  )
+  return <AnimatedLogo variant="entrance" inverse className={className} />
 }
 
 function HighlightCopy({
@@ -165,7 +161,7 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
     <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-4 overflow-hidden rounded-[20px] p-[clamp(16px,3.2dvh,28px)]", ON_PHOTO, className)}>
       {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
-      <div className={cn("relative", R)} style={rs(0)}>
+      <div className="relative">
         <ThemedLogo className="h-(--auth-logo)" />
       </div>
       <div className="relative grid">
@@ -186,7 +182,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
     >
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
-        <div className={R} style={rs(0)}>
+        <div>
           <ThemedLogo className="h-10" />
         </div>
         <h2 className={cn("mt-2 text-[34px] leading-[42px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
