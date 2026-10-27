@@ -90,11 +90,11 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
     <div className="flex flex-col gap-5">
       <PageHeader />
       <Bento>
-      <KpiCard tone="highlight" label="Humor médio" value={moodAverage === null ? "—" : moodAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} support="nos últimos 30 dias" className="col-span-12 sm:col-span-4" />
-      <KpiCard label="Sono médio" value={sleepAverage === null ? "—" : `${sleepAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} h`} support="por noite" className="col-span-6 sm:col-span-4" />
-      <KpiCard label="Check-ins" value={`${loggedDays}`} support="dias registrados" className="col-span-6 sm:col-span-4" />
+      <KpiCard tone="highlight" label="Humor médio" value={moodAverage === null ? "—" : moodAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} support="nos últimos 30 dias" className="col-span-12 @min-[560px]:col-span-4" />
+      <KpiCard label="Sono médio" value={sleepAverage === null ? "—" : `${sleepAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} h`} support="por noite" className="col-span-6 @min-[560px]:col-span-4" />
+      <KpiCard label="Check-ins" value={`${loggedDays}`} support="dias registrados" className="col-span-6 @min-[560px]:col-span-4" />
 
-      <BentoCard title="Como foi hoje?" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-5">
+      <BentoCard title="Como foi hoje?" className="col-span-12 @min-[900px]:col-span-7" bodyClassName="flex flex-col gap-5">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button
@@ -137,7 +137,7 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="O que combina com seus melhores dias" className="col-span-12 lg:col-span-5">
+      <BentoCard title="O que combina com seus melhores dias" className="col-span-12 @min-[900px]:col-span-5">
         <div>
           {insights.map((insight) => {
             const Icon = INSIGHT_ICONS[insight.key]
@@ -161,7 +161,7 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Humor nos últimos 30 dias" className="col-span-12 lg:col-span-6">
+      <BentoCard title="Humor nos últimos 30 dias" className="col-span-12 @min-[900px]:col-span-6">
         <ChartContainer config={moodConfig} className="aspect-[16/8] w-full">
           <LineChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
@@ -173,7 +173,7 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </ChartContainer>
       </BentoCard>
 
-      <BentoCard title="Horas de sono" className="col-span-12 lg:col-span-6">
+      <BentoCard title="Horas de sono" className="col-span-12 @min-[900px]:col-span-6">
         <ChartContainer config={sleepConfig} className="aspect-[16/8] w-full">
           <BarChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />

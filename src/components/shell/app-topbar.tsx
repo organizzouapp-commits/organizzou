@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
@@ -111,7 +111,7 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
   )
 }
 
-export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
+export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
   const pathname = usePathname()
   const { openQuickCapture } = useAssistant()
   const primary = usePrimaryActionValue()
@@ -127,7 +127,7 @@ export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
   return (
     <>
       {/* Desktop and tablet */}
-      <header className="hidden min-h-20 shrink-0 items-center justify-between gap-6 px-6 py-3 md:flex">
+      <header className="hidden shrink-0 items-start justify-between gap-6 pb-4 md:flex md:min-h-[76px]">
         <div className="flex min-w-0 flex-col">
           <h1 className="truncate text-[28px] leading-9 font-semibold tracking-[-0.02em]">{title}</h1>
           <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
@@ -168,4 +168,4 @@ export function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
       </header>
     </>
   )
-}
+})

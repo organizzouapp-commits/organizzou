@@ -1,31 +1,31 @@
 "use client"
 
+import { memo, useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CircleHelpIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  CircleHelpIcon,
+  FolderIcon,
+  HeartPulseIcon,
+  LogOutIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  SettingsIcon,
+  type LucideIcon,
+} from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { Logo } from "@/components/organizzou/Logo"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  useSidebar,
-} from "@/components/ui/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Sidebar, SidebarRail, useSidebar } from "@/components/ui/sidebar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { signOut } from "@/features/auth/actions"
 import { cn } from "@/lib/utils"
 
-import { NAV_GROUPS } from "./nav"
+import { NAV_GROUPS, type NavGroup } from "./nav"
 import { WhatsAppCta } from "./whatsapp-cta"
 
 export type ShellUser = { name: string; email: string }
@@ -35,110 +35,298 @@ export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-// Active item: Lima pill with Tinta icon and text. Hover: Papel 6%.
-const itemClass =
-  "h-11 rounded-full px-4 text-[15px] [@media(min-height:901px)_and_(max-height:960px)]:h-10 [@media(min-height:781px)_and_(max-height:900px)]:h-9 [@media(max-height:780px)]:h-8 hover:bg-sidebar-accent data-active:bg-highlight data-active:font-medium data-active:text-highlight-foreground data-active:hover:bg-highlight group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
+type Counts = Partial<Record<ModuleId, number>>
 
-type AppSidebarProps = { counts: Partial<Record<ModuleId, number>> }
+const [MAIN_GROUP, ...FOLDED_GROUPS] = NAV_GROUPS
+const GROUP_ICONS: Record<string, LucideIcon> = { Vida: HeartPulseIcon, Organização: FolderIcon }
 
-export function AppSidebar({ counts }: AppSidebarProps) {
+const ease = "transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+const focus = "outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50"
+
+// ---------- which groups are open (remembered per user, in localStorage) ----------
+
+const GROUPS_EVENT = "organizzou:nav-groups"
+
+function subscribeGroups(onChange: () => void) {
+  window.addEventListener("storage", onChange)
+  window.addEventListener(GROUPS_EVENT, onChange)
+  return () => {
+    window.removeEventListener("storage", onChange)
+    window.removeEventListener(GROUPS_EVENT, onChange)
+  }
+}
+
+/** Open/closed state of the folded groups. A string snapshot keeps useSyncExternalStore stable and hydration-safe. */
+function useOpenGroups(storageKey: string) {
+  const key = `${storageKey}_groups`
+  const raw = useSyncExternalStore(
+    subscribeGroups,
+    () => {
+      try {
+        return window.localStorage.getItem(key) ?? ""
+      } catch {
+        return ""
+      }
+    },
+    () => ""
+  )
+  const open = useMemo<Record<string, boolean>>(() => {
+    try {
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {}
+    } catch {
+      return {}
+    }
+  }, [raw])
+
+  const setGroup = useCallback(
+    (label: string, value: boolean) => {
+      try {
+        const current = JSON.parse(window.localStorage.getItem(key) ?? "{}") as Record<string, boolean>
+        window.localStorage.setItem(key, JSON.stringify({ ...current, [label]: value }))
+      } catch {
+        // Storage can be blocked (private windows): the groups just won't be remembered.
+      }
+      window.dispatchEvent(new Event(GROUPS_EVENT))
+    },
+    [key]
+  )
+  return { open, setGroup }
+}
+
+function groupCount(group: NavGroup, counts: Counts) {
+  return group.items.reduce((sum, id) => sum + (counts[id] ?? 0), 0)
+}
+
+// ---------- expanded sidebar ----------
+
+const rowBase = "flex h-10 items-center gap-3 rounded-full px-4 text-[15px] [@media(max-height:900px)]:h-9"
+const rowIdle = "text-sidebar-foreground hover:bg-sidebar-accent"
+const rowActive = "bg-highlight font-medium text-highlight-foreground"
+
+function CountBadge({ value, active }: { value?: number; active?: boolean }) {
+  if (!value) return null
+  return (
+    <span className={cn("tabular ml-auto flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-[12px] leading-none", active ? "bg-highlight-foreground/10" : "bg-sidebar-accent")}>
+      {value}
+    </span>
+  )
+}
+
+function NavRow({ id, pathname, counts }: { id: ModuleId; pathname: string; counts: Counts }) {
+  const m = modules[id]
+  const active = isActivePath(pathname, m.href)
+  return (
+    <Link href={m.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
+      <m.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+      <span className="truncate">{m.name}</span>
+      <CountBadge value={counts[id]} active={active} />
+    </Link>
+  )
+}
+
+function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: NavGroup; pathname: string; counts: Counts; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const Icon = GROUP_ICONS[group.label] ?? FolderIcon
+  const total = groupCount(group, counts)
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <CollapsibleTrigger className={cn("group/trigger", rowBase, "w-full text-left", ease, focus, rowIdle)}>
+        <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+        <span className="truncate">{group.label}</span>
+        {!open && total ? <CountBadge value={total} /> : null}
+        <ChevronDownIcon
+          aria-hidden
+          strokeWidth={1.75}
+          className={cn("size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "rotate-180" : "", !open && total ? "" : "ml-auto")}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden [--tw-animation-duration:400ms] [--tw-ease:cubic-bezier(0.2,0.8,0.2,1)] data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-3">
+          {group.items.map((id) => (
+            <NavRow key={id} id={id} pathname={pathname} counts={counts} />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+// ---------- collapsed rail: every control is the same 44 px square on one vertical axis ----------
+
+const railBase = "relative flex size-11 shrink-0 items-center justify-center rounded-full"
+
+function RailBadge({ value }: { value?: number }) {
+  if (!value) return null
+  return (
+    <span className="tabular absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-highlight px-1 text-[11px] leading-none font-semibold text-highlight-foreground ring-2 ring-sidebar">
+      {value}
+    </span>
+  )
+}
+
+function RailTip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function RailLink({ id, pathname, counts }: { id: ModuleId; pathname: string; counts: Counts }) {
+  const m = modules[id]
+  const active = isActivePath(pathname, m.href)
+  return (
+    <RailTip label={m.name}>
+      <Link href={m.href} aria-label={m.name} aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+        <m.icon aria-hidden strokeWidth={1.75} className="size-5" />
+        <RailBadge value={counts[id]} />
+      </Link>
+    </RailTip>
+  )
+}
+
+function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: string; counts: Counts }) {
+  const Icon = GROUP_ICONS[group.label] ?? FolderIcon
+  const hasActive = group.items.some((id) => isActivePath(pathname, modules[id].href))
+  return (
+    <Popover>
+      <RailTip label={group.label}>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={group.label} className={cn(railBase, ease, focus, hasActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+            <Icon aria-hidden strokeWidth={1.75} className="size-5" />
+            <RailBadge value={groupCount(group, counts)} />
+          </button>
+        </PopoverTrigger>
+      </RailTip>
+      <PopoverContent side="right" align="start" sideOffset={14} className="w-60 gap-0 p-2">
+        <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{group.label}</p>
+        {group.items.map((id) => {
+          const m = modules[id]
+          const active = isActivePath(pathname, m.href)
+          return (
+            <Link key={id} href={m.href} aria-current={active ? "page" : undefined} className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-[15px]", ease, focus, active ? rowActive : "hover:bg-accent")}>
+              <m.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+              <span className="truncate">{m.name}</span>
+              <CountBadge value={counts[id]} active={active} />
+            </Link>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ---------- the sidebar ----------
+
+type AppSidebarProps = {
+  counts: Counts
+  /** Per-user key (the sidebar cookie name), used to remember the open groups. */
+  storageKey: string
+}
+
+export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSidebarProps) {
   const pathname = usePathname()
   const { state, toggleSidebar } = useSidebar()
   const { openAssistant } = useAssistant()
   const collapsed = state === "collapsed"
+  const { open, setGroup } = useOpenGroups(storageKey)
+
+  // The group that contains the current page opens by itself.
+  const activeGroup = FOLDED_GROUPS.find((g) => g.items.some((id) => isActivePath(pathname, modules[id].href)))?.label
+  useEffect(() => {
+    if (activeGroup && open[activeGroup] === undefined) setGroup(activeGroup, true)
+    // Only when navigating: a group the user closed on purpose stays closed.
+  }, [activeGroup]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const settingsActive = isActivePath(pathname, "/dashboard/configuracoes")
+  const toggle = (
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+      className={cn("flex shrink-0 items-center justify-center rounded-full text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground", collapsed ? "size-11" : "size-9", ease, focus)}
+    >
+      {collapsed ? <PanelLeftOpenIcon strokeWidth={1.75} className="size-5" /> : <PanelLeftCloseIcon strokeWidth={1.75} className="size-5" />}
+    </button>
+  )
+
+  if (collapsed) {
+    return (
+      <Sidebar variant="floating" collapsible="icon">
+        <div className="flex flex-col items-center gap-1 pt-4 pb-2">
+          <Link href="/dashboard" aria-label="Organizzou — Hoje" className={cn(railBase, "rounded-xl", focus)}>
+            <Logo iconOnly className="size-10" />
+          </Link>
+          {toggle}
+        </div>
+        <nav aria-label="Módulos" className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto py-1">
+          {MAIN_GROUP.items.map((id) => (
+            <RailLink key={id} id={id} pathname={pathname} counts={counts} />
+          ))}
+          <span aria-hidden className="my-1 h-px w-6 shrink-0 bg-sidebar-border" />
+          {FOLDED_GROUPS.map((group) => (
+            <RailGroup key={group.label} group={group} pathname={pathname} counts={counts} />
+          ))}
+        </nav>
+        <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
+          <RailTip label="Configurações">
+            <Link href="/dashboard/configuracoes" aria-label="Configurações" aria-current={settingsActive ? "page" : undefined} className={cn(railBase, ease, focus, settingsActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+              <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
+            </Link>
+          </RailTip>
+          <RailTip label="Ajuda">
+            <button type="button" aria-label="Ajuda" onClick={openAssistant} className={cn(railBase, ease, focus, rowIdle)}>
+              <CircleHelpIcon aria-hidden strokeWidth={1.75} className="size-5" />
+            </button>
+          </RailTip>
+          <RailTip label="Sair">
+            <button type="button" aria-label="Sair" onClick={() => void signOut()} className={cn(railBase, ease, focus, rowIdle)}>
+              <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
+            </button>
+          </RailTip>
+          <WhatsAppCta iconOnly className="mt-1" />
+        </div>
+        <SidebarRail />
+      </Sidebar>
+    )
+  }
 
   return (
     <Sidebar variant="floating" collapsible="icon">
-      <SidebarHeader className={cn("gap-3 px-5 pt-5 pb-1 [@media(max-height:820px)]:pt-3", collapsed && "items-center px-0")}>
-        <div className={cn("flex items-center justify-between gap-2", collapsed && "flex-col")}>
-          <Link href="/dashboard" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
-            {collapsed ? <Logo iconOnly className="size-10" /> : <Logo className="h-8" />}
-          </Link>
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-sidebar-foreground/70 outline-none transition-colors duration-120 hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-sidebar-ring/50"
-          >
-            {collapsed ? <PanelLeftOpenIcon strokeWidth={1.75} className="size-5" /> : <PanelLeftCloseIcon strokeWidth={1.75} className="size-5" />}
-          </button>
-        </div>
-      </SidebarHeader>
+      <div className="flex shrink-0 items-center justify-between gap-2 px-5 pt-5 pb-3 [@media(max-height:900px)]:pt-4">
+        <Link href="/dashboard" aria-label="Organizzou — Hoje" className={cn("rounded-md", focus)}>
+          <Logo className="h-8" />
+        </Link>
+        {toggle}
+      </div>
 
-      <SidebarContent className="gap-1 px-3 [@media(max-height:820px)]:gap-0">
-        {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label} className="px-0 py-1 [@media(max-height:820px)]:py-0">
-            <SidebarGroupLabel className="px-4 text-[11px] leading-4 font-semibold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5 [@media(max-height:900px)]:gap-0">
-                {group.items.map((id) => {
-                  const m = modules[id]
-                  const count = counts[id]
-                  return (
-                    <SidebarMenuItem key={id}>
-                      <SidebarMenuButton asChild tooltip={m.name} isActive={isActivePath(pathname, m.href)} className={itemClass}>
-                        <Link href={m.href}>
-                          <m.icon strokeWidth={1.75} className="size-5!" />
-                          <span className="group-data-[collapsible=icon]:sr-only">{m.name}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                      {count ? (
-                        <SidebarMenuBadge className="tabular right-3 h-6 min-w-6 rounded-full bg-sidebar-accent px-2 text-[12px] text-sidebar-foreground peer-data-active/menu-button:bg-highlight-foreground/10 peer-data-active/menu-button:text-highlight-foreground">
-                          {count}
-                        </SidebarMenuBadge>
-                      ) : null}
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+      {/* Only this list scrolls (hidden scrollbar) when the screen is too short; the bottom block never does. */}
+      <nav aria-label="Módulos" className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-1">
+        {MAIN_GROUP.items.map((id) => (
+          <NavRow key={id} id={id} pathname={pathname} counts={counts} />
         ))}
-      </SidebarContent>
+        {FOLDED_GROUPS.map((group) => (
+          <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} open={open[group.label] === true} onOpenChange={(value) => setGroup(group.label, value)} />
+        ))}
+      </nav>
 
-      {/* Pinned above the footer (never inside the scroll area, so it can't be cut). */}
-      {collapsed ? (
-        <div className="hidden justify-center pb-2 [@media(min-height:901px)]:flex">
-          <WhatsAppCta iconOnly />
-        </div>
-      ) : (
-        <>
-          <div className="hidden px-3 pb-2 [@media(min-height:1150px)]:block">
-            <WhatsAppCta />
-          </div>
-          <div className="hidden px-3 pb-2 [@media(min-height:901px)_and_(max-height:1149px)]:block">
-            <WhatsAppCta compact />
-          </div>
-        </>
-      )}
-
-      <SidebarFooter className="gap-0 px-3 pb-4 [@media(max-height:820px)]:pb-3">
-        <SidebarMenu className="gap-0.5 [@media(max-height:900px)]:gap-0">
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/dashboard/configuracoes")} className={itemClass}>
-              <Link href="/dashboard/configuracoes">
-                <SettingsIcon strokeWidth={1.75} className="size-5!" />
-                <span className="group-data-[collapsible=icon]:sr-only">Configurações</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Ajuda" className={itemClass} onClick={openAssistant}>
-              <CircleHelpIcon strokeWidth={1.75} className="size-5!" />
-              <span className="group-data-[collapsible=icon]:sr-only">Ajuda</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Sair" className={itemClass} onClick={() => void signOut()}>
-              <LogOutIcon strokeWidth={1.75} className="size-5!" />
-              <span className="group-data-[collapsible=icon]:sr-only">Sair</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+      <div className="flex shrink-0 flex-col gap-0.5 px-3 pt-2 pb-4 [@media(max-height:900px)]:pb-3">
+        <Link href="/dashboard/configuracoes" aria-current={settingsActive ? "page" : undefined} className={cn(rowBase, ease, focus, settingsActive ? rowActive : rowIdle)}>
+          <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          Configurações
+        </Link>
+        <button type="button" onClick={openAssistant} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
+          <CircleHelpIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          Ajuda
+        </button>
+        <button type="button" onClick={() => void signOut()} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
+          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          Sair
+        </button>
+        {/* The very last element of the sidebar. */}
+        <WhatsAppCta className="mt-3" />
+      </div>
       <SidebarRail />
     </Sidebar>
   )
-}
+})

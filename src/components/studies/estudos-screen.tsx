@@ -191,10 +191,10 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
         {/* ----------------------------------------------------------- today */}
         <TabsContent value="hoje" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" className="col-span-12 sm:col-span-4" />
-          <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} className="col-span-6 sm:col-span-4" />
-          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" className="col-span-6 sm:col-span-4" />
-          <BentoCard title="Foco" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-5">
+          <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" className="col-span-12 @min-[560px]:col-span-4" />
+          <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} className="col-span-6 @min-[560px]:col-span-4" />
+          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" className="col-span-6 @min-[560px]:col-span-4" />
+          <BentoCard title="Foco" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-5">
             <Tabs value={mode} onValueChange={changeMode}>
               <TabsList>
                 {MODES.map((m) => (
@@ -245,7 +245,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             </div>
           </BentoCard>
 
-          <BentoCard title="Horas por matéria nesta semana" className="col-span-12 lg:col-span-7">
+          <BentoCard title="Horas por matéria nesta semana" className="col-span-12 @min-[900px]:col-span-7">
             <ChartContainer config={hoursConfig} className="aspect-[16/9] w-full">
               <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
                 <CartesianGrid horizontal={false} strokeOpacity={0.5} />
@@ -257,7 +257,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             </ChartContainer>
           </BentoCard>
 
-          <BentoCard title="Blocos de hoje" className="col-span-12 lg:col-span-4">
+          <BentoCard title="Blocos de hoje" className="col-span-12 @min-[1000px]:col-span-4">
             {todaysBlocks.length === 0 ? (
               <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nenhum bloco no cronograma de hoje.</p>
             ) : (
@@ -273,7 +273,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             )}
           </BentoCard>
 
-          <BentoCard title="Contagem regressiva" className="col-span-12 md:col-span-6 lg:col-span-4">
+          <BentoCard title="Contagem regressiva" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
             {upcoming.slice(0, 3).map((d) => (
               <div key={d.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                 <span className="flex-1 text-[15px] leading-6">{d.title}</span>
@@ -284,7 +284,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             ))}
           </BentoCard>
 
-          <BentoCard title="Ranking da semana" className="col-span-12 md:col-span-6 lg:col-span-4">
+          <BentoCard title="Ranking da semana" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
             {bySubject.map((r, index) => (
               <div key={r.subject.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
                 <span className="tabular w-5 text-[13px] leading-5 text-muted-foreground">{index + 1}</span>
@@ -303,7 +303,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             const Icon = TYPE_ICONS[s.type]
             const done = weekMinutes(s.id)
             return (
-              <BentoCard key={s.id} className="col-span-12 lg:col-span-6" bodyClassName="flex flex-col gap-3">
+              <BentoCard key={s.id} className="col-span-12 @min-[900px]:col-span-6" bodyClassName="flex flex-col gap-3">
                 <div className="flex items-start gap-4">
                   <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -344,7 +344,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
           <Bento>
           <BentoCard
             title="Baralhos"
-            className="col-span-12 lg:col-span-8"
+            className="col-span-12 @min-[900px]:col-span-8"
             actions={
             <Button
               size="sm"
@@ -406,7 +406,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
           <Bento>
           <BentoCard
             title="Provas e prazos"
-            className="col-span-12 lg:col-span-8"
+            className="col-span-12 @min-[900px]:col-span-8"
             actions={
               <Button variant="outline" size="sm" onClick={() => setCreatingDeadline(true)}>
                 <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo

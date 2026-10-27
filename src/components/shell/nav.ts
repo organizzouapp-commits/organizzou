@@ -2,10 +2,10 @@ import type { ModuleId } from "@/components/organizzou/modules"
 
 export type NavGroup = { label: string; items: ModuleId[] }
 
-/** Sidebar and "Mais" sheet grouping (DESIGN-SYSTEM §5.2). */
+/** Sidebar and "Mais" sheet grouping (DESIGN-SYSTEM §5.2). The first group is always visible, the others fold in the sidebar. */
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Menu", items: ["hoje", "tarefas", "rotina", "agenda"] },
-  { label: "Vida", items: ["financas", "treinos", "dieta", "estudos"] },
+  { label: "Menu", items: ["hoje", "tarefas", "agenda", "financas"] },
+  { label: "Vida", items: ["rotina", "treinos", "dieta", "estudos"] },
   { label: "Organização", items: ["notas", "metas", "diario", "cofre"] },
 ]
 

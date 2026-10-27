@@ -23,28 +23,28 @@ export function SettingsTabs({ displayName, email, initialTab }: SettingsTabsPro
       </TabsList>
       <TabsContent value="perfil" className="pt-5">
         <Bento>
-          <BentoCard className="col-span-12 lg:col-span-8">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-8">
             <SettingsForm displayName={displayName} email={email} />
           </BentoCard>
         </Bento>
       </TabsContent>
       <TabsContent value="avisos" className="pt-5">
         <Bento>
-          <BentoCard className="col-span-12 lg:col-span-9">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-9">
             <NotificationsSettings />
           </BentoCard>
         </Bento>
       </TabsContent>
       <TabsContent value="whatsapp" className="pt-5">
         <Bento>
-          <BentoCard className="col-span-12 lg:col-span-7">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-7">
             <WhatsAppSettings />
           </BentoCard>
         </Bento>
       </TabsContent>
       <TabsContent value="seguranca" className="pt-5">
         <Bento>
-          <BentoCard className="col-span-12 lg:col-span-8">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-8">
             <SecuritySettings />
           </BentoCard>
         </Bento>

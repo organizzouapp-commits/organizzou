@@ -164,10 +164,10 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
             label="Hábitos hoje"
             value={`${doneToday}/${todays.length}`}
             support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`}
-            className="col-span-12 sm:col-span-4"
+            className="col-span-12 @min-[560px]:col-span-4"
           />
-          <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 sm:col-span-4" />
-          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 sm:col-span-4" />
+          <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 @min-[560px]:col-span-4" />
+          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[560px]:col-span-4" />
           <BentoCard title="Hábitos de hoje" className="col-span-12">
           <div className="flex flex-col gap-2 pb-4">
             <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
@@ -269,7 +269,7 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
           <Bento>
           <BentoCard
             title={format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}
-            className="col-span-12 lg:col-span-8"
+            className="col-span-12 @min-[900px]:col-span-8"
             actions={
               <Select value={historyHabit} onValueChange={setHistoryHabit}>
                 <SelectTrigger aria-label="Hábito" className="w-56">
@@ -325,11 +325,11 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="estatisticas" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Check-ins no mês" value={`${monthCheckins}`} support="registros" className="col-span-6 lg:col-span-3" />
-          <BentoCard title="Constância por semana" className="col-span-12 lg:col-span-7">
+          <KpiCard tone="highlight" label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Check-ins no mês" value={`${monthCheckins}`} support="registros" className="col-span-6 @min-[1040px]:col-span-3" />
+          <BentoCard title="Constância por semana" className="col-span-12 @min-[900px]:col-span-7">
             <ChartContainer config={chartConfig} className="aspect-[16/7] w-full">
               <BarChart data={weekly} margin={{ left: -16, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
@@ -340,7 +340,7 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
               </BarChart>
             </ChartContainer>
           </BentoCard>
-          <BentoCard title="Por hábito" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
+          <BentoCard title="Por hábito" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-4">
             {habits.map((habit) => {
               const rate = consistency(habit, logs, today)
               return (

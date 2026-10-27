@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { EllipsisIcon, LayoutDashboardIcon, SettingsIcon, SquareKanbanIcon, WalletIcon } from "lucide-react"
@@ -19,7 +19,6 @@ import { isMock } from "@/mocks/config"
 import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
-import { AppBackground } from "./app-background"
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
 import { AppTopBar } from "./app-topbar"
 import { CommandPalette } from "./command-palette"
@@ -83,9 +82,13 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const open = choice ?? !isTablet
 
   const activeId = navItems.find((item) => item.id !== "mais" && isActivePath(pathname, item.id))?.id ?? ""
-  const counts: Partial<Record<ModuleId, number>> = isMock
-    ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) }
-    : {}
+  // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
+  const counts = useMemo<Partial<Record<ModuleId, number>>>(
+    () => (isMock ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
+    [nowIso]
+  )
+  const openSearch = useCallback(() => setSearchOpen(true), [])
+  const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
   function onSelect(id: string) {
     if (id === "mais") {
@@ -96,11 +99,10 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   }
 
   return (
-    <AssistantProvider value={{ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }}>
+    <AssistantProvider value={assistantContext}>
       <PrimaryActionProvider>
-        {/* Layer 0: pre-blurred photo + tint. Layer 1 (md+): the frosted frame, fixed at 20px, with `contain: layout` so the
-            sidebar and the floating buttons position against the frame even without backdrop-filter. */}
-        <AppBackground />
+        {/* Layer 0 (the tiny pre-blurred photo) is rendered once by the (app) layout. Layer 1 (md+): the frame, fixed at 20px,
+            with `contain: layout` so the sidebar and the floating buttons position against the frame. */}
         <SidebarProvider
           open={open}
           onOpenChange={setChoice}
@@ -108,12 +110,15 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           className="md:glass-frame md:fixed md:inset-5 md:w-auto md:min-h-0 md:overflow-hidden md:rounded-[32px] md:contain-layout"
         >
           <ThemeSync theme={theme} />
-          <AppSidebar counts={counts} />
-          <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden">
-            <AppTopBar user={user} nowIso={nowIso} onSearch={() => setSearchOpen(true)} />
-            {/* Desktop/tablet: the frame stays put and the content scrolls inside it. */}
-            <div data-app-scroll className="flex-1 md:min-h-0 md:overflow-y-auto">
-              <div className="mx-auto w-full max-w-[1440px] px-4 pt-2 pb-28 md:px-6 md:pb-10">{children}</div>
+          <AppSidebar counts={counts} storageKey={sidebarCookie} />
+          {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
+              top, ends at its bottom and keeps P from the right edge. */}
+          <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0">
+            <AppTopBar user={user} nowIso={nowIso} onSearch={openSearch} />
+            {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
+                bento reflow by the width that is really available next to the sidebar. */}
+            <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
+              <div className="@container w-full px-4 pt-2 pb-28 md:px-0 md:pt-0 md:pb-0">{children}</div>
             </div>
           </SidebarInset>
 

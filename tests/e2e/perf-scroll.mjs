@@ -53,6 +53,24 @@ for (const [name, viewport, theme] of [["desktop-dark", { width: 1440, height: 9
     return times.slice(1)
   })
 
+  // Sidebar toggle: collapse/expand six times while frames are recorded.
+  let toggle = null
+  if (viewport.width >= 768) {
+    await page.evaluate(() => {
+      window.__frames = []
+      let last = performance.now()
+      const loop = (now) => { window.__frames.push(now - last); last = now; if (!window.__stop) requestAnimationFrame(loop) }
+      requestAnimationFrame(loop)
+    })
+    for (let i = 0; i < 6; i++) {
+      await page.getByRole("button", { name: /(Recolher|Expandir) menu/ }).click()
+      await page.waitForTimeout(600)
+    }
+    const tf = await page.evaluate(() => { window.__stop = true; return window.__frames.slice(1) })
+    const ts = [...tf].sort((x, y) => x - y)
+    toggle = { frames: tf.length, avgFrameMs: Math.round((tf.reduce((x, y) => x + y, 0) / tf.length) * 10) / 10, p95FrameMs: Math.round(ts[Math.floor(ts.length * 0.95)] * 10) / 10, maxFrameMs: Math.round(ts[ts.length - 1] * 10) / 10 }
+  }
+
   const traceBuf = await browser.stopTracing()
   const m1 = Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]))
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 })
@@ -84,6 +102,7 @@ for (const [name, viewport, theme] of [["desktop-dark", { width: 1440, height: 9
       script: Math.round((m1.ScriptDuration - m0.ScriptDuration) * 1000),
     },
     traceMs: total,
+    toggle,
   }
   await ctx.close()
 }

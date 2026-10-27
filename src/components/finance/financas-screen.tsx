@@ -170,19 +170,19 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
         {/* ------------------------------------------------------ overview */}
         <TabsContent value="visao" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Saldo total" value={formatBRL(balance)} support={`${mockAccounts.length} contas`} className="col-span-12 sm:col-span-6 lg:col-span-3" />
-          <KpiCard label="Entradas do mês" value={formatBRL(month_totals.income)} trend="up" support="+ recebido" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Saídas do mês" value={formatBRL(month_totals.expense)} trend="down" support="− gasto" className="col-span-6 lg:col-span-3" />
+          <KpiCard tone="highlight" label="Saldo total" value={formatBRL(balance)} support={`${mockAccounts.length} contas`} className="col-span-12 @min-[560px]:col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Entradas do mês" value={formatBRL(month_totals.income)} trend="up" support="+ recebido" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Saídas do mês" value={formatBRL(month_totals.expense)} trend="down" support="− gasto" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard
             label="Sobra do mês"
             value={formatBRL(Math.abs(month_totals.surplus))}
             trend={month_totals.surplus >= 0 ? "up" : "down"}
             support={month_totals.surplus >= 0 ? "no azul" : "acima da renda"}
-            className="col-span-12 sm:col-span-6 lg:col-span-3"
+            className="col-span-12 @min-[560px]:col-span-6 @min-[1040px]:col-span-3"
           />
 
           {attention.length > 0 ? (
-            <BentoCard title="Contas para ficar de olho" className="col-span-12 lg:col-span-7">
+            <BentoCard title="Contas para ficar de olho" className="col-span-12 @min-[900px]:col-span-7">
               <div>
                 {attention.map(({ bill, status, daysLeft }) => (
                   <div key={bill.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
@@ -203,7 +203,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
             </BentoCard>
           ) : null}
 
-          <BentoCard title="Orçamento do mês" className={cn("col-span-12", attention.length > 0 ? "lg:col-span-5" : "lg:col-span-12")} bodyClassName="flex flex-col gap-3">
+          <BentoCard title="Orçamento do mês" className={cn("col-span-12", attention.length > 0 ? "@min-[900px]:col-span-5" : "@min-[900px]:col-span-12")} bodyClassName="flex flex-col gap-3">
             <div className="tabular flex justify-between text-[15px] leading-6">
               <span>
                 {formatBRL(spentInBudget)} <span className="text-muted-foreground">de {formatBRL(budget)}</span>
@@ -216,7 +216,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
             </p>
           </BentoCard>
 
-          <BentoCard title="Onde estou gastando" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-4">
+          <BentoCard title="Onde estou gastando" className="col-span-12 @min-[900px]:col-span-7" bodyClassName="flex flex-col gap-4">
             {categories.map(({ category, spent, limit, ratio }) => (
               <div key={category.id} className="flex flex-col gap-2">
                 <div className="flex items-baseline justify-between gap-3 text-[15px] leading-6">
@@ -242,7 +242,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
             ))}
           </BentoCard>
 
-          <BentoCard title="Evolução nos últimos 6 meses" className="col-span-12 lg:col-span-5">
+          <BentoCard title="Evolução nos últimos 6 meses" className="col-span-12 @min-[900px]:col-span-5">
             <ChartContainer config={chartConfig} className="aspect-[16/10] w-full">
               <BarChart data={series} margin={{ left: 4, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
@@ -342,10 +342,10 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
         {/* ------------------------------------------------------- bills */}
         <TabsContent value="fixas" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Total fixo por mês" value={formatBRL(monthlyFixedTotal(bills))} support={`${bills.filter((b) => b.active).length} contas e assinaturas`} className="col-span-12 lg:col-span-4" />
+          <KpiCard tone="highlight" label="Total fixo por mês" value={formatBRL(monthlyFixedTotal(bills))} support={`${bills.filter((b) => b.active).length} contas e assinaturas`} className="col-span-12 @min-[1000px]:col-span-4" />
           <BentoCard
             title="Contas fixas"
-            className="col-span-12 lg:col-span-8"
+            className="col-span-12 @min-[900px]:col-span-8"
             actions={
               <Button variant="outline" size="sm" onClick={() => setNewBill(true)}>
                 <PlusIcon strokeWidth={1.75} /> Nova conta fixa
@@ -395,7 +395,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
           {goals.map((goal) => {
             const ratio = Math.min(100, (goal.current_cents / goal.target_cents) * 100)
             return (
-              <BentoCard key={goal.id} className="col-span-12 lg:col-span-4" bodyClassName="flex flex-col gap-3">
+              <BentoCard key={goal.id} className="col-span-12 @min-[1000px]:col-span-4" bodyClassName="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex flex-col">
                     <span className="text-[17px] leading-6 font-semibold">{goal.name}</span>

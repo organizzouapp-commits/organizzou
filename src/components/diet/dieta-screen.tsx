@@ -117,10 +117,10 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="hoje" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Consumido" value={`${totals.kcal}`} support="kcal hoje" className="col-span-12 sm:col-span-4" />
-          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 sm:col-span-4" />
-          <KpiCard label={remaining >= 0 ? "Restam" : "Acima"} value={`${Math.abs(remaining)}`} support="kcal" className="col-span-6 sm:col-span-4" />
-          <BentoCard title="Calorias e macros" className="col-span-12 lg:col-span-7" bodyClassName="flex flex-col gap-6">
+          <KpiCard tone="highlight" label="Consumido" value={`${totals.kcal}`} support="kcal hoje" className="col-span-12 @min-[560px]:col-span-4" />
+          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 @min-[560px]:col-span-4" />
+          <KpiCard label={remaining >= 0 ? "Restam" : "Acima"} value={`${Math.abs(remaining)}`} support="kcal" className="col-span-6 @min-[560px]:col-span-4" />
+          <BentoCard title="Calorias e macros" className="col-span-12 @min-[900px]:col-span-7" bodyClassName="flex flex-col gap-6">
             <Progress value={Math.min(100, (totals.kcal / goal.kcal) * 100)} aria-label="Calorias do dia" />
             <div className="grid gap-4 sm:grid-cols-3">
               {macroRows.map((m) => (
@@ -137,7 +137,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             </div>
           </BentoCard>
 
-          <BentoCard title="Água" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
+          <BentoCard title="Água" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <span className="tabular text-[15px] leading-6">
                 {liters(water)} <span className="text-muted-foreground">de {liters(goal.water_ml)}</span>
@@ -167,7 +167,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                 <BentoCard
                   key={meal}
                   title={MEAL_LABELS[meal]}
-                  className="col-span-12 lg:col-span-6"
+                  className="col-span-12 @min-[900px]:col-span-6"
                   actions={
                     <>
                     <span className="tabular text-[13px] leading-5 text-muted-foreground">{subtotal.kcal} kcal</span>
@@ -234,9 +234,9 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="historico" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Média diária" value={`${averageKcal}`} support="kcal" className="col-span-12 sm:col-span-4" />
-          <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 sm:col-span-4" />
-          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 sm:col-span-4" />
+          <KpiCard tone="highlight" label="Média diária" value={`${averageKcal}`} support="kcal" className="col-span-12 @min-[560px]:col-span-4" />
+          <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 @min-[560px]:col-span-4" />
+          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 @min-[560px]:col-span-4" />
           <BentoCard title="Calorias nos últimos 15 dias" className="col-span-12">
           <ChartContainer config={kcalConfig} className="aspect-[16/6] w-full">
             <BarChart data={kcalSeries} margin={{ left: -8, right: 4 }}>
@@ -254,19 +254,19 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="peso" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Peso atual" value={`${currentWeight.toLocaleString("pt-BR")} kg`} support="último registro" className="col-span-12 sm:col-span-4" />
+          <KpiCard tone="highlight" label="Peso atual" value={`${currentWeight.toLocaleString("pt-BR")} kg`} support="último registro" className="col-span-12 @min-[560px]:col-span-4" />
           <KpiCard
             label="Variação"
             value={`${Math.abs(Math.round((currentWeight - firstWeight) * 10) / 10).toLocaleString("pt-BR")} kg`}
             trend={currentWeight <= firstWeight ? "down" : "up"}
             support="em 12 semanas"
-            className="col-span-6 sm:col-span-4"
+            className="col-span-6 @min-[560px]:col-span-4"
           />
           <KpiCard
             label="Meta"
             value={`${goal.target_weight_kg} kg`}
             support={`faltam ${Math.max(0, Math.round((currentWeight - goal.target_weight_kg) * 10) / 10).toLocaleString("pt-BR")} kg`}
-            className="col-span-6 sm:col-span-4"
+            className="col-span-6 @min-[560px]:col-span-4"
           />
           <BentoCard
             title="Evolução do peso"

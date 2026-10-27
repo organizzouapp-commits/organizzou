@@ -155,7 +155,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="itens" className="pt-5">
           <Bento>
-          <BentoCard className="col-span-12 lg:col-span-9" bodyClassName="flex flex-col gap-6">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-9" bodyClassName="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 basis-48 md:max-w-80">
               <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -220,7 +220,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             {visible.length === 0 ? <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nenhum item encontrado.</p> : null}
           </div>
           </BentoCard>
-          <BentoCard title="Resumo" className="col-span-12 lg:col-span-3" bodyClassName="flex flex-col gap-3 text-[15px] leading-6">
+          <BentoCard title="Resumo" className="col-span-12 @min-[1040px]:col-span-3" bodyClassName="flex flex-col gap-3 text-[15px] leading-6">
             <p className="flex justify-between"><span className="text-muted-foreground">Itens</span><span className="tabular">{items.length}</span></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Senhas fracas</span><span className="tabular">{weak.length}</span></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Repetidas</span><span className="tabular">{reusedIds.size}</span></p>
@@ -230,7 +230,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="gerador" className="pt-5">
           <Bento>
-            <BentoCard title="Gerador de senhas" className="col-span-12 lg:col-span-7">
+            <BentoCard title="Gerador de senhas" className="col-span-12 @min-[900px]:col-span-7">
               <Generator />
             </BentoCard>
           </Bento>
@@ -238,19 +238,19 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="seguranca" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Itens" value={`${items.length}`} support="no cofre" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Senhas fracas" value={`${weak.length}`} support="para trocar" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Repetidas" value={`${reusedIds.size}`} support={`${reusedGroups.length} grupo(s)`} className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Fortes" value={`${logins.length - weak.length}`} support={`de ${logins.length} logins`} className="col-span-6 lg:col-span-3" />
+          <KpiCard tone="highlight" label="Itens" value={`${items.length}`} support="no cofre" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Senhas fracas" value={`${weak.length}`} support="para trocar" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Repetidas" value={`${reusedIds.size}`} support={`${reusedGroups.length} grupo(s)`} className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Fortes" value={`${logins.length - weak.length}`} support={`de ${logins.length} logins`} className="col-span-6 @min-[1040px]:col-span-3" />
 
           {weak.length + reusedIds.size === 0 ? (
-            <BentoCard className="col-span-12 lg:col-span-7">
+            <BentoCard className="col-span-12 @min-[900px]:col-span-7">
             <p className="flex items-center gap-2 text-[15px] leading-6">
               <ShieldCheckIcon aria-hidden strokeWidth={1.75} className="size-5" /> Tudo certo: nenhuma senha fraca ou repetida.
             </p>
             </BentoCard>
           ) : (
-            <BentoCard title="Para corrigir" className="col-span-12 lg:col-span-7">
+            <BentoCard title="Para corrigir" className="col-span-12 @min-[900px]:col-span-7">
               {[...new Set([...weak.map((i) => i.id), ...reusedIds])].map((id) => {
                 const item = items.find((i) => i.id === id)
                 if (!item) return null
@@ -273,7 +273,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             </BentoCard>
           )}
 
-          <BentoCard title="Proteção" className="col-span-12 lg:col-span-5" bodyClassName="flex flex-col gap-4">
+          <BentoCard title="Proteção" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="autolock">Bloquear automaticamente</Label>
               <Select value={autoLock} onValueChange={setAutoLock}>

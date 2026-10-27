@@ -150,16 +150,16 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         value={`${pendingCount}`}
         support={`${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
         href="/dashboard/tarefas"
-        className="col-span-6 lg:col-span-3"
+        className="col-span-6 @min-[1040px]:col-span-3"
       />
-      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/dashboard/rotina" className="col-span-6 lg:col-span-3" />
-      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/dashboard/financas" className="col-span-6 lg:col-span-3" />
+      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/dashboard/rotina" className="col-span-6 @min-[1040px]:col-span-3" />
+      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/dashboard/financas" className="col-span-6 @min-[1040px]:col-span-3" />
       <KpiCard
         label="Água"
         value={`${(water / 1000).toLocaleString("pt-BR")} L`}
         support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`}
         href="/dashboard/dieta"
-        className="col-span-6 lg:col-span-3"
+        className="col-span-6 @min-[1040px]:col-span-3"
       />
 
       <BentoCard className="col-span-12" bodyClassName="flex-none">
@@ -176,7 +176,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </button>
       </BentoCard>
 
-      <BentoCard title="Tarefas de hoje" href="/dashboard/tarefas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+      <BentoCard title="Tarefas de hoje" href="/dashboard/tarefas" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-7">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <div className="tabular flex justify-between text-[13px] leading-5">
@@ -214,7 +214,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Rotina" href="/dashboard/rotina" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+      <BentoCard title="Rotina" href="/dashboard/rotina" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-5">
         <div className="flex flex-col">
           {todaysHabits.map((habit) => (
             <HabitCheck
@@ -228,7 +228,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Agenda de hoje" href="/dashboard/agenda" linkLabel="Ver tudo" className="col-span-12 lg:col-span-7">
+      <BentoCard title="Agenda de hoje" href="/dashboard/agenda" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-7">
         {agenda.length === 0 ? (
           <p className="py-4 text-[15px] leading-6 text-muted-foreground">Dia livre, sem compromissos.</p>
         ) : (
@@ -262,7 +262,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         ) : null}
       </BentoCard>
 
-      <BentoCard title="Finanças" href="/dashboard/financas" linkLabel="Ver tudo" className="col-span-12 lg:col-span-5">
+      <BentoCard title="Finanças" href="/dashboard/financas" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-5">
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Stat size="xs" label="Sobra do mês" value={formatBRL(monthTotals.surplus)} trend={monthTotals.surplus >= 0 ? "up" : "down"} />
@@ -284,7 +284,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Dieta e água" href="/dashboard/dieta" linkLabel="Ver tudo" className="col-span-12 md:col-span-6 lg:col-span-4">
+      <BentoCard title="Dieta e água" href="/dashboard/dieta" linkLabel="Ver tudo" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
         <div className="flex flex-col gap-3">
           <div className="tabular flex justify-between text-[15px] leading-6">
             <span>
@@ -304,7 +304,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Treino e estudos" href="/dashboard/treinos" linkLabel="Treinos" className="col-span-12 md:col-span-6 lg:col-span-4">
+      <BentoCard title="Treino e estudos" href="/dashboard/treinos" linkLabel="Treinos" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
         <div className="flex flex-col">
           <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
             <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
@@ -329,7 +329,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Como você está?" href="/dashboard/diario" linkLabel="Diário" className="col-span-12 lg:col-span-4">
+      <BentoCard title="Como você está?" href="/dashboard/diario" linkLabel="Diário" className="col-span-12 @min-[1000px]:col-span-4">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button

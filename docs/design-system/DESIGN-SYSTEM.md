@@ -133,14 +133,11 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 ### 5.2 Estrutura do app (sidebar e barra superior)
 
 - **Fundo da página**: Tinta no escuro; Papel + overlay de Tinta 4% no claro.
-- **Sidebar flutuante** (≥ 768 px): cartão com 16 px de margem, raio 24 px, 260 px de largura (rail de 80 px recolhida), altura total
-  menos as margens, fundo Grafite (escuro) / Tinta (claro). De cima para baixo: logotipo; grupos com rótulo overline
-  **MENU** (Hoje, Tarefas, Rotina, Agenda), **VIDA** (Finanças, Treinos, Dieta, Estudos), **ORGANIZAÇÃO** (Notas e lembretes, Metas,
-  Diário, Cofre); cartão Lima "Conecte seu WhatsApp" (some no rail); Configurações, Ajuda, Sair.
-  Item: 44 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Papel 6%; contador opcional
-  (círculo Papel 10%). O botão de recolher alterna entre sidebar e rail com dicas (tooltips); o estado é guardado **por usuário em cookie**.
-  Em tablet (768–1023 px) a sidebar começa como rail.
-- **Barra superior** (dentro da área de conteúdo, sem fundo, ~80 px): à esquerda a saudação grande ("Bom dia, Patrick", pelo horário)
+- **Sidebar flutuante** (≥ 768 px): cartão sólido com 16 px de margem (P), raio 24 px, 260 px de largura (rail de 80 px recolhida), altura total menos as margens,
+  fundo Grafite (escuro) / Papel (claro). Quatro itens sempre visíveis (Hoje, Tarefas, Agenda, Finanças), grupos **Vida** e **Organização** que dobram, bloco fixo embaixo
+  (Configurações, Ajuda, Sair e, por último, o cartão Lima "Conecte seu WhatsApp"). Item: 40 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Tinta/Papel 6%.
+  O estado recolhido/expandido é guardado **por usuário em cookie**; em tablet (768–1023 px) a sidebar começa como rail. Detalhes, rail e grade fluida em **5.6**.
+- **Barra superior** (dentro da coluna de conteúdo, sem fundo, alinhada ao topo da sidebar, ~76 px): à esquerda a saudação grande ("Bom dia, Patrick", pelo horário)
   com a data embaixo; nas telas de módulo, o título da página e um subtítulo curto. À direita: pílula de busca (Ctrl K abre a paleta
   de comandos), sino com ponto Lima quando há novidades, alternância de tema, avatar com menu da conta e o botão primário
   contextual "+ Novo" (cada tela registra o seu com `usePrimaryAction`; sem registro abre a captura rápida).
@@ -252,7 +249,7 @@ nova: tudo é Papel, Grafite ou Tinta, com ou sem transparência. Os tokens est�
 
 | Camada | O que é | Receita |
 |---|---|---|
-| 0 | Foto de fundo, fixa e sem rolagem | `public/images/app-bg-blur.webp` (desktop) e `app-bg-blur-mobile.webp` (<768 px), **já desfocadas em ~32 px** (gerar com `npm run glass-bg`). O celular baixa só a imagem mobile. `scale(1.1)` esconde as bordas. Tinta de tema por cima (`--app-bg-tint`): escuro Tinta 35 %, claro Papel 40 %. A camada é `position: fixed` (nunca `background-attachment: fixed`), com `transform: translateZ(0)` e `contain: paint`, então a rolagem não a repinta |
+| 0 | Foto de fundo, fixa e sem rolagem | Foto **minúscula** já desfocada (`public/images/app-bg-tiny.webp`, 64 px, e `app-bg-tiny-mobile.webp`, 36 px; gerar com `npm run glass-bg`) esticada por `object-fit: cover`. O celular baixa só a imagem mobile. Tinta de tema por cima, em sobreposição separada (`--app-bg-tint`): escuro Tinta 35 %, claro Papel 40 %. Camada `fixed`, `z-index: -1`, `contain: strict`, `transform: translateZ(0)`, renderizada uma vez no layout |
 | 1 | Moldura (`glass-frame`), só desktop/tablet | `fixed inset-5` (20 px), raio 32. **Só preenchimento semitransparente** (a foto já está desfocada): escuro Papel 4 % / claro Papel 25 %, borda 1 px Papel 14 % / 60 %, brilho interno no topo. Tem `contain: layout`, então a sidebar e os botões fixos se posicionam pela moldura. O conteúdo rola **dentro** dela (`data-app-scroll`); a moldura não rola |
 | 2 | Sidebar | Sólida: `--sidebar` (Grafite no escuro, Papel no claro), borda 1 px a 10 %, raio 24, item ativo em pílula Lima |
 | 2 | Cards (Card, BentoCard, linhas de lista) | Sólidos: `--card` (Grafite / Papel), borda 1 px `--border` (10 %), raio 24, sem sombra pesada. O card de destaque (Lima) continua sólido |
@@ -263,7 +260,7 @@ nova: tudo é Papel, Grafite ou Tinta, com ou sem transparência. Os tokens est�
 **Regras de desempenho**
 
 - Nada de `backdrop-filter`, `will-change` ou animação contínua dentro do app. Sombras grandes só em poucos elementos.
-- A foto é desfocada **antes** (arquivo WebP de ~8 KB), não em tempo de execução.
+- A foto é desfocada **antes** (WebP minúsculo, ~0,5 KB, esticado pelo navegador), não em tempo de execução.
 - Medida em `/dashboard` (rolagem do conteúdo, CPU 4× mais lenta, Chromium sem GPU, `tests/e2e/perf-scroll.mjs`): tempo médio por
   quadro caiu de ~47–55 ms para ~27–38 ms, e os quadros acima de 40 ms de 72–96 % para ~15–32 %. No mobile (sem moldura) já era 60 fps.
 
@@ -272,11 +269,36 @@ daquela superfície ou da tinta de fundo; não crie cor nova. Por isso `--muted-
 e os rótulos de abas usam `text-foreground/85`. Com `prefers-reduced-transparency: reduce`, a moldura vira sólida e a tinta cobre a foto.
 Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup).
 
-**Card "Conecte seu WhatsApp" da sidebar**: fica fora da área rolável, então nunca é cortado. Card completo (ícone, título, texto e botão
-"Conectar") com a tela ≥ 1150 px de altura; pílula Lima de uma linha entre 901 e 1149 px; escondido até 900 px (continua em
-Configurações → WhatsApp e no menu "Mais" do celular). Com a sidebar recolhida: só o ícone, com tooltip.
-
 ---
+
+### 5.6 Estrutura do shell do app (sidebar, moldura, grade fluida)
+
+**Moldura e padding único P = 16 px.** A moldura fica a 20 px da janela. A sidebar flutuante fica a **P = 16 px** das bordas da moldura, e a coluna
+de conteúdo (top bar + página) usa o **mesmo P**: começa na altura do topo da sidebar, termina na altura da base dela e mantém P da borda direita.
+Só a caixa de conteúdo rola (`data-app-scroll`): `overscroll-behavior: contain`, recortada com raio 24, nada encosta nas bordas da moldura.
+**Sem barra de rolagem visível** na sidebar e no conteúdo (`no-scrollbar`: `scrollbar-width: none`); a rolagem continua com mouse, toque e teclado.
+
+**Sidebar expandida (260 px).** Sempre visíveis: Hoje, Tarefas, Agenda, Finanças. Grupos que dobram (`Collapsible`, chevron que gira, altura animada em
+0,4 s): **Vida** (Rotina, Treinos, Dieta, Estudos) e **Organização** (Notas e lembretes, Metas, Diário, Cofre). O estado de cada grupo é lembrado por usuário
+(`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: Configurações, Ajuda,
+Sair e, **por último**, o card Lima "Conecte seu WhatsApp". Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
+900 px de altura o card dispensa o ícone e a descrição. Contador (ex.: Tarefas 15) à direita do rótulo; num grupo fechado aparece a soma dos itens.
+
+**Rail (recolhida, 80 px).** Todo controle é um quadrado de 44 px no **mesmo eixo vertical** (logo, botão de recolher, itens, item ativo Lima, itens de baixo e o ícone do
+WhatsApp). Cada grupo vira um ícone (Vida = coração com pulso, Organização = pasta) que abre um *flyout* (Popover à direita) com os itens. Contador: bolinha Lima com número Tinta no canto
+superior direito do ícone (nos grupos, a soma). Tooltip com o rótulo ao passar o mouse.
+
+**Grade fluida.** O conteúdo usa toda a largura ao lado da sidebar (sem `max-width` nem centralização). A grade de 12 colunas (gap 20 px) reflui por **container queries**
+(`@container` na caixa de conteúdo), não pela janela: KPIs em 4 colunas a partir de 1040 px de conteúdo (2 abaixo; 3 KPIs: 3 colunas a partir de 560 px), seções de duas colunas
+empilham abaixo de 900 px (`@min-[900px]:col-span-*`). Diálogos, sheets e popovers ficam fora do container e mantêm os breakpoints da janela.
+
+**Regras de desempenho do shell**
+
+- O fundo é uma foto **minúscula** já desfocada (`app-bg-tiny.webp`, 64 px de largura no desktop e `app-bg-tiny-mobile.webp`, 36 px no celular, ~0,5 KB; `npm run glass-bg`), esticada com
+  `object-fit: cover`: o upscaling do navegador é o desfoque. Camada `position: fixed; z-index: -1; contain: strict; transform: translateZ(0)`, renderizada **uma vez** no layout `(app)` (componente de
+  servidor), com a tinta de tema numa sobreposição separada. A moldura é só preenchimento + borda.
+- **Nenhum** `filter: blur()` nem `backdrop-filter` no shell; sem `will-change`; sem animação contínua. Sidebar e barra superior são `memo`, com props e contexto estáveis (abrir diálogos e sheets não re-renderiza).
+- Compare sempre em produção (`npm run build && npm start`): o modo dev é bem mais lento.
 
 ---
 

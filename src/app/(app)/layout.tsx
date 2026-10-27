@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
 
+import { AppBackground } from "@/components/shell/app-background"
 import { AppShell } from "@/components/shell/app-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSession } from "@/lib/supabase/session"
@@ -49,8 +50,11 @@ function ShellFallback() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<ShellFallback />}>
-      <ShellLoader>{children}</ShellLoader>
-    </Suspense>
+    <>
+      <AppBackground />
+      <Suspense fallback={<ShellFallback />}>
+        <ShellLoader>{children}</ShellLoader>
+      </Suspense>
+    </>
   )
 }

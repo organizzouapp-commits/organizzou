@@ -350,7 +350,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
             <BentoCard
               key={group.label}
               title={group.label}
-              className="col-span-12 lg:col-span-6"
+              className="col-span-12 @min-[900px]:col-span-6"
               actions={
                 index === 0 ? (
                   <Button variant="outline" size="sm" onClick={() => setCreatingReminder(true)}>
@@ -402,7 +402,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
             </BentoCard>
           ))}
           {done.length > 0 ? (
-            <BentoCard title="Concluídos" className="col-span-12 lg:col-span-6">
+            <BentoCard title="Concluídos" className="col-span-12 @min-[900px]:col-span-6">
               {done.map((r) => (
                 <div key={r.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 text-muted-foreground last:border-b-0">
                   <Checkbox

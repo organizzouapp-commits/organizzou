@@ -164,13 +164,13 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
     <div className="flex flex-col gap-5">
       <PageHeader />
       <Bento>
-        <KpiCard tone="highlight" label="Em andamento" value={`${active.length}`} support={`${averageProgress}% de progresso médio`} className="col-span-12 sm:col-span-4" />
-        <KpiCard label="Concluídas" value={`${done.length}`} support="metas fechadas" className="col-span-6 sm:col-span-4" />
+        <KpiCard tone="highlight" label="Em andamento" value={`${active.length}`} support={`${averageProgress}% de progresso médio`} className="col-span-12 @min-[560px]:col-span-4" />
+        <KpiCard label="Concluídas" value={`${done.length}`} support="metas fechadas" className="col-span-6 @min-[560px]:col-span-4" />
         <KpiCard
           label="Próximo prazo"
           value={nextDeadline?.deadline ? `${daysUntil(nextDeadline.deadline, today)} dias` : "—"}
           support={nextDeadline?.title ?? "Sem prazos"}
-          className="col-span-6 sm:col-span-4"
+          className="col-span-6 @min-[560px]:col-span-4"
         />
         <BentoCard className="col-span-12">
       <Tabs defaultValue="ativas">

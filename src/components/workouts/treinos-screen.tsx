@@ -186,12 +186,12 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
           <Bento>
           {activePlan ? (
             <>
-              <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" className="col-span-12 sm:col-span-4" />
-              <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" className="col-span-6 sm:col-span-4" />
-              <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} className="col-span-6 sm:col-span-4" />
+              <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" className="col-span-12 @min-[560px]:col-span-4" />
+              <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" className="col-span-6 @min-[560px]:col-span-4" />
+              <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} className="col-span-6 @min-[560px]:col-span-4" />
             </>
           ) : null}
-          <BentoCard title="Semana" className="col-span-12 lg:col-span-5">
+          <BentoCard title="Semana" className="col-span-12 @min-[900px]:col-span-5">
           <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semana">
             {week.map((date) => {
               const key = format(date, "yyyy-MM-dd")
@@ -217,7 +217,7 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
           </div>
           </BentoCard>
 
-          <BentoCard className="col-span-12 lg:col-span-7">
+          <BentoCard className="col-span-12 @min-[900px]:col-span-7">
           {!activePlan ? (
             <EmptyState
               icon={DumbbellIcon}
@@ -332,7 +332,7 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
         {/* ---------------------------------------------------------- plans */}
         <TabsContent value="treinos" className="pt-5">
           <Bento>
-          <BentoCard title="Meus treinos" className="col-span-12 lg:col-span-8">
+          <BentoCard title="Meus treinos" className="col-span-12 @min-[900px]:col-span-8">
           <Accordion type="single" collapsible defaultValue={plans[0]?.id}>
             {plans.map((p) => {
               const list = planExercises.filter((e) => e.plan_id === p.id).sort((a, b) => a.position - b.position)
@@ -381,14 +381,14 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
         {/* ------------------------------------------------------ progress */}
         <TabsContent value="evolucao" className="pt-5">
           <Bento>
-          <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Recordes" value={`${records.length}`} support="exercícios com marca" className="col-span-6 lg:col-span-3" />
-          <KpiCard label="Frequência" value={`${(last4 / 4).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/sem`} support="média de 4 semanas" className="col-span-6 lg:col-span-3" />
+          <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Recordes" value={`${records.length}`} support="exercícios com marca" className="col-span-6 @min-[1040px]:col-span-3" />
+          <KpiCard label="Frequência" value={`${(last4 / 4).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/sem`} support="média de 4 semanas" className="col-span-6 @min-[1040px]:col-span-3" />
 
           <BentoCard
             title="Carga por treino"
-            className="col-span-12 lg:col-span-7"
+            className="col-span-12 @min-[900px]:col-span-7"
             actions={
               <Select value={progressExercise} onValueChange={setProgressExercise}>
                 <SelectTrigger aria-label="Exercício" className="w-56">
@@ -415,7 +415,7 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
             </ChartContainer>
           </BentoCard>
 
-          <BentoCard title="Volume por semana" className="col-span-12 lg:col-span-5">
+          <BentoCard title="Volume por semana" className="col-span-12 @min-[900px]:col-span-5">
             <ChartContainer config={volumeConfig} className="aspect-[16/10] w-full">
               <BarChart data={weekly} margin={{ left: 4, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />

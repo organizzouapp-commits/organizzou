@@ -236,7 +236,7 @@ export function AgendaScreen({ nowIso }: { nowIso: string }) {
     <div className="flex flex-col gap-5">
       <PageHeader />
       <Bento>
-      <BentoCard className={cn("col-span-12", view === "mes" && "lg:col-span-8")}>
+      <BentoCard className={cn("col-span-12", view === "mes" && "@min-[900px]:col-span-8")}>
       <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as View)}>
@@ -308,7 +308,7 @@ export function AgendaScreen({ nowIso }: { nowIso: string }) {
       </div>
       </BentoCard>
       {view === "mes" ? (
-        <BentoCard title={upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))} className="col-span-12 lg:col-span-4">
+        <BentoCard title={upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))} className="col-span-12 @min-[1000px]:col-span-4">
           <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
         </BentoCard>
       ) : null}
@@ -736,11 +736,11 @@ function NewEventForm({
         <Input id="event-title" autoFocus value={title} maxLength={120} placeholder="Ex.: Jantar com a família" onChange={(e) => setTitle(e.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 flex flex-col gap-2 sm:col-span-1">
+        <div className="col-span-2 flex flex-col gap-2 @min-[560px]:col-span-1">
           <Label htmlFor="event-date">Data</Label>
           <Input id="event-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
-        <label className="col-span-2 flex min-h-11 items-center justify-between gap-3 text-[15px] sm:col-span-1 sm:self-end">
+        <label className="col-span-2 flex min-h-11 items-center justify-between gap-3 text-[15px] @min-[560px]:col-span-1 sm:self-end">
           Dia inteiro
           <Switch checked={allDay} onCheckedChange={setAllDay} />
         </label>
