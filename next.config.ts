@@ -7,10 +7,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   images: { formats: ["image/avif", "image/webp"] },
   partialPrefetching: true,
-  async redirects() {
-    // Authenticated users land on the dashboard; the proxy sends everyone else to /entrar.
-    return [{ source: "/", destination: "/hoje", permanent: false }];
-  },
+  // "/" is handled by the proxy: signed-in users go to /hoje, everyone else to /entrar (or /em-breve with SITE_COMING_SOON).
   turbopack: {
     rules: {
       "*.css": {

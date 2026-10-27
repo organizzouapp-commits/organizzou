@@ -5,7 +5,7 @@ import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
 
 const AUTH_PAGES = ["/entrar", "/cadastro", "/recuperar-senha"]
-const PUBLIC_PREFIXES = ["/auth", "/termos", "/privacidade", "/design-system"]
+const PUBLIC_PREFIXES = ["/auth", "/termos", "/privacidade", "/design-system", "/em-breve"]
 
 function isPublic(pathname: string) {
   return (
@@ -21,8 +21,14 @@ function isPublic(pathname: string) {
  */
 export const bypassAuth = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production"
 
+/** SITE_COMING_SOON=true: logged-out visitors of "/" see the coming-soon page. */
+const comingSoon = process.env.SITE_COMING_SOON === "true"
+
 export async function updateSession(request: NextRequest) {
-  if (bypassAuth) return NextResponse.next({ request })
+  if (bypassAuth) {
+    if (request.nextUrl.pathname === "/") return NextResponse.redirect(new URL("/hoje", request.url))
+    return NextResponse.next({ request })
+  }
   const { url, anonKey } = getSupabaseEnv()
   let response = NextResponse.next({ request })
 
@@ -46,7 +52,13 @@ export async function updateSession(request: NextRequest) {
   const isAuthenticated = Boolean(data?.claims)
   const { pathname } = request.nextUrl
 
-  if (!isAuthenticated && !isPublic(pathname) && pathname !== "/") {
+  if (pathname === "/") {
+    if (isAuthenticated) return NextResponse.redirect(new URL("/hoje", request.url))
+    if (comingSoon) return NextResponse.rewrite(new URL("/em-breve", request.url), { request })
+    return NextResponse.redirect(new URL("/hoje", request.url)) // the next hop sends visitors to /entrar
+  }
+
+  if (!isAuthenticated && !isPublic(pathname)) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/entrar"
     loginUrl.search = ""

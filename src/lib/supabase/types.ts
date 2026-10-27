@@ -441,6 +441,60 @@ export type Database = {
           },
         ]
       }
+      waitlist: {
+        Row: {
+          consent_at: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          source: string
+          user_agent: string | null
+        }
+        Insert: {
+          consent_at: string
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone: string
+          source?: string
+          user_agent?: string | null
+        }
+        Update: {
+          consent_at?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          source?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      waitlist_attempts: {
+        Row: {
+          created_at: string
+          email_hash: string
+          id: number
+          ip_hash: string
+        }
+        Insert: {
+          created_at?: string
+          email_hash: string
+          id?: never
+          ip_hash: string
+        }
+        Update: {
+          created_at?: string
+          email_hash?: string
+          id?: never
+          ip_hash?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
