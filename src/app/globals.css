@@ -285,3 +285,27 @@ input:-webkit-autofill:focus-visible {
 .site-up { animation-name: site-up; }
 .site-left { animation-name: site-left; }
 .site-right { animation-name: site-right; }
+
+/* Coming-soon CTA: scale is its own CSS property (Tailwind's scale-* utilities use it), so it must be in the transition list. */
+.site-cta {
+  transition:
+    scale 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    translate 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.site-cta:hover,
+.site-cta:focus-visible {
+  scale: 1.05;
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--palette-lima) 35%, transparent);
+}
+.site-cta:active {
+  scale: 0.98;
+  translate: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-cta { transition-duration: 0.01ms; }
+  .site-cta:hover, .site-cta:focus-visible { scale: none; }
+}
