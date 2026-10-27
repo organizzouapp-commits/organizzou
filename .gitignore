@@ -42,5 +42,5 @@ next-env.d.ts
 
 # keep the template tracked
 !.env.example
-/.next-preview/
+/.next-*/
 test-results/
