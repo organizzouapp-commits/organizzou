@@ -13,12 +13,13 @@ type ThemeToggleProps = {
   surface?: boolean
   /** Shows "Modo claro" / "Modo escuro" on hover and focus. */
   tooltip?: boolean
+  tooltipSide?: "top" | "right" | "bottom" | "left"
   className?: string
 }
 
 // Both icons are always rendered and swapped with CSS, so there is no
 // hydration mismatch and no flash while next-themes resolves the theme.
-export function ThemeToggle({ round = false, surface = false, tooltip = false, className }: ThemeToggleProps) {
+export function ThemeToggle({ round = false, surface = false, tooltip = false, tooltipSide = "bottom", className }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme()
 
   const button = (
@@ -39,7 +40,7 @@ export function ThemeToggle({ round = false, surface = false, tooltip = false, c
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="bottom">
+      <TooltipContent side={tooltipSide}>
         <span className="hidden dark:inline">Modo claro</span>
         <span className="dark:hidden">Modo escuro</span>
       </TooltipContent>

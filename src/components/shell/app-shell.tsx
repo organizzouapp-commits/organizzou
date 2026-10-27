@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils"
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
 import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { FrameGlass } from "./frame-glass"
-import { AppTopBar } from "./app-topbar"
+import { AppTopBar, usePageHeading } from "./app-topbar"
+import { AppTopHeader } from "./app-topheader"
 import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { NAV_GROUPS } from "./nav"
@@ -60,6 +61,17 @@ function useIsTablet() {
   )
 }
 
+/** Collapsed layout only: the page title and subtitle (moved out of the header) sit above the page content. */
+function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
+  const { title, subtitle } = usePageHeading(user, nowIso)
+  return (
+    <div className="hidden min-w-0 flex-col pb-5 md:flex">
+      <h1 className="truncate text-[30px] leading-9 font-semibold tracking-[-0.02em]">{title}</h1>
+      <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
+    </div>
+  )
+}
+
 type AppShellProps = {
   user: ShellUser
   /** Saved preference from the profile; undefined keeps whatever the browser has. */
@@ -80,10 +92,13 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const pathname = usePathname()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const [moreOpen, setMoreOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [choice, setChoice] = useState<boolean | null>(sidebarOpen)
   const open = choice ?? !isTablet
+  // Collapsed sidebar on desktop = rail + top header layout (the expanded sidebar keeps the classic layout).
+  const topLayout = !open
 
   const activeId = navItems.find((item) => item.id !== "mais" && isActivePath(pathname, item.id))?.id ?? ""
   // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
@@ -91,7 +106,18 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
     () => (isMock ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
     [nowIso]
   )
-  const openSearch = useCallback(() => setSearchOpen(true), [])
+  const openSearch = useCallback(() => {
+    setSearchQuery("")
+    setSearchOpen(true)
+  }, [])
+  const openSearchWith = useCallback((query: string) => {
+    setSearchQuery(query)
+    setSearchOpen(true)
+  }, [])
+  const onSearchOpenChange = useCallback((value: boolean) => {
+    setSearchOpen(value)
+    if (!value) setSearchQuery("")
+  }, [])
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
@@ -117,15 +143,19 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
         >
           <ThemeSync theme={theme} />
           <FrameGlass />
+          {topLayout ? <AppTopHeader user={user} onSearch={openSearchWith} /> : null}
           <AppSidebar counts={counts} />
           {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
               top, ends at its bottom and keeps P from the right edge. */}
-          <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0">
-            <AppTopBar user={user} nowIso={nowIso} onSearch={openSearch} />
+          <SidebarInset className={cn("min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0", topLayout && "md:pt-[5.75rem]")}>
+            <AppTopBar user={user} nowIso={nowIso} onSearch={openSearch} hideDesktop={topLayout} />
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-2 pb-28 md:px-0 md:pt-0 md:pb-0">{children}</div>
+              <div className="@container w-full px-4 pt-2 pb-28 md:px-0 md:pt-0 md:pb-0">
+                {topLayout ? <PageHeading user={user} nowIso={nowIso} /> : null}
+                {children}
+              </div>
             </div>
           </SidebarInset>
 
@@ -139,7 +169,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
             className="fixed inset-x-0 bottom-0 z-30 md:hidden"
           />
 
-          <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
+          <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
           <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
           <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />

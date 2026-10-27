@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { SparklesIcon } from "lucide-react"
 
@@ -23,6 +23,8 @@ type CommandPaletteProps = {
   onOpenChange: (open: boolean) => void
   onAskAssistant: () => void
   nowIso: string
+  /** Text typed in the top header's inline search; pre-fills the input when the palette opens. */
+  initialQuery?: string
 }
 
 const GROUPS = [
@@ -34,8 +36,14 @@ const GROUPS = [
   { module: "metas", heading: "Metas" },
 ] as const
 
-export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso, initialQuery = "" }: CommandPaletteProps) {
   const router = useRouter()
+  const [query, setQuery] = useState(initialQuery)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    setQuery(open ? initialQuery : "")
+  }
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -58,7 +66,16 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso }: C
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} title="Busca" description="Busque em todos os módulos ou escolha uma ação.">
       <Command>
-        <CommandInput placeholder="Buscar em tudo ou ir para…" />
+        <CommandInput
+          placeholder="Buscar em tudo ou ir para…"
+          value={query}
+          onValueChange={setQuery}
+          onFocus={(event) => {
+            // Text handed over from the header's inline search must not be selected (the next key would replace it).
+            const input = event.currentTarget
+            requestAnimationFrame(() => input.setSelectionRange(input.value.length, input.value.length))
+          }}
+        />
         <CommandList>
           <CommandEmpty>Nada encontrado.</CommandEmpty>
           <CommandGroup heading="Ações">

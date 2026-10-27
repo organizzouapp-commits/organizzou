@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { greeting, inTz } from "@/lib/dates"
+import { cn } from "@/lib/utils"
 import { MOCK_TIMEZONE } from "@/mocks/time"
 
 import type { ShellUser } from "./app-sidebar"
@@ -48,9 +49,11 @@ type AppTopBarProps = {
   user: ShellUser
   nowIso: string
   onSearch: () => void
+  /** The collapsed layout replaces the desktop header with TopHeader; only the mobile bar stays. */
+  hideDesktop?: boolean
 }
 
-function Bell() {
+export function Bell() {
   const [unread, setUnread] = useState(true)
   return (
     <Popover onOpenChange={(open) => open && setUnread(false)}>
@@ -76,7 +79,8 @@ function Bell() {
 const menuItem = "min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]"
 const menuIcon = "size-[18px]"
 
-function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolean }) {
+/** `header`: the collapsed layout's top header, where the name and e-mail only fit from 1700 px (the nav pills need the room). */
+export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
   return (
     <DropdownMenu>
@@ -90,7 +94,7 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
             <AvatarFallback>{initials(user.name)}</AvatarFallback>
           </Avatar>
           {compact ? null : (
-            <span className="hidden min-w-0 items-center gap-2 2xl:flex">
+            <span className={header ? "hidden min-w-0 items-center gap-2 min-[1700px]:flex" : "hidden min-w-0 items-center gap-2 2xl:flex"}>
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="max-w-40 truncate text-[15px] font-medium">{user.name}</span>
                 <span className="max-w-40 truncate text-[13px] text-muted-foreground">{user.email}</span>
@@ -122,10 +126,9 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
   )
 }
 
-export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch }: AppTopBarProps) {
+/** Title and subtitle of the current page ("Boa tarde, Ana" on the home screen). */
+export function usePageHeading(user: ShellUser, nowIso: string) {
   const pathname = usePathname()
-  const { openQuickCapture } = useAssistant()
-  const primary = usePrimaryActionValue()
   const now = new Date(nowIso)
   const firstName = user.name.split(" ")[0]
   const meta = metaFor(pathname)
@@ -134,11 +137,18 @@ export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch }: App
   const subtitle = isToday
     ? format(inTz(now, MOCK_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
     : (meta?.subtitle ?? "")
+  return { title, subtitle, isToday }
+}
+
+export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, hideDesktop = false }: AppTopBarProps) {
+  const { openQuickCapture } = useAssistant()
+  const primary = usePrimaryActionValue()
+  const { title, subtitle, isToday } = usePageHeading(user, nowIso)
 
   return (
     <>
       {/* Desktop and tablet */}
-      <header className="hidden shrink-0 items-start justify-between gap-6 pb-4 md:flex md:min-h-[76px]">
+      <header className={cn("hidden shrink-0 items-start justify-between gap-6 pb-4", !hideDesktop && "md:flex md:min-h-[76px]")}>
         <div className="flex min-w-0 flex-col">
           <h1 className="truncate text-[28px] leading-9 font-semibold tracking-[-0.02em]">{title}</h1>
           <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
