@@ -65,8 +65,8 @@ function useIsTablet() {
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
   return (
-    <div className="hidden min-w-0 flex-col pb-5 md:flex">
-      <h1 className="truncate text-[30px] leading-9 font-semibold tracking-[-0.02em]">{title}</h1>
+    <div className="hidden min-w-0 flex-col pt-6 pb-5 md:flex">
+      <h1 className="truncate pb-0.5 text-[30px] leading-tight font-semibold tracking-[-0.02em]">{title}</h1>
       <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
     </div>
   )
