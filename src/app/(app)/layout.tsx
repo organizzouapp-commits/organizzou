@@ -2,9 +2,9 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
 
+import { LoadingScreen } from "@/components/organizzou/loading-screen"
 import { AppBackground } from "@/components/shell/app-background"
 import { AppShell } from "@/components/shell/app-shell"
-import { Skeleton } from "@/components/ui/skeleton"
 import { getSession } from "@/lib/supabase/session"
 
 // The app is private: keep it out of search results (robots.txt disallows /dashboard too).
@@ -39,13 +39,9 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
+// First session load / session refresh: the blocking full-page state, with the icon-only loading logo (after ~300 ms).
 function ShellFallback() {
-  return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <Skeleton className="h-10 w-48" />
-      <Skeleton className="h-40 w-full" />
-    </div>
-  )
+  return <LoadingScreen icon delayed />
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
