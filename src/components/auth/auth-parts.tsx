@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,9 @@ export function GoogleMark({ className }: { className?: string }) {
 
 export function GoogleButton({ next = "/hoje" }: { next?: string }) {
   const [pending, startTransition] = useTransition()
+  // Stays true after a successful call: the page is about to leave for Google.
+  const [redirecting, setRedirecting] = useState(false)
+  const busy = pending || redirecting
 
   return (
     <div className="flex flex-col gap-2">
@@ -36,21 +39,27 @@ export function GoogleButton({ next = "/hoje" }: { next?: string }) {
         type="button"
         variant="outline"
         size="xl"
-        disabled={pending}
+        disabled={busy}
+        aria-busy={busy}
         className={authButtonClass}
         onClick={() =>
           startTransition(async () => {
-            // Never surface a raw provider/Supabase error: a friendly toast is enough.
+            // The toast only shows for a real error; the happy path just navigates to Google.
             try {
               const result = await signInWithGoogle(next)
-              if (result && !result.ok) toast.error(result.error)
+              if (result.ok) {
+                setRedirecting(true)
+                window.location.assign(result.url)
+              } else {
+                toast.error(result.error)
+              }
             } catch {
               toast.error(GOOGLE_UNAVAILABLE)
             }
           })
         }
       >
-        <GoogleMark /> {pending ? "Abrindo o Google…" : "Continuar com Google"}
+        {busy ? <Loader2Icon aria-hidden className="size-5 animate-spin" /> : <GoogleMark />} {busy ? "Conectando…" : "Continuar com Google"}
       </Button>
     </div>
   )

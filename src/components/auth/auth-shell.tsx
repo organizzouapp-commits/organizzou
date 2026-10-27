@@ -29,7 +29,7 @@ const COPY = {
     badge: "Bom te ver de novo",
     headline: "Sua vida, organizada.",
     subtitle: "Entre para ver o seu dia.",
-    steps: ["Veja seu dia organizado", "Fale com o assistente", "Receba lembretes"],
+    steps: ["Veja seu dia organizado", "Fale com o assistente", "Receba lembretes diariamente"],
   },
   signup: {
     badge: "Comece agora",
@@ -51,7 +51,7 @@ const ON_PHOTO = "text-palette-papel dark:text-palette-tinta"
 const SCRIM = "bg-gradient-to-b from-palette-tinta/10 via-palette-tinta/20 to-palette-tinta/35 dark:from-palette-papel/0 dark:via-palette-papel/10 dark:to-palette-papel/25"
 
 const glass =
-  "border border-palette-papel/20 bg-palette-papel/10 backdrop-blur-[16px] dark:border-palette-tinta/20 dark:bg-palette-tinta/10"
+  "border-2 border-palette-papel/20 bg-palette-papel/10 backdrop-blur-[16px] dark:border-palette-tinta/20 dark:bg-palette-tinta/10"
 
 const BELOW_LG = "(max-width: 1023px)"
 
@@ -121,25 +121,28 @@ function HighlightCopy({
                 onClick={() => onStep(index)}
                 aria-current={isActive ? "step" : undefined}
                 className={cn(
-                  "group/step flex min-h-(--auth-step-h) h-full w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
-                  "hover:-translate-y-1 hover:border-highlight/40 focus-visible:-translate-y-1 focus-visible:border-highlight/40 focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "group/step flex min-h-(--auth-step-h) h-full w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border-2 p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
+                  "hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-3 focus-visible:ring-ring/50",
                   "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   isActive
                     ? "border-palette-papel/20 bg-highlight text-highlight-foreground dark:border-palette-tinta/20"
                     : cn(
-                        "border-palette-papel/20 bg-palette-papel/8 backdrop-blur-[16px] hover:bg-palette-papel/12 focus-visible:bg-palette-papel/12",
-                        "dark:border-palette-tinta/20 dark:bg-palette-tinta/8 dark:hover:bg-palette-tinta/12 dark:focus-visible:bg-palette-tinta/12",
+                        "border-palette-papel/20 bg-palette-papel/8 backdrop-blur-[16px]",
+                        "dark:border-palette-tinta/20 dark:bg-palette-tinta/8",
+                        // Hover/focus: the whole card takes the active (Lima) style.
+                        "hover:border-highlight hover:bg-highlight hover:text-highlight-foreground focus-visible:border-highlight focus-visible:bg-highlight focus-visible:text-highlight-foreground",
+                        "dark:hover:border-highlight dark:hover:bg-highlight dark:focus-visible:border-highlight dark:focus-visible:bg-highlight",
                         ON_PHOTO
                       )
                 )}
               >
                 <span
                   className={cn(
-                    "tabular flex size-[clamp(26px,4dvh,32px)] items-center justify-center rounded-full border text-[14px] leading-5 font-semibold",
+                    "tabular flex size-[clamp(26px,4dvh,32px)] items-center justify-center rounded-full border-2 text-[14px] leading-5 font-semibold",
                     "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                     isActive
-                      ? "border-transparent bg-highlight-foreground text-highlight"
-                      : "border-palette-papel/50 dark:border-palette-tinta/50 group-hover/step:border-transparent group-hover/step:bg-highlight group-hover/step:text-highlight-foreground group-focus-visible/step:border-transparent group-focus-visible/step:bg-highlight group-focus-visible/step:text-highlight-foreground"
+                      ? "border-highlight-foreground bg-highlight-foreground text-highlight"
+                      : "border-palette-papel/50 dark:border-palette-tinta/50 group-hover/step:border-highlight-foreground group-hover/step:bg-highlight-foreground group-hover/step:text-highlight group-focus-visible/step:border-highlight-foreground group-focus-visible/step:bg-highlight-foreground group-focus-visible/step:text-highlight"
                   )}
                 >
                   {index + 1}
@@ -267,7 +270,7 @@ export function AuthShell() {
   const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/hoje"
 
   // Phones: a direct visit shows the welcome screen; /cadastro, recovery, ?next= and the redirect after logout open the sheet.
-  const [sheetOpen, setSheetOpen] = useState(() => mode !== "login" || params.has("next") || params.has("erro") || params.has("saiu"))
+  const [sheetOpen, setSheetOpen] = useState(() => mode !== "login" || params.has("next") || params.has("erro") || params.has("error") || params.has("saiu"))
   const [intro, setIntro] = useState(true)
   const [drag, setDrag] = useState(0)
   const pushed = useRef(false)
@@ -480,7 +483,7 @@ export function AuthShell() {
           <FormPane active={!signup} side="right">
             <SlideSwap
               active={mode === "forgot" || mode === "reset" ? "second" : "first"}
-              first={<SignInForm next={next} linkError={params.get("erro") === "link"} />}
+              first={<SignInForm next={next} linkError={params.get("erro") === "link"} oauthError={params.get("error") === "oauth"} />}
               second={mode === "reset" ? <ResetPasswordForm /> : <ForgotPasswordForm />}
             />
           </FormPane>

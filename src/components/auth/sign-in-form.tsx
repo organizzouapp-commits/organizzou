@@ -15,11 +15,15 @@ import { signInSchema, type SignInInput } from "@/features/auth/schemas"
 
 import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
 
-export function SignInForm({ next, linkError }: { next: string; linkError?: boolean }) {
+export function SignInForm({ next, linkError, oauthError }: { next: string; linkError?: boolean; oauthError?: boolean }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(
-    linkError ? "O link é inválido ou expirou. Entre com sua senha ou peça um novo link." : null
+    oauthError
+      ? "Não foi possível entrar com o Google. Tente de novo."
+      : linkError
+        ? "O link é inválido ou expirou. Entre com sua senha ou peça um novo link."
+        : null
   )
   const {
     register,

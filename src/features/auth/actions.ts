@@ -18,6 +18,8 @@ import {
   type SignUpInput,
 } from "./schemas"
 
+export type OAuthResult = { ok: true; url: string } | { ok: false; error: string }
+
 export type ActionResult =
   | { ok: true; needsEmailConfirmation?: boolean }
   | { ok: false; error: string }
@@ -119,7 +121,7 @@ async function isGoogleEnabled() {
 }
 
 /** Starts the Google OAuth flow. Supabase sends the user back to /auth/callback, which lands on /hoje. */
-export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
+export async function signInWithGoogle(next = "/hoje"): Promise<OAuthResult> {
   // signInWithOAuth only builds the authorize URL: with the provider disabled the browser would land on a raw JSON error,
   // so check the project's public settings first.
   if (!(await isGoogleEnabled())) return { ok: false, error: GOOGLE_UNAVAILABLE }
@@ -127,12 +129,13 @@ export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/hoje"
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${getSiteUrl()}/auth/callback?next=${encodeURIComponent(safeNext)}` },
+    options: { redirectTo: `${getSiteUrl()}/auth/callback?provider=google&next=${encodeURIComponent(safeNext)}` },
   })
   if (error || !data.url) {
     return { ok: false, error: GOOGLE_UNAVAILABLE }
   }
-  redirect(data.url)
+  // The browser navigates to data.url itself: a redirect() from a server action to an external URL surfaces as an error on the client.
+  return { ok: true, url: data.url }
 }
 
 export async function signOut() {
