@@ -311,21 +311,29 @@ input:-webkit-autofill:focus-visible {
 }
 
 /* ---------- App frame (app shell) ----------
-   Only two things are translucent: the photo layer (a PRE-BLURRED image + a theme tint) and the big frame, which is a plain
-   semi-transparent fill. There is no backdrop-filter anywhere in the app shell (it made scrolling heavy); the photo is already
-   blurred, so a fill is enough to fake the frosted look. Sidebar, cards, bars and round buttons are solid tokens
-   (--sidebar / --card with a 1px --border). Popovers, dialogs, sheets and the command palette stay solid as well. */
+   Layer 0: the ORIGINAL photo, sharp (+ --app-bg-tint). Layer 1 (md+): the big frame shows a PRE-BLURRED copy of the same photo
+   inside it, aligned pixel-perfect with the sharp one, plus --glass-frame-bg and a top highlight: fake frosted glass with NO
+   backdrop-filter and NO CSS blur at runtime (they made scrolling heavy). Sidebar, cards, bars and round buttons are solid
+   tokens (--sidebar / --card with a 1px --border). Popovers, dialogs, sheets and the command palette stay solid as well. */
 :root {
-  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 25%, transparent);
+  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 35%, transparent);
   --glass-frame-border: color-mix(in oklab, var(--palette-papel) 60%, transparent);
   --glass-edge: inset 0 1px 0 color-mix(in oklab, white 45%, transparent);
+  /* Extra tint under the page header (title + subtitle sit directly on the frame), fading out below it. */
+  --glass-frame-top: color-mix(in oklab, var(--palette-papel) 62%, transparent);
   --app-bg-tint: color-mix(in oklab, var(--palette-papel) 40%, transparent);
 }
 .dark {
-  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 4%, transparent);
+  --glass-frame-bg: color-mix(in oklab, var(--palette-tinta) 30%, transparent);
   --glass-frame-border: color-mix(in oklab, var(--palette-papel) 14%, transparent);
   --glass-edge: inset 0 1px 0 color-mix(in oklab, var(--palette-papel) 12%, transparent);
+  --glass-frame-top: color-mix(in oklab, var(--palette-tinta) 66%, transparent);
   --app-bg-tint: color-mix(in oklab, var(--palette-tinta) 35%, transparent);
+}
+/* Phones have no frame: cards, tabs and buttons sit straight on the photo, so the tint is stronger there. */
+@media (max-width: 767px) {
+  :root { --app-bg-tint: color-mix(in oklab, var(--palette-papel) 62%, transparent); }
+  .dark { --app-bg-tint: color-mix(in oklab, var(--palette-tinta) 68%, transparent); }
 }
 /* Less transparency requested: solid frame, and the tint covers the photo. */
 @media (prefers-reduced-transparency: reduce) {
@@ -333,12 +341,18 @@ input:-webkit-autofill:focus-visible {
     --glass-frame-bg: var(--background);
     --glass-frame-border: var(--border);
     --glass-edge: none;
+    --glass-frame-top: var(--background);
     --app-bg-tint: var(--background);
   }
 }
 
+/* The frame itself only draws its border: the frosted look is the blurred photo + tint painted INSIDE it (FrameGlass). */
 @utility glass-frame {
-  background-color: var(--glass-frame-bg);
   border: 1px solid var(--glass-frame-border);
+}
+/* Tint + top highlight over the pre-blurred photo inside the frame. */
+@utility frame-tint {
+  background-color: var(--glass-frame-bg);
+  background-image: linear-gradient(to bottom, var(--glass-frame-top) 0, var(--glass-frame-top) 88px, transparent 230px);
   box-shadow: var(--glass-edge);
 }

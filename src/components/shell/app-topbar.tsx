@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, LogOutIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, LogOutIcon, PlusIcon, SearchIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
@@ -20,12 +20,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { signOut } from "@/features/auth/actions"
 import { greeting, inTz } from "@/lib/dates"
 import { MOCK_TIMEZONE } from "@/mocks/time"
 
 import type { ShellUser } from "./app-sidebar"
+import { ACCOUNT_ITEMS } from "./account-menu"
 import { metaFor } from "./nav"
+import { useRequestSignOut } from "./sign-out-dialog"
 import { usePrimaryActionValue } from "./primary-action"
 
 const NOTIFICATIONS = [
@@ -73,7 +74,7 @@ function Bell() {
 }
 
 function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolean }) {
-  const { openAssistant } = useAssistant()
+  const requestSignOut = useRequestSignOut()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -97,13 +98,15 @@ function UserMenu({ user, compact = false }: { user: ShellUser; compact?: boolea
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="truncate">{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard/configuracoes">
-            <SettingsIcon strokeWidth={1.75} /> Configurações
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={openAssistant}>Ajuda</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void signOut()}>
+        {ACCOUNT_ITEMS.map((item) => (
+          <DropdownMenuItem key={item.id} asChild>
+            <Link href={item.href}>
+              <item.icon strokeWidth={1.75} /> {item.label}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={requestSignOut}>
           <LogOutIcon strokeWidth={1.75} /> Sair
         </DropdownMenuItem>
       </DropdownMenuContent>

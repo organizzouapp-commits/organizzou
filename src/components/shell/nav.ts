@@ -24,7 +24,9 @@ export const PAGE_META: Record<string, PageMeta> = {
   "/dashboard/cofre": { title: "Cofre", subtitle: "Criptografado no seu aparelho." },
   "/dashboard/metas": { title: "Metas", subtitle: "Objetivos alimentados pelos seus módulos." },
   "/dashboard/diario": { title: "Diário", subtitle: "Um minuto por dia para entender seu humor." },
-  "/dashboard/configuracoes": { title: "Configurações", subtitle: "Conta, avisos e segurança." },
+  "/dashboard/configuracoes": { title: "Configurações", subtitle: "Aparência, avisos e segurança." },
+  "/dashboard/perfil": { title: "Perfil", subtitle: "Seus dados e a sua senha." },
+  "/dashboard/ajuda": { title: "Ajuda", subtitle: "Dúvidas frequentes e contato." },
 }
 
 export function metaFor(pathname: string): PageMeta | null {

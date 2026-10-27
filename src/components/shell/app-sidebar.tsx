@@ -1,31 +1,21 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useSyncExternalStore } from "react"
+import { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  ChevronDownIcon,
-  CircleHelpIcon,
-  FolderIcon,
-  HeartPulseIcon,
-  LogOutIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  SettingsIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, type LucideIcon } from "lucide-react"
 
-import { useAssistant } from "@/components/assistant/assistant-context"
 import { Logo } from "@/components/organizzou/Logo"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sidebar, SidebarRail, useSidebar } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { signOut } from "@/features/auth/actions"
 import { cn } from "@/lib/utils"
 
+import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { NAV_GROUPS, type NavGroup } from "./nav"
+import { useRequestSignOut } from "./sign-out-dialog"
 import { WhatsAppCta } from "./whatsapp-cta"
 
 export type ShellUser = { name: string; email: string }
@@ -150,6 +140,41 @@ function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: N
   )
 }
 
+/** Bottom group: Perfil, Configurações, Ajuda and Sair (asks for confirmation). It sits in the pinned bottom block, so opening it grows the block upward. */
+function AccountGroup({ pathname, open, onOpenChange }: { pathname: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const requestSignOut = useRequestSignOut()
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <CollapsibleTrigger className={cn("group/trigger", rowBase, "w-full text-left", ease, focus, rowIdle)}>
+        <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+        <span className="truncate">{ACCOUNT_GROUP_LABEL}</span>
+        <ChevronDownIcon
+          aria-hidden
+          strokeWidth={1.75}
+          className={cn("ml-auto size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "rotate-180" : "")}
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden [--tw-animation-duration:400ms] [--tw-ease:cubic-bezier(0.2,0.8,0.2,1)] data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-3">
+          {ACCOUNT_ITEMS.map((item) => {
+            const active = isActivePath(pathname, item.href)
+            return (
+              <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
+                <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            )
+          })}
+          <button type="button" onClick={requestSignOut} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
+            <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+            Sair
+          </button>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 // ---------- collapsed rail: every control is the same 44 px square on one vertical axis ----------
 
 const railBase = "relative flex size-11 shrink-0 items-center justify-center rounded-full"
@@ -216,6 +241,47 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
   )
 }
 
+function RailAccount({ pathname }: { pathname: string }) {
+  const requestSignOut = useRequestSignOut()
+  const [open, setOpen] = useState(false)
+  const hasActive = ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href))
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <RailTip label={ACCOUNT_GROUP_LABEL}>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={ACCOUNT_GROUP_LABEL} className={cn(railBase, ease, focus, hasActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+            <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
+          </button>
+        </PopoverTrigger>
+      </RailTip>
+      {/* Aligned to the bottom edge of the trigger, so it opens upward instead of running off the screen. */}
+      <PopoverContent side="right" align="end" sideOffset={14} className="w-60 gap-0 p-2">
+        <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{ACCOUNT_GROUP_LABEL}</p>
+        {ACCOUNT_ITEMS.map((item) => {
+          const active = isActivePath(pathname, item.href)
+          return (
+            <Link key={item.id} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-[15px]", ease, focus, active ? rowActive : "hover:bg-accent")}>
+              <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            requestSignOut()
+          }}
+          className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent", ease, focus)}
+        >
+          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+          Sair
+        </button>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ---------- the sidebar ----------
 
 type AppSidebarProps = {
@@ -227,18 +293,18 @@ type AppSidebarProps = {
 export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSidebarProps) {
   const pathname = usePathname()
   const { state, toggleSidebar } = useSidebar()
-  const { openAssistant } = useAssistant()
   const collapsed = state === "collapsed"
   const { open, setGroup } = useOpenGroups(storageKey)
 
   // The group that contains the current page opens by itself.
-  const activeGroup = FOLDED_GROUPS.find((g) => g.items.some((id) => isActivePath(pathname, modules[id].href)))?.label
+  const activeGroup =
+    FOLDED_GROUPS.find((g) => g.items.some((id) => isActivePath(pathname, modules[id].href)))?.label ??
+    (ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href)) ? ACCOUNT_GROUP_LABEL : undefined)
   useEffect(() => {
     if (activeGroup && open[activeGroup] === undefined) setGroup(activeGroup, true)
     // Only when navigating: a group the user closed on purpose stays closed.
   }, [activeGroup]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const settingsActive = isActivePath(pathname, "/dashboard/configuracoes")
   const toggle = (
     <button
       type="button"
@@ -269,21 +335,7 @@ export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSi
           ))}
         </nav>
         <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
-          <RailTip label="Configurações">
-            <Link href="/dashboard/configuracoes" aria-label="Configurações" aria-current={settingsActive ? "page" : undefined} className={cn(railBase, ease, focus, settingsActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
-              <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
-            </Link>
-          </RailTip>
-          <RailTip label="Ajuda">
-            <button type="button" aria-label="Ajuda" onClick={openAssistant} className={cn(railBase, ease, focus, rowIdle)}>
-              <CircleHelpIcon aria-hidden strokeWidth={1.75} className="size-5" />
-            </button>
-          </RailTip>
-          <RailTip label="Sair">
-            <button type="button" aria-label="Sair" onClick={() => void signOut()} className={cn(railBase, ease, focus, rowIdle)}>
-              <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
-            </button>
-          </RailTip>
+          <RailAccount pathname={pathname} />
           <WhatsAppCta iconOnly className="mt-1" />
         </div>
         <SidebarRail />
@@ -311,18 +363,7 @@ export const AppSidebar = memo(function AppSidebar({ counts, storageKey }: AppSi
       </nav>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-3 pt-2 pb-4 [@media(max-height:900px)]:pb-3">
-        <Link href="/dashboard/configuracoes" aria-current={settingsActive ? "page" : undefined} className={cn(rowBase, ease, focus, settingsActive ? rowActive : rowIdle)}>
-          <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          Configurações
-        </Link>
-        <button type="button" onClick={openAssistant} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
-          <CircleHelpIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          Ajuda
-        </button>
-        <button type="button" onClick={() => void signOut()} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
-          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          Sair
-        </button>
+        <AccountGroup pathname={pathname} open={open[ACCOUNT_GROUP_LABEL] === true} onOpenChange={(value) => setGroup(ACCOUNT_GROUP_LABEL, value)} />
         {/* The very last element of the sidebar. */}
         <WhatsAppCta className="mt-3" />
       </div>

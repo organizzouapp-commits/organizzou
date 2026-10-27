@@ -2,8 +2,9 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { SettingsIcon, SparklesIcon } from "lucide-react"
+import { SparklesIcon } from "lucide-react"
 
+import { ACCOUNT_ITEMS } from "./account-menu"
 import { moduleList, modules } from "@/components/organizzou/modules"
 import {
   Command,
@@ -70,9 +71,11 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso }: C
             >
               <SparklesIcon strokeWidth={1.75} /> Perguntar ao assistente
             </CommandItem>
-            <CommandItem value="Configurações" onSelect={() => go("/dashboard/configuracoes")}>
-              <SettingsIcon strokeWidth={1.75} /> Configurações
-            </CommandItem>
+            {ACCOUNT_ITEMS.map((item) => (
+              <CommandItem key={item.id} value={item.label} onSelect={() => go(item.href)}>
+                <item.icon strokeWidth={1.75} /> {item.label}
+              </CommandItem>
+            ))}
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Módulos">

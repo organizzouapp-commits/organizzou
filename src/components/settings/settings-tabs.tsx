@@ -4,27 +4,27 @@ import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { NotificationsSettings, SecuritySettings, WhatsAppSettings } from "./settings-extras"
-import { SettingsForm } from "./settings-form"
+import { AppearanceSettings } from "./settings-form"
 
-type SettingsTabsProps = { displayName: string; email: string; initialTab?: string }
+type SettingsTabsProps = { initialTab?: string }
 
-const TABS = ["perfil", "avisos", "whatsapp", "seguranca"]
+const TABS = ["aparencia", "avisos", "whatsapp", "seguranca"]
 
-export function SettingsTabs({ displayName, email, initialTab }: SettingsTabsProps) {
-  const defaultValue = initialTab && TABS.includes(initialTab) ? initialTab : "perfil"
+export function SettingsTabs({ initialTab }: SettingsTabsProps) {
+  const defaultValue = initialTab && TABS.includes(initialTab) ? initialTab : "aparencia"
 
   return (
     <Tabs defaultValue={defaultValue}>
       <TabsList>
-        <TabsTrigger value="perfil">Perfil</TabsTrigger>
+        <TabsTrigger value="aparencia">Aparência</TabsTrigger>
         <TabsTrigger value="avisos">Avisos</TabsTrigger>
         <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
         <TabsTrigger value="seguranca">Segurança e dados</TabsTrigger>
       </TabsList>
-      <TabsContent value="perfil" className="pt-5">
+      <TabsContent value="aparencia" className="pt-5">
         <Bento>
           <BentoCard className="col-span-12 @min-[900px]:col-span-8">
-            <SettingsForm displayName={displayName} email={email} />
+            <AppearanceSettings />
           </BentoCard>
         </Bento>
       </TabsContent>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { EllipsisIcon, LayoutDashboardIcon, SettingsIcon, SquareKanbanIcon, WalletIcon } from "lucide-react"
+import { EllipsisIcon, LayoutDashboardIcon, LogOutIcon, SquareKanbanIcon, WalletIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { AssistantProvider } from "@/components/assistant/assistant-context"
@@ -20,7 +20,10 @@ import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
+import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
+import { FrameGlass } from "./frame-glass"
 import { AppTopBar } from "./app-topbar"
+import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { NAV_GROUPS } from "./nav"
 import { PrimaryActionProvider } from "./primary-action"
@@ -78,6 +81,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
   const [choice, setChoice] = useState<boolean | null>(sidebarOpen)
   const open = choice ?? !isTablet
 
@@ -88,6 +92,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
     [nowIso]
   )
   const openSearch = useCallback(() => setSearchOpen(true), [])
+  const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
   function onSelect(id: string) {
@@ -100,6 +105,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
 
   return (
     <AssistantProvider value={assistantContext}>
+      <SignOutProvider value={requestSignOut}>
       <PrimaryActionProvider>
         {/* Layer 0 (the tiny pre-blurred photo) is rendered once by the (app) layout. Layer 1 (md+): the frame, fixed at 20px,
             with `contain: layout` so the sidebar and the floating buttons position against the frame. */}
@@ -110,6 +116,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           className="md:glass-frame md:fixed md:inset-5 md:w-auto md:min-h-0 md:overflow-hidden md:rounded-[32px] md:contain-layout"
         >
           <ThemeSync theme={theme} />
+          <FrameGlass />
           <AppSidebar counts={counts} storageKey={sidebarCookie} />
           {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
               top, ends at its bottom and keeps P from the right edge. */}
@@ -135,6 +142,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
           <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
+          <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
 
           <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
             <SheetContent side="bottom" className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-[24px]">
@@ -165,20 +173,41 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
                     })}
                   </div>
                 ))}
-                <Link
-                  href="/dashboard/configuracoes"
-                  onClick={() => setMoreOpen(false)}
-                  className="flex min-h-12 items-center gap-4 rounded-full px-3 text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
-                  Configurações
-                </Link>
+                <div className="flex flex-col">
+                  <p className="pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{ACCOUNT_GROUP_LABEL}</p>
+                  {ACCOUNT_ITEMS.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className={cn(
+                        "flex min-h-12 items-center gap-4 rounded-full px-3 text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        isActivePath(pathname, item.href) && "bg-highlight font-medium text-highlight-foreground"
+                      )}
+                    >
+                      <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
+                      {item.label}
+                    </Link>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false)
+                      setSignOutOpen(true)
+                    }}
+                    className="flex min-h-12 items-center gap-4 rounded-full px-3 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
+                    Sair
+                  </button>
+                </div>
                 <WhatsAppCta onNavigate={() => setMoreOpen(false)} />
               </nav>
             </SheetContent>
           </Sheet>
         </SidebarProvider>
       </PrimaryActionProvider>
+      </SignOutProvider>
     </AssistantProvider>
   )
 }

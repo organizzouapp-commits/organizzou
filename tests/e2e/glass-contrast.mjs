@@ -48,6 +48,16 @@ async function audit(page) {
       let opacity = 1
       for (let e = el; e && e !== document.documentElement; e = e.parentElement) opacity *= Number(getComputedStyle(e).opacity)
       if (opacity < 0.05) continue
+      // Partly clipped by a scrolling/overflow ancestor (text cut at the scroll edge): not a readable sample, skip it.
+      let visible = { l: box.left, t: box.top, r: box.right, b: box.bottom }
+      for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+        const o = getComputedStyle(a)
+        if (o.overflowX === "visible" && o.overflowY === "visible") continue
+        const ar = a.getBoundingClientRect()
+        visible = { l: Math.max(visible.l, ar.left), t: Math.max(visible.t, ar.top), r: Math.min(visible.r, ar.right), b: Math.min(visible.b, ar.bottom) }
+      }
+      const area = (r) => Math.max(0, r.r - r.l) * Math.max(0, r.b - r.t)
+      if (area(visible) < area({ l: box.left, t: box.top, r: box.right, b: box.bottom }) * 0.9) continue
       const isSvg = el instanceof SVGElement
       const c = rgba(isSvg ? s.fill : s.color)
       seen.add(el)
@@ -57,6 +67,7 @@ async function audit(page) {
         color: [c[0], c[1], c[2], c[3] * opacity],
         box: { x: box.left, y: box.top, w: box.width, h: box.height },
         size: parseFloat(s.fontSize),
+        weight: parseInt(s.fontWeight, 10) || 400,
       })
     }
     return list
@@ -120,7 +131,9 @@ for (const [w, h] of [[1440, 900], [390, 844]])
         await page.waitForTimeout(800)
         items = items.concat(await audit(page))
       }
-      const failing = items.filter((i) => i.ratio < MIN)
+      // WCAG: large text (>= 24px, or >= 18.66px and bold) needs 3:1, everything else 4.5:1.
+      const need = (i) => (i.size >= 24 || (i.size >= 18.66 && i.weight >= 700) ? 3 : MIN)
+      const failing = items.filter((i) => i.ratio < need(i))
       const worst = items.reduce((m, i) => (i.ratio < m.ratio ? i : m), { ratio: 99 })
       ok(`contrast >= ${MIN}  ${path} ${w}x${h} ${theme}`, failing.length === 0, `${items.length} texts, worst ${worst.ratio}:1 "${worst.text}"${failing.length ? "  FAILING: " + failing.slice(0, 6).map((f) => `"${f.text}" ${f.ratio}:1 (${f.cls})`).join(" | ") : ""}`)
       await ctx.close()

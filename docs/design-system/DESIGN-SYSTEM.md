@@ -135,7 +135,7 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 - **Fundo da página**: Tinta no escuro; Papel + overlay de Tinta 4% no claro.
 - **Sidebar flutuante** (≥ 768 px): cartão sólido com 16 px de margem (P), raio 24 px, 260 px de largura (rail de 80 px recolhida), altura total menos as margens,
   fundo Grafite (escuro) / Papel (claro). Quatro itens sempre visíveis (Hoje, Tarefas, Agenda, Finanças), grupos **Vida** e **Organização** que dobram, bloco fixo embaixo
-  (Configurações, Ajuda, Sair e, por último, o cartão Lima "Conecte seu WhatsApp"). Item: 40 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Tinta/Papel 6%.
+  (o grupo Configurações com Perfil, Configurações, Ajuda e Sair, e, por último, o cartão Lima "Conecte seu WhatsApp"). Item: 40 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Tinta/Papel 6%.
   O estado recolhido/expandido é guardado **por usuário em cookie**; em tablet (768–1023 px) a sidebar começa como rail. Detalhes, rail e grade fluida em **5.6**.
 - **Barra superior** (dentro da coluna de conteúdo, sem fundo, alinhada ao topo da sidebar, ~76 px): à esquerda a saudação grande ("Bom dia, Patrick", pelo horário)
   com a data embaixo; nas telas de módulo, o título da página e um subtítulo curto. À direita: pílula de busca (Ctrl K abre a paleta
@@ -243,33 +243,34 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
 
 ### 5.5 Glass surfaces (fundo e moldura do app)
 
-Só o aparelho do app (`/dashboard/**`) tem esse visual, e **só duas coisas são translúcidas: a foto de fundo e a moldura grande**.
-**Não há `backdrop-filter` no app** (ele pesava na rolagem). Sidebar, cards, barras e botões redondos são superfícies sólidas. Nenhuma cor
-nova: tudo é Papel, Grafite ou Tinta, com ou sem transparência. Os tokens estão em `globals.css` (`--glass-frame-*`, `--app-bg-tint`).
+Só o aparelho do app (`/dashboard/**`) tem esse visual. A foto e a moldura são translúcidas; **sidebar, cards, barras e botões redondos são sólidos**.
+**Não há `backdrop-filter` nem `filter: blur()` em tempo de execução**: o vidro fosco da moldura é *falso*, feito com uma cópia da foto já desfocada.
+Nenhuma cor nova: tudo é Papel, Grafite ou Tinta, com ou sem transparência. Tokens em `globals.css` (`--glass-frame-*`, `--app-bg-tint`).
 
 | Camada | O que é | Receita |
 |---|---|---|
-| 0 | Foto de fundo, fixa e sem rolagem | Foto **minúscula** já desfocada (`public/images/app-bg-tiny.webp`, 64 px, e `app-bg-tiny-mobile.webp`, 36 px; gerar com `npm run glass-bg`) esticada por `object-fit: cover`. O celular baixa só a imagem mobile. Tinta de tema por cima, em sobreposição separada (`--app-bg-tint`): escuro Tinta 35 %, claro Papel 40 %. Camada `fixed`, `z-index: -1`, `contain: strict`, `transform: translateZ(0)`, renderizada uma vez no layout |
-| 1 | Moldura (`glass-frame`), só desktop/tablet | `fixed inset-5` (20 px), raio 32. **Só preenchimento semitransparente** (a foto já está desfocada): escuro Papel 4 % / claro Papel 25 %, borda 1 px Papel 14 % / 60 %, brilho interno no topo. Tem `contain: layout`, então a sidebar e os botões fixos se posicionam pela moldura. O conteúdo rola **dentro** dela (`data-app-scroll`); a moldura não rola |
-| 2 | Sidebar | Sólida: `--sidebar` (Grafite no escuro, Papel no claro), borda 1 px a 10 %, raio 24, item ativo em pílula Lima |
-| 2 | Cards (Card, BentoCard, linhas de lista) | Sólidos: `--card` (Grafite / Papel), borda 1 px `--border` (10 %), raio 24, sem sombra pesada. O card de destaque (Lima) continua sólido |
-| 2 | Top bar, botões redondos, busca, BottomNav | Token do card (`Button variant="surface"`, `bg-card` + `border-border`); no mobile a top bar e a BottomNav também são sólidas |
+| 0 | Foto de fundo **nítida**, fixa | A foto **original** de `/entrar` (`auth-background.png` ≥ 768 px, `auth-background-mobile.png` abaixo), com art direction (`<picture>`) e AVIF/WebP via `getImageProps` (`priority`, `sizes="100vw"`): o celular baixa só a imagem mobile. Camada `fixed inset-0 -z-10`, `contain: strict`, `translateZ(0)`, renderizada **uma vez** no layout `(app)` (componente de servidor). Tinta de tema por cima (`--app-bg-tint`): escuro Tinta 35 %, claro Papel 40 %; no celular, 68 % / 62 % (sem moldura, os cards ficam direto sobre a foto) |
+| 1 | Moldura (md+) com **vidro fosco falso** | `fixed inset-5` (20 px), raio 32, `overflow-hidden`, borda 1 px (Papel 14 % escuro / 60 % claro). **Dentro** dela, `FrameGlass` pinta, abaixo do conteúdo: (1) a cópia **pré-desfocada** da foto (`public/images/app-bg-frost.webp`, desfoque ~48 px, gerado por `npm run glass-bg` com sharp), (2) a tinta da moldura (escuro Tinta 30 % / claro Papel 35 %) com o brilho interno do topo e um reforço de tinta sob o cabeçalho da página, que some em ~230 px |
+| 2 | Sidebar | Sólida: `--sidebar` (Grafite / Papel), borda 1 px a 10 %, raio 24 |
+| 2 | Cards, top bar, botões redondos, BottomNav | Sólidos: `--card` (Grafite / Papel), borda 1 px `--border`, raio 24, sem sombras pesadas. O card de destaque (Lima) continua sólido |
 
-**Sólidos (token `popover`)**: popovers, menus, dialogs, sheets, drawers e a paleta de comandos.
+**Técnica do alinhamento (vidro falso).** A foto nítida ocupa a janela (`fixed inset-0`, `object-fit: cover`, centro). A camada desfocada é uma caixa do **tamanho da janela**
+(`100vw × 100vh`, mesma proporção, `object-fit: cover`, mesmo ponto focal) deslocada para trás pela distância da moldura até a janela (20 px de margem + 1 px de borda = `-21px`
+em cima e à esquerda), e recortada pelo raio da moldura. Cada pixel cai exatamente sobre o pixel correspondente da foto nítida: ao redor da moldura a foto é nítida, dentro dela é fosca,
+como um vidro de verdade. Como o tamanho usa unidades de janela, o alinhamento sobrevive a redimensionar; e a moldura é fixa à janela, então **não se mexe** quando a sidebar recolhe (só o conteúdo muda).
+`tests/e2e/account-menu.mjs` confere a geometria nos dois sentidos e que nenhum elemento tem `backdrop-filter`/`filter`.
+
+**Fica sólido (token `popover`)**: popovers, menus, dialogs, sheets, drawers e a paleta de comandos.
 
 **Regras de desempenho**
 
-- Nada de `backdrop-filter`, `will-change` ou animação contínua dentro do app. Sombras grandes só em poucos elementos.
-- A foto é desfocada **antes** (WebP minúsculo, ~0,5 KB, esticado pelo navegador), não em tempo de execução.
-- Medida em `/dashboard` (rolagem do conteúdo, CPU 4× mais lenta, Chromium sem GPU, `tests/e2e/perf-scroll.mjs`): tempo médio por
-  quadro caiu de ~47–55 ms para ~27–38 ms, e os quadros acima de 40 ms de 72–96 % para ~15–32 %. No mobile (sem moldura) já era 60 fps.
+- Nada de `backdrop-filter`, `filter: blur()`, `will-change` nem animação contínua dentro do app. O desfoque é feito antes (WebP de ~10 KB), não em tempo de execução.
+- Nada pinta de novo na rolagem: a foto e a camada da moldura são estáticas, em camadas próprias.
+- Medido em `/dashboard` (rolagem do conteúdo e recolher/expandir a sidebar, CPU 4× mais lenta, Chromium sem GPU, `tests/e2e/perf-scroll.mjs`): rolagem a 60 fps (16,7 ms por quadro).
 
-**Contraste**: texto ≥ 4,5:1 medido nos pixels renderizados (`tests/e2e/glass-contrast.mjs`). Se algo reprovar, aumente a opacidade
-daquela superfície ou da tinta de fundo; não crie cor nova. Por isso `--muted-foreground` é Papel 68 % (escuro) e Tinta 72 % (claro),
-e os rótulos de abas usam `text-foreground/85`. Com `prefers-reduced-transparency: reduce`, a moldura vira sólida e a tinta cobre a foto.
-Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup).
-
----
+**Contraste**: texto ≥ 4,5:1 (3:1 para texto grande) medido nos pixels renderizados (`tests/e2e/glass-contrast.mjs`). Se algo reprovar, aumente a opacidade da tinta daquela superfície; não crie cor nova.
+Por isso `--muted-foreground` é Papel 68 % (escuro) e Tinta 72 % (claro), os rótulos de abas usam `text-foreground/85`, e o cabeçalho da página tem o reforço de tinta descrito acima.
+Com `prefers-reduced-transparency: reduce`, a moldura vira sólida e a tinta cobre a foto. Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup).
 
 ### 5.6 Estrutura do shell do app (sidebar, moldura, grade fluida)
 
@@ -280,12 +281,12 @@ Só a caixa de conteúdo rola (`data-app-scroll`): `overscroll-behavior: contain
 
 **Sidebar expandida (260 px).** Sempre visíveis: Hoje, Tarefas, Agenda, Finanças. Grupos que dobram (`Collapsible`, chevron que gira, altura animada em
 0,4 s): **Vida** (Rotina, Treinos, Dieta, Estudos) e **Organização** (Notas e lembretes, Metas, Diário, Cofre). O estado de cada grupo é lembrado por usuário
-(`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: Configurações, Ajuda,
-Sair e, **por último**, o card Lima "Conecte seu WhatsApp". Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
+(`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: o grupo **Configurações** (mesmo `Collapsible`, mesma animação de 0,4 s; ao abrir, o bloco cresce para cima e só a lista de navegação encolhe) e, **por último**, o card Lima "Conecte seu WhatsApp".
+O grupo **Configurações** tem Perfil (`/dashboard/perfil`), Configurações (`/dashboard/configuracoes`), Ajuda (`/dashboard/ajuda`) e Sair; **Sair sempre pede confirmação** (`AlertDialog` "Deseja sair da sua conta?"). Os mesmos itens aparecem no menu do avatar da barra superior e na folha "Mais" do celular. Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
 900 px de altura o card dispensa o ícone e a descrição. Contador (ex.: Tarefas 15) à direita do rótulo; num grupo fechado aparece a soma dos itens.
 
 **Rail (recolhida, 80 px).** Todo controle é um quadrado de 44 px no **mesmo eixo vertical** (logo, botão de recolher, itens, item ativo Lima, itens de baixo e o ícone do
-WhatsApp). Cada grupo vira um ícone (Vida = coração com pulso, Organização = pasta) que abre um *flyout* (Popover à direita) com os itens. Contador: bolinha Lima com número Tinta no canto
+WhatsApp). Cada grupo vira um ícone (Vida = coração com pulso, Organização = pasta, Configurações = engrenagem) que abre um *flyout* (Popover à direita; o de Configurações alinha pela base e abre para cima) com os itens. Contador: bolinha Lima com número Tinta no canto
 superior direito do ícone (nos grupos, a soma). Tooltip com o rótulo ao passar o mouse.
 
 **Grade fluida.** O conteúdo usa toda a largura ao lado da sidebar (sem `max-width` nem centralização). A grade de 12 colunas (gap 20 px) reflui por **container queries**
@@ -294,10 +295,8 @@ empilham abaixo de 900 px (`@min-[900px]:col-span-*`). Diálogos, sheets e popov
 
 **Regras de desempenho do shell**
 
-- O fundo é uma foto **minúscula** já desfocada (`app-bg-tiny.webp`, 64 px de largura no desktop e `app-bg-tiny-mobile.webp`, 36 px no celular, ~0,5 KB; `npm run glass-bg`), esticada com
-  `object-fit: cover`: o upscaling do navegador é o desfoque. Camada `position: fixed; z-index: -1; contain: strict; transform: translateZ(0)`, renderizada **uma vez** no layout `(app)` (componente de
-  servidor), com a tinta de tema numa sobreposição separada. A moldura é só preenchimento + borda.
-- **Nenhum** `filter: blur()` nem `backdrop-filter` no shell; sem `will-change`; sem animação contínua. Sidebar e barra superior são `memo`, com props e contexto estáveis (abrir diálogos e sheets não re-renderiza).
+- Fundo e moldura seguem a seção 5.5: foto original nítida numa camada fixa (`contain: strict`, `translateZ(0)`) renderizada **uma vez** no layout `(app)`, e o vidro fosco da moldura é uma cópia pré-desfocada da foto alinhada pixel a pixel, sem filtros em tempo de execução.
+- **Nenhum** `filter: blur()` nem `backdrop-filter` no shell (o vidro é a cópia pré-desfocada); sem `will-change`; sem animação contínua. Sidebar e barra superior são `memo`, com props e contexto estáveis (abrir diálogos e sheets não re-renderiza).
 - Compare sempre em produção (`npm run build && npm start`): o modo dev é bem mais lento.
 
 ---
