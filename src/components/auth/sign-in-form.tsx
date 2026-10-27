@@ -13,7 +13,7 @@ import { signIn } from "@/features/auth/actions"
 import { cn } from "@/lib/utils"
 import { signInSchema, type SignInInput } from "@/features/auth/schemas"
 
-import { AuthLink, authButtonClass, authInputClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
+import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
 
 export function SignInForm({ next, linkError }: { next: string; linkError?: boolean }) {
   const router = useRouter()
@@ -41,19 +41,19 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-6">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className={cn("text-[28px] leading-9 font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
+    <div className="flex w-full max-w-[420px] flex-col gap-(--auth-gap)">
+      <div className="flex flex-col gap-1.5 text-center">
+        <h1 className={cn("text-(length:--auth-title) leading-[1.25] font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
           Entrar
         </h1>
-        <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(1)}>
+        <p className={cn("text-(length:--auth-sub) leading-snug text-muted-foreground", R)} style={rs(1)}>
           Use seu e-mail e senha para acessar o Organizzou.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-        <div className={cn("flex flex-col gap-2", R)} style={rs(2)}>
-          <Label htmlFor="login-email">E-mail</Label>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-(--auth-gap)">
+        <div className={cn("flex flex-col gap-1.5", R)} style={rs(2)}>
+          <Label className={authLabelClass} htmlFor="login-email">E-mail</Label>
           <Input
             id="login-email"
             type="email"
@@ -66,9 +66,9 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
           />
           {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
         </div>
-        <div className={cn("flex flex-col gap-2", R)} style={rs(3)}>
+        <div className={cn("flex flex-col gap-1.5", R)} style={rs(3)}>
           <div className="flex items-center justify-between">
-            <Label htmlFor="login-password">Senha</Label>
+            <Label className={authLabelClass} htmlFor="login-password">Senha</Label>
             <AuthLink href="/recuperar-senha" className={cn(authLinkClass, "text-[13px] leading-5 text-muted-foreground hover:text-foreground hover:underline")}>
               Esqueci a senha
             </AuthLink>
@@ -89,7 +89,7 @@ export function SignInForm({ next, linkError }: { next: string; linkError?: bool
         <GoogleButton next={next} />
       </div>
 
-      <p className={cn("text-center text-[15px] leading-6 text-muted-foreground", R)} style={rs(7)}>
+      <p className={cn("text-center text-(length:--auth-text) leading-6 text-muted-foreground", R)} style={rs(7)}>
         Ainda não tem conta?{" "}
         <AuthLink href="/cadastro" className={cn(authLinkClass, "font-medium text-foreground underline")}>
           Criar conta

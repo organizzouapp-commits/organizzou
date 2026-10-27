@@ -84,13 +84,16 @@ seguir as diretrizes de login do Google: botão neutro, "G" sem alteração, tex
 ícone ou componente pode sair da paleta. Em código, só `GoogleMark` (`src/components/auth/auth-parts.tsx`) contém essas cores.
 
 Respiro mínimo: altura de uma barra do zz. Logotipo mín. 96 px de largura; ícone mín. 16 px.
-Não recolorir, não aplicar sombra. A Surgena existe só dentro do logo (em curvas); não usar na interface.
+Não recolorir, não aplicar sombra.
 
 ---
 
 ## 4. Tipografia
 
-Geist Sans (UI) · Geist Mono (códigos/IDs) · `tabular-nums` em valores, horas, timers e calorias (classe `tabular`).
+**Surgena SemiBold (UI, a mesma fonte do logo; arquivo único registrado como peso 600, todos os pesos usam ele)** · Geist Mono (códigos/IDs) · `tabular-nums` em valores, horas, timers e calorias (classe `tabular`).
+
+> **Licença:** o arquivo atual da Surgena é a versão *personal use only*. Antes do lançamento é obrigatório comprar a licença comercial de web-font (e trocar o arquivo em `src/fonts/`).
+> Como só existe o peso 600, não use `font-normal`/`font-medium` esperando contraste de peso: hierarquia vem de tamanho e cor. A Surgena é mais larga que a Geist; revise quebras de linha ao criar telas.
 
 | Estilo | Tamanho/linha | Peso | Tracking | Uso |
 |---|---|---|---|---|

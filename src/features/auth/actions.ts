@@ -2,9 +2,10 @@
 
 import { redirect } from "next/navigation"
 
-import { getSiteUrl } from "@/lib/supabase/env"
+import { getSiteUrl, getSupabaseEnv } from "@/lib/supabase/env"
 import { createClient } from "@/lib/supabase/server"
 
+import { GOOGLE_UNAVAILABLE } from "./messages"
 import {
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -105,8 +106,23 @@ export async function resetPassword(input: ResetPasswordInput): Promise<ActionRe
   return { ok: true }
 }
 
+async function isGoogleEnabled() {
+  try {
+    const { url, anonKey } = getSupabaseEnv()
+    const response = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey }, cache: "no-store" })
+    if (!response.ok) return false
+    const settings = (await response.json()) as { external?: { google?: boolean } }
+    return settings.external?.google === true
+  } catch {
+    return false
+  }
+}
+
 /** Starts the Google OAuth flow. Supabase sends the user back to /auth/callback, which lands on /hoje. */
 export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
+  // signInWithOAuth only builds the authorize URL: with the provider disabled the browser would land on a raw JSON error,
+  // so check the project's public settings first.
+  if (!(await isGoogleEnabled())) return { ok: false, error: GOOGLE_UNAVAILABLE }
   const supabase = await createClient()
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/hoje"
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -114,7 +130,7 @@ export async function signInWithGoogle(next = "/hoje"): Promise<ActionResult> {
     options: { redirectTo: `${getSiteUrl()}/auth/callback?next=${encodeURIComponent(safeNext)}` },
   })
   if (error || !data.url) {
-    return { ok: false, error: "Não consegui abrir o login com Google. Tente de novo em instantes." }
+    return { ok: false, error: GOOGLE_UNAVAILABLE }
   }
   redirect(data.url)
 }

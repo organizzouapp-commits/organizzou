@@ -172,7 +172,7 @@ export default function DesignSystemPage() {
 
       <Separator />
 
-      <Section overline="Tipografia" title="Escala tipográfica (Geist)">
+      <Section overline="Tipografia" title="Escala tipográfica (Surgena)">
         <div className="flex flex-col">
           {typeScale.map((t) => (
             <div

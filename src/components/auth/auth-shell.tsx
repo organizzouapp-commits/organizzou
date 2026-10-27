@@ -8,7 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
 import { cn } from "@/lib/utils"
 
-import { authLinkClass, authMotion, R, rs } from "./auth-parts"
+import { authLinkClass, authMotion, R, rs, SlideSwap } from "./auth-parts"
 import { ForgotPasswordForm } from "./forgot-password-form"
 import { ResetPasswordForm } from "./reset-password-form"
 import { SignInForm } from "./sign-in-form"
@@ -29,13 +29,13 @@ const COPY = {
     badge: "Bom te ver de novo",
     headline: "Sua vida, organizada.",
     subtitle: "Entre para ver o seu dia.",
-    steps: ["Veja seu dia", "Fale com o assistente", "Receba lembretes"],
+    steps: ["Veja seu dia organizado", "Fale com o assistente", "Receba lembretes"],
   },
   signup: {
     badge: "Comece agora",
     headline: "Comece a se organizar",
     subtitle: "Três passos e pronto.",
-    steps: ["Crie sua conta", "Conecte seu WhatsApp", "Organize seu dia"],
+    steps: ["Crie sua conta agora", "Conecte seu WhatsApp", "Organize seu dia a dia"],
   },
 } as const
 
@@ -44,10 +44,14 @@ type CopyKey = keyof typeof COPY
 // One easing for every movement in the shell (DESIGN-SYSTEM §6).
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-/** Tinta scrim (max 40%, heavier at the bottom) that keeps Papel text readable over the photo. */
-const SCRIM = "bg-gradient-to-b from-palette-tinta/15 via-palette-tinta/25 to-palette-tinta/40"
+/** Text on the photo follows the theme, matching the logo: dark theme -> Tinta (logo-preta), light theme -> Papel (logo-branca). */
+const ON_PHOTO = "text-palette-papel dark:text-palette-tinta"
 
-const glass = "border border-palette-papel/12 bg-palette-papel/10 backdrop-blur-[16px]"
+/** Scrim of the opposite tone, only as strong as needed: Tinta behind Papel text (light), Papel behind Tinta text (dark). */
+const SCRIM = "bg-gradient-to-b from-palette-tinta/10 via-palette-tinta/20 to-palette-tinta/35 dark:from-palette-papel/0 dark:via-palette-papel/10 dark:to-palette-papel/25"
+
+const glass =
+  "border border-palette-papel/20 bg-palette-papel/10 backdrop-blur-[16px] dark:border-palette-tinta/20 dark:bg-palette-tinta/10"
 
 const BELOW_LG = "(max-width: 1023px)"
 
@@ -90,23 +94,23 @@ function HighlightCopy({
   // The entrance reveal only runs on the visible copy.
   const reveal = active ? R : ""
   return (
-    <div aria-hidden={!active} inert={!active} className={cn("col-start-1 row-start-1 flex flex-col gap-4", !active && "pointer-events-none")}>
+    <div aria-hidden={!active} inert={!active} className={cn("col-start-1 row-start-1 flex flex-col gap-(--auth-gap)", !active && "pointer-events-none")}>
       <span
-        className={cn("inline-flex w-fit items-center rounded-full px-3 py-1 text-[13px] leading-5 font-medium text-palette-papel", glass, enter, reveal)}
+        className={cn("auth-hide-short inline-flex w-fit items-center rounded-full px-3 py-1 text-[13px] leading-5", ON_PHOTO, glass, enter, reveal)}
         style={{ transitionDelay: "0ms", ...rs(1) }}
       >
         {copy.badge}
       </span>
       <h2
-        className={cn("text-[40px] leading-[48px] font-semibold tracking-[-0.02em] text-palette-papel", enter, reveal)}
+        className={cn("text-(length:--auth-hl) leading-[1.12] font-semibold tracking-[-0.025em]", ON_PHOTO, enter, reveal)}
         style={{ transitionDelay: active ? "60ms" : "0ms", ...rs(2) }}
       >
         {copy.headline}
       </h2>
-      <p className={cn("text-base leading-6 text-palette-papel/80", enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
+      <p className={cn("auth-hide-tiny text-(length:--auth-sub) leading-snug opacity-80", ON_PHOTO, enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
         {copy.subtitle}
       </p>
-      <ol className="mt-4 grid grid-cols-3 gap-3">
+      <ol className="mt-1 grid grid-cols-3 gap-[clamp(8px,1.5dvh,12px)]">
         {copy.steps.map((label, index) => {
           const isActive = index === activeStep
           return (
@@ -117,26 +121,30 @@ function HighlightCopy({
                 onClick={() => onStep(index)}
                 aria-current={isActive ? "step" : undefined}
                 className={cn(
-                  "group/step flex min-h-32 w-full cursor-pointer flex-col justify-between gap-4 rounded-[20px] border p-4 text-left outline-none",
+                  "group/step flex h-(--auth-step-h) w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
                   "hover:-translate-y-1 hover:border-highlight/40 focus-visible:-translate-y-1 focus-visible:border-highlight/40 focus-visible:ring-3 focus-visible:ring-ring/50",
                   "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   isActive
-                    ? "border-palette-papel/12 bg-highlight text-highlight-foreground"
-                    : "border-palette-papel/12 bg-palette-papel/8 text-palette-papel/80 backdrop-blur-[16px] hover:bg-palette-papel/12 focus-visible:bg-palette-papel/12"
+                    ? "border-palette-papel/20 bg-highlight text-highlight-foreground dark:border-palette-tinta/20"
+                    : cn(
+                        "border-palette-papel/20 bg-palette-papel/8 backdrop-blur-[16px] hover:bg-palette-papel/12 focus-visible:bg-palette-papel/12",
+                        "dark:border-palette-tinta/20 dark:bg-palette-tinta/8 dark:hover:bg-palette-tinta/12 dark:focus-visible:bg-palette-tinta/12",
+                        ON_PHOTO
+                      )
                 )}
               >
                 <span
                   className={cn(
-                    "tabular flex size-8 items-center justify-center rounded-full border text-[14px] leading-5 font-semibold",
+                    "tabular flex size-[clamp(26px,4dvh,32px)] items-center justify-center rounded-full border text-[14px] leading-5 font-semibold",
                     "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                     isActive
                       ? "border-transparent bg-highlight-foreground text-highlight"
-                      : "border-palette-papel/40 group-hover/step:border-transparent group-hover/step:bg-highlight group-hover/step:text-highlight-foreground group-focus-visible/step:border-transparent group-focus-visible/step:bg-highlight group-focus-visible/step:text-highlight-foreground"
+                      : "border-palette-papel/50 dark:border-palette-tinta/50 group-hover/step:border-transparent group-hover/step:bg-highlight group-hover/step:text-highlight-foreground group-focus-visible/step:border-transparent group-focus-visible/step:bg-highlight group-focus-visible/step:text-highlight-foreground"
                   )}
                 >
                   {index + 1}
                 </span>
-                <span className="text-[15px] leading-5 font-medium">{label}</span>
+                <span className="text-(length:--auth-text) leading-[1.2] tracking-[-0.01em]">{label}</span>
               </button>
             </li>
           )
@@ -150,11 +158,11 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
   // Active step per copy (visual only).
   const [steps, setSteps] = useState<Record<CopyKey, number>>({ login: 0, signup: 0 })
   return (
-    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-10 overflow-hidden rounded-[20px] p-7 text-palette-papel", className)}>
+    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-4 overflow-hidden rounded-[20px] p-[clamp(16px,3.2dvh,28px)]", ON_PHOTO, className)}>
       {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className={cn("relative", R)} style={rs(0)}>
-        <ThemedLogo className="h-10" />
+        <ThemedLogo className="h-(--auth-logo)" />
       </div>
       <div className="relative grid">
         <HighlightCopy copyKey="login" active={!signup} activeStep={steps.login} onStep={(i) => setSteps((s) => ({ ...s, login: i }))} />
@@ -170,7 +178,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
     <div
       inert={hidden}
       aria-hidden={hidden}
-      className={cn("fixed inset-0 z-10 flex flex-col text-palette-papel transition-opacity duration-500 lg:hidden", hidden && "opacity-0")}
+      className={cn("fixed inset-0 z-10 flex flex-col transition-opacity duration-500 lg:hidden", ON_PHOTO, hidden && "opacity-0")}
     >
       <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
@@ -180,7 +188,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
         <h2 className={cn("mt-2 text-[34px] leading-[42px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
           Sua vida, organizada.
         </h2>
-        <p className={cn("text-base leading-6 text-palette-papel/80", R)} style={rs(2)}>
+        <p className={cn("text-base leading-6 opacity-80", R)} style={rs(2)}>
           Tudo do seu dia em um só lugar.
         </p>
       </div>
@@ -189,7 +197,8 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
           type="button"
           onClick={() => onOpen("login")}
           className={cn(
-            "pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-palette-papel outline-none hover:bg-palette-papel/10 focus-visible:bg-palette-papel/10 focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-palette-papel/15",
+            "pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold outline-none hover:bg-palette-papel/10 focus-visible:bg-palette-papel/10 focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-palette-papel/15",
+            "dark:hover:bg-palette-tinta/10 dark:focus-visible:bg-palette-tinta/10 dark:active:bg-palette-tinta/15",
             authMotion
           )}
         >
@@ -199,8 +208,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
           type="button"
           onClick={() => onOpen("signup")}
           className={cn(
-            "rounded-tl-[28px] bg-palette-tinta pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-palette-papel outline-none hover:bg-palette-tinta/90 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.98]",
-            "dark:bg-palette-papel dark:text-palette-tinta dark:hover:bg-palette-papel/90",
+            "rounded-tl-[28px] bg-highlight pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-highlight-foreground outline-none hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.98] active:bg-highlight/80",
             authMotion
           )}
         >
@@ -225,53 +233,6 @@ function LegalLinks({ className }: { className?: string }) {
   )
 }
 
-/**
- * Login and recovery live side by side in one stage, so switching never remounts anything: the current form fades
- * out sliding 12 px away while the next one fades in from 12 px on the other side (0.4 s), and the stage height
- * follows the visible form. Browser back/forward just changes the URL and runs the same transition.
- */
-function SwapStage({ active, login, recovery }: { active: "login" | "recovery"; login: React.ReactNode; recovery: React.ReactNode }) {
-  const loginRef = useRef<HTMLDivElement>(null)
-  const recoveryRef = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState<number>()
-
-  useEffect(() => {
-    const el = (active === "login" ? loginRef : recoveryRef).current
-    if (!el) return
-    const observer = new ResizeObserver(() => {
-      // A hidden pane (phones, sign-up mode) measures 0: keep the last height instead.
-      if (el.offsetHeight > 0) setHeight(el.offsetHeight)
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [active])
-
-  const slot = "col-start-1 row-start-1 flex w-full justify-center self-start transition-[opacity,translate] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
-  return (
-    <div
-      className="-mx-1 grid w-full max-w-[420px] overflow-hidden px-1 transition-[height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
-      style={height === undefined ? undefined : { height }}
-    >
-      <div
-        ref={loginRef}
-        inert={active !== "login"}
-        aria-hidden={active !== "login"}
-        className={cn(slot, active === "login" ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0")}
-      >
-        {login}
-      </div>
-      <div
-        ref={recoveryRef}
-        inert={active !== "recovery"}
-        aria-hidden={active !== "recovery"}
-        className={cn(slot, active === "recovery" ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0")}
-      >
-        {recovery}
-      </div>
-    </div>
-  )
-}
-
 /** One side of the card (and, on phones, the content of the bottom sheet). */
 function FormPane({ active, side, children }: { active: boolean; side: "left" | "right"; children: React.ReactNode }) {
   return (
@@ -282,15 +243,15 @@ function FormPane({ active, side, children }: { active: boolean; side: "left" | 
       className={cn(
         authMotion,
         // Phones: 24 px sheet padding. Desktop: the panel's 28 px inner padding, none below the legal links.
-        "relative flex-col px-6 pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:px-7 lg:pt-7 lg:pb-0",
+        "relative flex-col px-6 pt-1 pb-[max(1rem,env(safe-area-inset-bottom))] duration-[550ms] lg:row-start-1 lg:flex lg:min-h-0 lg:px-(--auth-pp) lg:pt-(--auth-pp) lg:pb-0",
         side === "left" ? "lg:col-start-1" : "lg:col-start-2",
         active
           ? "flex opacity-100 lg:translate-x-0 max-lg:animate-in max-lg:duration-300 max-lg:fade-in"
           : cn("hidden lg:pointer-events-none lg:flex lg:opacity-0", side === "left" ? "lg:-translate-x-6" : "lg:translate-x-6")
       )}
     >
-      <div className="flex flex-1 items-center justify-center py-4">{children}</div>
-      <LegalLinks className="mt-6 lg:mt-0" />
+      <div className="flex flex-1 items-center justify-center py-2 lg:min-h-0 lg:py-[clamp(4px,1dvh,16px)]">{children}</div>
+      <LegalLinks className="mt-3 lg:mt-0 lg:pb-[clamp(8px,1.6dvh,16px)]" />
     </section>
   )
 }
@@ -358,7 +319,7 @@ export function AuthShell() {
     if (!below || !sheet || !area) return
     function place() {
       if (!sheet || !area) return
-      area.style.height = `${Math.max(72, window.innerHeight - sheet.offsetHeight)}px`
+      area.style.height = `${Math.max(64, window.innerHeight - sheet.offsetHeight)}px`
     }
     place()
     const observer = new ResizeObserver(place)
@@ -408,7 +369,7 @@ export function AuthShell() {
   const mobileBackground = { srcSet: mobileSrcSet }
 
   return (
-    <div className="relative min-h-dvh" data-intro={intro ? "" : undefined}>
+    <div className="auth-root relative min-h-dvh lg:h-dvh lg:overflow-hidden" data-intro={intro ? "" : undefined}>
       {/* Full-screen photo behind everything (public/images/auth-background.png). */}
       <picture>
         <source media="(max-width: 767px)" srcSet={mobileBackground.srcSet} />
@@ -432,7 +393,7 @@ export function AuthShell() {
       <MobileWelcome hidden={sheetOpen} onOpen={openSheet} />
       {/* Sheet open on a phone: tapping the photo closes it, and the logo above the sheet is the "back" button. */}
       <div aria-hidden onClick={closeSheet} className={cn("fixed inset-0 z-20 lg:hidden", !sheetOpen && "pointer-events-none")} />
-      <div ref={logoAreaRef} className="pointer-events-none fixed inset-x-0 top-0 z-[25] flex h-[28dvh] items-center justify-center lg:hidden">
+      <div ref={logoAreaRef} className="pointer-events-none fixed inset-x-0 top-0 z-[25] flex h-[24dvh] items-center justify-center lg:hidden">
         <button
           type="button"
           onClick={closeSheet}
@@ -444,11 +405,11 @@ export function AuthShell() {
             sheetOpen ? "pointer-events-auto scale-100 opacity-100 delay-200" : "pointer-events-none scale-90 opacity-0"
           )}
         >
-          <ThemedLogo className="h-10" />
+          <ThemedLogo className="h-8" />
         </button>
       </div>
 
-      <div className="mx-auto flex min-h-dvh w-full max-w-[1200px] flex-col lg:justify-center lg:px-6 lg:py-6">
+      <div className="mx-auto flex min-h-dvh w-full flex-col lg:h-dvh lg:items-center lg:justify-center lg:p-(--auth-m)">
         <div
           ref={sheetRef}
           inert={sheetClosedOnPhone}
@@ -487,15 +448,15 @@ export function AuthShell() {
           className={cn(
             "relative flex flex-col",
             // Phones: bottom sheet over the photo (radius 32, slides up in 0.5 s).
-            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:mx-auto max-lg:max-h-[92dvh] max-lg:min-h-[72dvh] max-lg:w-full max-lg:max-w-[560px] max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:rounded-t-[32px] max-lg:bg-background max-lg:transition-[translate] max-lg:duration-500 max-lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] max-lg:motion-reduce:transition-none",
+            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:mx-auto max-lg:max-h-[88dvh] max-lg:w-full max-lg:max-w-[560px] max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:rounded-t-[32px] max-lg:bg-background max-lg:transition-[translate] max-lg:duration-500 max-lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] max-lg:motion-reduce:transition-none",
             sheetOpen ? "max-lg:translate-y-0" : "max-lg:translate-y-full",
             // Desktop: the card. P = 24 px: card padding, and the gap between the panel and the form area. It enters once, on page load.
-            "lg:mt-0 lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-2 lg:gap-x-6 lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-6",
+            "lg:mt-0 lg:grid lg:h-full lg:max-h-[820px] lg:w-full lg:max-w-[1200px] lg:flex-none lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-x-(--auth-p) lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-(--auth-p)",
             "lg:animate-in lg:duration-[600ms] lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:fill-mode-backwards lg:fade-in lg:zoom-in-98 lg:slide-in-from-bottom-4"
           )}
         >
           {/* Phones: drag handle. Swiping the handle or the sheet down closes it. */}
-          <div className="sticky top-0 z-10 flex h-8 shrink-0 touch-none items-center justify-center bg-background lg:hidden">
+          <div className="sticky top-0 z-10 flex h-6 shrink-0 touch-none items-center justify-center bg-background lg:hidden">
             <span aria-hidden className="h-1.5 w-10 rounded-full bg-border" />
           </div>
 
@@ -504,9 +465,9 @@ export function AuthShell() {
             data-crossfade
             className={cn(
               // Same box as the form area, inset P (24 px) from the card. The solid frame is a huge background-colored shadow clipped by the card, so it follows the panel.
-              "pointer-events-none absolute inset-y-6 left-6 hidden w-[calc(50%-36px)] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
+              "pointer-events-none absolute inset-y-(--auth-p) left-(--auth-p) hidden w-[calc(50%-1.5*var(--auth-p))] rounded-[20px] shadow-[0_0_0_100vmax_var(--background)] transition-transform duration-[550ms] lg:block motion-reduce:duration-0",
               EASE,
-              signup ? "translate-x-[calc(100%+24px)]" : "translate-x-0"
+              signup ? "translate-x-[calc(100%+var(--auth-p))]" : "translate-x-0"
             )}
           >
             <HighlightPanel signup={signup} className="pointer-events-auto size-full" />
@@ -517,10 +478,10 @@ export function AuthShell() {
           </FormPane>
 
           <FormPane active={!signup} side="right">
-            <SwapStage
-              active={mode === "forgot" || mode === "reset" ? "recovery" : "login"}
-              login={<SignInForm next={next} linkError={params.get("erro") === "link"} />}
-              recovery={mode === "reset" ? <ResetPasswordForm /> : <ForgotPasswordForm />}
+            <SlideSwap
+              active={mode === "forgot" || mode === "reset" ? "second" : "first"}
+              first={<SignInForm next={next} linkError={params.get("erro") === "link"} />}
+              second={mode === "reset" ? <ResetPasswordForm /> : <ForgotPasswordForm />}
             />
           </FormPane>
         </div>

@@ -4,11 +4,12 @@ import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { toast } from "sonner"
 
-import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signInWithGoogle } from "@/features/auth/actions"
+import { GOOGLE_UNAVAILABLE } from "@/features/auth/messages"
 import { cn } from "@/lib/utils"
 
 /**
@@ -28,7 +29,6 @@ export function GoogleMark({ className }: { className?: string }) {
 
 export function GoogleButton({ next = "/hoje" }: { next?: string }) {
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
 
   return (
     <div className="flex flex-col gap-2">
@@ -40,15 +40,18 @@ export function GoogleButton({ next = "/hoje" }: { next?: string }) {
         className={authButtonClass}
         onClick={() =>
           startTransition(async () => {
-            setError(null)
-            const result = await signInWithGoogle(next)
-            if (result && !result.ok) setError(result.error)
+            // Never surface a raw provider/Supabase error: a friendly toast is enough.
+            try {
+              const result = await signInWithGoogle(next)
+              if (result && !result.ok) toast.error(result.error)
+            } catch {
+              toast.error(GOOGLE_UNAVAILABLE)
+            }
           })
         }
       >
         <GoogleMark /> {pending ? "Abrindo o Google…" : "Continuar com Google"}
       </Button>
-      {error ? <FormMessage kind="error">{error}</FormMessage> : null}
     </div>
   )
 }
@@ -91,10 +94,13 @@ export const authMotion =
   "transition-[color,background-color,border-color,box-shadow,transform,scale,opacity,text-decoration-color,text-underline-offset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 
 /** Inputs and the `xl` buttons share the same height (52 px) and radius (12 px). */
-export const authInputClass = cn("h-[52px] rounded-xl px-4 py-0 text-base md:h-[52px] md:text-base", authMotion)
+export const authInputClass = cn("h-(--auth-field) rounded-xl px-4 py-0 text-base md:h-(--auth-field) md:text-base", authMotion)
 
 /** Use with `<Button size="xl">`. */
-export const authButtonClass = cn("w-full", authMotion)
+export const authButtonClass = cn("h-(--auth-field) w-full", authMotion)
+
+/** Field label: 13 px on phones, 14 px on desktop. */
+export const authLabelClass = "text-(length:--auth-label) leading-5"
 
 /** Entrance reveal: class + per-item index (see .auth-reveal in globals.css). */
 export const R = "auth-reveal"
@@ -124,5 +130,33 @@ export function AuthLink({ href, className, children }: { href: string; classNam
     >
       {children}
     </Link>
+  )
+}
+
+/**
+ * Horizontal swap between two panes that share one grid cell, so the stage is as tall as the taller pane and nothing
+ * moves vertically. The leaving pane fades out sliding 24 px left while the other fades in from the right; going back
+ * reverses it (0.4 s, no movement under prefers-reduced-motion).
+ */
+export function SlideSwap({ active, first, second, className }: { active: "first" | "second"; first: React.ReactNode; second: React.ReactNode; className?: string }) {
+  const slot =
+    "col-start-1 row-start-1 flex w-full justify-center self-center transition-[opacity,translate] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+  return (
+    <div className={cn("-mx-2 grid w-full max-w-[420px] overflow-x-clip px-2", className)}>
+      <div
+        inert={active !== "first"}
+        aria-hidden={active !== "first"}
+        className={cn(slot, active === "first" ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-6 opacity-0 motion-reduce:translate-x-0")}
+      >
+        {first}
+      </div>
+      <div
+        inert={active !== "second"}
+        aria-hidden={active !== "second"}
+        className={cn(slot, active === "second" ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-6 opacity-0 motion-reduce:translate-x-0")}
+      >
+        {second}
+      </div>
+    </div>
   )
 }

@@ -14,7 +14,7 @@ import { resetPassword } from "@/features/auth/actions"
 import { PASSWORD_RULES, resetPasswordSchema, type ResetPasswordInput } from "@/features/auth/schemas"
 import { cn } from "@/lib/utils"
 
-import { authButtonClass, PasswordInput, R, rs } from "./auth-parts"
+import { authButtonClass, authLabelClass, PasswordInput, R, rs } from "./auth-parts"
 
 export function ResetPasswordForm() {
   const router = useRouter()
@@ -43,18 +43,18 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-6">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className={cn("text-[28px] leading-9 font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
+    <div className="flex w-full max-w-[420px] flex-col gap-(--auth-gap)">
+      <div className="flex flex-col gap-1.5 text-center">
+        <h1 className={cn("text-(length:--auth-title) leading-[1.25] font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
           Criar nova senha
         </h1>
-        <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(1)}>
+        <p className={cn("text-(length:--auth-sub) leading-snug text-muted-foreground", R)} style={rs(1)}>
           Escolha uma senha que você não use em outros lugares.
         </p>
       </div>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className={cn("flex flex-col gap-5", R)} style={rs(2)}>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="reset-password">Nova senha</Label>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className={cn("flex flex-col gap-(--auth-gap)", R)} style={rs(2)}>
+        <div className="flex flex-col gap-1.5">
+          <Label className={authLabelClass} htmlFor="reset-password">Nova senha</Label>
           <PasswordInput id="reset-password" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
           <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
             {PASSWORD_RULES.map((rule) => {
@@ -68,8 +68,8 @@ export function ResetPasswordForm() {
             })}
           </ul>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="reset-confirm">Confirmar nova senha</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label className={authLabelClass} htmlFor="reset-confirm">Confirmar nova senha</Label>
           <PasswordInput id="reset-confirm" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.confirmPassword)} {...register("confirmPassword")} />
           {errors.confirmPassword ? <FormMessage kind="error">{errors.confirmPassword.message}</FormMessage> : null}
         </div>

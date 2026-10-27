@@ -13,7 +13,7 @@ import { signUp } from "@/features/auth/actions"
 import { maskPhone, signUpSchema, type SignUpInput } from "@/features/auth/schemas"
 import { cn } from "@/lib/utils"
 
-import { AuthLink, authButtonClass, authInputClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
+import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
 
 export function SignUpForm() {
   const router = useRouter()
@@ -46,12 +46,12 @@ export function SignUpForm() {
   }
 
   return (
-    <div className="flex w-full max-w-[420px] flex-col gap-4">
-      <div className="flex flex-col gap-2 text-center">
-        <h1 className={cn("text-[28px] leading-9 font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
+    <div className="flex w-full max-w-[420px] flex-col gap-(--auth-gap)">
+      <div className="flex flex-col gap-1.5 text-center">
+        <h1 className={cn("text-(length:--auth-title) leading-[1.25] font-semibold tracking-[-0.02em]", R)} style={rs(0)}>
           Criar conta
         </h1>
-        <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(1)}>
+        <p className={cn("text-(length:--auth-sub) leading-snug text-muted-foreground", R)} style={rs(1)}>
           Leva menos de um minuto.
         </p>
       </div>
@@ -61,14 +61,14 @@ export function SignUpForm() {
           Enviamos um link de confirmação para {sentTo}. Abra o e-mail e toque no link para ativar sua conta.
         </FormMessage>
       ) : (
-        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-          <div className={cn("flex flex-col gap-2", R)} style={rs(2)}>
-            <Label htmlFor="signup-name">Nome completo</Label>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-(--auth-gap)">
+          <div className={cn("flex flex-col gap-1.5", R)} style={rs(2)}>
+            <Label className={authLabelClass} htmlFor="signup-name">Nome completo</Label>
             <Input id="signup-name" autoComplete="name" className={authInputClass} aria-invalid={Boolean(errors.fullName)} {...register("fullName")} />
             {errors.fullName ? <FormMessage kind="error">{errors.fullName.message}</FormMessage> : null}
           </div>
-          <div className={cn("flex flex-col gap-2", R)} style={rs(3)}>
-            <Label htmlFor="signup-email">E-mail</Label>
+          <div className={cn("flex flex-col gap-1.5", R)} style={rs(3)}>
+            <Label className={authLabelClass} htmlFor="signup-email">E-mail</Label>
             <Input
               id="signup-email"
               type="email"
@@ -81,10 +81,10 @@ export function SignUpForm() {
             />
             {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
           </div>
-          <div className={cn("flex flex-col gap-2", R)} style={rs(4)}>
-            <Label htmlFor="signup-phone">Telefone</Label>
+          <div className={cn("flex flex-col gap-1.5", R)} style={rs(4)}>
+            <Label className={authLabelClass} htmlFor="signup-phone">Telefone</Label>
             <div className="flex gap-2">
-              <span className="flex h-[52px] shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">
+              <span className="flex h-(--auth-field) shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">
                 +55
               </span>
               <Controller
@@ -108,8 +108,8 @@ export function SignUpForm() {
             </div>
             {errors.phone ? <FormMessage kind="error">{errors.phone.message}</FormMessage> : null}
           </div>
-          <div className={cn("flex flex-col gap-2", R)} style={rs(5)}>
-            <Label htmlFor="signup-password">Senha</Label>
+          <div className={cn("flex flex-col gap-1.5", R)} style={rs(5)}>
+            <Label className={authLabelClass} htmlFor="signup-password">Senha</Label>
             <PasswordInput id="signup-password" placeholder="Sua senha aqui" autoComplete="new-password" aria-invalid={Boolean(errors.password)} {...register("password")} />
             {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
           </div>
@@ -127,7 +127,7 @@ export function SignUpForm() {
         <GoogleButton />
       </div>
 
-      <p className={cn("text-center text-[15px] leading-6 text-muted-foreground", R)} style={rs(9)}>
+      <p className={cn("text-center text-(length:--auth-text) leading-6 text-muted-foreground", R)} style={rs(9)}>
         Já tem conta?{" "}
         <AuthLink href="/entrar" className={cn(authLinkClass, "font-medium text-foreground underline")}>
           Entrar
