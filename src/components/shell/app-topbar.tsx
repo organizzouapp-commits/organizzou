@@ -5,10 +5,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, LogOutIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, LogOutIcon, SearchIcon } from "lucide-react"
 
-import { useAssistant } from "@/components/assistant/assistant-context"
-import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
+import { HeaderActions } from "@/components/organizzou/header-actions"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,7 +27,6 @@ import type { ShellUser } from "./app-sidebar"
 import { ACCOUNT_ITEMS } from "./account-menu"
 import { metaFor } from "./nav"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { usePrimaryActionValue } from "./primary-action"
 
 const NOTIFICATIONS = [
   { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
@@ -49,6 +47,8 @@ type AppTopBarProps = {
   user: ShellUser
   nowIso: string
   onSearch: () => void
+  /** Desktop inline search: hands the typed text to the command palette. */
+  onSearchWith: (query: string) => void
   /** The collapsed layout replaces the desktop header with TopHeader; only the mobile bar stays. */
   hideDesktop?: boolean
 }
@@ -91,20 +91,20 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           aria-label="Menu da conta"
           className={cn(
             "flex min-w-0 items-center gap-3 rounded-full text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-            header ? "h-9 min-[1440px]:pr-3" : "p-1 md:pr-3"
+            header ? "h-9 pr-2 min-[1440px]:pr-3" : "p-1 md:pr-3"
           )}
         >
           <Avatar className={cn("shrink-0", header ? "size-9" : "size-10")}>
             <AvatarFallback>{initials(user.name)}</AvatarFallback>
           </Avatar>
           {compact ? null : (
-            <span className={header ? "hidden min-w-0 items-center gap-2 min-[1440px]:flex" : "hidden min-w-0 items-center gap-2 2xl:flex"}>
-              <span className="flex min-w-0 flex-col leading-tight">
+            <>
+              <span className="hidden min-w-0 flex-col leading-tight min-[1440px]:flex">
                 <span className="max-w-40 truncate text-[15px] font-medium">{user.name}</span>
                 <span className="max-w-40 truncate text-[13px] text-muted-foreground">{user.email}</span>
               </span>
               <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-            </span>
+            </>
           )}
         </button>
       </DropdownMenuTrigger>
@@ -144,9 +144,7 @@ export function usePageHeading(user: ShellUser, nowIso: string) {
   return { title, subtitle, isToday }
 }
 
-export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, hideDesktop = false }: AppTopBarProps) {
-  const { openQuickCapture } = useAssistant()
-  const primary = usePrimaryActionValue()
+export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, onSearchWith, hideDesktop = false }: AppTopBarProps) {
   const { title, subtitle, isToday } = usePageHeading(user, nowIso)
 
   return (
@@ -157,27 +155,7 @@ export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, hideD
           <h1 className="truncate text-[28px] leading-9 font-semibold tracking-[-0.02em]">{title}</h1>
           <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onSearch}
-            aria-label="Buscar"
-            className="hidden h-11 w-64 items-center gap-3 rounded-full border border-border bg-card px-4 text-left text-[15px] text-muted-foreground outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 2xl:flex"
-          >
-            <SearchIcon aria-hidden strokeWidth={1.75} className="size-4" />
-            <span className="flex-1">Buscar…</span>
-            <kbd className="rounded-md border border-border px-1.5 text-[11px] leading-5">Ctrl K</kbd>
-          </button>
-          <Button variant="surface" size="icon" className="rounded-full 2xl:hidden" aria-label="Buscar" onClick={onSearch}>
-            <SearchIcon strokeWidth={1.75} />
-          </Button>
-          <Bell />
-          <ThemeToggle round surface />
-          <UserMenu user={user} />
-          <Button size="lg" className="h-11 rounded-full px-5 md:h-11" onClick={primary?.onClick ?? openQuickCapture}>
-            <PlusIcon strokeWidth={1.75} /> {primary?.label ?? "Novo"}
-          </Button>
-        </div>
+        <HeaderActions user={user} onSearch={onSearchWith} />
       </header>
 
       {/* Mobile */}
