@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { LoadingOverlay } from "@/components/organizzou/loading-overlay"
+import { startLoadingHandoff } from "@/components/organizzou/loading-handoff"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signInWithGoogle } from "@/features/auth/actions"
@@ -36,7 +36,6 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {redirecting ? <LoadingOverlay /> : null}
       <Button
         type="button"
         variant="outline"
@@ -51,6 +50,7 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
               const result = await signInWithGoogle(next)
               if (result.ok) {
                 setRedirecting(true)
+                startLoadingHandoff()
                 window.location.assign(result.url)
               } else {
                 toast.error(result.error)

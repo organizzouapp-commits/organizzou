@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Geist_Mono, Outfit } from "next/font/google";
+import { LoadingHandoff } from "@/components/organizzou/loading-handoff";
 import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -54,6 +56,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
           <CookieConsent />
+          <Suspense fallback={null}>
+            <LoadingHandoff />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

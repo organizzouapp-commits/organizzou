@@ -4,25 +4,24 @@ import { cn } from "@/lib/utils"
 const DIR = "/brand/animada"
 
 type Variant = "loading" | "entrance"
-type Size = "lg" | "md" | "icon"
+type Size = "fluid" | "lg" | "md" | "icon"
 
 type AnimatedLogoProps = {
   /** "entrance" plays the ~2.6 s intro once; "loading" plays it and then loops a calm wave on the bars. */
   variant: Variant
-  /** lg: hero (72 px, up to 120 px on tall screens). md: 40 px. icon: the square app icon. */
+  /** fluid: full-screen loading, min(420px, 80vw) wide. lg: hero (72 px, up to 120 px tall). md: 40 px. icon: the square app icon, only for tiny inline spots (never for loading screens). */
   size?: Size
   /**
    * Use the opposite tone of the theme: for logos over the background photo, where the dark theme gets dark text (like the
    * static logos did). Default follows the theme: light text in dark mode, dark text in light mode.
    */
   inverse?: boolean
-  /** Swap the wordmark for the icon below 768 px, where the wide logo would not fit. */
-  iconOnMobile?: boolean
   className?: string
 }
 
 const WORDMARK_RATIO = { width: 597, height: 136 }
 const SIZE_CLASS: Record<Size, string> = {
+  fluid: "w-[min(420px,80vw)]",
   lg: "h-[72px] md:h-[clamp(72px,15dvh,120px)]",
   md: "h-10",
   icon: "size-16",
@@ -42,7 +41,7 @@ export function animatedLogoSources(variant: Variant) {
  * mismatch and no flash. The wrapper has a fixed height and the images carry their intrinsic size, so nothing shifts.
  * Rendered without hooks: usable from server and client components. Preloads the files for the route (React hoists <link>).
  */
-export function AnimatedLogo({ variant, size = "md", inverse = false, iconOnMobile = false, className }: AnimatedLogoProps) {
+export function AnimatedLogo({ variant, size = "md", inverse = false, className }: AnimatedLogoProps) {
   const src = animatedLogoSources(variant)
   const wrapper = cn("inline-flex shrink-0 items-center justify-center", SIZE_CLASS[size], className)
 
@@ -58,15 +57,15 @@ export function AnimatedLogo({ variant, size = "md", inverse = false, iconOnMobi
   // Dark theme shows the file for dark backgrounds ("escuro", light text); `inverse` flips that.
   const forDark = inverse ? src.claro : src.escuro
   const forLight = inverse ? src.escuro : src.claro
+  // fluid: the box is as wide as the viewport allows and the height follows the intrinsic ratio; otherwise the height is fixed.
+  const fit = size === "fluid" ? "h-auto w-full" : "h-full w-auto"
   const img = { ...WORDMARK_RATIO, decoding: "async" as const }
 
   return (
     <span className={wrapper}>
-      <link rel="preload" as="image" href={forDark} media={iconOnMobile ? "(min-width: 768px)" : undefined} />
-      {iconOnMobile ? <link rel="preload" as="image" href={src.icone} media="(max-width: 767px)" /> : null}
-      {iconOnMobile ? <img src={src.icone} alt="Organizzou" width={120} height={120} decoding="async" className="h-full w-auto md:hidden" /> : null}
-      <img src={forDark} alt="Organizzou" {...img} className={cn("h-full w-auto", iconOnMobile ? "hidden dark:md:block" : "hidden dark:block")} />
-      <img src={forLight} alt="Organizzou" {...img} className={cn("h-full w-auto", iconOnMobile ? "hidden md:block dark:md:hidden" : "block dark:hidden")} />
+      <link rel="preload" as="image" href={forDark} />
+      <img src={forDark} alt="Organizzou" {...img} className={cn(fit, "hidden dark:block")} />
+      <img src={forLight} alt="Organizzou" {...img} className={cn(fit, "block dark:hidden")} />
     </span>
   )
 }

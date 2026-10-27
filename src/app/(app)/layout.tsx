@@ -39,9 +39,9 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   )
 }
 
-// First session load / session refresh: the blocking full-page state, with the icon-only loading logo (after ~300 ms).
+// First session load / session refresh: the blocking full-page state, with the full loading logotype (after ~300 ms).
 function ShellFallback() {
-  return <LoadingScreen icon delayed />
+  return <LoadingScreen delayed />
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

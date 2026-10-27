@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
-import { LoadingOverlay } from "@/components/organizzou/loading-overlay"
+import { startLoadingHandoff } from "@/components/organizzou/loading-handoff"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,8 +19,6 @@ import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClas
 export function SignInForm({ next, linkError, oauthError }: { next: string; linkError?: boolean; oauthError?: boolean }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  // After a successful login the loading logo covers the screen until the dashboard takes over.
-  const [leaving, setLeaving] = useState(false)
   const [error, setError] = useState<string | null>(
     oauthError
       ? "Não foi possível entrar com o Google. Tente de novo."
@@ -42,7 +40,8 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
         setError(result.error)
         return
       }
-      setLeaving(true)
+      // The overlay lives in the root layout, so it survives the navigation until the dashboard is ready.
+      startLoadingHandoff()
       router.replace(next)
       router.refresh()
     })
@@ -59,7 +58,6 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
         </p>
       </div>
 
-      {leaving ? <LoadingOverlay /> : null}
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-(--auth-gap)">
         <div className={cn("flex flex-col gap-1.5", R)} style={rs(2)}>
           <Label className={authLabelClass} htmlFor="login-email">E-mail</Label>
