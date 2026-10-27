@@ -311,8 +311,8 @@ input:-webkit-autofill:focus-visible {
 }
 
 /* ---------- App frame (app shell) ----------
-   Layer 0: the ORIGINAL photo, sharp (+ --app-bg-tint). Layer 1 (md+): the big frame shows a PRE-BLURRED copy of the same photo
-   inside it, aligned pixel-perfect with the sharp one, plus --glass-frame-bg and a top highlight: fake frosted glass with NO
+   Layer 0: the photo LIGHTLY pre-blurred (+ --app-bg-tint). Layer 1 (md+): the big frame shows a HEAVILY pre-blurred copy of the
+   same photo inside it, aligned pixel-perfect with layer 0 (blur strengths: scripts/make-glass-bg.mjs), plus --glass-frame-bg and a top highlight: fake frosted glass with NO
    backdrop-filter and NO CSS blur at runtime (they made scrolling heavy). Sidebar, cards, bars and round buttons are solid
    tokens (--sidebar / --card with a 1px --border). Popovers, dialogs, sheets and the command palette stay solid as well. */
 :root {

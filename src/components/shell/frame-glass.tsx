@@ -1,8 +1,10 @@
 /**
- * The frosted glass of the big frame, FAKED (no backdrop-filter, no CSS filter): a pre-blurred copy of the photo
- * (`npm run glass-bg`) painted inside the frame and aligned pixel-perfect with the sharp photo behind it.
+ * The frosted glass of the big frame, FAKED (no backdrop-filter, no CSS filter): a heavily pre-blurred copy of the photo
+ * (`npm run glass-bg`) painted inside the frame and aligned pixel-perfect with the lightly blurred photo behind it. Both are
+ * derived from the same sharp original with the same aspect ratio; the heavy one is exported small (low frequency) and
+ * scaled up by object-fit: cover.
  *
- * Alignment: the sharp photo fills the viewport (`fixed inset-0`, object-fit: cover). This layer is a viewport-sized box
+ * Alignment: the base photo fills the viewport (`fixed inset-0`, object-fit: cover). This layer is a viewport-sized box
  * (100vw x 100vh, object-fit: cover, same focal point) pushed back by the frame's own distance from the viewport, so each
  * pixel lands exactly over the same pixel of the sharp photo. The frame is `fixed inset-5` (20 px) with a 1 px border, hence
  * the -21 px. It is sized in viewport units, so it stays aligned on resize, and the frame never moves when the sidebar
