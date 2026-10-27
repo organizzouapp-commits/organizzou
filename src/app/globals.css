@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-surgena), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -167,7 +167,6 @@
   html { color-scheme: dark; }
   html:not(.dark) { color-scheme: light; }
   body { -webkit-font-smoothing: antialiased; }
-  html { font-synthesis: none; }
   .tabular { font-variant-numeric: tabular-nums; }
   ::selection { background: var(--highlight); color: var(--highlight-foreground); }
   @media (prefers-reduced-motion: reduce) {
@@ -224,21 +223,22 @@ input:-webkit-autofill:focus-visible {
     0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
 }
 
-/* Auth sizing tokens. Desktop is fluid on viewport HEIGHT so the card never scrolls (1280x800 ... 1920x1080);
-   phones use fixed compact values. */
+/* Auth sizing tokens. Desktop card: ~1120x640 at 1280x800, ~1180x700 at 1440x900, capped at 1240x760; it scales with viewport
+   width AND height, never scrolls, and every inner size is a clamp() of the card height (--auth-ch). Phones use fixed compact values. */
 .auth-root {
-  --auth-m: clamp(10px, 3dvh, 28px); /* viewport margin around the card */
-  --auth-p: clamp(10px, 2.6dvh, 24px); /* card padding and panel gap */
-  --auth-pp: clamp(14px, 2.8dvh, 28px); /* form pane inner padding */
-  --auth-field: clamp(38px, 5.8dvh, 52px); /* input and button height */
-  --auth-gap: clamp(9px, 1.9dvh, 20px); /* between fields and blocks */
-  --auth-title: clamp(21px, 3.5dvh, 28px);
-  --auth-sub: clamp(13px, 2dvh, 16px);
-  --auth-hl: clamp(28px, 5.2dvh, 40px); /* panel headline */
-  --auth-step-h: clamp(84px, 15.5dvh, 128px);
-  --auth-logo: clamp(26px, 5dvh, 40px);
+  --auth-cw: min(calc(100vw - 64px), clamp(900px, calc(1120px + (100vw - 1280px) * 0.375), 1240px));
+  --auth-ch: min(calc(100dvh - 32px), clamp(520px, calc(640px + (100dvh - 800px) * 0.6), 760px));
+  --auth-p: clamp(10px, calc(var(--auth-ch) * 0.03), 24px); /* card padding and panel gap */
+  --auth-pp: clamp(14px, calc(var(--auth-ch) * 0.03), 28px); /* form pane inner padding */
+  --auth-field: clamp(38px, calc(var(--auth-ch) * 0.061), 52px); /* input and button height */
+  --auth-gap: clamp(9px, calc(var(--auth-ch) * 0.019), 20px); /* between fields and blocks */
+  --auth-title: clamp(21px, calc(var(--auth-ch) * 0.042), 28px);
+  --auth-sub: clamp(13px, calc(var(--auth-ch) * 0.023), 16px);
+  --auth-hl: clamp(28px, calc(var(--auth-ch) * 0.06), 40px); /* panel headline */
+  --auth-step-h: clamp(84px, calc(var(--auth-ch) * 0.17), 128px);
+  --auth-logo: clamp(26px, calc(var(--auth-ch) * 0.055), 40px);
   --auth-label: 14px;
-  --auth-text: clamp(13px, 1.9dvh, 15px);
+  --auth-text: clamp(13px, calc(var(--auth-ch) * 0.021), 15px);
 }
 @media (max-width: 1023px) {
   .auth-root {

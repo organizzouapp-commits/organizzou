@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
-import localFont from "next/font/local";
+import { Geist_Mono, Outfit } from "next/font/google";
 import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-// Surgena (the logo typeface) is the UI font. Single SemiBold file registered as 600; every weight maps to it.
-// Personal-use license: a commercial web-font license is required before launch (DESIGN-SYSTEM §4).
-const surgena = localFont({
-  src: "../fonts/Surgena-SemiBold.woff2",
-  weight: "600",
-  style: "normal",
-  variable: "--font-surgena",
+// Outfit (Google Fonts, OFL) is the UI font. Surgena lives only inside the logo artwork.
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin", "latin-ext"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
-  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
 });
 
 const geistMono = Geist_Mono({
@@ -34,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${surgena.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider

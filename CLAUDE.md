@@ -28,7 +28,7 @@ Read these before any UI or product work:
 5. Errors/destructive actions: icon + text + confirmation dialog. Never rely on color alone.
 6. Dark mode is the default (`next-themes`, `defaultTheme="dark"`); light mode must be complete.
 7. Clean layout: generous spacing, hairline dividers, lists before cards, no shadows in dark mode, radii 12/16/20 px,
-   44 px minimum touch targets, Surgena font (Geist Mono for code), `tabular-nums` for numbers, Lucide icons (stroke 1.75).
+   44 px minimum touch targets, Outfit font (Geist Mono for code), `tabular-nums` for numbers, Lucide icons (stroke 1.75).
 8. Build new UI from **shadcn/ui components (via the shadcn MCP)** and the shared components in
    `src/components/organizzou/`. Don't create one-off styled duplicates.
 9. **Layout v3** (DESIGN-SYSTEM §5.1–5.3): bento grid with 24 px cards and one Lima KPI per screen, floating sidebar + top bar

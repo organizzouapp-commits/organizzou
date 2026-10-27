@@ -102,7 +102,7 @@ function HighlightCopy({
         {copy.badge}
       </span>
       <h2
-        className={cn("text-(length:--auth-hl) leading-[1.12] font-semibold tracking-[-0.025em]", ON_PHOTO, enter, reveal)}
+        className={cn("text-(length:--auth-hl) leading-[1.12] font-semibold tracking-[-0.02em]", ON_PHOTO, enter, reveal)}
         style={{ transitionDelay: active ? "60ms" : "0ms", ...rs(2) }}
       >
         {copy.headline}
@@ -121,7 +121,7 @@ function HighlightCopy({
                 onClick={() => onStep(index)}
                 aria-current={isActive ? "step" : undefined}
                 className={cn(
-                  "group/step flex h-(--auth-step-h) w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
+                  "group/step flex min-h-(--auth-step-h) h-full w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
                   "hover:-translate-y-1 hover:border-highlight/40 focus-visible:-translate-y-1 focus-visible:border-highlight/40 focus-visible:ring-3 focus-visible:ring-ring/50",
                   "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   isActive
@@ -144,7 +144,7 @@ function HighlightCopy({
                 >
                   {index + 1}
                 </span>
-                <span className="text-(length:--auth-text) leading-[1.2] tracking-[-0.01em]">{label}</span>
+                <span className="text-(length:--auth-text) leading-[1.2]">{label}</span>
               </button>
             </li>
           )
@@ -319,7 +319,7 @@ export function AuthShell() {
     if (!below || !sheet || !area) return
     function place() {
       if (!sheet || !area) return
-      area.style.height = `${Math.max(64, window.innerHeight - sheet.offsetHeight)}px`
+      area.style.height = `${Math.max(72, window.innerHeight - sheet.offsetHeight)}px`
     }
     place()
     const observer = new ResizeObserver(place)
@@ -405,11 +405,11 @@ export function AuthShell() {
             sheetOpen ? "pointer-events-auto scale-100 opacity-100 delay-200" : "pointer-events-none scale-90 opacity-0"
           )}
         >
-          <ThemedLogo className="h-8" />
+          <ThemedLogo className="h-10" />
         </button>
       </div>
 
-      <div className="mx-auto flex min-h-dvh w-full flex-col lg:h-dvh lg:items-center lg:justify-center lg:p-(--auth-m)">
+      <div className="mx-auto flex min-h-dvh w-full flex-col lg:h-dvh lg:items-center lg:justify-center">
         <div
           ref={sheetRef}
           inert={sheetClosedOnPhone}
@@ -451,7 +451,7 @@ export function AuthShell() {
             "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:mx-auto max-lg:max-h-[88dvh] max-lg:w-full max-lg:max-w-[560px] max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:rounded-t-[32px] max-lg:bg-background max-lg:transition-[translate] max-lg:duration-500 max-lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] max-lg:motion-reduce:transition-none",
             sheetOpen ? "max-lg:translate-y-0" : "max-lg:translate-y-full",
             // Desktop: the card. P = 24 px: card padding, and the gap between the panel and the form area. It enters once, on page load.
-            "lg:mt-0 lg:grid lg:h-full lg:max-h-[820px] lg:w-full lg:max-w-[1200px] lg:flex-none lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-x-(--auth-p) lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-(--auth-p)",
+            "lg:mt-0 lg:grid lg:h-(--auth-ch) lg:w-(--auth-cw) lg:flex-none lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] lg:gap-x-(--auth-p) lg:overflow-hidden lg:rounded-[28px] lg:border lg:border-border lg:bg-transparent lg:p-(--auth-p)",
             "lg:animate-in lg:duration-[600ms] lg:ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:fill-mode-backwards lg:fade-in lg:zoom-in-98 lg:slide-in-from-bottom-4"
           )}
         >

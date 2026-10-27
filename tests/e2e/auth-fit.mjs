@@ -42,12 +42,15 @@ for (const [w, h] of [[1280, 800], [1366, 768], [1440, 900], [1920, 1080]])
           contentTop: content.top - box.top,
           contentBottom: legal.top - content.bottom,
           stepsOverflow: steps.bottom - asideBox.bottom,
+          clipped: [...aside.querySelectorAll("ol")].filter((o) => o.offsetParent).flatMap((o) => [...o.querySelectorAll("button")]).filter((b) => b.scrollHeight > b.clientHeight + 1 || b.querySelector("span:last-child").getBoundingClientRect().bottom > b.getBoundingClientRect().bottom).length,
+          card: (() => { const r = aside.parentElement.parentElement.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })(),
         }
       })
       const tag = `${route} ${w}x${h} ${theme}`
       ok(`no page scroll  ${tag}`, m.docScroll <= 0 && m.bodyScroll <= 0, JSON.stringify(m))
       ok(`form fits above legal links  ${tag}`, m.contentTop >= -1 && m.contentBottom >= -1, `top=${m.contentTop.toFixed(0)} gap=${m.contentBottom.toFixed(0)}`)
       ok(`steps inside panel  ${tag}`, m.stepsOverflow <= 0, `${m.stepsOverflow.toFixed(0)}`)
+      ok(`no clipped step text  ${tag}`, m.clipped === 0, `card=${m.card}`)
       if (route !== "recuperar-senha") await page.screenshot({ path: `${out}/${route}-${w}x${h}-${theme}.png` })
       await ctx.close()
     }
