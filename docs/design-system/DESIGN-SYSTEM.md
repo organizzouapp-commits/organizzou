@@ -244,6 +244,38 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
   A página `/politicas#privacidade` tem a seção "Cookies" com as três categorias.
 - É montado uma vez no layout raiz. Não há analytics no produto ainda.
 
+### 5.5 Glass surfaces (vidro fosco no app)
+
+Só o aparelho do app (`/dashboard/**`) usa vidro. Nenhuma cor nova: tudo é Papel, Grafite ou Tinta com transparência.
+Os tokens estão em `globals.css` (`--glass-*`, `--app-bg-tint`) e viram utilitários Tailwind, aplicados nos componentes
+compartilhados (Card, BentoCard, sidebar, top bar, BottomNav), nunca como classe avulsa por página.
+
+**Camadas**
+
+| Camada | O que é | Receita |
+|---|---|---|
+| 0 | Foto de fundo, fixa e sem rolagem | `public/images/app-bg-blur.webp` (desktop) e `app-bg-blur-mobile.webp` (<768 px), **já desfocadas** (gerar com `npm run glass-bg`; nada de `backdrop-filter` ao vivo). `scale(1.1)` para esconder as bordas. Tinta de tema por cima: escuro Tinta 66 %, claro Papel 60 % (`--app-bg-tint`) |
+| 1 | Moldura (`glass-frame`), só desktop/tablet | `fixed inset-5` (20 px), raio 32, escuro Papel 6 % / claro Papel 35 %, `blur(24px) saturate(1.2)`, borda 1 px Papel 14 % / 70 %, brilho interno no topo. O conteúdo rola **dentro** dela. Tem `contain: layout`, então sidebar e botões fixos se posicionam pela moldura |
+| 2 | Painel (`glass-panel`) | Sidebar flutuante: escuro Grafite 72 % / claro Papel 78 %, `blur(20px)`, borda 1 px a 10 %, raio 24 |
+| 2 | Card (`glass-card`) | Escuro Grafite 70 % / claro Papel 82 %, `blur(16px)`, borda 1 px Papel 8 % / Tinta 6 %, raio 24. Claro pode ter sombra `0 8px 24px rgb(12 14 7 / 0.06)`; escuro, nenhuma |
+| 2 | Linha (`glass-row`) | Mesmo preenchimento do card, **sem blur**: itens de lista e cards de kanban |
+| 2 | Barras mobile (`glass-bar-top`, `glass-bar-bottom`) | Receita do painel com uma linha fina na borda interna. No mobile não há moldura: fundo de tela cheia |
+
+O card de destaque (Lima) continua sólido. Botões redondos e a busca da top bar usam o vidro do card (`Button variant="glass"`).
+
+**Fica sólido (token `popover`)**: popovers, menus, dialogs, sheets, drawers e a paleta de comandos.
+
+**Regras**
+
+- No máximo moldura + **um** nível de blur (painéis e cards). Linhas de lista nunca têm `backdrop-filter`.
+- Contraste de texto ≥ 4,5:1 sobre o vidro, medido nos pixels renderizados (`tests/e2e/glass-contrast.mjs`). Se algo reprovar,
+  aumente a opacidade daquela superfície ou da tinta de fundo; não crie cor nova. Por isso `--muted-foreground` é Papel 68 % (escuro)
+  e Tinta 72 % (claro), e os rótulos de abas usam `text-foreground/75`.
+- Na sidebar, o tema claro agora usa texto Tinta (a sidebar deixou de ser escura no claro) e o logo segue o tema.
+- **Fallback**: sem `backdrop-filter` (`@supports not`) ou com `prefers-reduced-transparency: reduce`, os tokens trocam para os sólidos
+  (`--background`, `--card`, `--border`), os filtros viram `none` e a foto é coberta pela tinta opaca.
+- Rótulos de eixo de gráficos usam `fill-muted-foreground` (o Recharts 3 mudou o markup; o seletor cobre `.recharts-cartesian-axis-tick-value`).
+
 ---
 
 ## 6. Movimento

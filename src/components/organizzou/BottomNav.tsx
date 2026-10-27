@@ -59,7 +59,7 @@ export function BottomNav({ items, activeId, onSelect, onAdd, className }: Botto
     <nav
       aria-label="Navegação principal"
       className={cn(
-        "flex items-center border-t border-border bg-background px-2 pt-2 pb-3",
+        "glass-bar-bottom flex items-center px-2 pt-2 pb-3",
         className
       )}
     >

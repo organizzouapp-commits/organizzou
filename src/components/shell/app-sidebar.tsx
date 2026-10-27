@@ -37,7 +37,7 @@ export function isActivePath(pathname: string, href: string) {
 
 // Active item: Lima pill with Tinta icon and text. Hover: Papel 6%.
 const itemClass =
-  "h-11 rounded-full px-4 text-[15px] hover:bg-sidebar-accent data-active:bg-highlight data-active:font-medium data-active:text-highlight-foreground data-active:hover:bg-highlight group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
+  "h-11 rounded-full px-4 text-[15px] [@media(min-height:901px)_and_(max-height:960px)]:h-10 [@media(min-height:781px)_and_(max-height:900px)]:h-9 [@media(max-height:780px)]:h-8 hover:bg-sidebar-accent data-active:bg-highlight data-active:font-medium data-active:text-highlight-foreground data-active:hover:bg-highlight group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
 
 type AppSidebarProps = { counts: Partial<Record<ModuleId, number>> }
 
@@ -49,10 +49,10 @@ export function AppSidebar({ counts }: AppSidebarProps) {
 
   return (
     <Sidebar variant="floating" collapsible="icon">
-      <SidebarHeader className={cn("gap-3 px-5 pt-5 pb-1", collapsed && "items-center px-0")}>
+      <SidebarHeader className={cn("gap-3 px-5 pt-5 pb-1 [@media(max-height:820px)]:pt-3", collapsed && "items-center px-0")}>
         <div className={cn("flex items-center justify-between gap-2", collapsed && "flex-col")}>
           <Link href="/dashboard" aria-label="Organizzou — Hoje" className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-sidebar-ring/50">
-            {collapsed ? <Logo iconOnly className="size-10" /> : <Logo tone="on-dark" className="h-8" />}
+            {collapsed ? <Logo iconOnly className="size-10" /> : <Logo className="h-8" />}
           </Link>
           <button
             type="button"
@@ -65,14 +65,14 @@ export function AppSidebar({ counts }: AppSidebarProps) {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="gap-1 px-3">
+      <SidebarContent className="gap-1 px-3 [@media(max-height:820px)]:gap-0">
         {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label} className="px-0 py-1">
+          <SidebarGroup key={group.label} className="px-0 py-1 [@media(max-height:820px)]:py-0">
             <SidebarGroupLabel className="px-4 text-[11px] leading-4 font-semibold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
+              <SidebarMenu className="gap-0.5 [@media(max-height:900px)]:gap-0">
                 {group.items.map((id) => {
                   const m = modules[id]
                   const count = counts[id]
@@ -96,13 +96,13 @@ export function AppSidebar({ counts }: AppSidebarProps) {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-        <div className="mt-auto px-0 pt-2 pb-2 group-data-[collapsible=icon]:hidden">
+        <div className="mt-auto px-0 pt-2 pb-2 group-data-[collapsible=icon]:hidden [@media(max-height:900px)]:hidden">
           <WhatsAppCta />
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="gap-0 px-3 pb-4">
-        <SidebarMenu className="gap-0.5">
+      <SidebarFooter className="gap-0 px-3 pb-4 [@media(max-height:820px)]:pb-3">
+        <SidebarMenu className="gap-0.5 [@media(max-height:900px)]:gap-0">
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Configurações" isActive={isActivePath(pathname, "/dashboard/configuracoes")} className={itemClass}>
               <Link href="/dashboard/configuracoes">

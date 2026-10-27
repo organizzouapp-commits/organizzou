@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "glass-bg": "node scripts/make-glass-bg.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

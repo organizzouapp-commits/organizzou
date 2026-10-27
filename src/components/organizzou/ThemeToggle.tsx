@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
 
 type ThemeToggleProps = {
   round?: boolean
+  /** Card-glass fill (app top bar). */
+  glass?: boolean
   /** Shows "Modo claro" / "Modo escuro" on hover and focus. */
   tooltip?: boolean
   className?: string
@@ -16,12 +18,12 @@ type ThemeToggleProps = {
 
 // Both icons are always rendered and swapped with CSS, so there is no
 // hydration mismatch and no flash while next-themes resolves the theme.
-export function ThemeToggle({ round = false, tooltip = false, className }: ThemeToggleProps) {
+export function ThemeToggle({ round = false, glass = false, tooltip = false, className }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme()
 
   const button = (
     <Button
-      variant={round ? "outline" : "ghost"}
+      variant={glass ? "glass" : round ? "outline" : "ghost"}
       size="icon"
       className={cn(round && "rounded-full", className)}
       aria-label="Alternar entre tema claro e escuro"

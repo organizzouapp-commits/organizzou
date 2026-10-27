@@ -19,6 +19,7 @@ import { isMock } from "@/mocks/config"
 import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
+import { AppBackground } from "./app-background"
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
 import { AppTopBar } from "./app-topbar"
 import { CommandPalette } from "./command-palette"
@@ -97,12 +98,23 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   return (
     <AssistantProvider value={{ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }}>
       <PrimaryActionProvider>
-        <SidebarProvider open={open} onOpenChange={setChoice} cookieName={sidebarCookie}>
+        {/* Layer 0: pre-blurred photo + tint. Layer 1 (md+): the frosted frame, fixed at 20px, with `contain: layout` so the
+            sidebar and the floating buttons position against the frame even without backdrop-filter. */}
+        <AppBackground />
+        <SidebarProvider
+          open={open}
+          onOpenChange={setChoice}
+          cookieName={sidebarCookie}
+          className="md:glass-frame md:fixed md:inset-5 md:w-auto md:min-h-0 md:overflow-hidden md:rounded-[32px] md:contain-layout"
+        >
           <ThemeSync theme={theme} />
           <AppSidebar counts={counts} />
-          <SidebarInset className="min-w-0 bg-transparent">
+          <SidebarInset className="min-w-0 bg-transparent md:min-h-0 md:overflow-hidden">
             <AppTopBar user={user} nowIso={nowIso} onSearch={() => setSearchOpen(true)} />
-            <div className="mx-auto w-full max-w-[1440px] flex-1 px-4 pt-2 pb-28 md:px-6 md:pb-10">{children}</div>
+            {/* Desktop/tablet: the frame stays put and the content scrolls inside it. */}
+            <div className="flex-1 md:min-h-0 md:overflow-y-auto">
+              <div className="mx-auto w-full max-w-[1440px] px-4 pt-2 pb-28 md:px-6 md:pb-10">{children}</div>
+            </div>
           </SidebarInset>
 
           <AssistantFab className="fixed right-4 bottom-24 z-40 md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />

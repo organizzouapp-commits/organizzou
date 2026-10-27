@@ -31,7 +31,7 @@ export function TaskCardBody({ task, tags, now, timeZone, onOpen, onToggleComple
   return (
     <div
       className={cn(
-        "relative flex gap-3 overflow-hidden rounded-xl border border-border bg-card p-3 text-card-foreground",
+        "relative flex gap-3 overflow-hidden glass-row rounded-xl p-3 text-card-foreground",
         task.completed_at && "opacity-70",
         className
       )}

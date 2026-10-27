@@ -82,7 +82,7 @@
   --secondary: oklch(0.159 0.015 120.6 / 5%); /* Tinta #0C0E07 · 5% */
   --secondary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --muted: oklch(0.159 0.015 120.6 / 4%); /* Tinta #0C0E07 · 4% */
-  --muted-foreground: oklch(0.159 0.015 120.6 / 65%); /* Tinta #0C0E07 · 65% */
+  --muted-foreground: oklch(0.159 0.015 120.6 / 72%); /* Tinta #0C0E07 · 72% */
   --accent: oklch(0.159 0.015 120.6 / 6%); /* Tinta #0C0E07 · 6% */
   --accent-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --destructive: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
@@ -95,14 +95,14 @@
   --chart-3: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
   --chart-4: oklch(0.159 0.015 120.6 / 35%); /* Tinta #0C0E07 · 35% */
   --chart-5: oklch(0.224 0.021 120.5); /* Grafite #1A1D12 */
-  --sidebar: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 (dark sidebar on a light app) */
-  --sidebar-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
+  --sidebar: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 (glass panel on the frame) */
+  --sidebar-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --sidebar-primary: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --sidebar-primary-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
-  --sidebar-accent: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
-  --sidebar-accent-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
-  --sidebar-border: oklch(0.973 0.009 113.2 / 10%); /* Papel #F6F7F0 · 10% */
-  --sidebar-ring: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
+  --sidebar-accent: oklch(0.159 0.015 120.6 / 6%); /* Tinta #0C0E07 · 6% */
+  --sidebar-accent-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  --sidebar-border: oklch(0.159 0.015 120.6 / 10%); /* Tinta #0C0E07 · 10% */
+  --sidebar-ring: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
   --brand: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --brand-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   --brand-fold: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
@@ -123,7 +123,7 @@
   --secondary: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
   --secondary-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
   --muted: oklch(0.973 0.009 113.2 / 6%); /* Papel #F6F7F0 · 6% */
-  --muted-foreground: oklch(0.973 0.009 113.2 / 60%); /* Papel #F6F7F0 · 60% */
+  --muted-foreground: oklch(0.973 0.009 113.2 / 68%); /* Papel #F6F7F0 · 68% */
   --accent: oklch(0.973 0.009 113.2 / 8%); /* Papel #F6F7F0 · 8% */
   --accent-foreground: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
   --destructive: oklch(0.973 0.009 113.2); /* Papel #F6F7F0 */
@@ -308,4 +308,104 @@ input:-webkit-autofill:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .site-cta { transition-duration: 0.01ms; }
   .site-cta:hover, .site-cta:focus-visible { scale: none; }
+}
+
+/* ---------- Glass surfaces (app shell) ----------
+   Layer 0: pre-blurred photo + theme tint. Layer 1: the frosted frame (desktop/tablet). Layer 2: sidebar, cards, bars.
+   Only the frame and ONE level of panels/cards use backdrop-filter; list rows use glass-row (no blur).
+   Popovers, dropdowns, dialogs, sheets and the command palette stay solid (popover token). */
+:root {
+  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 35%, transparent);
+  --glass-frame-border: color-mix(in oklab, var(--palette-papel) 70%, transparent);
+  --glass-panel-bg: color-mix(in oklab, var(--palette-papel) 78%, transparent);
+  --glass-panel-border: color-mix(in oklab, var(--palette-tinta) 10%, transparent);
+  --glass-card-bg: color-mix(in oklab, var(--palette-papel) 82%, transparent);
+  --glass-card-border: color-mix(in oklab, var(--palette-tinta) 6%, transparent);
+  --glass-card-shadow: 0 8px 24px rgb(12 14 7 / 0.06);
+  --glass-edge: inset 0 1px 0 color-mix(in oklab, white 55%, transparent);
+  --glass-filter-frame: blur(24px) saturate(1.2);
+  --glass-filter-panel: blur(20px);
+  --glass-filter-card: blur(16px);
+  --app-bg-tint: color-mix(in oklab, var(--palette-papel) 60%, transparent);
+}
+.dark {
+  --glass-frame-bg: color-mix(in oklab, var(--palette-papel) 6%, transparent);
+  --glass-frame-border: color-mix(in oklab, var(--palette-papel) 14%, transparent);
+  --glass-panel-bg: color-mix(in oklab, var(--palette-grafite) 72%, transparent);
+  --glass-panel-border: color-mix(in oklab, var(--palette-papel) 10%, transparent);
+  --glass-card-bg: color-mix(in oklab, var(--palette-grafite) 70%, transparent);
+  --glass-card-border: color-mix(in oklab, var(--palette-papel) 8%, transparent);
+  --glass-card-shadow: none;
+  --glass-edge: inset 0 1px 0 color-mix(in oklab, var(--palette-papel) 14%, transparent);
+  --app-bg-tint: color-mix(in oklab, var(--palette-tinta) 66%, transparent);
+}
+
+/* No backdrop-filter, or the user asked for less transparency: the solid tokens take over (and the photo is covered). */
+@media (prefers-reduced-transparency: reduce) {
+  :root, .dark {
+    --glass-frame-bg: var(--background);
+    --glass-frame-border: var(--border);
+    --glass-panel-bg: var(--card);
+    --glass-panel-border: var(--border);
+    --glass-card-bg: var(--card);
+    --glass-card-border: var(--border);
+    --glass-card-shadow: none;
+    --glass-edge: none;
+    --glass-filter-frame: none;
+    --glass-filter-panel: none;
+    --glass-filter-card: none;
+    --app-bg-tint: var(--background);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, .dark {
+    --glass-frame-bg: var(--background);
+    --glass-frame-border: var(--border);
+    --glass-panel-bg: var(--card);
+    --glass-panel-border: var(--border);
+    --glass-card-bg: var(--card);
+    --glass-card-border: var(--border);
+    --glass-card-shadow: none;
+    --glass-edge: none;
+    --app-bg-tint: var(--background);
+  }
+}
+
+@utility glass-frame {
+  background-color: var(--glass-frame-bg);
+  -webkit-backdrop-filter: var(--glass-filter-frame);
+  backdrop-filter: var(--glass-filter-frame);
+  border: 1px solid var(--glass-frame-border);
+  box-shadow: var(--glass-edge);
+}
+@utility glass-panel {
+  background-color: var(--glass-panel-bg);
+  -webkit-backdrop-filter: var(--glass-filter-panel);
+  backdrop-filter: var(--glass-filter-panel);
+  border: 1px solid var(--glass-panel-border);
+}
+@utility glass-card {
+  background-color: var(--glass-card-bg);
+  -webkit-backdrop-filter: var(--glass-filter-card);
+  backdrop-filter: var(--glass-filter-card);
+  border: 1px solid var(--glass-card-border);
+  box-shadow: var(--glass-card-shadow);
+}
+/* Same fill as a card, no blur: rows and items inside lists and boards. */
+@utility glass-row {
+  background-color: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
+}
+/* Mobile top bar and BottomNav: the panel recipe with a single hairline on the inner edge. */
+@utility glass-bar-top {
+  background-color: var(--glass-panel-bg);
+  -webkit-backdrop-filter: var(--glass-filter-panel);
+  backdrop-filter: var(--glass-filter-panel);
+  border-bottom: 1px solid var(--glass-panel-border);
+}
+@utility glass-bar-bottom {
+  background-color: var(--glass-panel-bg);
+  -webkit-backdrop-filter: var(--glass-filter-panel);
+  backdrop-filter: var(--glass-filter-panel);
+  border-top: 1px solid var(--glass-panel-border);
 }
