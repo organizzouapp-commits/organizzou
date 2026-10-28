@@ -119,5 +119,5 @@ test("below 1280 px the header upgrade button hides (it stays in the avatar menu
   await page.goto("/dashboard")
   await expect(page.locator("header").getByRole("link", { name: "Fazer upgrade" })).toBeHidden()
   await page.getByRole("button", { name: "Menu da conta" }).click()
-  await expect(page.getByRole("link", { name: "Fazer upgrade" }).last()).toBeVisible()
+  await expect(page.getByRole("menuitem", { name: "Ver planos" })).toBeVisible()
 })

@@ -230,20 +230,22 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
         <div>
           <ThemedLogo className="h-10" />
         </div>
-        <h2 className={cn("mt-2 text-[34px] leading-[42px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
-          Sua vida, organizada.
-        </h2>
-        <p className={cn("text-base leading-6 opacity-80", R)} style={rs(2)}>
-          Tudo do seu dia em um só lugar.
-        </p>
+        {/* The photo stays untouched, so the text sits on a solid surface (a card), not on a scrim over the photo. */}
+        <div className="mt-2 flex w-full max-w-sm flex-col items-center gap-2 rounded-[28px] bg-background px-6 py-5 text-foreground">
+          <h2 className={cn("text-[30px] leading-[38px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
+            Sua vida, organizada.
+          </h2>
+          <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(2)}>
+            Tudo do seu dia em um só lugar.
+          </p>
+        </div>
       </div>
       <div className={cn("relative grid h-[calc(72px+env(safe-area-inset-bottom))] grid-cols-2", R, hidden && "invisible")} style={rs(3)}>
         <button
           type="button"
           onClick={() => onOpen("login")}
           className={cn(
-            "pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold outline-none hover:bg-palette-papel/10 focus-visible:bg-palette-papel/10 focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-palette-papel/15",
-            "dark:hover:bg-palette-tinta/10 dark:focus-visible:bg-palette-tinta/10 dark:active:bg-palette-tinta/15",
+            "bg-background pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-foreground outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-accent",
             authMotion
           )}
         >
