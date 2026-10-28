@@ -5,6 +5,8 @@ import { addDays, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   CheckIcon,
+  ChevronDownIcon,
+  CopyIcon,
   DumbbellIcon,
   PlusIcon,
   TimerIcon,
@@ -16,10 +18,10 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { Bento, bentoCardClass, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { StatRow } from "@/components/organizzou/layout"
 import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -81,6 +83,15 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
   const [addingTo, setAddingTo] = useState<WorkoutPlanRow | null>(null)
   const [planToDelete, setPlanToDelete] = useState<WorkoutPlanRow | null>(null)
   const [progressExercise, setProgressExercise] = useState(mockExercises[0].id)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(mockPlans[0] ? [mockPlans[0].id] : []))
+
+  function duplicatePlan(plan: WorkoutPlanRow) {
+    const copy: WorkoutPlanRow = { ...plan, id: mockId("plan"), name: `${plan.name} (cópia)` }
+    setPlans((current) => [...current, copy])
+    setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: mockId("pex"), plan_id: copy.id }))])
+    setExpanded((current) => new Set(current).add(copy.id))
+    toast.success("Treino duplicado.")
+  }
 
   // Rest timer: ticks once per second while running.
   const restRunning = rest !== null && rest.remaining > 0
@@ -183,172 +194,217 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
 
         {/* --------------------------------------------------------- today */}
         <TabsContent value="hoje" className="pt-5">
-          <Bento>
-          {activePlan ? (
-            <>
-              <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" className="col-span-12 @min-[560px]:col-span-4" />
-              <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" className="col-span-6 @min-[560px]:col-span-4" />
-              <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} className="col-span-6 @min-[560px]:col-span-4" />
-            </>
-          ) : null}
-          <BentoCard title="Semana" className="col-span-12 @min-[900px]:col-span-5">
-          <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semana">
-            {week.map((date) => {
-              const key = format(date, "yyyy-MM-dd")
-              const planned = plans.some((p) => p.weekdays.includes(date.getDay()))
-              const done = doneDays.has(key)
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[13px] leading-5",
-                    key === today && "bg-muted"
-                  )}
-                >
-                  <span className="text-[11px] leading-4 uppercase text-muted-foreground">{WEEKDAY_SHORT[date.getDay()]}</span>
-                  <span className="tabular text-[15px] font-semibold">{format(date, "d")}</span>
-                  <span className="flex size-5 items-center justify-center" title={done ? "Treino feito" : planned ? "Treino previsto" : "Descanso"}>
-                    {done ? <CheckIcon aria-hidden strokeWidth={2} className="size-4" /> : planned ? <span aria-hidden className="size-2 rounded-full border border-foreground/50" /> : null}
-                    <span className="sr-only">{done ? "Treino feito" : planned ? "Treino previsto" : "Descanso"}</span>
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          </BentoCard>
+          <div className="flex flex-col gap-5">
+            {activePlan ? (
+              <StatRow min={150}>
+                <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" />
+                <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" />
+                <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} />
+              </StatRow>
+            ) : null}
 
-          <BentoCard className="col-span-12 @min-[900px]:col-span-7">
-          {!activePlan ? (
-            <EmptyState
-              icon={DumbbellIcon}
-              title="Dia de descanso"
-              description="Nenhum treino previsto para hoje. Descansar também faz parte."
-              action={
-                <Select value="" onValueChange={(v) => { setChosenPlanId(v); setDrafts({}); setFinishedToday(false) }}>
-                  <SelectTrigger aria-label="Fazer um treino mesmo assim" className="w-64">
-                    <SelectValue placeholder="Fazer um treino mesmo assim" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {plans.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              }
-            />
-          ) : (
-            <section className="flex flex-col gap-6">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                  <SectionTitle>{scheduled?.id === activePlan.id ? "Treino de hoje" : "Treino escolhido"}</SectionTitle>
-                  <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{activePlan.name}</h2>
-                </div>
-                <div className="flex items-center gap-4">
-                  <Select value={activePlan.id} onValueChange={(v) => { setChosenPlanId(v); setDrafts({}); setFinishedToday(false) }}>
-                    <SelectTrigger aria-label="Escolher outro treino" className="w-52">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {plans.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-8">
-                {items.map((item) => (
-                  <div key={item.id} className="flex flex-col gap-2">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="text-[17px] leading-6 font-semibold">{exerciseName(item.exercise_id)}</h3>
-                      <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                        {item.sets} × {item.reps} · descanso {formatClock(item.rest_seconds)}
+            <BentoCard title="Semana">
+              <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semana">
+                {week.map((date) => {
+                  const key = format(date, "yyyy-MM-dd")
+                  const plan = plans.find((p) => p.weekdays.includes(date.getDay()))
+                  const done = doneDays.has(key)
+                  const label = done ? "Treino feito" : plan ? `Treino previsto: ${plan.name}` : "Descanso"
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={!plan}
+                      aria-pressed={Boolean(plan && activePlan?.id === plan.id)}
+                      onClick={() => {
+                        if (!plan) return
+                        setChosenPlanId(plan.id)
+                        setDrafts({})
+                        setFinishedToday(false)
+                      }}
+                      className={cn(
+                        "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[13px] leading-5 outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+                        plan && "hover:bg-accent",
+                        key === today && "bg-muted",
+                        plan && activePlan?.id === plan.id && "ring-1 ring-foreground/40"
+                      )}
+                    >
+                      <span className="text-[11px] leading-4 text-muted-foreground uppercase">{WEEKDAY_SHORT[date.getDay()]}</span>
+                      <span className="tabular text-[15px] font-semibold">{format(date, "d")}</span>
+                      <span className="flex size-5 items-center justify-center" title={label}>
+                        {done ? <CheckIcon aria-hidden strokeWidth={2} className="size-4" /> : plan ? <span aria-hidden className="size-2 rounded-full border border-foreground/50" /> : null}
+                        <span className="sr-only">{label}</span>
                       </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </BentoCard>
+
+            <BentoCard>
+              {!activePlan ? (
+                <EmptyState
+                  icon={DumbbellIcon}
+                  title="Dia de descanso"
+                  description="Nenhum treino previsto para hoje. Descansar também faz parte."
+                  action={
+                    <Select
+                      value=""
+                      onValueChange={(v) => {
+                        setChosenPlanId(v)
+                        setDrafts({})
+                        setFinishedToday(false)
+                      }}
+                    >
+                      <SelectTrigger aria-label="Fazer um treino mesmo assim" className="w-64">
+                        <SelectValue placeholder="Fazer um treino mesmo assim" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {plans.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  }
+                />
+              ) : (
+                <section className="flex flex-col gap-6">
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                      <SectionTitle>{scheduled?.id === activePlan.id ? "Treino de hoje" : "Treino escolhido"}</SectionTitle>
+                      <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{activePlan.name}</h2>
                     </div>
-                    <div role="table" aria-label={`Séries de ${exerciseName(item.exercise_id)}`}>
-                      <div role="row" className="grid grid-cols-[2rem_1fr_5rem_4.5rem_2.75rem] items-center gap-2 border-b border-border pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                        <span role="columnheader">#</span>
-                        <span role="columnheader">Anterior</span>
-                        <span role="columnheader">Carga</span>
-                        <span role="columnheader">Reps</span>
-                        <span role="columnheader" className="sr-only">Feita</span>
-                      </div>
-                      {draftsFor(item).map((draft, index) => {
-                        const prev = previousSet(item.exercise_id, index + 1)
-                        return (
-                          <div key={index} role="row" className={cn("grid grid-cols-[2rem_1fr_5rem_4.5rem_2.75rem] items-center gap-2 border-b border-border py-1.5", draft.done && "opacity-60")}>
-                            <span role="cell" className="tabular text-[15px]">{index + 1}</span>
-                            <span role="cell" className="tabular text-[13px] leading-5 text-muted-foreground">
-                              {prev ? `${kg(prev.load_kg)} × ${prev.reps}` : "—"}
-                            </span>
-                            <Input
-                              role="cell"
-                              aria-label={`Carga da série ${index + 1}`}
-                              inputMode="decimal"
-                              value={draft.load}
-                              onChange={(e) => updateDraft(item, index, { load: e.target.value })}
-                              className="tabular h-11 px-2 text-center md:h-9"
-                            />
-                            <Input
-                              role="cell"
-                              aria-label={`Repetições da série ${index + 1}`}
-                              inputMode="numeric"
-                              value={draft.reps}
-                              onChange={(e) => updateDraft(item, index, { reps: e.target.value })}
-                              className="tabular h-11 px-2 text-center md:h-9"
-                            />
-                            <span role="cell" className="flex justify-center">
-                              <Checkbox
-                                checked={draft.done}
-                                onCheckedChange={(v) => updateDraft(item, index, { done: v === true })}
-                                aria-label={`Série ${index + 1} feita`}
-                              />
+                    <Select
+                      value={activePlan.id}
+                      onValueChange={(v) => {
+                        setChosenPlanId(v)
+                        setDrafts({})
+                        setFinishedToday(false)
+                      }}
+                    >
+                      <SelectTrigger aria-label="Escolher outro treino" className="w-52">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {plans.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="@container">
+                    <div className="grid gap-x-10 gap-y-8 @min-[900px]:grid-cols-2">
+                      {items.map((item) => (
+                        <div key={item.id} className="flex min-w-0 flex-col gap-1">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <h3 className="min-w-0 truncate text-[17px] leading-6 font-semibold">{exerciseName(item.exercise_id)}</h3>
+                            <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
+                              {item.sets} × {item.reps} · descanso {formatClock(item.rest_seconds)}
                             </span>
                           </div>
-                        )
-                      })}
+                          <div role="table" aria-label={`Séries de ${exerciseName(item.exercise_id)}`}>
+                            <div role="row" className="grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem_2.75rem] items-center gap-2 border-b border-border pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+                              <span role="columnheader">Série</span>
+                              <span role="columnheader" className="text-center">kg</span>
+                              <span role="columnheader" className="text-center">reps</span>
+                              <span role="columnheader" className="sr-only">Feita</span>
+                            </div>
+                            {draftsFor(item).map((draft, index) => {
+                              const prev = previousSet(item.exercise_id, index + 1)
+                              return (
+                                <div key={index} role="row" className={cn("grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem_2.75rem] items-center gap-2 border-b border-border py-2", draft.done && "opacity-60")}>
+                                  <span role="cell" className="flex min-w-0 flex-col leading-tight">
+                                    <span className="text-[15px] font-medium">Série {index + 1}</span>
+                                    <span className="tabular truncate text-[12px] leading-4 text-muted-foreground">{prev ? `anterior ${kg(prev.load_kg)} × ${prev.reps}` : "sem registro anterior"}</span>
+                                  </span>
+                                  <Input
+                                    role="cell"
+                                    aria-label={`Carga da série ${index + 1}`}
+                                    inputMode="decimal"
+                                    placeholder="kg"
+                                    value={draft.load}
+                                    onChange={(e) => updateDraft(item, index, { load: e.target.value })}
+                                    className="tabular h-11 px-2 text-center"
+                                  />
+                                  <Input
+                                    role="cell"
+                                    aria-label={`Repetições da série ${index + 1}`}
+                                    inputMode="numeric"
+                                    placeholder="reps"
+                                    value={draft.reps}
+                                    onChange={(e) => updateDraft(item, index, { reps: e.target.value })}
+                                    className="tabular h-11 px-2 text-center"
+                                  />
+                                  <span role="cell" className="flex justify-center">
+                                    <Checkbox checked={draft.done} onCheckedChange={(v) => updateDraft(item, index, { done: v === true })} aria-label={`Série ${index + 1} feita`} />
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button size="lg" disabled={doneSets === 0 || finishedToday} onClick={finishWorkout}>
-                  <CheckIcon strokeWidth={1.75} /> {finishedToday ? "Treino registrado" : "Finalizar treino"}
-                </Button>
-                {!finishedToday ? <span className="text-[13px] leading-5 text-muted-foreground">Marque as séries feitas para liberar o botão.</span> : null}
-              </div>
-            </section>
-          )}
-          </BentoCard>
-          </Bento>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button size="lg" disabled={doneSets === 0 || finishedToday} onClick={finishWorkout}>
+                      <CheckIcon strokeWidth={1.75} /> {finishedToday ? "Treino registrado" : "Finalizar treino"}
+                    </Button>
+                    {!finishedToday ? <span className="text-[13px] leading-5 text-muted-foreground">Marque as séries feitas para liberar o botão.</span> : null}
+                  </div>
+                </section>
+              )}
+            </BentoCard>
+          </div>
         </TabsContent>
 
         {/* ---------------------------------------------------------- plans */}
         <TabsContent value="treinos" className="pt-5">
-          <Bento>
-          <BentoCard title="Meus treinos" className="col-span-12 @min-[900px]:col-span-8">
-          <Accordion type="single" collapsible defaultValue={plans[0]?.id}>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))" }}>
             {plans.map((p) => {
               const list = planExercises.filter((e) => e.plan_id === p.id).sort((a, b) => a.position - b.position)
+              const open = expanded.has(p.id)
               return (
-                <AccordionItem key={p.id} value={p.id}>
-                  <AccordionTrigger className="text-left text-[17px] font-semibold">
-                    <span className="flex flex-col gap-1">
-                      {p.name}
+                <section key={p.id} aria-label={p.name} className={cn(bentoCardClass(), "flex flex-col gap-4")}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <h3 className="truncate text-[17px] leading-6 font-semibold">{p.name}</h3>
                       <span className="flex flex-wrap gap-1.5">
+                        {p.weekdays.length === 0 ? <span className="text-[13px] text-muted-foreground">Sem dia fixo</span> : null}
                         {p.weekdays.map((d) => (
-                          <Badge key={d} variant="secondary">{WEEKDAY_SHORT[d]}</Badge>
+                          <Badge key={d} variant="secondary">
+                            {WEEKDAY_SHORT[d]}
+                          </Badge>
                         ))}
                       </span>
+                    </div>
+                    <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
+                      {list.length} {list.length === 1 ? "exercício" : "exercícios"}
                     </span>
-                  </AccordionTrigger>
-                  <AccordionContent>
+                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() =>
+                      setExpanded((current) => {
+                        const next = new Set(current)
+                        if (next.has(p.id)) next.delete(p.id)
+                        else next.add(p.id)
+                        return next
+                      })
+                    }
+                    className="flex min-h-11 items-center justify-between gap-2 rounded-xl text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {open ? "Ocultar exercícios" : "Ver exercícios"}
+                    <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", open && "rotate-180")} />
+                  </button>
+                  {open ? (
                     <div className="flex flex-col">
                       {list.map((e) => (
                         <div key={e.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
@@ -361,26 +417,35 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                       ))}
                       {list.length === 0 ? <p className="py-3 text-[15px] leading-6 text-muted-foreground">Nenhum exercício ainda.</p> : null}
                     </div>
-                    <div className="flex flex-wrap gap-2 pt-3">
-                      <Button variant="outline" size="sm" onClick={() => setAddingTo(p)}>
-                        <PlusIcon strokeWidth={1.75} /> Adicionar exercício
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setPlanToDelete(p)}>
-                        <Trash2Icon strokeWidth={1.75} /> Excluir treino
-                      </Button>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
+                  ) : null}
+                  <div className="mt-auto flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setAddingTo(p)}>
+                      <PlusIcon strokeWidth={1.75} /> Exercício
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => duplicatePlan(p)}>
+                      <CopyIcon strokeWidth={1.75} /> Duplicar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setPlanToDelete(p)}>
+                      <Trash2Icon strokeWidth={1.75} /> Excluir
+                    </Button>
+                  </div>
+                </section>
               )
             })}
-          </Accordion>
-          </BentoCard>
-          </Bento>
+            <button
+              type="button"
+              onClick={() => setCreatingPlan(true)}
+              className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-[24px] border border-dashed border-border p-6 text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+            >
+              <PlusIcon aria-hidden strokeWidth={1.75} className="size-6" />
+              Novo treino
+            </button>
+          </div>
         </TabsContent>
 
         {/* ------------------------------------------------------ progress */}
         <TabsContent value="evolucao" className="pt-5">
-          <Bento>
+          <Bento className="@container">
           <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Recordes" value={`${records.length}`} support="exercícios com marca" className="col-span-6 @min-[1040px]:col-span-3" />
@@ -428,7 +493,7 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
           </BentoCard>
 
           <BentoCard title="Recordes pessoais" className="col-span-12">
-            <div>
+            <div className="grid gap-x-10 @min-[900px]:grid-cols-2">
               {records.slice(0, 8).map((r) => (
                 <div key={r.exerciseId} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                   <TrophyIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />

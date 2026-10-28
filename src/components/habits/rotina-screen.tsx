@@ -185,7 +185,7 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
 
         <TabsContent value="hoje" className="pt-5">
           <div className="flex flex-col gap-5">
-            <StatRow min={180}>
+            <StatRow min={150}>
               <KpiCard tone="highlight" label="Hábitos hoje" value={`${doneToday}/${todays.length}`} support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`} />
               <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" />
               <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" />
