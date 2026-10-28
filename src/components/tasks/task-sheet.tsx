@@ -127,7 +127,7 @@ export function TaskSheet(props: TaskSheetProps) {
         side="bottom"
         onOpenAutoFocus={(event) => event.preventDefault()}
         // Below 1024 px it is a full-screen drawer.
-        className="h-dvh max-h-dvh gap-0 overflow-y-auto rounded-none p-0"
+        className="data-[side=bottom]:h-dvh data-[side=bottom]:max-h-dvh gap-0 overflow-y-auto rounded-none p-0"
       >
         {/* Keyed by task so every task starts from fresh local state. */}
         {task ? <TaskSheetBody key={task.id} {...props} task={task} /> : null}

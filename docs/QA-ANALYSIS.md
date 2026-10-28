@@ -19,3 +19,17 @@ das correções, está em `docs/QA-REPORT.initial.md`.
 | Aviso `preloaded using link preload but not used` (logo de carregamento) | baixa | O React pré-carrega automaticamente a imagem renderizada no fallback `loading.tsx`; quando o conteúdo chega o fallback some e o Chrome avisa. Só aparece em dev e não afeta nada |
 | Avisos `powerPreference ... requestAdapter` / `No available adapters` | baixa | Ruído do Chromium no Windows (WebGPU), fora do nosso código |
 | "não foi possível clicar (coberto/instável)" no mobile (chips "Hoje", "Organização", sugestões do assistente) | baixa | A barra superior e o pill inferior do mobile se escondem e reaparecem durante a rolagem da própria varredura; o elemento se move entre a checagem e o clique. Os cabeçalhos do mobile estão fechados e não foram alterados |
+
+## Varredura final (Prompt 4)
+
+Relatório atualizado em `docs/QA-REPORT.md` (21 rotas, 1440x900 e 390x844, 16 min). Resultado:
+
+| Item | Severidade | Explicação |
+|---|---|---|
+| `/dashboard` (mobile): "overflow horizontal" (912 px) logo depois de clicar numa tarefa | alta no relatório, **não reproduzida** | Aconteceu 350 ms após o clique, durante a troca de rota em modo dev (compilação sob demanda). Medi a rota de destino carregando direto e pelo clique, com um observador a cada quadro: o maior `scrollWidth` foi 390 px em todo o carregamento. Vale reconferir em produção, com uma conta real |
+| Botão "Hoje" da Agenda sem efeito | média | Já estava no dia de hoje; clicar não muda nada. Não é erro |
+| Passos decorativos do painel do login/cadastro sem efeito | média | Decorativos. Agora saem da ordem do Tab (`tabIndex=-1`) |
+| Avisos de pré-carregamento do logo de carregamento | baixa | O React pré-carrega a imagem do fallback de `loading.tsx`; só em desenvolvimento |
+
+Corrigido durante a revisão final: a gaveta de detalhes de Tarefas (abaixo de 1024 px) e a folha do Cofre no celular não ocupavam a tela
+inteira, porque o componente `Sheet` fixa `data-[side=bottom]:h-auto`; as duas agora usam `data-[side=bottom]:h-dvh`.

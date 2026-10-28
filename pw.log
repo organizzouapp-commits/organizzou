@@ -1,0 +1,12 @@
+
+Running 1 test using 1 worker
+
+  x  1 tests\e2e\ux-organizacao.spec.ts:15:5 › Notas: pinned section, folder counts and the autosave indicator (0ms)
+
+
+  1) tests\e2e\ux-organizacao.spec.ts:15:5 › Notas: pinned section, folder counts and the autosave indicator 
+
+    Error: worker process exited unexpectedly (code=143, signal=null)
+
+  1 failed
+    tests\e2e\ux-organizacao.spec.ts:15:5 › Notas: pinned section, folder counts and the autosave indicator 

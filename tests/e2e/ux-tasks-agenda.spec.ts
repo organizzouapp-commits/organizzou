@@ -54,6 +54,7 @@ test("Tarefas: completing moves the card to Concluído and unchecking restores i
   await openBoard(page)
   const todo = page.getByRole("region", { name: "A fazer" })
   const card = todo.locator("[data-task-id]").first()
+  await expect(card).toBeVisible()
   const title = (await card.locator("button.flex-1 span").first().innerText()).trim()
   const count = await todo.locator("[data-task-id]").count()
   await card.getByRole("checkbox").click()

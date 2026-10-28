@@ -20,6 +20,8 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Verificação em duas etapas | Não construído (selo "Em breve") | `src/components/settings/settings-extras.tsx` |
 | Passkeys (biometria) | Não construído (selo "Em breve") | `src/components/settings/settings-extras.tsx` |
 | Excluir conta | Não construído (botão desabilitado com explicação) | `src/components/settings/settings-extras.tsx` |
+| Foto de perfil (upload) | Não construído (botão desabilitado, selo "Em breve") | `src/components/profile/profile-view.tsx` |
+| Reportar problema (Ajuda) | Não construído (formulário desabilitado, selo "Em breve"; o e-mail de suporte é um endereço provisório) | `src/components/help/help-view.tsx` |
 
 ## Pagamentos e planos
 
@@ -41,6 +43,8 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | WhatsApp: conectar número, enviar código | Não construído (selo "Em breve"; nenhum código é enviado) | `src/components/settings/settings-extras.tsx` |
 | WhatsApp: texto e voz com o assistente | Não construído | — |
 | Avisos (app e WhatsApp), não perturbe | Simulado: preferências só no navegador, nada é enviado | `src/components/settings/settings-extras.tsx` |
+| Lembretes das notas | Simulado: ficam só na lista; a tela avisa "Em breve" para app e WhatsApp | `src/components/notes/notas-screen.tsx` |
+| Lembrete e repetição de tarefas | Não construído (campos desabilitados; migration aditiva `20260105000002` escrita e não aplicada) | `src/components/tasks/task-sheet.tsx` |
 
 ## Finanças
 
@@ -55,7 +59,7 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 |---|---|---|
 | Tarefas (quadros, lista, calendário, anexos) | Simulado no app (`isMock`); o servidor já tem ações e consultas reais prontas para ligar | `src/features/tasks/`, `src/mocks/tasks-api.ts` |
 | Hoje, Rotina, Agenda, Treinos, Dieta, Estudos, Notas, Metas, Diário | Simulado: estado local sobre dados de exemplo; nada é salvo ao recarregar | `src/mocks/`, `src/components/*/` |
-| Cofre de senhas | Simulado: itens de exemplo na memória. Exportação de backup e criptografia ainda não ligadas | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
+| Cofre de senhas | Simulado: itens de exemplo na memória. Exportação de backup e criptografia ainda não ligadas. O assistente e a busca global nunca leem o cofre (teste em `src/mocks/vault-guard.test.ts`) | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
 | Exportar dados (JSON/CSV) | Não construído (botões desabilitados) | `src/components/settings/settings-extras.tsx` |
 | Notificações no sino | Simulado (exemplos fixos) | `src/components/shell/app-topbar.tsx` |
 

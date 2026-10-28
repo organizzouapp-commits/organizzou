@@ -417,7 +417,7 @@ function Generator() {
 function ItemSheet({ item, onClose, onDelete }: { item: VaultItemRow | null; onClose: () => void; onDelete: (item: VaultItemRow) => void }) {
   return (
     <Sheet open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="bottom" className="h-dvh max-h-dvh gap-0 overflow-y-auto rounded-none p-4 md:p-6">
+      <SheetContent side="bottom" className="data-[side=bottom]:h-dvh data-[side=bottom]:max-h-dvh gap-0 overflow-y-auto rounded-none p-4 md:p-6">
         <SheetTitle className="sr-only">{item?.name ?? "Item do cofre"}</SheetTitle>
         <SheetDescription className="sr-only">Detalhes do item do cofre.</SheetDescription>
         {item ? (

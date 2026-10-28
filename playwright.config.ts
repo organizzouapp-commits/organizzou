@@ -4,8 +4,9 @@ import { defineConfig } from "@playwright/test"
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: /.*\.spec\.ts/,
-  timeout: 30 * 60_000,
+  timeout: 60_000,
   workers: 1,
   reporter: "list",
-  use: { baseURL: process.env.BASE ?? "http://localhost:3100", trace: "off" },
+  use: { baseURL: process.env.BASE ?? "http://localhost:3100", trace: "off", actionTimeout: 15_000, navigationTimeout: 60_000 },
+  expect: { timeout: 10_000 },
 })
