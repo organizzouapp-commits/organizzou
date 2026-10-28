@@ -117,6 +117,7 @@ function HighlightCopy({
                 type="button"
                 onClick={() => onStep(index)}
                 aria-current={isActive ? "step" : undefined}
+                tabIndex={-1}
                 className={cn(
                   "group/step flex min-h-(--auth-step-h) h-full w-full cursor-pointer flex-col justify-between gap-2 rounded-[20px] border-2 p-[clamp(10px,1.8dvh,16px)] text-left outline-none",
                   "hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-3 focus-visible:ring-ring/50",

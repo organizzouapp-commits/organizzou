@@ -84,7 +84,7 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
           {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-        <Button type="submit" size="xl" className={cn(authButtonClass, R)} style={rs(4)} disabled={pending}>
+        <Button type="submit" size="xl" className={cn(authButtonClass, R)} style={rs(4)} disabled={pending} aria-busy={pending}>
           {pending ? "Entrando…" : "Entrar"}
         </Button>
       </form>

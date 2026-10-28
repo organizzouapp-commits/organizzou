@@ -114,7 +114,7 @@ export function SignUpForm() {
             {errors.password ? <FormMessage kind="error">{errors.password.message}</FormMessage> : null}
           </div>
           {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-          <Button type="submit" size="xl" className={cn(authButtonClass, R)} style={rs(6)} disabled={pending}>
+          <Button type="submit" size="xl" className={cn(authButtonClass, R)} style={rs(6)} disabled={pending} aria-busy={pending}>
             {pending ? "Criando conta…" : "Criar conta"}
           </Button>
         </form>

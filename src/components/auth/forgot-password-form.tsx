@@ -88,7 +88,7 @@ export function ForgotPasswordForm() {
           {errors.email ? <FormMessage kind="error">{errors.email.message}</FormMessage> : null}
         </div>
         {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-        <Button type="submit" size="xl" className={authButtonClass} disabled={pending}>
+        <Button type="submit" size="xl" className={authButtonClass} disabled={pending} aria-busy={pending}>
           {pending ? "Enviando…" : "Enviar link"}
         </Button>
       </form>
