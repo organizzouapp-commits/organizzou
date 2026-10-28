@@ -3,16 +3,17 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, EllipsisIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { ModuleIcon } from "@/components/organizzou/ModuleIcon"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { Bento, bentoCardClass, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -74,84 +75,82 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
   function renderGoals(list: GoalWithDetails[]) {
     if (list.length === 0) return <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nada por aqui ainda.</p>
     return (
-      <Accordion type="single" collapsible className="w-full">
+      <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(360px, 100%), 1fr))" }}>
         {list.map((goal) => {
           const progress = goalProgress(goal.links, goal.milestones)
           const left = goal.deadline ? daysUntil(goal.deadline, today) : null
           return (
-            <AccordionItem key={goal.id} value={goal.id}>
-              <AccordionTrigger className="items-start gap-4 text-left">
-                <span className="flex min-w-0 flex-1 flex-col gap-2">
-                  <span className="text-[17px] leading-6 font-semibold">{goal.title}</span>
-                  <span className="flex items-center gap-3">
-                    <Progress value={progress} className="max-w-48" aria-label={`Progresso de ${goal.title}`} />
-                    <span className="tabular text-[13px] leading-5 text-muted-foreground">{progress}%</span>
-                    {left !== null && goal.status === "active" ? (
-                      <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                        · {left < 0 ? "prazo vencido" : left === 0 ? "vence hoje" : `faltam ${left} dias`}
-                      </span>
-                    ) : null}
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-6">
-                {goal.description ? <p className="text-[15px] leading-6 text-muted-foreground">{goal.description}</p> : null}
-                {goal.deadline ? (
-                  <p className="text-[13px] leading-5 text-muted-foreground">
-                    Prazo: {format(parseISO(goal.deadline), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                  </p>
-                ) : null}
+            <section key={goal.id} aria-label={goal.title} className={cn(bentoCardClass(), "flex flex-col gap-5")}>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-[17px] leading-6 font-semibold">{goal.title}</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Opções de ${goal.title}`}>
+                      <EllipsisIcon strokeWidth={1.75} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {goal.status === "active" ? (
+                      <DropdownMenuItem onSelect={() => setStatus(goal, "done")}>
+                        <CheckIcon strokeWidth={1.75} /> Marcar como concluída
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onSelect={() => setStatus(goal, "active")}>Reabrir meta</DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(goal)}>
+                      <Trash2Icon strokeWidth={1.75} /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
+              <div className="flex flex-col gap-2">
+                <Progress value={progress} aria-label={`Progresso de ${goal.title}`} />
+                {/* Percent and days left sit on their own line under the bar, so phones never squeeze them next to it. */}
+                <p className="tabular flex flex-wrap items-center justify-between gap-x-3 text-[13px] leading-5 text-muted-foreground">
+                  <span className="font-medium text-foreground">{progress}%</span>
+                  {left !== null && goal.status === "active" ? <span>{left < 0 ? "prazo vencido" : left === 0 ? "vence hoje" : `faltam ${left} dias`}</span> : null}
+                  {goal.deadline ? <span>até {format(parseISO(goal.deadline), "d 'de' MMM yyyy", { locale: ptBR })}</span> : null}
+                </p>
+              </div>
+
+              {goal.description ? <p className="max-w-[72ch] text-[15px] leading-6 text-muted-foreground">{goal.description}</p> : null}
+
+              {goal.links.length > 0 ? (
                 <section className="flex flex-col">
-                  <h3 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Ligada a</h3>
+                  <h4 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Ligada a</h4>
                   {goal.links.map((link: GoalLinkRow) => (
-                    <div key={link.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                    <div key={link.id} className="flex min-h-14 items-center gap-3 border-b border-border py-2.5 last:border-b-0">
                       <ModuleIcon module={link.module} />
                       <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="truncate text-[15px] leading-6">{link.label}</span>
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                          <span className="text-[15px] leading-6">{link.label}</span>
                           <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
                             {formatValue(link.done, link.unit)} de {formatValue(link.total, link.unit)}
                           </span>
                         </div>
                         <Progress value={linkRatio(link) * 100} aria-label={link.label} />
-                        <span className="text-[13px] leading-5 text-muted-foreground">{modules[link.module].name}</span>
                       </div>
                     </div>
                   ))}
                 </section>
+              ) : null}
 
-                {goal.milestones.length > 0 ? (
-                  <section className="flex flex-col">
-                    <h3 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Marcos</h3>
-                    {goal.milestones.map((m) => (
-                      <label key={m.id} className="flex min-h-11 items-center gap-3 text-[15px] leading-6">
-                        <Checkbox checked={m.done} onCheckedChange={() => toggleMilestone(goal.id, m.id)} />
-                        <span className={m.done ? "text-muted-foreground line-through" : ""}>{m.title}</span>
-                      </label>
-                    ))}
-                  </section>
-                ) : null}
-
-                <div className="flex flex-wrap gap-2">
-                  {goal.status === "active" ? (
-                    <Button variant="outline" onClick={() => setStatus(goal, "done")}>
-                      <CheckIcon strokeWidth={1.75} /> Marcar como concluída
-                    </Button>
-                  ) : (
-                    <Button variant="outline" onClick={() => setStatus(goal, "active")}>
-                      Reabrir meta
-                    </Button>
-                  )}
-                  <Button variant="ghost" onClick={() => setToDelete(goal)}>
-                    <Trash2Icon strokeWidth={1.75} /> Excluir
-                  </Button>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+              {goal.milestones.length > 0 ? (
+                <section className="flex flex-col">
+                  <h4 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Marcos</h4>
+                  {goal.milestones.map((m) => (
+                    <label key={m.id} className="flex min-h-11 items-center gap-3 text-[15px] leading-6">
+                      <Checkbox checked={m.done} onCheckedChange={() => toggleMilestone(goal.id, m.id)} />
+                      <span className={m.done ? "text-muted-foreground line-through" : ""}>{m.title}</span>
+                    </label>
+                  ))}
+                </section>
+              ) : null}
+            </section>
           )
         })}
-      </Accordion>
+      </div>
     )
   }
 
@@ -172,7 +171,7 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
           support={nextDeadline?.title ?? "Sem prazos"}
           className="col-span-6 @min-[560px]:col-span-4"
         />
-        <BentoCard className="col-span-12">
+        <div className="col-span-12">
       <Tabs defaultValue="ativas">
         <TabsList>
           <TabsTrigger value="ativas">
@@ -189,7 +188,7 @@ export function MetasScreen({ nowIso }: { nowIso: string }) {
           {renderGoals(done)}
         </TabsContent>
       </Tabs>
-        </BentoCard>
+        </div>
       </Bento>
 
       <GoalDialog
