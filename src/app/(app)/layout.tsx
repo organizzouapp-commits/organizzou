@@ -14,13 +14,11 @@ export const metadata: Metadata = { robots: { index: false, follow: false } }
 async function ShellLoader({ children }: { children: React.ReactNode }) {
   const { supabase, userId, email } = await getSession()
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, theme")
-    .eq("id", userId)
-    .maybeSingle()
-
-  const plan = await getUserPlan(supabase, userId)
+  // Independent reads: run them together.
+  const [{ data: profile }, plan] = await Promise.all([
+    supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle(),
+    getUserPlan(supabase, userId),
+  ])
   const name = profile?.display_name || email.split("@")[0] || "Você"
 
   // The collapsed/expanded sidebar is remembered per user in a cookie.

@@ -192,7 +192,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
           Tudo do seu dia em um só lugar.
         </p>
       </div>
-      <div className={cn("relative grid h-[calc(72px+env(safe-area-inset-bottom))] grid-cols-2", R)} style={rs(3)}>
+      <div className={cn("relative grid h-[calc(72px+env(safe-area-inset-bottom))] grid-cols-2", R, hidden && "invisible")} style={rs(3)}>
         <button
           type="button"
           onClick={() => onOpen("login")}
@@ -250,8 +250,8 @@ function FormPane({ active, side, children }: { active: boolean; side: "left" | 
           : cn("hidden lg:pointer-events-none lg:flex lg:opacity-0", side === "left" ? "lg:-translate-x-6" : "lg:translate-x-6")
       )}
     >
-      <div className="flex flex-1 items-center justify-center py-2 lg:min-h-0 lg:py-[clamp(4px,1dvh,16px)]">{children}</div>
-      <LegalLinks className="mt-3 lg:mt-0 lg:pb-[clamp(8px,1.6dvh,16px)]" />
+      <div className="flex flex-1 items-center justify-center py-2 lg:min-h-0 lg:pt-[clamp(4px,1dvh,16px)] lg:pb-3">{children}</div>
+      <LegalLinks className="mt-3 lg:mt-4 lg:pb-[clamp(8px,1.6dvh,16px)]" />
     </section>
   )
 }

@@ -16,6 +16,8 @@ type AnimatedLogoProps = {
    * static logos did). Default follows the theme: light text in dark mode, dark text in light mode.
    */
   inverse?: boolean
+  /** Emit <link rel="preload"> for the file(s). Default: only for the entrance logo (above the fold); loading screens are mostly never shown. */
+  preload?: boolean
   className?: string
 }
 
@@ -41,14 +43,14 @@ export function animatedLogoSources(variant: Variant) {
  * mismatch and no flash. The wrapper has a fixed height and the images carry their intrinsic size, so nothing shifts.
  * Rendered without hooks: usable from server and client components. Preloads the files for the route (React hoists <link>).
  */
-export function AnimatedLogo({ variant, size = "md", inverse = false, className }: AnimatedLogoProps) {
+export function AnimatedLogo({ variant, size = "md", inverse = false, preload = variant === "entrance", className }: AnimatedLogoProps) {
   const src = animatedLogoSources(variant)
   const wrapper = cn("inline-flex shrink-0 items-center justify-center", SIZE_CLASS[size], className)
 
   if (size === "icon") {
     return (
       <span className={wrapper}>
-        <link rel="preload" as="image" href={src.icone} />
+        {preload ? <link rel="preload" as="image" href={src.icone} /> : null}
         <img src={src.icone} alt="Organizzou" width={120} height={120} decoding="async" className="size-full" />
       </span>
     )
@@ -63,7 +65,7 @@ export function AnimatedLogo({ variant, size = "md", inverse = false, className 
 
   return (
     <span className={wrapper}>
-      <link rel="preload" as="image" href={forDark} />
+      {preload ? <link rel="preload" as="image" href={forDark} /> : null}
       <img src={forDark} alt="Organizzou" {...img} className={cn(fit, "hidden dark:block")} />
       <img src={forLight} alt="Organizzou" {...img} className={cn(fit, "block dark:hidden")} />
     </span>

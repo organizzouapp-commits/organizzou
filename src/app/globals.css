@@ -369,3 +369,6 @@ input:-webkit-autofill:focus-visible {
    entrance animations wait until it has left. */
 html[data-preloader="skip"] #site-preloader { display: none; }
 html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) { animation-play-state: paused; }
+
+/* Route skeletons appear only after 200 ms, so a fast navigation never flashes them (pure CSS, no timers). */
+.page-skeleton { animation: loading-in 0.2s ease-out 0.2s backwards; }

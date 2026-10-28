@@ -245,7 +245,8 @@ export function BoardToolbar(props: BoardToolbarProps) {
 
       <div className="flex items-center justify-between gap-3">
         <Tabs className="min-w-0" value={props.view} onValueChange={(v) => props.onViewChange(v as ViewMode)}>
-          <TabsList>
+          {/* On very narrow phones the icons go, so "Calendário" is never cut off (the list also scrolls if it still does not fit). */}
+          <TabsList className="max-[420px]:[&_svg]:hidden">
             <TabsTrigger value="kanban">
               <SquareKanbanIcon strokeWidth={1.75} /> Kanban
             </TabsTrigger>

@@ -11,6 +11,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Top-right under the header on desktop, full-width at the top (below the safe area and the mobile header) on phones.
+      // Never at the bottom: the assistant button and the bottom pill live there.
+      position="top-right"
+      duration={4000}
+      offset={{ top: "calc(env(safe-area-inset-top) + 84px)", right: 32 }}
+      mobileOffset={{ top: "calc(env(safe-area-inset-top) + 72px)", left: 16, right: 16 }}
       icons={{
         success: (
           <CircleCheckIcon className="size-4" />

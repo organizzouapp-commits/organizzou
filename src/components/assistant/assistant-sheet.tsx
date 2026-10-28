@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   CheckIcon,
   CircleAlertIcon,
+  InfoIcon,
   MicIcon,
   SendHorizontalIcon,
   SparklesIcon,
@@ -29,7 +30,7 @@ type AssistantSheetProps = {
 }
 
 const GREETING: AssistantReply = {
-  text: "Oi! Eu registro tarefas, gastos, treinos, refeições e estudos por texto ou áudio, e respondo perguntas sobre os seus dados. O que você quer fazer?",
+  text: "Oi! Esta é uma prévia do assistente: eu mostro como vai funcionar, com respostas de exemplo. O que você quer testar?",
 }
 
 const VOICE_SAMPLES = ["gastei 80 de gasolina", "adiciona tarefa ligar para o contador amanhã", "estudei 1 hora de estatística", "me lembra de levar o carro na revisão"]
@@ -120,9 +121,14 @@ export function AssistantSheet({ open, onOpenChange, isMobile, nowIso }: Assista
           <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5" />
           <div className="flex flex-col">
             <SheetTitle className="text-[17px] leading-6">Assistente</SheetTitle>
-            <SheetDescription className="text-[13px] leading-5">Registra e responde em segundos</SheetDescription>
+            <SheetDescription className="text-[13px] leading-5">Prévia · respostas de demonstração</SheetDescription>
           </div>
         </SheetHeader>
+
+        <p className="flex items-start gap-2 border-b border-border px-4 py-3 text-[13px] leading-5 text-muted-foreground">
+          <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
+          Esta é uma prévia: o assistente com IA ainda não está ligado. As respostas são exemplos e nada do que você pedir é salvo.
+        </p>
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-5 p-4" aria-live="polite">
@@ -241,7 +247,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile, nowIso }: Assista
                 }}
                 className="max-h-32 min-h-11 resize-none py-2.5"
               />
-              <Button type="button" variant="outline" size="icon-lg" aria-label="Gravar áudio" onClick={toggleRecording}>
+              <Button type="button" variant="outline" size="icon-lg" aria-label="Gravar áudio (em breve)" title="Áudio em breve" disabled>
                 <MicIcon strokeWidth={1.75} />
               </Button>
               <Button type="submit" size="icon-lg" aria-label="Enviar" disabled={!input.trim() || thinking}>

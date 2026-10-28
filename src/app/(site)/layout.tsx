@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { PRELOADER_BOOT, SitePreloader } from "@/components/site/site-preloader"
+import { SitePreloader } from "@/components/site/site-preloader"
 
 const DESCRIPTION = "O app que organiza sua vida: tarefas, finanças, treinos, estudos e um assistente no WhatsApp, num só lugar."
 
@@ -16,8 +16,6 @@ export const metadata: Metadata = {
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      {/* Decides before first paint whether the preloader shows (once per session, never with reduced motion). */}
-      <script dangerouslySetInnerHTML={{ __html: PRELOADER_BOOT }} />
       <noscript>
         <style>{"#site-preloader{display:none}"}</style>
       </noscript>

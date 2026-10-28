@@ -95,9 +95,14 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
   ]
   const hitDays = kcalSeries.filter((d) => d.kcal <= goal.kcal && d.kcal >= goal.kcal * 0.85).length
   const averageKcal = Math.round(kcalSeries.reduce((s, d) => s + d.kcal, 0) / kcalSeries.length)
-  const weightSeries = weights.map((w) => ({ label: format(parseISO(w.log_date), "dd/MM"), weight: w.weight_kg }))
-  const currentWeight = weights[weights.length - 1]?.weight_kg ?? 0
-  const firstWeight = weights[0]?.weight_kg ?? currentWeight
+  // One point per day, in date order: the card, the variation and the chart all read the same sorted list.
+  const sortedWeights = [...weights].sort((a, b) => a.log_date.localeCompare(b.log_date))
+  const weightSeries = sortedWeights.map((w) => ({ label: format(parseISO(w.log_date), "dd/MM"), weight: w.weight_kg }))
+  const currentWeight = sortedWeights[sortedWeights.length - 1]?.weight_kg ?? 0
+  const firstWeight = sortedWeights[0]?.weight_kg ?? currentWeight
+  // The y-axis always contains every point and the target line, with a little room.
+  const weightValues = [...sortedWeights.map((w) => w.weight_kg), goal.target_weight_kg]
+  const weightDomain: [number, number] = [Math.floor(Math.min(...weightValues)) - 1, Math.ceil(Math.max(...weightValues)) + 1]
 
   // The "+ Novo" button adds a food to the meal that fits the time of day.
   const hour = inTz(new Date(nowIso), MOCK_TIMEZONE).getHours()
@@ -281,10 +286,10 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             <LineChart data={weightSeries} margin={{ left: -8, right: 8 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-              <YAxis tickLine={false} axisLine={false} domain={["dataMin - 1", "dataMax + 1"]} width={48} />
+              <YAxis tickLine={false} axisLine={false} domain={weightDomain} allowDecimals={false} width={48} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <ReferenceLine y={goal.target_weight_kg} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
-              <Line dataKey="weight" type="monotone" stroke="var(--color-weight)" strokeWidth={1.75} dot={{ r: 3 }} />
+              <Line dataKey="weight" type="monotone" stroke="var(--color-weight)" strokeWidth={1.75} dot={{ r: 3 }} isAnimationActive={false} />
             </LineChart>
           </ChartContainer>
           </BentoCard>
@@ -307,7 +312,8 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
         onOpenChange={setWeighing}
         initial={currentWeight}
         onSave={(kg) => {
-          setWeights((current) => [...current, { id: mockId("w"), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }])
+          // A second weigh-in on the same day replaces the first instead of adding a duplicate point.
+          setWeights((current) => [...current.filter((w) => w.log_date !== today), { id: mockId("w"), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }])
           toast.success("Peso registrado.")
         }}
       />

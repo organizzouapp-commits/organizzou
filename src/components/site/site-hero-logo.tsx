@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react"
 import { AnimatedLogo } from "@/components/organizzou/animated-logo"
 import { cn } from "@/lib/utils"
 
-import { PRELOADER_EVENT } from "./site-preloader"
+import { PRELOADER_EVENT } from "./preloader-boot"
 
 function subscribe(onChange: () => void) {
   window.addEventListener(PRELOADER_EVENT, onChange)

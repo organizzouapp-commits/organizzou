@@ -32,8 +32,26 @@ function ToggleGroup({
     spacing?: number
     orientation?: "horizontal" | "vertical"
   }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // A segmented control that does not fit scrolls sideways and keeps the selected item in view; labels are never cut.
+  React.useEffect(() => {
+    const group = ref.current
+    if (!group || orientation !== "horizontal") return
+    const reveal = (smooth: boolean) => {
+      const active = group.querySelector<HTMLElement>('[data-state="on"]')
+      if (!active || group.scrollWidth <= group.clientWidth + 1) return
+      group.scrollTo({ left: Math.max(0, active.offsetLeft - (group.clientWidth - active.offsetWidth) / 2), behavior: smooth ? "smooth" : "auto" })
+    }
+    reveal(false)
+    const observer = new MutationObserver(() => reveal(true))
+    observer.observe(group, { attributes: true, subtree: true, attributeFilter: ["data-state"] })
+    return () => observer.disconnect()
+  }, [orientation])
+
   return (
     <ToggleGroupPrimitive.Root
+      ref={ref}
       data-slot="toggle-group"
       data-variant={variant}
       data-size={size}
@@ -41,7 +59,7 @@ function ToggleGroup({
       data-orientation={orientation}
       style={{ "--gap": spacing } as React.CSSProperties}
       className={cn(
-        "group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] rounded-lg data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-vertical:flex-col data-vertical:items-stretch",
+        "group/toggle-group no-scrollbar flex w-fit max-w-full flex-row items-center gap-[--spacing(var(--gap))] data-horizontal:snap-x data-horizontal:overflow-x-auto rounded-lg data-[size=sm]:rounded-[min(var(--radius-md),10px)] data-vertical:flex-col data-vertical:items-stretch",
         className
       )}
       {...props}

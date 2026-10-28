@@ -18,6 +18,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/organizzou/EmptyState"
+import { UpgradeHint } from "@/components/organizzou/UpgradeHint"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
@@ -94,7 +95,8 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
   const [newBill, setNewBill] = useState(false)
   const [bankOpen, setBankOpen] = useState(false)
   const [goalToFund, setGoalToFund] = useState<FinancialGoalRow | null>(null)
-  const [connected, setConnected] = useState<string[]>(["Nubank", "Itaú"])
+  // Open Finance is not built yet (docs/INTEGRATIONS-STATUS.md): no bank is ever shown as connected.
+  const connected: string[] = []
   const [query, setQuery] = useState("")
   const [kindFilter, setKindFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -446,29 +448,20 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
           <DialogHeader>
             <DialogTitle>Conectar banco</DialogTitle>
             <DialogDescription>
-              Pelo Open Finance você importa lançamentos sem digitar. O Organizzou só lê os dados e nunca guarda sua senha do banco.
+              A importação pelo Open Finance ainda não está disponível, então nenhum banco pode ser conectado por enquanto. Quando abrir, o Organizzou só vai ler os dados e nunca vai guardar a senha do seu banco.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col">
-            {BANKS.map((bank) => {
-              const isConnected = connected.includes(bank)
-              return (
-                <div key={bank} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-                  <LandmarkIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
-                  <span className="flex-1 text-[15px]">{bank}</span>
-                  <Button
-                    variant={isConnected ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setConnected((current) => (isConnected ? current.filter((b) => b !== bank) : [...current, bank]))
-                      toast(isConnected ? `${bank} desconectado.` : `${bank} conectado.`)
-                    }}
-                  >
-                    {isConnected ? "Conectado" : "Conectar"}
-                  </Button>
-                </div>
-              )
-            })}
+            {BANKS.map((bank) => (
+              <div key={bank} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
+                <LandmarkIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
+                <span className="flex-1 text-[15px]">{bank}</span>
+                <Button variant="outline" size="sm" disabled>
+                  Em breve
+                </Button>
+              </div>
+            ))}
+            <UpgradeHint limit="banks" used={0} when="always" className="mt-4" />
           </div>
         </DialogContent>
       </Dialog>

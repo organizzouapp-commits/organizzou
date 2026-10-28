@@ -4,17 +4,10 @@ import { useEffect, useState } from "react"
 
 import { LoadingScreen } from "@/components/organizzou/loading-screen"
 
-export const PRELOADER_KEY = "organizzou-preloader-seen"
-export const PRELOADER_EVENT = "organizzou:preloader"
+import { PRELOADER_EVENT, PRELOADER_KEY } from "./preloader-boot"
 
 const MIN_MS = 1600
 const MAX_MS = 4000
-
-/**
- * Inline script (runs before first paint, see SiteLayout): decides synchronously whether the preloader shows, so a second
- * visit or reduced motion never flashes it. It sets html[data-preloader] to "show" or "skip"; CSS hides the overlay on "skip".
- */
-export const PRELOADER_BOOT = `try{var d=document.documentElement;d.dataset.preloader=(sessionStorage.getItem("${PRELOADER_KEY}")||matchMedia("(prefers-reduced-motion: reduce)").matches)?"skip":"show"}catch(e){document.documentElement.dataset.preloader="skip"}`
 
 /** First visit of the session: logo until the page (load + fonts) is ready, at least 1.6 s and at most 4 s, then a 0.4 s fade. */
 export function SitePreloader() {
@@ -62,7 +55,7 @@ export function SitePreloader() {
         "fixed inset-0 z-[100] transition-opacity duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] " + (hiding ? "pointer-events-none opacity-0" : "opacity-100")
       }
     >
-      <LoadingScreen />
+      <LoadingScreen preload />
     </div>
   )
 }

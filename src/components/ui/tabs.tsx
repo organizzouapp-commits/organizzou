@@ -24,7 +24,7 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit max-w-full items-center justify-start overflow-x-auto rounded-full p-1 text-muted-foreground group-data-horizontal/tabs:h-11 md:group-data-horizontal/tabs:h-10 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list no-scrollbar inline-flex w-fit max-w-full snap-x snap-mandatory scroll-px-1 items-center justify-start overflow-x-auto overscroll-x-contain rounded-full p-1 text-muted-foreground group-data-horizontal/tabs:h-11 md:group-data-horizontal/tabs:h-10 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {
@@ -44,8 +44,28 @@ function TabsList({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants>) {
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  // Tabs that do not fit scroll sideways (snap). The active one is scrolled into view, now and whenever it changes,
+  // so a label is never left cut off at the edge.
+  React.useEffect(() => {
+    const list = ref.current
+    if (!list) return
+    const reveal = (smooth: boolean) => {
+      const active = list.querySelector<HTMLElement>('[data-state="active"]')
+      if (!active || list.scrollWidth <= list.clientWidth + 1) return
+      const left = active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2
+      list.scrollTo({ left: Math.max(0, left), behavior: smooth ? "smooth" : "auto" })
+    }
+    reveal(false)
+    const observer = new MutationObserver(() => reveal(true))
+    observer.observe(list, { attributes: true, subtree: true, attributeFilter: ["data-state"] })
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <TabsPrimitive.List
+      ref={ref}
       data-slot="tabs-list"
       data-variant={variant}
       className={cn(tabsListVariants({ variant }), className)}
@@ -62,7 +82,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-full shrink-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-transparent px-4 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/85 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-foreground/85 dark:hover:text-foreground group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative inline-flex h-full shrink-0 flex-1 snap-start items-center justify-center gap-1.5 rounded-full border border-transparent px-3 py-0.5 sm:px-4 text-sm font-medium whitespace-nowrap text-foreground/85 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-foreground/85 dark:hover:text-foreground group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
         "data-active:bg-highlight data-active:text-highlight-foreground dark:data-active:text-highlight-foreground",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",

@@ -39,7 +39,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { daysUntil, isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
@@ -59,7 +58,6 @@ import {
   buildMockCards,
   buildMockDeadlines,
   buildMockSessions,
-  generatedCards,
   mockDecks,
   mockSubjects,
 } from "@/mocks/studies"
@@ -101,7 +99,6 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   const [creatingSubject, setCreatingSubject] = useState(false)
   const [creatingDeadline, setCreatingDeadline] = useState(false)
   const [studyDeck, setStudyDeck] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
 
   // Pomodoro
   const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("focus")
@@ -349,36 +346,16 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             <Button
               size="sm"
               variant="outline"
-              disabled={generating}
-              onClick={() => {
-                setGenerating(true)
-                window.setTimeout(() => {
-                  setCards((current) => [
-                    ...current,
-                    ...generatedCards.map((c) => ({
-                      id: mockId("fc"),
-                      deck_id: mockDecks[0].id,
-                      front: c.front,
-                      back: c.back,
-                      ease: 2.5,
-                      interval_days: 0,
-                      repetitions: 0,
-                      due_on: today,
-                    })),
-                  ])
-                  setGenerating(false)
-                  toast.success("4 flashcards gerados a partir das suas anotações.")
-                }, 1200)
-              }}
+              disabled
+              title="Em breve"
             >
-              <SparklesIcon strokeWidth={1.75} /> {generating ? "Gerando…" : "Gerar com IA"}
+              <SparklesIcon strokeWidth={1.75} /> Gerar com IA (em breve)
             </Button>
             }
           >
           <p className="pb-2 text-[15px] leading-6 text-muted-foreground">
             {dueCards.length === 0 ? "Nada para revisar hoje." : `${dueCards.length} cartões para revisar hoje.`}
           </p>
-          {generating ? <Skeleton className="h-16 w-full" /> : null}
           {mockDecks.map((deck) => {
             const list = cards.filter((c) => c.deck_id === deck.id)
             const due = list.filter((c) => isDue(c, today))

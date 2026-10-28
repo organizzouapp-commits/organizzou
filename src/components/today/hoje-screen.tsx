@@ -10,6 +10,7 @@ import {
   GraduationCapIcon,
   LaughIcon,
   MehIcon,
+  PlusIcon,
   SmileIcon,
   SparklesIcon,
   SquareCheckIcon,
@@ -20,6 +21,7 @@ import { toast } from "sonner"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { EmptyState } from "@/components/organizzou/EmptyState"
 import { HabitCheck } from "@/components/organizzou/HabitCheck"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
 import { Stat } from "@/components/organizzou/Stat"
@@ -63,7 +65,7 @@ function formatTime(date: Date) {
 export function HojeScreen({ nowIso }: { nowIso: string }) {
   const now = new Date(nowIso)
   const today = dayOf(nowIso)
-  const { openAssistant } = useAssistant()
+  const { openAssistant, openQuickCapture } = useAssistant()
 
   // --------------------------------------------------------------- tasks
   const store = getMockBoardsStore(nowIso)
@@ -148,7 +150,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         tone="highlight"
         label="Tarefas hoje"
         value={`${pendingCount}`}
-        support={`${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
+        support={planned === 0 ? "0 tarefas" : `${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
         href="/dashboard/tarefas"
         className="col-span-6 @min-[1040px]:col-span-3"
       />
@@ -178,15 +180,27 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
 
       <BentoCard title="Tarefas de hoje" href="/dashboard/tarefas" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-7">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-2">
-            <div className="tabular flex justify-between text-[13px] leading-5">
-              <span>Progresso do dia</span>
-              <span className="text-muted-foreground">{Math.min(100, progress)}%</span>
+          {planned === 0 ? null : (
+            <div className="flex flex-col gap-2">
+              <div className="tabular flex justify-between text-[13px] leading-5">
+                <span>Progresso do dia</span>
+                <span className="text-muted-foreground">{Math.min(100, progress)}%</span>
+              </div>
+              <Progress value={Math.min(100, progress)} aria-label="Progresso do dia" />
             </div>
-            <Progress value={Math.min(100, progress)} aria-label="Progresso do dia" />
-          </div>
+          )}
           {focus.length === 0 ? (
-            <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado para hoje. Aproveite o dia.</p>
+            <EmptyState
+              icon={SquareCheckIcon}
+              title="Nada marcado para hoje"
+              description={planned === 0 ? "Adicione uma tarefa para começar o dia." : "Tudo o que estava marcado para hoje foi concluído."}
+              action={
+                <Button variant="outline" onClick={openQuickCapture}>
+                  <PlusIcon strokeWidth={1.75} /> Adicionar tarefa
+                </Button>
+              }
+              className="py-8"
+            />
           ) : (
             <div>
               {focus.map((task) => {

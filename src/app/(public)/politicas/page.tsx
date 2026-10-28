@@ -22,11 +22,11 @@ const link =
 export default function PoliciesPage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-12 md:px-6 lg:flex-row lg:gap-12">
-      <aside className="lg:sticky lg:top-12 lg:h-fit lg:w-60 lg:shrink-0">
+      <aside className="sticky top-0 z-30 -mx-4 -mt-12 border-b border-border bg-background px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 md:-mx-6 md:px-6 lg:top-12 lg:z-auto lg:mx-0 lg:mt-0 lg:h-fit lg:w-60 lg:shrink-0 lg:border-b-0 lg:bg-transparent lg:p-0">
         <p className="mb-3 hidden text-[13px] leading-5 font-medium tracking-[0.08em] text-muted-foreground uppercase lg:block">Políticas</p>
-        <nav aria-label="Índice das políticas" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:flex-col lg:gap-1 lg:overflow-visible">
+        <nav aria-label="Índice das políticas" className="no-scrollbar -mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 lg:flex-col lg:gap-1 lg:overflow-visible">
           {SECTIONS.map((section) => (
-            <a key={section.id} href={`#${section.id}`} className={cn(link, "border border-border whitespace-nowrap lg:border-0")}>
+            <a key={section.id} href={`#${section.id}`} className={cn(link, "snap-start border border-border whitespace-nowrap lg:border-0")}>
               {section.label}
             </a>
           ))}
@@ -39,7 +39,7 @@ export default function PoliciesPage() {
       <div className="flex min-w-0 flex-1 flex-col gap-12">
         <h1 className="text-[28px] leading-9 font-semibold tracking-[-0.02em]">Políticas do Organizzou</h1>
 
-        <section id="termos" aria-labelledby="termos-title" className="flex scroll-mt-8 flex-col gap-4">
+        <section id="termos" aria-labelledby="termos-title" className="flex scroll-mt-24 flex-col gap-4 lg:scroll-mt-8">
           <h2 id="termos-title" className="text-[22px] leading-8 font-semibold tracking-[-0.01em]">
             Termos de uso
           </h2>
@@ -49,7 +49,7 @@ export default function PoliciesPage() {
           </p>
         </section>
 
-        <section id="privacidade" aria-labelledby="privacidade-title" className="flex scroll-mt-8 flex-col gap-4">
+        <section id="privacidade" aria-labelledby="privacidade-title" className="flex scroll-mt-24 flex-col gap-4 lg:scroll-mt-8">
           <h2 id="privacidade-title" className="text-[22px] leading-8 font-semibold tracking-[-0.01em]">
             Política de privacidade
           </h2>
@@ -61,7 +61,7 @@ export default function PoliciesPage() {
           </p>
         </section>
 
-        <section id="cookies" aria-labelledby="cookies-title" className="flex scroll-mt-8 flex-col gap-4">
+        <section id="cookies" aria-labelledby="cookies-title" className="flex scroll-mt-24 flex-col gap-4 lg:scroll-mt-8">
           <h2 id="cookies-title" className="text-[22px] leading-8 font-semibold tracking-[-0.01em]">
             Cookies
           </h2>

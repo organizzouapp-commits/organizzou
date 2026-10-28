@@ -1,7 +1,9 @@
+import Script from "next/script";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Geist_Mono, Outfit } from "next/font/google";
 import { LoadingHandoff } from "@/components/organizzou/loading-handoff";
+import { PRELOADER_BOOT } from "@/components/site/preloader-boot";
 import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -47,6 +49,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Decides before first paint whether the public-site preloader shows (once per session, never with reduced motion). */}
+        <Script id="preloader-boot" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: PRELOADER_BOOT }} />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

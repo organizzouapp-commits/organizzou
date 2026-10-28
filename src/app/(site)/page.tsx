@@ -3,6 +3,7 @@ import { getImageProps } from "next/image"
 import Link from "next/link"
 
 import { CursorGlow } from "@/components/site/cursor-glow"
+import { SiteReveal } from "@/components/site/site-reveal"
 import { SiteHeroLogo } from "@/components/site/site-hero-logo"
 import { ON_PHOTO, reveal } from "@/components/site/site-parts"
 import { ThemeToggle } from "@/components/organizzou/ThemeToggle"
@@ -35,9 +36,13 @@ export default function ComingSoonPage() {
       <picture>
         <source media="(max-width: 767px)" srcSet={mobileSrcSet} />
         <source media="(min-width: 768px)" srcSet={desktopSrcSet} />
-        <img {...desktopRest} alt="" className="-z-10 object-cover object-center" />
+        <img {...desktopRest} id="site-bg" alt="" className="-z-10 object-cover object-center" />
       </picture>
+      <noscript>
+        <style>{"#site-reveal{opacity:1!important}"}</style>
+      </noscript>
 
+      <SiteReveal>
       <ThemeToggle
         round
         tooltip
@@ -115,6 +120,7 @@ export default function ComingSoonPage() {
           </Link>
         </nav>
       </footer>
+      </SiteReveal>
     </div>
   )
 }

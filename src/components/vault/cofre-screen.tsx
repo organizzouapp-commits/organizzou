@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
+import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
@@ -288,11 +289,14 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" className="self-start" onClick={() => toast.success("Backup criptografado gerado: organizzou-cofre.vault")}>
-              <DownloadIcon strokeWidth={1.75} /> Exportar backup criptografado
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" disabled>
+                <DownloadIcon strokeWidth={1.75} /> Exportar backup criptografado
+              </Button>
+              <SoonBadge />
+            </div>
             <p className="text-[13px] leading-5 text-muted-foreground">
-              O backup só pode ser aberto com a sua senha mestra. O cofre nunca é exportado em texto aberto.
+              O backup ainda não está disponível. Quando abrir, ele só poderá ser aberto com a sua senha mestra, e o cofre nunca será exportado em texto aberto.
             </p>
           </BentoCard>
           </Bento>

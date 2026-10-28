@@ -66,13 +66,13 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
       onSubmit={(e) => {
         e.preventDefault()
         if (!text.trim()) return
-        toast.success(destination ? `Salvo em ${modules[destination].name}.` : "Salvo em Notas e lembretes.")
+        toast(destination ? `Prévia: isto iria para ${modules[destination].name}, mas ainda não é salvo.` : "Prévia: isto iria para Notas e lembretes, mas ainda não é salvo.")
         onClose()
       }}
     >
       <Header className="p-0">
         <Title>Captura rápida</Title>
-        <Description>Escreva do jeito que vier. O assistente escolhe onde guardar.</Description>
+        <Description>Prévia: escreva do jeito que vier e veja onde o assistente guardaria. Ainda não salva nada.</Description>
       </Header>
       <div className="flex gap-2">
         <Textarea
