@@ -430,13 +430,15 @@ export default function DesignSystemPage() {
 
       <Separator />
 
-      <Section overline="Mobile" title="BottomNav e assistente">
+      <Section overline="Mobile" title="BottomNav flutuante e assistente">
         <div className="relative max-w-sm overflow-hidden rounded-2xl border border-border">
           <div className="flex h-40 items-start p-4 text-[13px] leading-5 text-muted-foreground">
             Conteúdo da tela
           </div>
-          <AssistantFab className="absolute right-4 bottom-24" />
-          <BottomNav items={navItems} activeId={navActive} onSelect={setNavActive} onAdd={() => toast("Novo item")} />
+          <AssistantFab className="absolute top-4 right-4" />
+          <div className="flex justify-center px-4 pt-2 pb-6">
+            <BottomNav items={navItems} activeId={navActive} onSelect={setNavActive} onAdd={() => toast("Novo item")} />
+          </div>
         </div>
       </Section>
     </div>

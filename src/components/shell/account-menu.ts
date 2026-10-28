@@ -1,6 +1,6 @@
 import { CircleHelpIcon, SettingsIcon, UserIcon, type LucideIcon } from "lucide-react"
 
-/** The "Configurações" group: the same items in the sidebar, the collapsed rail flyout, the top-bar avatar menu and the mobile "Mais" sheet. "Sair" is added by each surface (it asks for confirmation). */
+/** The "Configurações" group: the same items in the sidebar, the collapsed rail flyout and the top-bar avatar menu. "Sair" is added by each surface (it asks for confirmation). */
 export const ACCOUNT_GROUP_LABEL = "Configurações"
 
 export type AccountItem = { id: string; label: string; href: string; icon: LucideIcon }

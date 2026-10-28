@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, LogOutIcon, SearchIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, LogOutIcon, MessageCircleIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -27,6 +27,7 @@ import type { ShellUser } from "./app-sidebar"
 import { ACCOUNT_ITEMS } from "./account-menu"
 import { metaFor } from "./nav"
 import { useRequestSignOut } from "./sign-out-dialog"
+import { WHATSAPP_HREF } from "./whatsapp-cta"
 
 const NOTIFICATIONS = [
   { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
@@ -46,10 +47,9 @@ function initials(name: string) {
 type AppTopBarProps = {
   user: ShellUser
   nowIso: string
-  onSearch: () => void
   /** Desktop inline search: hands the typed text to the command palette. */
   onSearchWith: (query: string) => void
-  /** The collapsed layout replaces the desktop header with TopHeader; only the mobile bar stays. */
+  /** The collapsed layout replaces the desktop header with TopHeader. */
   hideDesktop?: boolean
 }
 
@@ -80,7 +80,10 @@ export function Bell({ bare = false }: { bare?: boolean }) {
 const menuItem = "min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]"
 const menuIcon = "size-[18px]"
 
-/** `header`: the collapsed layout's top header, which sits inside its own pill group and shows the name and e-mail from 1440 px. */
+/**
+ * `header`: the collapsed layout's top header, which sits inside its own pill group and shows the name and e-mail from 1440 px.
+ * `compact`: avatar only (mobile header); its menu also lists "Conectar WhatsApp", since there is no sidebar card on mobile.
+ */
 export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
   return (
@@ -108,7 +111,7 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-auto max-w-[calc(100vw-2rem)] min-w-60 rounded-2xl p-2">
+      <DropdownMenuContent align={compact ? "start" : "end"} sideOffset={8} collisionPadding={16} className="w-auto max-w-[calc(100vw-2rem)] min-w-60 rounded-2xl p-2">
         <DropdownMenuLabel className="flex min-w-0 flex-col px-3 py-3 leading-tight">
           <span className="truncate text-[15px] font-medium text-foreground">{user.name}</span>
           <span className="truncate text-[13px] font-normal text-muted-foreground">{user.email}</span>
@@ -121,6 +124,13 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             </Link>
           </DropdownMenuItem>
         ))}
+        {compact ? (
+          <DropdownMenuItem asChild className={menuItem}>
+            <Link href={WHATSAPP_HREF}>
+              <MessageCircleIcon strokeWidth={1.75} className={menuIcon} /> Conectar WhatsApp
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator className="mx-1 my-2" />
         <DropdownMenuItem onSelect={requestSignOut} className={menuItem}>
           <LogOutIcon strokeWidth={1.75} className={menuIcon} /> Sair
@@ -144,8 +154,8 @@ export function usePageHeading(user: ShellUser, nowIso: string) {
   return { title, subtitle, isToday }
 }
 
-export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, onSearchWith, hideDesktop = false }: AppTopBarProps) {
-  const { title, subtitle, isToday } = usePageHeading(user, nowIso)
+export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearchWith, hideDesktop = false }: AppTopBarProps) {
+  const { title, subtitle } = usePageHeading(user, nowIso)
 
   return (
     <>
@@ -156,18 +166,6 @@ export const AppTopBar = memo(function AppTopBar({ user, nowIso, onSearch, onSea
           <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
         </div>
         <HeaderActions user={user} onSearch={onSearchWith} />
-      </header>
-
-      {/* Mobile */}
-      <header className="sticky top-0 z-20 border-b border-border bg-card flex min-h-16 items-center justify-between gap-3 px-4 py-2 md:hidden">
-        <UserMenu user={user} compact />
-        <h1 className="min-w-0 flex-1 truncate text-center text-[17px] leading-6 font-semibold">{isToday ? "Hoje" : title}</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="surface" size="icon" className="rounded-full" aria-label="Buscar" onClick={onSearch}>
-            <SearchIcon strokeWidth={1.75} />
-          </Button>
-          <Bell />
-        </div>
       </header>
     </>
   )

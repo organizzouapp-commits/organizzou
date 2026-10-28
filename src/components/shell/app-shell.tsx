@@ -1,9 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { EllipsisIcon, LayoutDashboardIcon, LogOutIcon, SquareKanbanIcon, WalletIcon } from "lucide-react"
+import { CalendarDaysIcon, LayoutDashboardIcon, SparklesIcon, SquareKanbanIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { AssistantProvider } from "@/components/assistant/assistant-context"
@@ -11,8 +10,7 @@ import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
-import { modules, type ModuleId } from "@/components/organizzou/modules"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import type { ModuleId } from "@/components/organizzou/modules"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { isMock } from "@/mocks/config"
@@ -20,21 +18,22 @@ import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
-import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { FrameGlass } from "./frame-glass"
 import { AppTopBar, usePageHeading } from "./app-topbar"
 import { AppTopHeader } from "./app-topheader"
 import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
-import { NAV_GROUPS } from "./nav"
-import { PrimaryActionProvider } from "./primary-action"
-import { WhatsAppCta } from "./whatsapp-cta"
+import { MobileHeader } from "./mobile-header"
+import { PrimaryActionProvider, usePrimaryActionValue } from "./primary-action"
 
+const ASSISTANT_ID = "assistente"
+
+// Finanças, Vida and Organização are reached from the mobile header chips; the assistant is an action, never the current page.
 const navItems: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem] = [
   { id: "/dashboard", label: "Hoje", icon: LayoutDashboardIcon },
   { id: "/dashboard/tarefas", label: "Tarefas", icon: SquareKanbanIcon },
-  { id: "/dashboard/financas", label: "Finanças", icon: WalletIcon },
-  { id: "mais", label: "Mais", icon: EllipsisIcon },
+  { id: "/dashboard/agenda", label: "Agenda", icon: CalendarDaysIcon },
+  { id: ASSISTANT_ID, label: "Assistente", icon: SparklesIcon },
 ]
 
 // The profile is the source of truth for the theme across devices.
@@ -61,12 +60,18 @@ function useIsTablet() {
   )
 }
 
-/** Collapsed layout only: the page title and subtitle (moved out of the header) sit above the page content. */
+/** The floating nav's "+" does what the desktop "+ Novo" does: the screen's primary action, or quick capture. */
+function ShellBottomNav({ activeId, onSelect, onCapture }: { activeId: string; onSelect: (id: string) => void; onCapture: () => void }) {
+  const primary = usePrimaryActionValue()
+  return <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-30 max-w-[calc(100%-2rem)] -translate-x-1/2 md:hidden" />
+}
+
+/** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
   return (
-    <div className="hidden min-w-0 flex-col pt-6 pb-5 md:flex">
-      <h1 className="truncate pb-0.5 text-[30px] leading-tight font-semibold tracking-[-0.02em]">{title}</h1>
+    <div className="flex min-w-0 flex-col pt-4 pb-4 md:pt-6 md:pb-5">
+      <h1 className="truncate pb-0.5 text-[26px] leading-tight font-semibold tracking-[-0.02em] md:text-[30px]">{title}</h1>
       <p className="truncate text-[15px] leading-6 text-muted-foreground">{subtitle}</p>
     </div>
   )
@@ -93,14 +98,13 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [moreOpen, setMoreOpen] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [choice, setChoice] = useState<boolean | null>(sidebarOpen)
   const open = choice ?? !isTablet
   // Collapsed sidebar on desktop = rail + top header layout (the expanded sidebar keeps the classic layout).
   const topLayout = !open
 
-  const activeId = navItems.find((item) => item.id !== "mais" && isActivePath(pathname, item.id))?.id ?? ""
+  const activeId = navItems.find((item) => item.id !== ASSISTANT_ID && isActivePath(pathname, item.id))?.id ?? ""
   // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
   const counts = useMemo<Partial<Record<ModuleId, number>>>(
     () => (isMock ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
@@ -122,11 +126,8 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
   function onSelect(id: string) {
-    if (id === "mais") {
-      setMoreOpen(true)
-      return
-    }
-    router.push(id)
+    if (id === ASSISTANT_ID) setAssistantOpen(true)
+    else router.push(id)
   }
 
   return (
@@ -148,93 +149,26 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           {/* Frame padding P = 16px, the same distance the sidebar keeps: the column (top bar + content) starts at the sidebar's
               top, ends at its bottom and keeps P from the right edge. */}
           <SidebarInset className={cn("min-w-0 bg-transparent md:min-h-0 md:overflow-hidden md:p-4 md:pl-0", topLayout && "md:pt-[4.5rem]")}>
-            <AppTopBar user={user} nowIso={nowIso} onSearch={openSearch} onSearchWith={openSearchWith} hideDesktop={topLayout} />
+            <MobileHeader user={user} onSearch={openSearch} />
+            <AppTopBar user={user} nowIso={nowIso} onSearchWith={openSearchWith} hideDesktop={topLayout} />
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-2 pb-28 md:px-0 md:pt-0 md:pb-0">
-                {topLayout ? <PageHeading user={user} nowIso={nowIso} /> : null}
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+6rem)] md:px-0 md:pt-0 md:pb-0">
+                {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>
             </div>
           </SidebarInset>
 
-          <AssistantFab className="fixed right-4 bottom-24 z-40 md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
+          <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
 
-          <BottomNav
-            items={navItems}
-            activeId={activeId}
-            onSelect={onSelect}
-            onAdd={() => setCaptureOpen(true)}
-            className="fixed inset-x-0 bottom-0 z-30 md:hidden"
-          />
+          <ShellBottomNav activeId={activeId} onSelect={onSelect} onCapture={() => setCaptureOpen(true)} />
 
           <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
           <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
           <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
-
-          <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-            <SheetContent side="bottom" className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-[24px]">
-              <SheetHeader>
-                <SheetTitle>Todos os módulos</SheetTitle>
-                <SheetDescription className="sr-only">Escolha um módulo para abrir.</SheetDescription>
-              </SheetHeader>
-              <nav className="flex flex-col gap-5 px-4 pb-4" aria-label="Módulos">
-                {NAV_GROUPS.map((group) => (
-                  <div key={group.label} className="flex flex-col">
-                    <p className="pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{group.label}</p>
-                    {group.items.map((id) => {
-                      const m = modules[id]
-                      return (
-                        <Link
-                          key={id}
-                          href={m.href}
-                          onClick={() => setMoreOpen(false)}
-                          className={cn(
-                            "flex min-h-12 items-center gap-4 rounded-full px-3 text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                            isActivePath(pathname, m.href) && "bg-highlight font-medium text-highlight-foreground"
-                          )}
-                        >
-                          <m.icon aria-hidden strokeWidth={1.75} className="size-5" />
-                          {m.name}
-                        </Link>
-                      )
-                    })}
-                  </div>
-                ))}
-                <div className="flex flex-col">
-                  <p className="pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{ACCOUNT_GROUP_LABEL}</p>
-                  {ACCOUNT_ITEMS.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      onClick={() => setMoreOpen(false)}
-                      className={cn(
-                        "flex min-h-12 items-center gap-4 rounded-full px-3 text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                        isActivePath(pathname, item.href) && "bg-highlight font-medium text-highlight-foreground"
-                      )}
-                    >
-                      <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
-                      {item.label}
-                    </Link>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMoreOpen(false)
-                      setSignOutOpen(true)
-                    }}
-                    className="flex min-h-12 items-center gap-4 rounded-full px-3 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
-                    Sair
-                  </button>
-                </div>
-                <WhatsAppCta onNavigate={() => setMoreOpen(false)} />
-              </nav>
-            </SheetContent>
-          </Sheet>
         </SidebarProvider>
       </PrimaryActionProvider>
       </SignOutProvider>
