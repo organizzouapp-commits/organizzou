@@ -244,7 +244,7 @@ export function BoardToolbar(props: BoardToolbarProps) {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <Tabs value={props.view} onValueChange={(v) => props.onViewChange(v as ViewMode)}>
+        <Tabs className="min-w-0" value={props.view} onValueChange={(v) => props.onViewChange(v as ViewMode)}>
           <TabsList>
             <TabsTrigger value="kanban">
               <SquareKanbanIcon strokeWidth={1.75} /> Kanban
