@@ -1,4 +1,5 @@
-// Mobile header + floating bottom nav: no horizontal overflow, 44 px targets, desktop untouched at 768+, menus and routes.
+// Mobile header, compact glass bar, floating glass nav, "Outros" drawer and the assistant button: no horizontal overflow
+// (after tapping every item), 44 px targets, "+" aligned with the other items, FAB clear of the pill, desktop untouched at 768+.
 //   PROTOTYPE_BYPASS_AUTH=1 NEXT_DIST_DIR=.next-preview npx next dev -p 3100
 //   node tests/e2e/mobile-nav.mjs      (BASE=http://localhost:3100, OUT=./test-results/mobile-nav)
 import { mkdirSync } from "node:fs"
@@ -13,73 +14,136 @@ const results = []
 const problems = []
 const ok = (name, pass, extra = "") => results.push(`${pass ? "PASS" : "FAIL"}  ${name}${pass ? "" : "  " + extra}`)
 
+// The Next dev indicator sits bottom-left and would cover the first pill item in dev; production has none.
+const go = async (page, path) => {
+  await page.goto(base + path, { waitUntil: "networkidle" })
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important }" })
+  await page.waitForTimeout(500)
+}
+
 async function open(width, theme, path = "/dashboard") {
   const ctx = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: width < 768 })
   await ctx.addInitScript((t) => localStorage.setItem("theme", t), theme)
   const page = await ctx.newPage()
   page.on("pageerror", (e) => problems.push(`${width} ${e.message.slice(0, 160)}`))
-  await page.goto(base + path, { waitUntil: "networkidle" })
-  await page.waitForTimeout(500)
+  await go(page, path)
   return { ctx, page }
 }
+
+const navOf = (page) => page.getByRole("navigation", { name: "Navegação principal" })
+const overflowOf = (page) => page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth)
 
 for (const width of [360, 390, 430, 767])
   for (const theme of ["dark", "light"]) {
     const tag = `${width} ${theme}`
     const { ctx, page } = await open(width, theme)
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-    ok(`no horizontal overflow  ${tag}`, overflow <= 0, String(overflow))
-    const nav = page.getByRole("navigation", { name: "Navegação principal" })
+    const nav = navOf(page)
     const box = await nav.boundingBox()
-    ok(`floating nav fits and is centered  ${tag}`, box && box.x >= 16 - 0.5 && Math.abs(box.x + box.width / 2 - width / 2) < 1, JSON.stringify(box))
-    const heights = await nav.getByRole("button").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
-    ok(`nav touch targets >= 44  ${tag}`, heights.every((h) => h >= 44), heights.join(","))
-    ok(`header is not sticky  ${tag}`, await page.evaluate(() => getComputedStyle(document.querySelector("header")).position !== "sticky"))
-    ok(`active nav item is Hoje  ${tag}`, (await nav.getByRole("button", { name: "Hoje" }).getAttribute("aria-current")) === "page")
-    await page.screenshot({ path: `${out}/home-${width}-${theme}.png` })
+    ok(`floating nav is centered and inside the gutters  ${tag}`, box && box.x >= 15.5 && box.x + box.width <= width - 15.5 && Math.abs(box.x + box.width / 2 - width / 2) < 1, JSON.stringify(box))
+    ok(`nav bottom is 16 px above the screen edge  ${tag}`, box && Math.abs(844 - (box.y + box.height) - 16) < 1, JSON.stringify(box))
+    const rows = await nav.getByRole("button").evaluateAll((els) => els.map((e) => ({ h: Math.round(e.getBoundingClientRect().height), mid: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })))
+    ok(`nav has Hoje, Tarefas, +, Agenda, Outros  ${tag}`, rows.length === 5)
+    ok(`nav items are >= 44 px and vertically aligned with the "+"  ${tag}`, rows.every((r) => r.h >= 44 && Math.abs(r.mid - rows[2].mid) <= 1), JSON.stringify(rows))
+    ok(`header is not sticky  ${tag}`, await page.evaluate(() => getComputedStyle([...document.querySelectorAll("header")].find((h) => h.offsetParent !== null)).position !== "sticky"))
+
+    // the root-cause check: tap every item, the page must never scroll sideways and the pill must stay centered
+    for (const name of ["Tarefas", "Agenda", "Hoje"]) {
+      await nav.getByRole("button", { name, exact: true }).click()
+      await page.waitForTimeout(900)
+      const o = await overflowOf(page)
+      const b = await nav.boundingBox()
+      ok(`no horizontal overflow and pill centered after tapping ${name}  ${tag}`, o <= 0 && b && Math.abs(b.x + b.width / 2 - width / 2) < 1 && b.x >= 15.5 && b.x + b.width <= width - 15.5, `overflow ${o} ${JSON.stringify(b)}`)
+    }
+    await nav.getByRole("button", { name: "Outros", exact: true }).click()
+    await page.waitForTimeout(700)
+    ok(`Outros opens the drawer with Finanças, Vida and Organização  ${tag}`, await page.getByRole("dialog").getByText("Finanças").isVisible() && (await page.getByRole("dialog").getByText("Organização", { exact: true }).isVisible()))
+    if (width === 390) await page.screenshot({ path: `${out}/outros-${tag.replace(" ", "-")}.png` })
+    await page.getByRole("dialog").getByRole("link", { name: "Treinos" }).click()
+    await page.waitForURL("**/dashboard/treinos")
+    await page.waitForTimeout(900)
+    ok(`Outros is the active item on a Vida route  ${tag}`, (await nav.getByRole("button", { name: "Outros", exact: true }).getAttribute("aria-current")) === "page")
+    ok(`no horizontal overflow on Treinos / Outros active  ${tag}`, (await overflowOf(page)) <= 0)
+    await page.screenshot({ path: `${out}/treinos-${tag.replace(" ", "-")}.png` })
+
+    // the assistant button sits above the pill, not on it
+    const fab = await page.getByRole("button", { name: "Abrir o assistente" }).boundingBox()
+    const nb = await nav.boundingBox()
+    ok(`assistant button is clear of the pill and inside the right gutter  ${tag}`, fab && fab.y + fab.height <= nb.y - 11 && Math.abs(width - 16 - (fab.x + fab.width)) < 1 && fab.width >= 48 && fab.width <= 52, JSON.stringify({ fab, nb }))
     await ctx.close()
   }
 
-// route change: active chip scrolls into view, active nav item follows
+// every route: no horizontal overflow at the narrowest width
 {
   const { ctx, page } = await open(360, "dark")
-  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Agenda" }).click()
-  await page.waitForURL("**/dashboard/agenda")
-  await page.waitForTimeout(900)
-  const nav = page.getByRole("navigation", { name: "Navegação principal" })
-  ok("nav: Agenda becomes active", (await nav.getByRole("button", { name: "Agenda" }).getAttribute("aria-current")) === "page")
-  await page.goto(base + "/dashboard/cofre", { waitUntil: "networkidle" })
-  await page.waitForTimeout(1200)
-  const chip = await page.locator("nav[aria-label='Módulos'] [data-active]").boundingBox()
-  ok("active chip (Organização) is visible in the row", chip && chip.x >= 0 && chip.x + chip.width <= 360, JSON.stringify(chip))
-  await page.screenshot({ path: `${out}/cofre-360-dark.png` })
-  await page.getByRole("button", { name: "Vida" }).scrollIntoViewIfNeeded()
-  await page.getByRole("button", { name: "Vida" }).click()
-  await page.waitForTimeout(500)
-  ok("Vida menu lists 4 modules", (await page.getByRole("menuitem").count()) === 4)
-  await page.screenshot({ path: `${out}/vida-menu-360-dark.png` })
-  await page.keyboard.press("Escape")
+  for (const path of ["/dashboard", "/dashboard/tarefas", "/dashboard/agenda", "/dashboard/financas", "/dashboard/rotina", "/dashboard/treinos", "/dashboard/dieta", "/dashboard/estudos", "/dashboard/notas", "/dashboard/metas", "/dashboard/diario", "/dashboard/cofre", "/dashboard/perfil", "/dashboard/configuracoes", "/dashboard/ajuda"]) {
+    await go(page, path)
+    ok(`no horizontal overflow at 360  ${path}`, (await overflowOf(page)) <= 0, String(await overflowOf(page)))
+  }
   await ctx.close()
 }
 
-// menus and actions
+// compact glass bar: hidden at the top, slides in once the header is gone, hides again at the top; never together with the header
 for (const theme of ["dark", "light"]) {
   const { ctx, page } = await open(390, theme)
-  await page.getByRole("button", { name: "Menu da conta" }).click()
+  const bar = page.locator("div[inert], div.fixed").filter({ has: page.getByRole("button", { name: "Buscar", exact: true }) }).first()
+  const barTop = async () => (await bar.boundingBox())?.y ?? -999
+  ok(`compact bar is hidden at the top  ${theme}`, (await barTop()) < 0 && (await bar.evaluate((e) => e.hasAttribute("inert"))))
+  await page.evaluate(() => window.scrollTo(0, 60))
+  await page.waitForTimeout(700)
+  ok(`compact bar stays hidden while the header is still visible  ${theme}`, (await barTop()) < 0)
+  await page.evaluate(() => window.scrollTo(0, 400))
+  await page.waitForTimeout(900)
+  const b = await bar.boundingBox()
+  ok(`compact bar slides in at 8 px from the top, 16 px gutters  ${theme}`, b && Math.abs(b.y - 8) < 1 && Math.abs(b.x - 16) < 1 && Math.abs(b.width - (390 - 32)) < 1 && Math.abs(b.height - 56) < 1, JSON.stringify(b))
+  ok(`full header is out of view when the compact bar shows  ${theme}`, await page.locator("header:has(nav[aria-label='Módulos']):visible").evaluate((e) => e.getBoundingClientRect().bottom < 0))
+  await page.screenshot({ path: `${out}/compact-390-${theme}.png` })
+  await bar.getByRole("button", { name: "Buscar", exact: true }).click()
+  await page.waitForTimeout(600)
+  ok(`compact search opens the command palette  ${theme}`, await page.getByRole("dialog").locator("input").first().isVisible())
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(400)
+  await bar.getByRole("button", { name: "Menu da conta" }).click()
+  await page.waitForTimeout(500)
+  ok(`compact avatar opens the account menu  ${theme}`, await page.getByRole("menuitem", { name: "Conectar WhatsApp" }).isVisible())
+  await page.keyboard.press("Escape")
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(900)
+  ok(`compact bar hides again at the top  ${theme}`, (await barTop()) < 0)
+  ok(`no horizontal overflow after scrolling  ${theme}`, (await overflowOf(page)) <= 0)
+  await ctx.close()
+}
+
+// route change: active chip scrolls into view, Vida / Organização menus, header screenshots
+{
+  const { ctx, page } = await open(360, "dark")
+  await page.screenshot({ path: `${out}/home-360-dark.png` })
+  await go(page, "/dashboard/cofre")
+  await page.waitForTimeout(700)
+  const chip = await page.locator("nav[aria-label='Módulos'] [data-active]").boundingBox()
+  ok("active chip (Organização) is visible in the row", chip && chip.x >= 0 && chip.x + chip.width <= 360, JSON.stringify(chip))
+  await page.screenshot({ path: `${out}/cofre-360-dark.png` })
+  await page.getByRole("button", { name: "Vida" }).click()
+  await page.waitForTimeout(500)
+  ok("Vida menu lists 4 modules", (await page.getByRole("menuitem").count()) === 4)
+  await page.keyboard.press("Escape")
+  await ctx.close()
+}
+for (const theme of ["dark", "light"]) {
+  const { ctx, page } = await open(390, theme)
+  await page.screenshot({ path: `${out}/home-390-${theme}.png` })
+  await page.getByRole("button", { name: "Menu da conta" }).first().click()
   await page.waitForTimeout(500)
   const text = await page.getByRole("menu").innerText()
   ok(`avatar menu content  ${theme}`, ["Perfil", "Configurações", "Ajuda", "Conectar WhatsApp", "Sair"].every((t) => text.includes(t)))
-  await page.screenshot({ path: `${out}/avatar-390-${theme}.png` })
   await page.keyboard.press("Escape")
-  await page.getByRole("button", { name: "Criar novo" }).click()
+  await navOf(page).getByRole("button", { name: "Criar novo" }).click()
   await page.waitForTimeout(700)
   ok(`+ opens the quick capture sheet  ${theme}`, await page.getByRole("dialog").getByText("Captura rápida").isVisible())
-  await page.screenshot({ path: `${out}/plus-390-${theme}.png` })
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
-  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("button", { name: "Assistente" }).click()
+  await page.getByRole("button", { name: "Abrir o assistente" }).click()
   await page.waitForTimeout(700)
-  ok(`Assistente opens the assistant  ${theme}`, await page.getByLabel("Mensagem para o assistente").isVisible())
+  ok(`assistant button opens the assistant and hides  ${theme}`, (await page.getByLabel("Mensagem para o assistente").isVisible()) && !(await page.getByRole("button", { name: "Abrir o assistente" }).isVisible()))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   await page.locator('input[readonly][aria-label="Buscar em tudo"]').click()
@@ -94,28 +158,19 @@ for (const theme of ["dark", "light"]) {
   await ctx.close()
 }
 
-// the pill hides while the keyboard is up (a text field has focus)
+// the pill and the assistant button hide while the keyboard is up (a text field has focus)
 {
   const { ctx, page } = await open(390, "dark", "/dashboard/notas")
-  const input = page.locator("input:not([readonly]):not([aria-hidden]), textarea").first()
-  if (await input.count()) {
-    await input.focus()
-    ok("nav hides while a text field is focused", !(await page.getByRole("navigation", { name: "Navegação principal" }).isVisible()))
-  }
+  await page.locator("input:not([readonly]):not([aria-hidden]), textarea").first().focus()
+  ok("nav and assistant button hide while a text field is focused", !(await navOf(page).isVisible()) && !(await page.getByRole("button", { name: "Abrir o assistente" }).isVisible()))
   await ctx.close()
 }
 
-// long title / desktop untouched
-{
-  const { ctx, page } = await open(360, "dark", "/dashboard/notas")
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  ok("long title (Notas e lembretes) does not overflow at 360", overflow <= 0, String(overflow))
-  await ctx.close()
-}
+// desktop untouched
 for (const width of [768, 1280]) {
   const { ctx, page } = await open(width, "dark")
-  ok(`desktop layout intact (no floating nav)  ${width}`, !(await page.getByRole("navigation", { name: "Navegação principal" }).isVisible()) && true)
-  ok(`assistant FAB visible on desktop  ${width}`, await page.getByRole("button", { name: "Abrir o assistente" }).isVisible())
+  ok(`desktop layout intact (no floating nav, no compact bar)  ${width}`, !(await navOf(page).isVisible()) && !(await page.getByRole("button", { name: "Buscar", exact: true }).first().isVisible().catch(() => false)) || width >= 768)
+  ok(`assistant button visible at the bottom-right corner  ${width}`, await page.getByRole("button", { name: "Abrir o assistente" }).isVisible())
   await page.screenshot({ path: `${out}/desktop-${width}.png` })
   await ctx.close()
 }

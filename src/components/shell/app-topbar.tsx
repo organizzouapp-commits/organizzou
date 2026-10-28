@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useState } from "react"
+import { memo, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
@@ -53,11 +53,23 @@ type AppTopBarProps = {
   hideDesktop?: boolean
 }
 
+// The unread flag is shared, so the phone's full header and its compact bar (both mounted) always show the same badge.
+let unreadNotifications = true
+const unreadListeners = new Set<() => void>()
+function markNotificationsRead() {
+  unreadNotifications = false
+  unreadListeners.forEach((listener) => listener())
+}
+function subscribeUnread(listener: () => void) {
+  unreadListeners.add(listener)
+  return () => void unreadListeners.delete(listener)
+}
+
 /** `bare`: no border or fill of its own, for use inside a pill group (the collapsed header). */
 export function Bell({ bare = false }: { bare?: boolean }) {
-  const [unread, setUnread] = useState(true)
+  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => true)
   return (
-    <Popover onOpenChange={(open) => open && setUnread(false)}>
+    <Popover onOpenChange={(open) => open && markNotificationsRead()}>
       <PopoverTrigger asChild>
         <Button variant={bare ? "ghost" : "surface"} size="icon" className={cn("relative rounded-full", bare && "size-10 md:size-10")} aria-label={unread ? "Notificações, há novas" : "Notificações"}>
           <BellIcon strokeWidth={1.75} />

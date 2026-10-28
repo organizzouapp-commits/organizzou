@@ -131,7 +131,7 @@ for (const theme of ["dark", "light"])
 // ---------- avatar menu (desktop and mobile) ----------
 {
   const { ctx, page } = await open({ width: 1440, height: 900 }, "dark", "/dashboard")
-  await page.getByRole("button", { name: "Menu da conta" }).click()
+  await page.getByRole("button", { name: "Menu da conta" }).first().click()
   await page.waitForTimeout(400)
   const items = await page.getByRole("menu").getByRole("menuitem").allInnerTexts()
   ok("avatar menu: Perfil, Configurações, Ajuda, Sair", JSON.stringify(items.map((i) => i.trim())) === JSON.stringify(["Perfil", "Configurações", "Ajuda", "Sair"]), JSON.stringify(items))
@@ -141,7 +141,7 @@ for (const theme of ["dark", "light"])
 }
 for (const theme of ["dark", "light"]) {
   const { ctx, page } = await open({ width: 390, height: 844 }, theme, "/dashboard")
-  await page.getByRole("button", { name: "Menu da conta" }).click()
+  await page.getByRole("button", { name: "Menu da conta" }).first().click()
   await page.waitForTimeout(500)
   const menu = page.getByRole("menu")
   const text = await menu.innerText()

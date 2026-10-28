@@ -143,9 +143,14 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   contextual "+ Novo" (cada tela registra o seu com `usePrimaryAction`; sem registro abre a captura rápida).
 - **Mobile (< 768 px)**: sem sidebar. Cabeçalho que rola com a página (não é fixo) em 3 linhas: avatar (menu da conta, com
   "Conectar WhatsApp"), logo e sino; busca + alternador de tema; chips só de texto (Hoje, Tarefas, Agenda, Finanças, Vida ▾,
-  Organização ▾). `BottomNav` flutuante em pílula (Hoje · Tarefas · **+** elevado · Agenda · Assistente): o item ativo expande
-  em pílula Lima com o rótulo; o "+" faz o mesmo que o "+ Novo" do desktop; some enquanto o teclado está aberto. O título e o
-  subtítulo da página ficam no conteúdo, abaixo do cabeçalho.
+  Organização ▾), de vidro quando inativos e Lima no ativo. Depois que o cabeçalho sai da tela, entra uma barra compacta de vidro
+  no topo (avatar, logo, busca e sino). `BottomNav` flutuante em pílula de vidro (Hoje · Tarefas · **+** · Agenda · Outros): o item
+  ativo expande em pílula Lima com o rótulo, o "+" é um círculo Lima na mesma linha e faz o mesmo que o "+ Novo" do desktop, e
+  "Outros" abre uma gaveta com Finanças, Vida e Organização. O assistente é um botão Lima de 48 px acima da ponta direita da pílula.
+  O título e o subtítulo da página ficam no conteúdo, abaixo do cabeçalho.
+- **Vidro no celular** (`GlassSurface`): sem `backdrop-filter`. Uma cópia muito desfocada da foto (`app-bg-mobile-frost.webp`, gerada por
+  `npm run glass-bg`) é pintada dentro da superfície com `position: fixed; inset: 0`, alinhada ao pixel com a camada de fundo e
+  recortada com `clip-path`, mais um tom (`bg-background/60`) e borda de 1 px. Nenhum ancestral pode ter `transform`/`contain`/`filter`.
 
 ### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
 

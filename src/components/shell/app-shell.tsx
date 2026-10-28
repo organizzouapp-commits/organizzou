@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarDaysIcon, LayoutDashboardIcon, SparklesIcon, SquareKanbanIcon } from "lucide-react"
+import { CalendarDaysIcon, EllipsisIcon, LayoutDashboardIcon, SquareKanbanIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { AssistantProvider } from "@/components/assistant/assistant-context"
@@ -13,6 +13,7 @@ import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav
 import type { ModuleId } from "@/components/organizzou/modules"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { isMock } from "@/mocks/config"
 import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
@@ -24,16 +25,17 @@ import { AppTopHeader } from "./app-topheader"
 import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { MobileHeader } from "./mobile-header"
+import { OthersDrawer, isOtherPath } from "./others-drawer"
 import { PrimaryActionProvider, usePrimaryActionValue } from "./primary-action"
 
-const ASSISTANT_ID = "assistente"
+const OTHERS_ID = "outros"
 
-// Finanças, Vida and Organização are reached from the mobile header chips; the assistant is an action, never the current page.
+// "Outros" opens a drawer with the remaining modules (Finanças, Vida, Organização); the header chips reach them too.
 const navItems: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem] = [
   { id: "/dashboard", label: "Hoje", icon: LayoutDashboardIcon },
   { id: "/dashboard/tarefas", label: "Tarefas", icon: SquareKanbanIcon },
   { id: "/dashboard/agenda", label: "Agenda", icon: CalendarDaysIcon },
-  { id: ASSISTANT_ID, label: "Assistente", icon: SparklesIcon },
+  { id: OTHERS_ID, label: "Outros", icon: EllipsisIcon },
 ]
 
 // The profile is the source of truth for the theme across devices.
@@ -63,7 +65,7 @@ function useIsTablet() {
 /** The floating nav's "+" does what the desktop "+ Novo" does: the screen's primary action, or quick capture. */
 function ShellBottomNav({ activeId, onSelect, onCapture }: { activeId: string; onSelect: (id: string) => void; onCapture: () => void }) {
   const primary = usePrimaryActionValue()
-  return <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-30 max-w-[calc(100%-2rem)] -translate-x-1/2 md:hidden" />
+  return <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 mx-auto w-fit max-w-full md:hidden" />
 }
 
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
@@ -94,6 +96,8 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const isTablet = useIsTablet()
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [othersOpen, setOthersOpen] = useState(false)
+  const typing = useTextEntryFocused()
   const pathname = usePathname()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -104,7 +108,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   // Collapsed sidebar on desktop = rail + top header layout (the expanded sidebar keeps the classic layout).
   const topLayout = !open
 
-  const activeId = navItems.find((item) => item.id !== ASSISTANT_ID && isActivePath(pathname, item.id))?.id ?? ""
+  const activeId = navItems.find((item) => item.id !== OTHERS_ID && isActivePath(pathname, item.id))?.id ?? (isOtherPath(pathname) ? OTHERS_ID : "")
   // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
   const counts = useMemo<Partial<Record<ModuleId, number>>>(
     () => (isMock ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
@@ -126,7 +130,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
   function onSelect(id: string) {
-    if (id === ASSISTANT_ID) setAssistantOpen(true)
+    if (id === OTHERS_ID) setOthersOpen(true)
     else router.push(id)
   }
 
@@ -154,20 +158,29 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+6rem)] md:px-0 md:pt-0 md:pb-0">
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:px-0 md:pt-0 md:pb-0">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>
             </div>
           </SidebarInset>
 
-          <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
+          {/* Phones: a 48 px Lima circle above the right end of the floating nav (16 px gutter + 56 px pill + 12 px gap); hidden while the
+              assistant or the keyboard is open. Desktop keeps the corner button. */}
+          <AssistantFab
+            className={cn(
+              "fixed z-40 max-md:size-12 max-md:bg-highlight max-md:text-highlight-foreground max-md:right-[calc(env(safe-area-inset-right)+1rem)] max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:right-6 md:bottom-6",
+              (assistantOpen || typing) && "max-md:hidden"
+            )}
+            onClick={() => setAssistantOpen(true)}
+          />
 
           <ShellBottomNav activeId={activeId} onSelect={onSelect} onCapture={() => setCaptureOpen(true)} />
 
           <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
           <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
+          <OthersDrawer open={othersOpen} onOpenChange={setOthersOpen} />
           <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
         </SidebarProvider>
       </PrimaryActionProvider>
