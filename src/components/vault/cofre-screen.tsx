@@ -25,7 +25,7 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { Bento, bentoCardClass, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
@@ -43,7 +43,9 @@ import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -86,6 +88,8 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<VaultItemRow | null>(null)
   const [autoLock, setAutoLock] = useState("5")
+  // From 1280 px the item opens in a panel next to the list (like 1Password); below that, as a full-screen sheet.
+  const panelMode = useMediaQuery("(min-width: 1280px)")
 
   usePrimaryAction("Novo item", () => {
     if (!unlocked) {
@@ -99,7 +103,8 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
     return (
       <div className="flex flex-col gap-5">
         <PageHeader />
-        <BentoCard className="max-w-md">
+        <div className="flex min-h-[55dvh] items-center justify-center">
+        <BentoCard className="w-full max-w-md">
         <form
           className="flex flex-col gap-5"
           onSubmit={(e) => {
@@ -109,7 +114,10 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             setMaster("")
           }}
         >
-          <LockIcon aria-hidden strokeWidth={1.75} className="size-8 text-muted-foreground" />
+          <div className="flex flex-col items-center gap-3 text-center">
+            <LockIcon aria-hidden strokeWidth={1.75} className="size-10 text-muted-foreground" />
+            <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Cofre bloqueado</h2>
+          </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="master">Senha mestra</Label>
             <Input id="master" type="password" autoComplete="current-password" autoFocus value={master} onChange={(e) => setMaster(e.target.value)} />
@@ -122,6 +130,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
           </Button>
         </form>
         </BentoCard>
+        </div>
       </div>
     )
   }
@@ -155,8 +164,9 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         <TabsContent value="itens" className="pt-5">
-          <Bento>
-          <BentoCard className="col-span-12 @min-[900px]:col-span-9" bodyClassName="flex flex-col gap-6">
+          <div className="@container">
+          <div className="grid items-start gap-5 @min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+          <BentoCard bodyClassName="flex flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 basis-48 md:max-w-80">
               <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -221,20 +231,26 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
             {visible.length === 0 ? <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nenhum item encontrado.</p> : null}
           </div>
           </BentoCard>
-          <BentoCard title="Resumo" className="col-span-12 @min-[1040px]:col-span-3" bodyClassName="flex flex-col gap-3 text-[15px] leading-6">
+          <aside className="flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0">
+          {panelMode && open ? (
+            <section aria-label="Detalhes do item" className={cn(bentoCardClass(), "flex flex-col gap-4")}>
+              <ItemBody key={open.id} item={open} onClose={() => setOpenId(null)} onDelete={setToDelete} />
+            </section>
+          ) : null}
+          <BentoCard title="Resumo" bodyClassName="flex flex-col gap-3 text-[15px] leading-6">
             <p className="flex justify-between"><span className="text-muted-foreground">Itens</span><span className="tabular">{items.length}</span></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Senhas fracas</span><span className="tabular">{weak.length}</span></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Repetidas</span><span className="tabular">{reusedIds.size}</span></p>
           </BentoCard>
-          </Bento>
+          </aside>
+          </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="gerador" className="pt-5">
-          <Bento>
-            <BentoCard title="Gerador de senhas" className="col-span-12 @min-[900px]:col-span-7">
-              <Generator />
-            </BentoCard>
-          </Bento>
+          <BentoCard title="Gerador de senhas">
+            <Generator />
+          </BentoCard>
         </TabsContent>
 
         <TabsContent value="seguranca" className="pt-5">
@@ -303,7 +319,7 @@ export function CofreScreen({ nowIso }: { nowIso: string }) {
         </TabsContent>
       </Tabs>
 
-      <ItemDialog item={open} onClose={() => setOpenId(null)} onDelete={setToDelete} />
+      <ItemSheet item={panelMode ? null : open} onClose={() => setOpenId(null)} onDelete={setToDelete} />
       <NewItemDialog
         open={creating}
         onOpenChange={setCreating}
@@ -346,45 +362,51 @@ function Generator() {
   }
 
   return (
-    <div className="flex max-w-xl flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <output aria-label="Senha gerada" className="tabular min-w-0 flex-1 rounded-xl border border-border px-4 py-3 font-mono text-[17px] leading-6 break-all">
-          {password || "Escolha ao menos um tipo de caractere"}
-        </output>
-        <Button variant="outline" size="icon" aria-label="Gerar outra" onClick={() => setPassword(generatePassword(options))}>
-          <RefreshCwIcon strokeWidth={1.75} />
-        </Button>
-        <Button size="icon" aria-label="Copiar senha" disabled={!password} onClick={() => void copy(password, "Senha")}>
-          <CopyIcon strokeWidth={1.75} />
-        </Button>
-      </div>
-      <div className="flex flex-col gap-2">
-        <div className="tabular flex justify-between text-[13px] leading-5">
-          <span>Força: {STRENGTH_LABELS[strength]}</span>
-          <span className="text-muted-foreground">{bits} bits</span>
+    <div className="@container">
+      <div className="grid gap-8 @min-[760px]:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex items-center gap-2">
+            <output aria-label="Senha gerada" className="tabular min-w-0 flex-1 rounded-xl border border-border px-4 py-3 font-mono text-[17px] leading-6 break-all">
+              {password || "Escolha ao menos um tipo de caractere"}
+            </output>
+            <Button variant="outline" size="icon" aria-label="Gerar outra" onClick={() => setPassword(generatePassword(options))}>
+              <RefreshCwIcon strokeWidth={1.75} />
+            </Button>
+            <Button size="icon" aria-label="Copiar senha" disabled={!password} onClick={() => void copy(password, "Senha")}>
+              <CopyIcon strokeWidth={1.75} />
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="tabular flex justify-between text-[13px] leading-5">
+              <span>Força: {STRENGTH_LABELS[strength]}</span>
+              <span className="text-muted-foreground">{bits} bits</span>
+            </div>
+            <Progress value={Math.min(100, (bits / 100) * 100)} aria-label="Força da senha" />
+          </div>
         </div>
-        <Progress value={Math.min(100, (bits / 100) * 100)} aria-label="Força da senha" />
-      </div>
-      <div className="flex flex-col gap-3">
-        <Label htmlFor="gen-length" className="tabular">
-          Tamanho: {options.length} caracteres
-        </Label>
-        <Slider id="gen-length" min={8} max={64} step={1} value={[options.length]} onValueChange={([v]) => update({ length: v })} aria-label="Tamanho da senha" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {(
-          [
-            ["upper", "Maiúsculas (A–Z)"],
-            ["lower", "Minúsculas (a–z)"],
-            ["digits", "Números (0–9)"],
-            ["symbols", "Símbolos (!@#$)"],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="flex min-h-11 items-center gap-3 text-[15px]">
-            <Checkbox checked={options[key]} onCheckedChange={(v) => update({ [key]: v === true })} />
-            {label}
-          </label>
-        ))}
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <Label htmlFor="gen-length" className="tabular">
+              Tamanho: {options.length} caracteres
+            </Label>
+            <Slider id="gen-length" min={8} max={64} step={1} value={[options.length]} onValueChange={([v]) => update({ length: v })} aria-label="Tamanho da senha" />
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2">
+            {(
+              [
+                ["upper", "Maiúsculas (A–Z)"],
+                ["lower", "Minúsculas (a–z)"],
+                ["digits", "Números (0–9)"],
+                ["symbols", "Símbolos (!@#$)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex min-h-11 items-center gap-3 text-[15px] whitespace-nowrap">
+                <Checkbox checked={options[key]} onCheckedChange={(v) => update({ [key]: v === true })} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -392,19 +414,19 @@ function Generator() {
 
 // ---------------------------------------------------------- item views
 
-function ItemDialog({
-  item,
-  onClose,
-  onDelete,
-}: {
-  item: VaultItemRow | null
-  onClose: () => void
-  onDelete: (item: VaultItemRow) => void
-}) {
+function ItemSheet({ item, onClose, onDelete }: { item: VaultItemRow | null; onClose: () => void; onDelete: (item: VaultItemRow) => void }) {
   return (
-    <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>{item ? <ItemBody key={item.id} item={item} onClose={onClose} onDelete={onDelete} /> : null}</DialogContent>
-    </Dialog>
+    <Sheet open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="bottom" className="h-dvh max-h-dvh gap-0 overflow-y-auto rounded-none p-4 md:p-6">
+        <SheetTitle className="sr-only">{item?.name ?? "Item do cofre"}</SheetTitle>
+        <SheetDescription className="sr-only">Detalhes do item do cofre.</SheetDescription>
+        {item ? (
+          <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+            <ItemBody key={item.id} item={item} onClose={onClose} onDelete={onDelete} />
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -415,14 +437,14 @@ function ItemBody({ item, onClose, onDelete }: { item: VaultItemRow; onClose: ()
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
+      <header className="flex flex-col gap-1">
+        <h2 className="flex items-center gap-2 text-[17px] leading-6 font-semibold">
           <Icon aria-hidden strokeWidth={1.75} className="size-5" /> {item.name}
-        </DialogTitle>
-        <DialogDescription>
+        </h2>
+        <p className="text-[13px] leading-5 text-muted-foreground">
           {VAULT_TYPE_LABELS[item.type]} · atualizado em {format(new Date(item.updated_at), "d 'de' MMM yyyy", { locale: ptBR })}
-        </DialogDescription>
-      </DialogHeader>
+        </p>
+      </header>
       <dl className="flex flex-col">
         {item.fields.map((field) => {
           const secret = item.secrets.includes(field.label)
@@ -459,14 +481,14 @@ function ItemBody({ item, onClose, onDelete }: { item: VaultItemRow; onClose: ()
           {strength === "weak" ? ". Troque por uma senha mais longa." : "."}
         </p>
       ) : null}
-      <DialogFooter>
+      <div className="flex flex-wrap gap-2">
         <Button variant="destructive" onClick={() => onDelete(item)}>
           <Trash2Icon strokeWidth={1.75} /> Excluir
         </Button>
         <Button variant="outline" onClick={onClose}>
           Fechar
         </Button>
-      </DialogFooter>
+      </div>
     </>
   )
 }
