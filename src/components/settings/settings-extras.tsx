@@ -5,15 +5,19 @@ import {
   DownloadIcon,
   FingerprintIcon,
   InfoIcon,
+  LockIcon,
   LandmarkIcon,
   MessageCircleIcon,
   SmartphoneIcon,
+  SparklesIcon,
   MonitorSmartphoneIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import Link from "next/link"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
+import { usePlan } from "@/components/organizzou/plan-context"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -108,6 +112,7 @@ export function NotificationsSettings() {
 }
 
 export function WhatsAppSettings() {
+  const { canUseWhatsApp } = usePlan()
   return (
     <div className="@container grid w-full gap-8 @min-[860px]:grid-cols-2">
       <section className="flex max-w-xl flex-col gap-5">
@@ -119,6 +124,19 @@ export function WhatsAppSettings() {
         <p className="text-[15px] leading-6 text-muted-foreground">
           Em breve você poderá falar com o assistente por texto ou áudio e receber lembretes na hora certa. Só o número verificado aqui conseguirá conversar com a sua conta.
         </p>
+        {canUseWhatsApp ? null : (
+          <div className="flex flex-col gap-3 rounded-2xl border border-border p-4">
+            <p className="flex items-start gap-2 text-[15px] leading-6">
+              <LockIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
+              <span>O WhatsApp faz parte do Plano Pro. Com o Plano Gratuito a conexão fica bloqueada.</span>
+            </p>
+            <Button asChild variant="outline" className="self-start">
+              <Link href="/dashboard/plano">
+                <SparklesIcon strokeWidth={1.75} /> Ver Plano Pro
+              </Link>
+            </Button>
+          </div>
+        )}
         <p className="flex items-start gap-2 rounded-2xl border border-border p-4 text-[15px] leading-6">
           <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
           <span>A conexão ainda não está disponível, então nenhum código é enviado. Avisamos você quando abrir.</span>

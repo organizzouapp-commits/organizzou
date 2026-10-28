@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { NAV_GROUPS, type NavGroup } from "./nav"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { WHATSAPP_HREF, WhatsAppCta } from "./whatsapp-cta"
+import { SidebarCta, useWhatsAppAccess } from "./whatsapp-cta"
 
 export type ShellUser = { name: string; email: string }
 
@@ -91,7 +91,7 @@ function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: N
   )
 }
 
-/** Bottom group: Perfil, Configurações, Ajuda and Sair (asks for confirmation). It sits in the pinned bottom block, so opening it grows the block upward. */
+/** Last accordion group, right after Organização: Perfil, Configurações, Ajuda and Sair (asks for confirmation). */
 function AccountGroup({ pathname, open, onOpenChange }: { pathname: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const requestSignOut = useRequestSignOut()
   return (
@@ -192,19 +192,6 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
   )
 }
 
-/** Compact "Fazer upgrade" row above Configurações (expanded sidebar). Hidden for Pro users. */
-function UpgradeRow({ pathname }: { pathname: string }) {
-  const { pro } = usePlan()
-  if (pro) return null
-  const active = isActivePath(pathname, "/dashboard/plano")
-  return (
-    <Link href="/dashboard/plano" aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
-      <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-      <span className="truncate">Fazer upgrade</span>
-    </Link>
-  )
-}
-
 function RailUpgrade({ pathname }: { pathname: string }) {
   const { pro } = usePlan()
   if (pro) return null
@@ -218,9 +205,10 @@ function RailUpgrade({ pathname }: { pathname: string }) {
   )
 }
 
-/** Bottom of the collapsed rail: the same Configurações group as the expanded sidebar (plus the WhatsApp link), as a flyout like the other rail groups. */
+/** Collapsed rail: the same Configurações group as the expanded sidebar (plus the WhatsApp entry), as a flyout like the other rail groups. */
 function RailAccount({ pathname }: { pathname: string }) {
   const requestSignOut = useRequestSignOut()
+  const whatsapp = useWhatsAppAccess()
   const [open, setOpen] = useState(false)
   const hasActive = ACCOUNT_ITEMS.some((item) => isActivePath(pathname, item.href))
   const itemClass = "flex h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent"
@@ -245,10 +233,16 @@ function RailAccount({ pathname }: { pathname: string }) {
             </Link>
           )
         })}
-        <Link href={WHATSAPP_HREF} onClick={() => setOpen(false)} className={cn(itemClass, ease, focus)}>
-          <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          <span className="truncate">Conectar WhatsApp</span>
-        </Link>
+        {whatsapp.connected && !whatsapp.locked ? null : (
+          <Link href={whatsapp.href} onClick={() => setOpen(false)} className={cn(itemClass, ease, focus)}>
+            <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+            <span className="flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="truncate">Conectar WhatsApp</span>
+              {whatsapp.locked ? <span className="truncate text-[11px] text-muted-foreground">Plano Pro</span> : null}
+            </span>
+            {whatsapp.locked ? <SparklesIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
+          </Link>
+        )}
         <div role="separator" className="my-2 h-px bg-border" />
         <button
           type="button"
@@ -324,10 +318,10 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
           {FOLDED_GROUPS.map((group) => (
             <RailGroup key={group.label} group={group} pathname={pathname} counts={counts} />
           ))}
+          <RailAccount pathname={pathname} />
         </nav>
         <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
           <RailUpgrade pathname={pathname} />
-          <RailAccount pathname={pathname} />
         </div>
         <SidebarRail />
       </Sidebar>
@@ -351,13 +345,12 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
         {FOLDED_GROUPS.map((group) => (
           <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} {...groupProps(group.label)} />
         ))}
+        <AccountGroup pathname={pathname} {...groupProps(ACCOUNT_GROUP_LABEL)} />
       </nav>
 
-      <div className="flex shrink-0 flex-col gap-0.5 px-3 pt-2 pb-4 [@media(max-height:900px)]:pb-3">
-        <UpgradeRow pathname={pathname} />
-        <AccountGroup pathname={pathname} {...groupProps(ACCOUNT_GROUP_LABEL)} />
-        {/* The very last element of the sidebar. */}
-        <WhatsAppCta className="mt-3" />
+      {/* The only thing anchored at the bottom: the card (upgrade, connect WhatsApp, or nothing). */}
+      <div className="flex shrink-0 flex-col px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
+        <SidebarCta />
       </div>
       <SidebarRail />
     </Sidebar>

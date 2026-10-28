@@ -98,6 +98,7 @@ type AppShellProps = {
   theme?: string
   /** The user's plan (profiles.plan, defaults to free). */
   plan: PlanId
+  whatsappConnected?: boolean
   /** Request time from the server, used by the prototype assistant to answer relative questions. */
   nowIso: string
   /** Stored sidebar choice (per user cookie). Null when the user never toggled it. */
@@ -106,7 +107,7 @@ type AppShellProps = {
   children: React.ReactNode
 }
 
-export function AppShell({ user, theme, plan, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
+export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const [assistantOpen, setAssistantOpen] = useState(false)
@@ -161,7 +162,7 @@ export function AppShell({ user, theme, plan, nowIso, sidebarOpen, sidebarCookie
 
   return (
     <AssistantProvider value={assistantContext}>
-      <PlanProvider plan={plan}>
+      <PlanProvider plan={plan} whatsappConnected={whatsappConnected}>
       <SignOutProvider value={requestSignOut}>
       <PrimaryActionProvider>
         {/* Layer 0 (the tiny pre-blurred photo) is rendered once by the (app) layout. Layer 1 (md+): the frame, fixed at 20px,

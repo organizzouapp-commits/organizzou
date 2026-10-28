@@ -75,6 +75,11 @@ export function isPro(plan: PlanId) {
   return plan === "pro"
 }
 
+/** WhatsApp (assistant and reminders there) is a Pro feature. Every surface that offers the connection asks this one function. */
+export function canUseWhatsApp(plan: PlanId) {
+  return plan === "pro"
+}
+
 /** True when `used` has reached the plan's limit for `key` (never for unlimited plans). */
 export function reachedLimit(plan: PlanId, key: LimitKey, used: number) {
   const limit = PLANS[plan].limits[key]

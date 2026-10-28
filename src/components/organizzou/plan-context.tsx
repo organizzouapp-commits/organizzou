@@ -1,17 +1,24 @@
 "use client"
 
-import { createContext, useContext } from "react"
+import { createContext, useContext, useMemo } from "react"
 
-import { isPro, PLANS, type PlanDefinition, type PlanId } from "@/lib/plans"
+import { canUseWhatsApp, isPro, PLANS, type PlanDefinition, type PlanId } from "@/lib/plans"
 
-const PlanContext = createContext<PlanId>("free")
+type PlanState = { plan: PlanId; whatsappConnected: boolean }
 
-export function PlanProvider({ plan, children }: { plan: PlanId; children: React.ReactNode }) {
-  return <PlanContext.Provider value={plan}>{children}</PlanContext.Provider>
+const PlanContext = createContext<PlanState>({ plan: "free", whatsappConnected: false })
+
+/**
+ * `whatsappConnected`: there is no WhatsApp integration yet (docs/INTEGRATIONS-STATUS.md), so this is always false in
+ * production; development can flip it with the dev_whatsapp cookie to exercise the three states of the sidebar card.
+ */
+export function PlanProvider({ plan, whatsappConnected = false, children }: { plan: PlanId; whatsappConnected?: boolean; children: React.ReactNode }) {
+  const value = useMemo(() => ({ plan, whatsappConnected }), [plan, whatsappConnected])
+  return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>
 }
 
 /** The signed-in user's plan (defaults to "free" outside the provider). Server code uses `getUserPlan` from `@/lib/plan-server`. */
-export function usePlan(): { plan: PlanId; definition: PlanDefinition; pro: boolean } {
-  const plan = useContext(PlanContext)
-  return { plan, definition: PLANS[plan], pro: isPro(plan) }
+export function usePlan(): { plan: PlanId; definition: PlanDefinition; pro: boolean; whatsappConnected: boolean; canUseWhatsApp: boolean } {
+  const { plan, whatsappConnected } = useContext(PlanContext)
+  return { plan, definition: PLANS[plan], pro: isPro(plan), whatsappConnected, canUseWhatsApp: canUseWhatsApp(plan) }
 }
