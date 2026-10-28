@@ -50,7 +50,7 @@ test("Pro without WhatsApp: the connect card; Pro with WhatsApp: no card", async
   await expect(page.getByText("Desbloqueie o Plano Pro")).toHaveCount(0)
 })
 
-test("Collapsed rail: the gear sits with the module icons, Free sees the Sparkles button, WhatsApp is locked in the flyout", async ({ page, context, baseURL }) => {
+test("Collapsed rail: the gear sits with the module icons, Free sees the upgrade button, WhatsApp is locked in the flyout", async ({ page, context, baseURL }) => {
   await setup(context, baseURL!, "free", false, false)
   await page.goto("/dashboard")
   const rail = page.locator("[data-sidebar=sidebar]")

@@ -9,7 +9,7 @@ import {
   LandmarkIcon,
   MessageCircleIcon,
   SmartphoneIcon,
-  SparklesIcon,
+  BadgeDollarSignIcon,
   MonitorSmartphoneIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -132,7 +132,7 @@ export function WhatsAppSettings() {
             </p>
             <Button asChild variant="outline" className="self-start">
               <Link href="/dashboard/plano">
-                <SparklesIcon strokeWidth={1.75} /> Ver Plano Pro
+                <BadgeDollarSignIcon strokeWidth={1.75} /> Ver Plano Pro
               </Link>
             </Button>
           </div>

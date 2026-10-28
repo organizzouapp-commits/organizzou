@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BellIcon, MessageCircleIcon, PaletteIcon, ShieldCheckIcon, SparklesIcon, UserIcon } from "lucide-react"
+import { BellIcon, MessageCircleIcon, PaletteIcon, ShieldCheckIcon, BadgeDollarSignIcon, UserIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { SettingsLayout, type SettingsSection } from "@/components/organizzou/layout"
@@ -17,7 +17,7 @@ const SECTIONS: SettingsSection[] = [
   { id: "avisos", label: "Avisos", icon: BellIcon },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircleIcon },
   { id: "seguranca", label: "Segurança e dados", icon: ShieldCheckIcon },
-  { id: "plano", label: "Plano e cobrança", icon: SparklesIcon },
+  { id: "plano", label: "Plano e cobrança", icon: BadgeDollarSignIcon },
 ]
 
 type Profile = { displayName: string; email: string; phone: string }

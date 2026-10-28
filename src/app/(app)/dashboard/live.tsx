@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { SparklesIcon } from "lucide-react"
+import { SquareCheckIcon } from "lucide-react"
 
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
@@ -81,7 +81,7 @@ async function TodayContent() {
           <TodayTasks tasks={data.dueToday} now={data.now} timeZone={data.timeZone} />
         ) : (
           <EmptyState
-            icon={SparklesIcon}
+            icon={SquareCheckIcon}
             title="Nada marcado para hoje"
             description="Defina uma data de entrega nas suas tarefas e elas aparecem aqui."
             action={

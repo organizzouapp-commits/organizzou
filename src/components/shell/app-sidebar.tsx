@@ -3,7 +3,7 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, type LucideIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, BadgeDollarSignIcon, type LucideIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -199,7 +199,7 @@ function RailUpgrade({ pathname }: { pathname: string }) {
   return (
     <RailTip label="Fazer upgrade">
       <Link href="/dashboard/plano" aria-label="Fazer upgrade" aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
-        <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5" />
+        <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-5" />
       </Link>
     </RailTip>
   )
@@ -240,7 +240,7 @@ function RailAccount({ pathname }: { pathname: string }) {
               <span className="truncate">Conectar WhatsApp</span>
               {whatsapp.locked ? <span className="truncate text-[11px] text-muted-foreground">Plano Pro</span> : null}
             </span>
-            {whatsapp.locked ? <SparklesIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
+            {whatsapp.locked ? <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
           </Link>
         )}
         <div role="separator" className="my-2 h-px bg-border" />

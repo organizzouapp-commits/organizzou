@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { PlusIcon, SearchIcon, SparklesIcon } from "lucide-react"
+import { PlusIcon, SearchIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -102,7 +102,7 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
         // Below 1280 px the upgrade lives only in the avatar menu.
         <Button asChild variant="outline" size="lg" className="hidden h-11 rounded-full px-5 min-[1280px]:inline-flex">
           <Link href="/dashboard/plano">
-            <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
+            <BadgeDollarSignIcon strokeWidth={1.75} /> Fazer upgrade
           </Link>
         </Button>
       )}

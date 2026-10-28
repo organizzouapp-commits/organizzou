@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, SparklesIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -156,7 +156,7 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
                 Conectar WhatsApp
                 {whatsapp.locked ? <span className="text-[11px] text-muted-foreground">Plano Pro</span> : null}
               </span>
-              {whatsapp.locked ? <SparklesIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" /> : null}
+              {whatsapp.locked ? <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" /> : null}
             </Link>
           </DropdownMenuItem>
         ) : null}

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { MessageCircleIcon, SparklesIcon } from "lucide-react"
+import { MessageCircleIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
 import { cn } from "@/lib/utils"
@@ -47,7 +47,7 @@ export function WhatsAppCta({ onNavigate, className }: CardProps) {
 export function UpgradeCta({ onNavigate, className }: CardProps) {
   return (
     <div className={cn(cardClass, className)}>
-      <SparklesIcon aria-hidden strokeWidth={1.75} className="size-6 [@media(max-height:900px)]:hidden" />
+      <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-6 [@media(max-height:900px)]:hidden" />
       <div className="flex flex-col gap-1">
         <p className="text-[15px] leading-5 font-semibold">Desbloqueie o Plano Pro</p>
         <p className="text-[13px] leading-5 text-highlight-foreground/75 [@media(max-height:900px)]:hidden">Assistente no WhatsApp, lembretes e muito mais.</p>

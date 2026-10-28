@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { SparklesIcon } from "lucide-react"
+import { BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
@@ -17,7 +17,7 @@ export function PlanSettings() {
     <div className="@container grid w-full gap-8 @min-[860px]:grid-cols-2">
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <SparklesIcon aria-hidden strokeWidth={1.75} className="size-6" />
+          <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-6" />
           <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">Plano e cobrança</h2>
         </div>
         <p className="flex flex-wrap items-center gap-2 text-[15px] leading-6">
@@ -42,7 +42,7 @@ export function PlanSettings() {
           ) : (
             <Button asChild>
               <Link href="/dashboard/plano">
-                <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
+                <BadgeDollarSignIcon strokeWidth={1.75} /> Fazer upgrade
               </Link>
             </Button>
           )}

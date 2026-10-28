@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { SparklesIcon } from "lucide-react"
+import { BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
 import { Button } from "@/components/ui/button"
@@ -33,7 +33,7 @@ export function UpgradeHint({ limit, used, when = "reached", className }: Upgrad
 
   return (
     <div className={cn("flex items-start gap-3 rounded-2xl border border-border bg-card p-4", className)}>
-      <SparklesIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
+      <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-[15px] leading-6">
           {reached ? "Você chegou ao limite do Plano Gratuito: " : "O Plano Gratuito tem limite: "}

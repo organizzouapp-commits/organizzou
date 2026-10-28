@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckIcon, SparklesIcon } from "lucide-react"
+import { CheckIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -94,7 +94,7 @@ export function PlanoScreen({ email, name }: { email: string; name: string }) {
               </div>
             ) : (
               <Button size="lg" className="mt-auto self-start" onClick={() => setOpen(true)}>
-                <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
+                <BadgeDollarSignIcon strokeWidth={1.75} /> Fazer upgrade
               </Button>
             )}
           </div>
