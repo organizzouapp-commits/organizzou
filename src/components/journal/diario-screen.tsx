@@ -19,7 +19,8 @@ import {
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { SplitLayout, StatRow } from "@/components/organizzou/layout"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -87,14 +88,43 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
   const loggedDays = sorted.length
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="@container flex flex-col gap-5">
       <PageHeader />
-      <Bento>
-      <KpiCard tone="highlight" label="Humor médio" value={moodAverage === null ? "—" : moodAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} support="nos últimos 30 dias" className="col-span-12 @min-[560px]:col-span-4" />
-      <KpiCard label="Sono médio" value={sleepAverage === null ? "—" : `${sleepAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} h`} support="por noite" className="col-span-6 @min-[560px]:col-span-4" />
-      <KpiCard label="Check-ins" value={`${loggedDays}`} support="dias registrados" className="col-span-6 @min-[560px]:col-span-4" />
+      <StatRow min={150}>
+      <KpiCard tone="highlight" label="Humor médio" value={moodAverage === null ? "—" : moodAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} support="nos últimos 30 dias" />
+      <KpiCard label="Sono médio" value={sleepAverage === null ? "—" : `${sleepAverage.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} h`} support="por noite" />
+      <KpiCard label="Check-ins" value={`${loggedDays}`} support="dias registrados" />
+      </StatRow>
 
-      <BentoCard title="Como foi hoje?" className="col-span-12 @min-[900px]:col-span-7" bodyClassName="flex flex-col gap-5">
+      <SplitLayout
+        aside={
+      <BentoCard title="O que combina com seus melhores dias">
+        <div>
+          {insights.map((insight) => {
+            const Icon = INSIGHT_ICONS[insight.key]
+            const diff = insight.withAvg !== null && insight.withoutAvg !== null ? Math.round((insight.withAvg - insight.withoutAvg) * 10) / 10 : null
+            return (
+              <div key={insight.key} className="flex min-h-16 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-[15px] leading-6">
+                    Nos dias em que você <strong className="font-semibold">{insight.label}</strong>, o humor médio foi{" "}
+                    <span className="tabular font-semibold">{formatAvg(insight.withAvg)}</span>
+                  </span>
+                  <span className="tabular text-[13px] leading-5 text-muted-foreground">
+                    contra {formatAvg(insight.withoutAvg)} nos outros dias ({insight.withCount} e {insight.withoutCount} dias)
+                  </span>
+                </div>
+                {diff !== null ? <span className="tabular text-[15px] font-medium">{diff >= 0 ? "+" : "−"}{Math.abs(diff).toLocaleString("pt-BR")}</span> : null}
+              </div>
+            )
+          })}
+        </div>
+      </BentoCard>
+
+        }
+      >
+      <BentoCard title="Como foi hoje?" bodyClassName="flex flex-col gap-5">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button
@@ -137,32 +167,11 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="O que combina com seus melhores dias" className="col-span-12 @min-[900px]:col-span-5">
-        <div>
-          {insights.map((insight) => {
-            const Icon = INSIGHT_ICONS[insight.key]
-            const diff = insight.withAvg !== null && insight.withoutAvg !== null ? Math.round((insight.withAvg - insight.withoutAvg) * 10) / 10 : null
-            return (
-              <div key={insight.key} className="flex min-h-16 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-[15px] leading-6">
-                    Nos dias em que você <strong className="font-semibold">{insight.label}</strong>, o humor médio foi{" "}
-                    <span className="tabular font-semibold">{formatAvg(insight.withAvg)}</span>
-                  </span>
-                  <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                    contra {formatAvg(insight.withoutAvg)} nos outros dias ({insight.withCount} e {insight.withoutCount} dias)
-                  </span>
-                </div>
-                {diff !== null ? <span className="tabular text-[15px] font-medium">{diff >= 0 ? "+" : "−"}{Math.abs(diff).toLocaleString("pt-BR")}</span> : null}
-              </div>
-            )
-          })}
-        </div>
-      </BentoCard>
+      </SplitLayout>
 
-      <BentoCard title="Humor nos últimos 30 dias" className="col-span-12 @min-[900px]:col-span-6">
-        <ChartContainer config={moodConfig} className="aspect-[16/8] w-full">
+      <div className="grid items-stretch gap-5 @min-[900px]:grid-cols-2">
+      <BentoCard title="Humor nos últimos 30 dias" className="h-full">
+        <ChartContainer config={moodConfig} className="aspect-auto h-64 w-full @min-[900px]:h-full @min-[900px]:min-h-64">
           <LineChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
@@ -173,8 +182,8 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </ChartContainer>
       </BentoCard>
 
-      <BentoCard title="Horas de sono" className="col-span-12 @min-[900px]:col-span-6">
-        <ChartContainer config={sleepConfig} className="aspect-[16/8] w-full">
+      <BentoCard title="Horas de sono" className="h-full">
+        <ChartContainer config={sleepConfig} className="aspect-auto h-64 w-full @min-[900px]:h-full @min-[900px]:min-h-64">
           <BarChart data={series} margin={{ left: -16, right: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
@@ -185,7 +194,9 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
         </ChartContainer>
       </BentoCard>
 
-      <BentoCard title="Últimos registros" className="col-span-12">
+      </div>
+
+      <BentoCard title="Últimos registros">
         {history.map((entry) => {
           const Icon = MOODS.find((m) => m.value === entry.mood)?.icon ?? MehIcon
           return (
@@ -198,12 +209,15 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
                 </span>
                 {entry.text ? <span className="text-[13px] leading-5 text-muted-foreground">{entry.text}</span> : null}
               </div>
-              {entry.sleep_hours ? <span className="tabular text-[13px] leading-5 text-muted-foreground">{entry.sleep_hours.toLocaleString("pt-BR")} h</span> : null}
+              {entry.sleep_hours ? (
+                <span className="tabular inline-flex shrink-0 items-center gap-1 text-[13px] leading-5 text-muted-foreground">
+                  <MoonIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> {entry.sleep_hours.toLocaleString("pt-BR")} h de sono
+                </span>
+              ) : null}
             </div>
           )
         })}
       </BentoCard>
-      </Bento>
     </div>
   )
 }
