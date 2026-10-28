@@ -53,7 +53,7 @@ function normalize(text: string) {
 export function HelpView() {
   const { openAssistant } = useAssistant()
   const [query, setQuery] = useState("")
-  const terms = normalize(query).split(/s+/).filter(Boolean)
+  const terms = normalize(query).split(/\s+/).filter(Boolean)
   const results = FAQ.filter((item) => terms.every((t) => normalize(`${item.q} ${item.a}`).includes(t)))
 
   return (
