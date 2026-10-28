@@ -3,6 +3,7 @@
 //
 //   public/images/app-bg.webp, app-bg-mobile.webp   lightly blurred photo = the fixed full-screen base layer (AppBackground)
 //   public/images/app-bg-frost.webp                 heavily blurred photo = the copy painted INSIDE the big frame (FrameGlass)
+//   public/images/auth-panel-frost.webp             lightly frosted photo = the copy painted inside the LOGIN highlight card (PanelGlass)
 //   public/images/app-bg-mobile-glass-dark.webp    phone photo, heavy blur + ~68% less saturation + ~50% brightness (GlassSurface, dark theme)
 //   public/images/app-bg-mobile-glass-light.webp    same, desaturated and lightened (GlassSurface, light theme)
 //
@@ -10,6 +11,7 @@
 // is scaled down proportionally, so the look is the same at any export size.
 //   BASE_BLUR  ~6-8  just softens details; colors and light streaks stay recognizable.
 //   FROST_BLUR ~80-96 soft, diffuse glass. Raise it for more frost, lower it for less.
+//   AUTH_PANEL_BLUR ~16-24 light frosted pane for the login card: shapes and light streaks of the photo stay readable.
 // Both layers are derived from the SAME sharp original (never blur the blurred one: that causes banding) and keep its aspect
 // ratio, so with object-fit: cover they stay aligned pixel for pixel. The heavy blur is low-frequency, hence the small export.
 //
@@ -22,6 +24,7 @@ import sharp from "sharp"
 
 const BASE_BLUR = 7
 const FROST_BLUR = 88
+const AUTH_PANEL_BLUR = 20
 // Phone glass is neutral, never a green surface: blur, then desaturate and darken (or lighten) the heavily blurred copy.
 const GLASS_DARK = { saturation: 0.32, brightness: 0.5 }
 // The light variant lifts the dark photo toward Papel (out = a * in + b) so the glass stays light.
@@ -32,6 +35,7 @@ const jobs = [
   { from: "auth-background.png", to: "app-bg.webp", width: 1671, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background-mobile.png", to: "app-bg-mobile.webp", width: 900, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background.png", to: "app-bg-frost.webp", width: 960, blur: FROST_BLUR, quality: 85 },
+  { from: "auth-background.png", to: "auth-panel-frost.webp", width: 1671, blur: AUTH_PANEL_BLUR, quality: 82 },
   { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-dark.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_DARK },
   { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-light.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_LIGHT },
 ]

@@ -74,7 +74,7 @@ function ThemedLogo({ className, inverse = true }: { className: string; inverse?
 
 /**
  * The highlight card's frosted glass, FAKED like the app frame (no backdrop-filter, no CSS blur): the same photo, pre-blurred
- * (public/images/app-bg-frost.webp, same source and aspect as the sharp background), drawn viewport-sized and shifted by the
+ * (public/images/auth-panel-frost.webp, lightly blurred, same source and aspect as the sharp background), drawn viewport-sized and shifted by the
  * card's own distance from the viewport so every pixel lines up with the sharp photo behind it. The tint and the 1 px border are
  * separate layers (the border is a ::after overlay in globals.css, so the image never bleeds over the rounded corners).
  * Placement is written straight to the DOM (no React state, no re-render) and re-measured while the card animates.
@@ -116,8 +116,10 @@ function PanelGlass() {
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img ref={img} src="/images/app-bg-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
+      <img ref={img} src="/images/auth-panel-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
       <span aria-hidden className="auth-glass-tint pointer-events-none absolute inset-0 -z-10" />
+      {/* Soft scrim behind the text block only (transparent at the top to ~35% tint at the bottom): keeps AA contrast on the lighter glass. */}
+      <span aria-hidden className="auth-glass-scrim pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-3/5" />
     </>
   )
 }
@@ -151,7 +153,7 @@ function HighlightCopy({
       >
         {copy.headline}
       </h2>
-      <p className={cn("auth-hide-tiny text-(length:--auth-sub) leading-snug text-foreground/80", enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
+      <p className={cn("auth-hide-tiny text-(length:--auth-sub) leading-snug text-foreground/90", enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
         {copy.subtitle}
       </p>
       <ol className="mt-1 grid grid-cols-3 gap-[clamp(8px,1.5dvh,12px)]">

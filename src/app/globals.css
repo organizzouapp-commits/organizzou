@@ -378,16 +378,20 @@ html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) {
   background-color: var(--auth-glass-bg);
   box-shadow: var(--glass-edge);
 }
+/* Gradient scrim inside the login card, behind the copy at the bottom; --auth-glass-bg stays barely-there. */
+.auth-glass-scrim {
+  background-image: linear-gradient(to bottom, transparent, var(--auth-glass-scrim));
+}
 .auth-glass::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid var(--glass-frame-border);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
   pointer-events: none;
 }
-:root { --auth-glass-bg: color-mix(in oklab, var(--palette-papel) 50%, transparent); }
-.dark { --auth-glass-bg: color-mix(in oklab, var(--palette-tinta) 44%, transparent); }
+:root { --auth-glass-bg: color-mix(in oklab, var(--palette-papel) 16%, transparent); --auth-glass-scrim: color-mix(in oklab, var(--palette-papel) 35%, transparent); }
+.dark { --auth-glass-bg: color-mix(in oklab, var(--palette-tinta) 16%, transparent); --auth-glass-scrim: color-mix(in oklab, var(--palette-tinta) 35%, transparent); }
 @media (prefers-reduced-transparency: reduce) {
-  :root, .dark { --auth-glass-bg: var(--background); }
+  :root, .dark { --auth-glass-bg: var(--background); --auth-glass-scrim: transparent; }
 }
