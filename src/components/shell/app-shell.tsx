@@ -26,7 +26,7 @@ import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { MobileHeader } from "./mobile-header"
 import { OthersDrawer, isOtherPath } from "./others-drawer"
-import { PrimaryActionProvider, usePrimaryActionValue } from "./primary-action"
+import { PrimaryActionProvider } from "./primary-action"
 
 const OTHERS_ID = "outros"
 
@@ -62,19 +62,17 @@ function useIsTablet() {
   )
 }
 
-type ShellBottomBarProps = { activeId: string; onSelect: (id: string) => void; onCapture: () => void; onAssistant: () => void }
+type ShellBottomBarProps = { activeId: string; onSelect: (id: string) => void; onAssistant: () => void }
 
 /**
  * Phones: one fixed row above the bottom safe area, 16 px from both edges. The floating nav takes the remaining width and the
- * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The nav's "+" does what the desktop
- * "+ Novo" does: the screen's primary action, or quick capture. The row hides while the keyboard is open.
+ * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The row hides while the keyboard is open.
  */
-function ShellBottomBar({ activeId, onSelect, onCapture, onAssistant }: ShellBottomBarProps) {
-  const primary = usePrimaryActionValue()
+function ShellBottomBar({ activeId, onSelect, onAssistant }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
     <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex items-center gap-3 md:hidden", typing && "hidden")}>
-      <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="flex-1" />
+      <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} className="flex-1" />
       <AssistantFab className="shrink-0 bg-highlight text-highlight-foreground" onClick={onAssistant} />
     </div>
   )
@@ -179,7 +177,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
           {/* Desktop keeps the corner button; phones have it in the bottom bar. */}
           <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
 
-          <ShellBottomBar activeId={activeId} onSelect={onSelect} onCapture={() => setCaptureOpen(true)} onAssistant={() => setAssistantOpen(true)} />
+          <ShellBottomBar activeId={activeId} onSelect={onSelect} onAssistant={() => setAssistantOpen(true)} />
 
           <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />

@@ -437,7 +437,7 @@ export default function DesignSystemPage() {
           </div>
           <AssistantFab className="absolute top-4 right-4" />
           <div className="flex justify-center px-4 pt-2 pb-6">
-            <BottomNav items={navItems} activeId={navActive} onSelect={setNavActive} onAdd={() => toast("Novo item")} />
+            <BottomNav items={navItems} activeId={navActive} onSelect={setNavActive} />
           </div>
         </div>
       </Section>

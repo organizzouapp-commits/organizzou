@@ -1,6 +1,6 @@
 "use client"
 
-import { PlusIcon, type LucideIcon } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 
 import { GlassSurface } from "@/components/organizzou/GlassSurface"
 import { cn } from "@/lib/utils"
@@ -12,19 +12,14 @@ export type BottomNavItem = {
 }
 
 type BottomNavProps = {
-  /** Exactly 4 items; the "+" action ("Novo") sits in the middle, between the second and the third. */
   items: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem]
   /** Id of the current route's item, or "" when none of them is active. */
   activeId: string
   onSelect?: (id: string) => void
-  onAdd?: () => void
   className?: string
 }
 
-// Five equal columns. The icon sits in a 28 px box (the "+" circle is 40 px and overhangs it by 6 px on both sides), so the
-// icons share one center line and the labels share one line, whatever the item.
-const item = "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl outline-none transition-colors duration-[400ms] ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
-const label = "max-w-full truncate text-[11px] leading-none font-medium"
+const ease = "duration-[400ms] ease-organizzou motion-reduce:transition-none"
 
 function NavButton({ entry, active, onSelect }: { entry: BottomNavItem; active: boolean; onSelect?: (id: string) => void }) {
   const Icon = entry.icon
@@ -35,39 +30,40 @@ function NavButton({ entry, active, onSelect }: { entry: BottomNavItem; active: 
       aria-label={entry.label}
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect?.(entry.id)}
-      className={cn(item, active ? "bg-highlight text-highlight-foreground" : "text-muted-foreground")}
+      className={cn(
+        "flex h-11 items-center justify-center rounded-full outline-none transition-[background-color,color,padding]",
+        ease,
+        "focus-visible:ring-3 focus-visible:ring-ring/50",
+        // Only the active item may shrink (its label truncates); inactive ones keep their 44 px target.
+        active ? "min-w-0 bg-highlight px-3.5 text-highlight-foreground min-[380px]:px-4" : "w-11 shrink-0 text-muted-foreground"
+      )}
     >
-      <span className="flex h-7 items-center justify-center">
-        <Icon aria-hidden strokeWidth={1.75} className="size-6" />
+      <Icon aria-hidden strokeWidth={1.75} className="size-6 shrink-0" />
+      <span
+        aria-hidden
+        className={cn(
+          "min-w-0 truncate text-sm leading-5 font-medium transition-[max-width,margin,opacity]",
+          ease,
+          active ? "ml-2 max-w-24 opacity-100" : "ml-0 max-w-0 opacity-0"
+        )}
+      >
+        {entry.label}
       </span>
-      <span className={label}>{entry.label}</span>
     </button>
   )
 }
 
 /**
- * Mobile floating pill: permanent glass (GlassSurface), hairline border, no shadow. Five equal items, each an icon with its
- * label below; the active route gets a Lima rounded background. The middle "+" is a regular item in the same row (a Lima
- * circle labelled "Novo"), not raised. It takes the width it is given (flex-1), so it can never outgrow the screen; where it
- * floats is up to the caller, which also decides what sits next to it.
+ * Mobile floating pill: permanent glass (GlassSurface). Inactive items are icon only; the active route expands into a Lima
+ * pill with the label beside its icon. It takes the width it is given (flex-1, min-w-0) and spreads its items with
+ * space-between, so it can never outgrow the screen; where it floats, and what sits next to it, is up to the caller.
  */
-export function BottomNav({ items, activeId, onSelect, onAdd, className }: BottomNavProps) {
-  const [first, second, third, fourth] = items
-
+export function BottomNav({ items, activeId, onSelect, className }: BottomNavProps) {
   return (
-    <GlassSurface as="nav" aria-label="Navegação principal" className={cn("flex h-16 min-w-0 items-center px-2", className)}>
-      <NavButton entry={first} active={activeId === first.id} onSelect={onSelect} />
-      <NavButton entry={second} active={activeId === second.id} onSelect={onSelect} />
-      <button type="button" aria-label="Criar novo" onClick={onAdd} className={cn(item, "text-muted-foreground")}>
-        <span className="flex h-7 items-center justify-center">
-          <span className="-my-1.5 flex size-10 items-center justify-center rounded-full bg-highlight text-highlight-foreground">
-            <PlusIcon aria-hidden strokeWidth={1.75} className="size-6" />
-          </span>
-        </span>
-        <span className={label}>Novo</span>
-      </button>
-      <NavButton entry={third} active={activeId === third.id} onSelect={onSelect} />
-      <NavButton entry={fourth} active={activeId === fourth.id} onSelect={onSelect} />
+    <GlassSurface as="nav" aria-label="Navegação principal" className={cn("flex h-16 min-w-0 items-center justify-between px-1.5 min-[380px]:px-2", className)}>
+      {items.map((entry) => (
+        <NavButton key={entry.id} entry={entry} active={activeId === entry.id} onSelect={onSelect} />
+      ))}
     </GlassSurface>
   )
 }
