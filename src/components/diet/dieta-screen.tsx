@@ -301,18 +301,16 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             title="Evolução do peso"
             className="col-span-12"
             actions={
-              <>
-                <ToggleGroup type="single" variant="outline" size="sm" value={period} onValueChange={(v) => v && setPeriod(v)} aria-label="Período">
-                  <ToggleGroupItem value="30">30 dias</ToggleGroupItem>
-                  <ToggleGroupItem value="90">90 dias</ToggleGroupItem>
-                  <ToggleGroupItem value="365">1 ano</ToggleGroupItem>
-                </ToggleGroup>
-                <Button variant="outline" size="sm" onClick={() => setWeighing(true)}>
-                  <PlusIcon strokeWidth={1.75} /> Registrar peso
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={() => setWeighing(true)}>
+                <PlusIcon strokeWidth={1.75} /> Registrar peso
+              </Button>
             }
           >
+          <ToggleGroup type="single" variant="outline" size="sm" value={period} onValueChange={(v) => v && setPeriod(v)} aria-label="Período" className="mb-4">
+            <ToggleGroupItem value="30">30 dias</ToggleGroupItem>
+            <ToggleGroupItem value="90">90 dias</ToggleGroupItem>
+            <ToggleGroupItem value="365">1 ano</ToggleGroupItem>
+          </ToggleGroup>
           <ChartContainer config={weightConfig} className="aspect-auto h-72 w-full @min-[900px]:h-96">
             <LineChart data={weightSeries} margin={{ left: -8, right: 8 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />

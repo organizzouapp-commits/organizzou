@@ -9,6 +9,7 @@ import {
   CheckIcon,
   GraduationCapIcon,
   LibraryIcon,
+  PencilIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -20,7 +21,7 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
@@ -39,6 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SplitLayout, StatRow } from "@/components/organizzou/layout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { daysUntil, isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
@@ -99,6 +101,11 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   const [creatingSubject, setCreatingSubject] = useState(false)
   const [creatingDeadline, setCreatingDeadline] = useState(false)
   const [studyDeck, setStudyDeck] = useState<string | null>(null)
+  const [inlineTitle, setInlineTitle] = useState("")
+  const [inlineDate, setInlineDate] = useState(today)
+  const [editingDeadline, setEditingDeadline] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
+  const [editDate, setEditDate] = useState(today)
 
   // Pomodoro
   const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("focus")
@@ -187,120 +194,126 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
 
         {/* ----------------------------------------------------------- today */}
         <TabsContent value="hoje" className="pt-5">
-          <Bento>
-          <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" className="col-span-12 @min-[560px]:col-span-4" />
-          <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} className="col-span-6 @min-[560px]:col-span-4" />
-          <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" className="col-span-6 @min-[560px]:col-span-4" />
-          <BentoCard title="Foco" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-5">
-            <Tabs value={mode} onValueChange={changeMode}>
-              <TabsList>
-                {MODES.map((m) => (
-                  <TabsTrigger key={m.value} value={m.value}>
-                    {m.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <div role="timer" aria-label="Cronômetro de foco" className="tabular text-[64px] leading-[72px] font-semibold tracking-[-0.03em]">
-              {clock(remaining)}
-            </div>
-            <Progress value={((modeMinutes * 60 - remaining) / (modeMinutes * 60)) * 100} aria-label="Progresso da sessão" />
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="timer-subject">Estudando</Label>
-              <Select value={timerSubject} onValueChange={setTimerSubject}>
-                <SelectTrigger id="timer-subject" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="lg" onClick={toggleTimer}>
-                {running ? <PauseIcon strokeWidth={1.75} /> : <PlayIcon strokeWidth={1.75} />}
-                {running ? "Pausar" : remaining === modeMinutes * 60 ? "Começar" : "Continuar"}
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => {
-                  setRunning(false)
-                  setRemaining(modeMinutes * 60)
-                  setFinishedHandled(false)
-                }}
-              >
-                <RotateCcwIcon strokeWidth={1.75} /> Zerar
-              </Button>
-              <Button size="lg" variant="ghost" onClick={logElapsed}>
-                <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
-              </Button>
-            </div>
-          </BentoCard>
+          <div className="flex flex-col gap-5">
+            <StatRow min={150}>
+              <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" />
+              <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} />
+              <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" />
+            </StatRow>
+            <SplitLayout
+              aside={
+                <>
+                  <BentoCard title="Blocos de hoje">
+                    {todaysBlocks.length === 0 ? (
+                      <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nenhum bloco no cronograma de hoje.</p>
+                    ) : (
+                      todaysBlocks.map((b) => (
+                        <div key={b.title} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                          <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
+                          <span className="flex-1 text-[15px] leading-6">{b.title}</span>
+                          <span className="tabular text-[13px] leading-5 text-muted-foreground">
+                            {b.time} · {hours(b.minutes)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </BentoCard>
+                  <BentoCard title="Contagem regressiva">
+                    {upcoming.slice(0, 3).map((d) => (
+                      <div key={d.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
+                        <span className="flex-1 text-[15px] leading-6">{d.title}</span>
+                        <Badge variant={daysUntil(d.due_on, today) <= 10 ? "highlight" : "secondary"}>{daysUntil(d.due_on, today) === 0 ? "Hoje" : `${daysUntil(d.due_on, today)} dias`}</Badge>
+                      </div>
+                    ))}
+                  </BentoCard>
+                  <BentoCard title="Ranking da semana">
+                    {bySubject.map((r, index) => (
+                      <div key={r.subject.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
+                        <span className="tabular w-5 text-[13px] leading-5 text-muted-foreground">{index + 1}</span>
+                        <span className="flex-1 truncate text-[15px] leading-6">{r.subject.name}</span>
+                        <span className="tabular text-[13px] leading-5 text-muted-foreground">{hours(r.minutes)}</span>
+                      </div>
+                    ))}
+                  </BentoCard>
+                </>
+              }
+            >
+              <div className="flex flex-col gap-5">
+                <BentoCard title="Foco" bodyClassName="flex flex-col gap-5">
+                  <Tabs value={mode} onValueChange={changeMode}>
+                    <TabsList>
+                      {MODES.map((m) => (
+                        <TabsTrigger key={m.value} value={m.value}>
+                          {m.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                  <div role="timer" aria-label="Cronômetro de foco" className="tabular text-[72px] leading-[80px] font-semibold tracking-[-0.03em]">
+                    {clock(remaining)}
+                  </div>
+                  <Progress value={((modeMinutes * 60 - remaining) / (modeMinutes * 60)) * 100} aria-label="Progresso da sessão" />
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="timer-subject">Estudando</Label>
+                    <Select value={timerSubject} onValueChange={setTimerSubject}>
+                      <SelectTrigger id="timer-subject" className="w-full max-w-md">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <Button size="xl" className="min-w-40" onClick={toggleTimer}>
+                      {running ? <PauseIcon strokeWidth={1.75} /> : <PlayIcon strokeWidth={1.75} />}
+                      {running ? "Pausar" : remaining === modeMinutes * 60 ? "Começar" : "Continuar"}
+                    </Button>
+                    <Button
+                      size="xl"
+                      variant="outline"
+                      onClick={() => {
+                        setRunning(false)
+                        setRemaining(modeMinutes * 60)
+                        setFinishedHandled(false)
+                      }}
+                    >
+                      <RotateCcwIcon strokeWidth={1.75} /> Zerar
+                    </Button>
+                    <Button size="xl" variant="ghost" onClick={logElapsed}>
+                      <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
+                    </Button>
+                  </div>
+                </BentoCard>
 
-          <BentoCard title="Horas por matéria nesta semana" className="col-span-12 @min-[900px]:col-span-7">
-            <ChartContainer config={hoursConfig} className="aspect-[16/9] w-full">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <CartesianGrid horizontal={false} strokeOpacity={0.5} />
-                <XAxis type="number" tickLine={false} axisLine={false} unit=" h" />
-                <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={120} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="hours" fill="var(--color-hours)" radius={6} />
-              </BarChart>
-            </ChartContainer>
-          </BentoCard>
-
-          <BentoCard title="Blocos de hoje" className="col-span-12 @min-[1000px]:col-span-4">
-            {todaysBlocks.length === 0 ? (
-              <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nenhum bloco no cronograma de hoje.</p>
-            ) : (
-              todaysBlocks.map((b) => (
-                <div key={b.title} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                  <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 text-[15px] leading-6">{b.title}</span>
-                  <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {b.time} · {hours(b.minutes)}
-                  </span>
-                </div>
-              ))
-            )}
-          </BentoCard>
-
-          <BentoCard title="Contagem regressiva" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
-            {upcoming.slice(0, 3).map((d) => (
-              <div key={d.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                <span className="flex-1 text-[15px] leading-6">{d.title}</span>
-                <Badge variant={daysUntil(d.due_on, today) <= 10 ? "highlight" : "secondary"}>
-                  {daysUntil(d.due_on, today) === 0 ? "Hoje" : `${daysUntil(d.due_on, today)} dias`}
-                </Badge>
+                <BentoCard title="Horas por matéria nesta semana">
+                  <ChartContainer config={hoursConfig} className="aspect-[16/9] w-full">
+                    <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <CartesianGrid horizontal={false} strokeOpacity={0.5} />
+                      <XAxis type="number" tickLine={false} axisLine={false} unit=" h" />
+                      <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={120} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="hours" fill="var(--color-hours)" radius={6} />
+                    </BarChart>
+                  </ChartContainer>
+                </BentoCard>
               </div>
-            ))}
-          </BentoCard>
-
-          <BentoCard title="Ranking da semana" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
-            {bySubject.map((r, index) => (
-              <div key={r.subject.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
-                <span className="tabular w-5 text-[13px] leading-5 text-muted-foreground">{index + 1}</span>
-                <span className="flex-1 truncate text-[15px] leading-6">{r.subject.name}</span>
-                <span className="tabular text-[13px] leading-5 text-muted-foreground">{hours(r.minutes)}</span>
-              </div>
-            ))}
-          </BentoCard>
-          </Bento>
+            </SplitLayout>
+          </div>
         </TabsContent>
 
         {/* -------------------------------------------------------- subjects */}
         <TabsContent value="materias" className="pt-5">
-          <Bento>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))" }}>
           {subjects.map((s) => {
             const Icon = TYPE_ICONS[s.type]
             const done = weekMinutes(s.id)
             return (
-              <BentoCard key={s.id} className="col-span-12 @min-[900px]:col-span-6" bodyClassName="flex flex-col gap-3">
+              <BentoCard key={s.id} bodyClassName="flex flex-col gap-3">
                 <div className="flex items-start gap-4">
                   <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -333,15 +346,27 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
               </BentoCard>
             )
           })}
-          </Bento>
+          </div>
         </TabsContent>
 
         {/* ------------------------------------------------------ flashcards */}
         <TabsContent value="flashcards" className="pt-5">
-          <Bento>
+          <SplitLayout
+            aside={
+              <BentoCard title="Revisão de hoje" bodyClassName="flex flex-col gap-4">
+                <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{dueCards.length}</span>
+                <p className="text-[15px] leading-6 text-muted-foreground">{dueCards.length === 0 ? "Nada para revisar hoje." : "cartões para revisar hoje, espalhados pelos baralhos."}</p>
+                <Button
+                  disabled={dueCards.length === 0}
+                  onClick={() => setStudyDeck(mockDecks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))?.id ?? null)}
+                >
+                  Começar a revisão
+                </Button>
+              </BentoCard>
+            }
+          >
           <BentoCard
             title="Baralhos"
-            className="col-span-12 @min-[900px]:col-span-8"
             actions={
             <Button
               size="sm"
@@ -375,41 +400,89 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
             )
           })}
           </BentoCard>
-          </Bento>
+          </SplitLayout>
         </TabsContent>
 
         {/* --------------------------------------------------------- deadlines */}
         <TabsContent value="provas" className="pt-5">
-          <Bento>
           <BentoCard
             title="Provas e prazos"
-            className="col-span-12 @min-[900px]:col-span-8"
             actions={
               <Button variant="outline" size="sm" onClick={() => setCreatingDeadline(true)}>
                 <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
               </Button>
             }
           >
-          {upcoming.map((d) => {
-            const left = daysUntil(d.due_on, today)
-            return (
-              <div key={d.id} className="flex min-h-16 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                <div className="tabular flex w-14 shrink-0 flex-col items-center">
-                  <span className="text-2xl leading-8 font-semibold">{left}</span>
-                  <span className="text-[11px] leading-4 tracking-[0.12em] text-muted-foreground uppercase">dias</span>
+            <form
+              className="mb-2 flex flex-wrap items-center gap-2 border-b border-border pb-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!inlineTitle.trim()) return
+                setDeadlines((current) => [...current, { id: mockId("dl"), user_id: USER, subject_id: subjects[0]?.id ?? null, title: inlineTitle.trim(), due_on: inlineDate, kind: "exam" }])
+                setInlineTitle("")
+                toast.success("Prazo criado.")
+              }}
+            >
+              <Input value={inlineTitle} onChange={(e) => setInlineTitle(e.target.value)} placeholder="Adicionar prova ou prazo" aria-label="Título da nova prova ou prazo" className="min-w-48 flex-1" />
+              <Input type="date" value={inlineDate} min={today} onChange={(e) => setInlineDate(e.target.value)} aria-label="Data" className="w-44" />
+              <Button type="submit" disabled={!inlineTitle.trim()}>
+                <PlusIcon strokeWidth={1.75} /> Adicionar
+              </Button>
+            </form>
+            {upcoming.map((d) => {
+              const left = daysUntil(d.due_on, today)
+              const editingThis = editingDeadline === d.id
+              return (
+                <div key={d.id} className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-3 last:border-b-0">
+                  <Badge variant={left <= 10 ? "highlight" : "secondary"} className="h-8 min-w-20 justify-center px-3">
+                    {left === 0 ? "Hoje" : `${left} ${left === 1 ? "dia" : "dias"}`}
+                  </Badge>
+                  {editingThis ? (
+                    <form
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        if (!editTitle.trim()) return
+                        setDeadlines((current) => current.map((x) => (x.id === d.id ? { ...x, title: editTitle.trim(), due_on: editDate } : x)))
+                        setEditingDeadline(null)
+                        toast.success("Prazo atualizado.")
+                      }}
+                    >
+                      <Input autoFocus value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="Título" className="min-w-48 flex-1" />
+                      <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} aria-label="Data" className="w-44" />
+                      <Button type="submit" size="sm">
+                        Salvar
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditingDeadline(null)}>
+                        Cancelar
+                      </Button>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="flex min-w-0 flex-1 basis-48 flex-col">
+                        <span className="truncate text-[15px] leading-6">{d.title}</span>
+                        <span className="text-[13px] leading-5 text-muted-foreground">
+                          {format(parseISO(d.due_on), "EEEE, d 'de' MMMM", { locale: ptBR })} · {d.kind === "exam" ? "Prova" : "Entrega"}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Editar ${d.title}`}
+                        onClick={() => {
+                          setEditingDeadline(d.id)
+                          setEditTitle(d.title)
+                          setEditDate(d.due_on)
+                        }}
+                      >
+                        <PencilIcon strokeWidth={1.75} />
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] leading-6">{d.title}</span>
-                  <span className="text-[13px] leading-5 text-muted-foreground">
-                    {format(parseISO(d.due_on), "EEEE, d 'de' MMMM", { locale: ptBR })} · {d.kind === "exam" ? "Prova" : "Entrega"}
-                  </span>
-                </div>
-                {left <= 10 ? <Badge variant="highlight">Em breve</Badge> : null}
-              </div>
-            )
-          })}
+              )
+            })}
           </BentoCard>
-          </Bento>
         </TabsContent>
       </Tabs>
 
