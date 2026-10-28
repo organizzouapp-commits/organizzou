@@ -1,4 +1,4 @@
-// "Configurações" group (sidebar, rail flyout, avatar menu, mobile "Mais"), sign-out confirmation, Perfil/Ajuda pages,
+// "Configurações" group (sidebar, rail flyout, avatar menu), sign-out confirmation, Perfil/Ajuda pages,
 // and the fake-frost frame: the blurred layer lines up pixel-perfect with the sharp photo, with no blur filters at runtime.
 //   PROTOTYPE_BYPASS_AUTH=1 NEXT_DIST_DIR=.next-preview npx next dev -p 3100
 //   node tests/e2e/account-menu.mjs      (BASE=http://localhost:3100, OUT=./test-results/account)
@@ -128,7 +128,7 @@ for (const theme of ["dark", "light"])
     await rail.ctx.close()
   }
 
-// ---------- avatar menu + mobile Mais ----------
+// ---------- avatar menu (desktop and mobile) ----------
 {
   const { ctx, page } = await open({ width: 1440, height: 900 }, "dark", "/dashboard")
   await page.getByRole("button", { name: "Menu da conta" }).click()
@@ -141,13 +141,13 @@ for (const theme of ["dark", "light"])
 }
 for (const theme of ["dark", "light"]) {
   const { ctx, page } = await open({ width: 390, height: 844 }, theme, "/dashboard")
-  await page.getByRole("button", { name: "Mais" }).click()
-  await page.waitForTimeout(700)
-  const sheet = page.getByRole("dialog")
-  const text = await sheet.innerText()
-  ok(`mobile "Mais" has Perfil, Configurações, Ajuda, Sair  ${theme}`, ["Perfil", "Configurações", "Ajuda", "Sair"].every((t) => text.includes(t)))
-  await page.screenshot({ path: `${out}/mais-sheet-390x844-${theme}.png` })
-  await sheet.getByRole("button", { name: "Sair" }).click()
+  await page.getByRole("button", { name: "Menu da conta" }).click()
+  await page.waitForTimeout(500)
+  const menu = page.getByRole("menu")
+  const text = await menu.innerText()
+  ok(`mobile avatar menu has Perfil, Configurações, Ajuda, Conectar WhatsApp, Sair  ${theme}`, ["Perfil", "Configurações", "Ajuda", "Conectar WhatsApp", "Sair"].every((t) => text.includes(t)))
+  await page.screenshot({ path: `${out}/avatar-menu-390x844-${theme}.png` })
+  await menu.getByRole("menuitem", { name: "Sair" }).click()
   ok(`mobile Sair confirms  ${theme}`, await page.getByRole("alertdialog").getByText("Deseja sair da sua conta?").isVisible())
   await ctx.close()
 }

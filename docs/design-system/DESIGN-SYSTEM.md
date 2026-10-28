@@ -141,8 +141,11 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
   com a data embaixo; nas telas de módulo, o título da página e um subtítulo curto. À direita: pílula de busca (Ctrl K abre a paleta
   de comandos), sino com ponto Lima quando há novidades, alternância de tema, avatar com menu da conta e o botão primário
   contextual "+ Novo" (cada tela registra o seu com `usePrimaryAction`; sem registro abre a captura rápida).
-- **Mobile (< 768 px)**: sem sidebar. `BottomNav` (Hoje · Tarefas · + · Finanças · Mais) e barra superior compacta (avatar, título da
-  página, sino e busca). "Mais" abre um sheet com os grupos de navegação e o cartão do WhatsApp.
+- **Mobile (< 768 px)**: sem sidebar. Cabeçalho que rola com a página (não é fixo) em 3 linhas: avatar (menu da conta, com
+  "Conectar WhatsApp"), logo e sino; busca + alternador de tema; chips só de texto (Hoje, Tarefas, Agenda, Finanças, Vida ▾,
+  Organização ▾). `BottomNav` flutuante em pílula (Hoje · Tarefas · **+** elevado · Agenda · Assistente): o item ativo expande
+  em pílula Lima com o rótulo; o "+" faz o mesmo que o "+ Novo" do desktop; some enquanto o teclado está aberto. O título e o
+  subtítulo da página ficam no conteúdo, abaixo do cabeçalho.
 
 ### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
 
@@ -282,7 +285,7 @@ Só a caixa de conteúdo rola (`data-app-scroll`): `overscroll-behavior: contain
 **Sidebar expandida (260 px).** Sempre visíveis: Hoje, Tarefas, Agenda, Finanças. Grupos que dobram (`Collapsible`, chevron que gira, altura animada em
 0,4 s): **Vida** (Rotina, Treinos, Dieta, Estudos) e **Organização** (Notas e lembretes, Metas, Diário, Cofre). O estado de cada grupo é lembrado por usuário
 (`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: o grupo **Configurações** (mesmo `Collapsible`, mesma animação de 0,4 s; ao abrir, o bloco cresce para cima e só a lista de navegação encolhe) e, **por último**, o card Lima "Conecte seu WhatsApp".
-O grupo **Configurações** tem Perfil (`/dashboard/perfil`), Configurações (`/dashboard/configuracoes`), Ajuda (`/dashboard/ajuda`) e Sair; **Sair sempre pede confirmação** (`AlertDialog` "Deseja sair da sua conta?"). Os mesmos itens aparecem no menu do avatar da barra superior e na folha "Mais" do celular. Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
+O grupo **Configurações** tem Perfil (`/dashboard/perfil`), Configurações (`/dashboard/configuracoes`), Ajuda (`/dashboard/ajuda`) e Sair; **Sair sempre pede confirmação** (`AlertDialog` "Deseja sair da sua conta?"). Os mesmos itens aparecem no menu do avatar da barra superior e no cabeçalho do celular (que também lista "Conectar WhatsApp"). Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
 900 px de altura o card dispensa o ícone e a descrição. Contador (ex.: Tarefas 15) à direita do rótulo; num grupo fechado aparece a soma dos itens.
 
 **Rail (recolhida, 80 px).** Todo controle é um quadrado de 44 px no **mesmo eixo vertical** (logo, botão de recolher, itens, item ativo Lima, itens de baixo e o ícone do
@@ -352,8 +355,8 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 | `avatar`, `separator`, `skeleton`, `tooltip`, `scroll-area`, `dropdown-menu`, `popover`, `sheet` | Padrão com os tokens. |
 
 Componentes próprios (`src/components/organizzou/`): `Logo`, `ModuleIcon` (só ícone + nome), `Stat`
-(rótulo + número herói + apoio, sem caixa), `HabitCheck`, `ListRow`, `BottomNav` (4 itens + "+" central;
-ativo em pílula Lima), `AssistantFab`, `EmptyState`.
+(rótulo + número herói + apoio, sem caixa), `HabitCheck`, `ListRow`, `BottomNav` (pílula flutuante: 4 itens + "+" central elevado;
+ativo em pílula Lima com rótulo), `AssistantFab`, `EmptyState`.
 
 ---
 

@@ -1,4 +1,4 @@
-// App shell: icon rail on tablet, per-user collapse cookie, top bar action, mobile Mais sheet
+// App shell: icon rail on tablet, per-user collapse cookie, top bar action, mobile header chips + floating nav
 // Needs the prototype dev server (see docs/PROTOTYPE.md):  node tests/e2e/shell.mjs
 import { chromium } from "@playwright/test"
 const base = "http://localhost:3100"
@@ -51,7 +51,7 @@ const ok = (n, p) => results.push(`${p ? "PASS" : "FAIL"}  ${n}`)
   await ctx.close()
 }
 
-// mobile: "Mais" sheet with groups and the WhatsApp card; compact top bar
+// mobile: header chips (Vida / Organização menus), floating bottom nav, avatar menu with the WhatsApp link
 {
   const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true })
   await ctx.addInitScript(() => localStorage.setItem("theme", "light"))
@@ -59,10 +59,15 @@ const ok = (n, p) => results.push(`${p ? "PASS" : "FAIL"}  ${n}`)
   page.on("pageerror", (e) => problems.push("mobile " + e.message.slice(0, 160)))
   await page.goto(base + "/dashboard/rotina", { waitUntil: "networkidle" })
   ok("mobile has no floating sidebar", (await page.locator('[data-slot="sidebar-container"]').first().isVisible()) === false)
-  await page.getByRole("button", { name: "Mais" }).click()
-  await page.waitForTimeout(600)
-  ok("Mais sheet lists the three groups", (await page.getByText("Organização", { exact: true }).count()) === 1 && (await page.getByText("Vida", { exact: true }).count()) === 1)
-  ok("Mais sheet has the WhatsApp card", (await page.getByText("Conecte seu WhatsApp").count()) === 1)
+  const nav = page.getByRole("navigation", { name: "Navegação principal" })
+  ok("floating nav has Hoje, Tarefas, Agenda, Assistente and the + button", (await nav.getByRole("button").count()) === 5)
+  await page.getByRole("button", { name: "Organização" }).click()
+  await page.waitForTimeout(500)
+  ok("Organização chip opens its four modules", (await page.getByRole("menuitem").count()) === 4)
+  await page.keyboard.press("Escape")
+  await page.getByRole("button", { name: "Menu da conta" }).click()
+  await page.waitForTimeout(500)
+  ok("avatar menu has the WhatsApp link", (await page.getByRole("menuitem", { name: "Conectar WhatsApp" }).count()) === 1)
   await ctx.close()
 }
 
