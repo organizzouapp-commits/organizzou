@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -10,6 +10,7 @@ import {
   EllipsisIcon,
   FolderIcon,
   HeadingIcon,
+  InfoIcon,
   ItalicIcon,
   ListIcon,
   MessageCircleIcon,
@@ -23,7 +24,7 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
-import { Bento, BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
+import { BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +42,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -134,7 +136,14 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updated_at.localeCompare(a.updated_at))
   const open = notes.find((n) => n.id === openId) ?? null
 
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(savedTimer.current), [])
+
   function updateNote(id: string, patch: Partial<NoteRow>) {
+    setSaved(true)
+    window.clearTimeout(savedTimer.current)
+    savedTimer.current = window.setTimeout(() => setSaved(false), 1800)
     setNotes((current) => current.map((n) => (n.id === id ? { ...n, ...patch, updated_at: new Date().toISOString() } : n)))
   }
 
@@ -199,9 +208,9 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         <TabsContent value="notas" className="pt-5">
-          <div className="grid gap-5 md:grid-cols-[13rem_minmax(0,20rem)_minmax(0,1fr)]">
+          <div className="grid gap-5 md:h-[calc(100dvh-17rem)] md:min-h-[34rem] md:grid-cols-[13rem_minmax(0,20rem)_minmax(0,1fr)]">
             {/* folders */}
-            <nav aria-label="Pastas" className={cn(bentoCardClass(), "flex flex-col gap-1 p-4", open && "hidden md:flex")}>
+            <nav aria-label="Pastas" className={cn(bentoCardClass(), "flex flex-col gap-1 overflow-y-auto p-4", open && "hidden md:flex")}>
               {sections.map(({ key, label, icon: Icon, count }) => (
                 <button
                   key={key}
@@ -221,7 +230,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
             </nav>
 
             {/* list */}
-            <section aria-label="Lista de notas" className={cn(bentoCardClass(), "flex flex-col gap-3 p-4", open && "hidden md:flex")}>
+            <section aria-label="Lista de notas" className={cn(bentoCardClass(), "flex min-h-0 flex-col gap-3 p-4", open && "hidden md:flex")}>
               <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -234,10 +243,14 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
               {visible.length === 0 ? (
                 <EmptyState icon={SearchIcon} title="Nenhuma nota" description="Crie uma nota ou mude a busca." />
               ) : (
-                <div>
-                  {visible.map((n) => (
+                <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+                  {visible.some((n) => n.pinned) ? <p className="px-1 pt-1 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Fixadas</p> : null}
+                  {visible.map((n, index) => (
+                    <Fragment key={n.id}>
+                      {index > 0 && visible[index - 1].pinned && !n.pinned ? (
+                        <p className="px-1 pt-4 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notas</p>
+                      ) : null}
                     <button
-                      key={n.id}
                       type="button"
                       onClick={() => {
                         setOpenId(n.id)
@@ -261,17 +274,18 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                         {n.tags.length > 0 ? ` · ${n.tags.map((t) => `#${t}`).join(" ")}` : ""}
                       </span>
                     </button>
+                    </Fragment>
                   ))}
                 </div>
               )}
             </section>
 
             {/* editor */}
-            <section aria-label="Editor" className={cn(bentoCardClass(), !open && "hidden md:block")}>
+            <section aria-label="Editor" className={cn(bentoCardClass(), "flex min-h-0 flex-col overflow-y-auto", !open && "hidden md:flex")}>
               {!open ? (
                 <EmptyState icon={NotebookPenIcon} title="Selecione uma nota" description="Escolha uma nota na lista ou crie uma nova." />
               ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex min-h-0 flex-1 flex-col gap-4">
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="icon" aria-label="Voltar para a lista" className="md:hidden" onClick={() => setOpenId(null)}>
                       <ArrowLeftIcon strokeWidth={1.75} />
@@ -326,7 +340,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                       aria-label="Texto da nota"
                       value={open.body}
                       onChange={(e) => updateNote(open.id, { body: e.target.value })}
-                      className="min-h-80 font-mono text-[14px] leading-6"
+                      className="min-h-80 flex-1 resize-none font-mono text-[14px] leading-6"
                       placeholder="Escreva aqui. Use # para títulos, - para listas, **negrito** e *itálico*."
                     />
                   ) : open.body.trim() ? (
@@ -336,7 +350,8 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   )}
 
                   <p className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {wordCount(open.body)} palavras · salvo automaticamente · {mockFolders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"}
+                    {wordCount(open.body)} palavras · {mockFolders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
+                    <span role="status" aria-live="polite">{saved ? "Salvo" : "Alterações são salvas sozinhas"}</span>
                   </p>
                 </div>
               )}
@@ -345,78 +360,81 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
         </TabsContent>
 
         <TabsContent value="lembretes" className="pt-5">
-          <Bento>
-          {groups.map((group, index) => (
-            <BentoCard
-              key={group.label}
-              title={group.label}
-              className="col-span-12 @min-[900px]:col-span-6"
-              actions={
-                index === 0 ? (
-                  <Button variant="outline" size="sm" onClick={() => setCreatingReminder(true)}>
-                    <PlusIcon strokeWidth={1.75} /> Novo lembrete
-                  </Button>
-                ) : undefined
-              }
-            >
-              {group.items.map((r) => (
-                <div key={r.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                  <Checkbox
-                    checked={false}
-                    aria-label={`Concluir ${r.title}`}
-                    onCheckedChange={() => {
-                      setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)))
-                      toast("Lembrete concluído.")
-                    }}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[15px] leading-6">{r.title}</span>
-                    <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                      {formatDue({ due_at: r.remind_at, due_has_time: true }, now, MOCK_TIMEZONE)}
-                      {r.channels.includes("push") ? (
-                        <span className="inline-flex items-center gap-1">
-                          <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="flex max-w-[72ch] items-start gap-2 text-[13px] leading-5 text-muted-foreground">
+                <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
+                Em breve: os lembretes serão avisados pelo app e pelo WhatsApp. Por enquanto eles ficam só aqui, na lista.
+              </p>
+              <Button variant="outline" onClick={() => setCreatingReminder(true)}>
+                <PlusIcon strokeWidth={1.75} /> Novo lembrete
+              </Button>
+            </div>
+            <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))" }}>
+              {groups.map((group) => (
+                <BentoCard key={group.label} title={group.label}>
+                  {group.items.map((r) => (
+                    <div key={r.id} className="flex min-h-14 items-start gap-3 border-b border-border py-3 last:border-b-0">
+                      <Checkbox
+                        checked={false}
+                        aria-label={`Concluir ${r.title}`}
+                        className="mt-1"
+                        onCheckedChange={() => {
+                          setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)))
+                          toast("Lembrete concluído.")
+                        }}
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[15px] leading-6 break-words">{r.title}</span>
+                        <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
+                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, MOCK_TIMEZONE)}
+                          {r.channels.includes("push") ? (
+                            <span className="inline-flex items-center gap-1">
+                              <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
+                            </span>
+                          ) : null}
+                          {r.channels.includes("whatsapp") ? (
+                            <span className="inline-flex items-center gap-1">
+                              <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> WhatsApp
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                      {r.channels.includes("whatsapp") ? (
-                        <span className="inline-flex items-center gap-1">
-                          <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> WhatsApp
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        Adiar
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => snooze(r, 1)}>Em 1 hora</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => snooze(r, 3)}>Em 3 horas</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => snooze(r, 24)}>Amanhã</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" aria-label={`Mais opções de ${r.title}`}>
+                            <EllipsisIcon strokeWidth={1.75} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Adiar</DropdownMenuLabel>
+                          <DropdownMenuItem onSelect={() => snooze(r, 1)}>Em 1 hora</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => snooze(r, 3)}>Em 3 horas</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => snooze(r, 24)}>Amanhã</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ))}
+                </BentoCard>
               ))}
-            </BentoCard>
-          ))}
-          {done.length > 0 ? (
-            <BentoCard title="Concluídos" className="col-span-12 @min-[900px]:col-span-6">
-              {done.map((r) => (
-                <div key={r.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 text-muted-foreground last:border-b-0">
-                  <Checkbox
-                    checked
-                    aria-label={`Reabrir ${r.title}`}
-                    onCheckedChange={() => setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "pending" } : x)))}
-                  />
-                  <span className="flex-1 truncate text-[15px] leading-6 line-through">{r.title}</span>
-                  <Badge variant="outline">Feito</Badge>
-                </div>
-              ))}
-            </BentoCard>
-          ) : null}
-          </Bento>
+              {done.length > 0 ? (
+                <BentoCard title="Concluídos">
+                  {done.map((r) => (
+                    <div key={r.id} className="flex min-h-12 items-start gap-3 border-b border-border py-2.5 text-muted-foreground last:border-b-0">
+                      <Checkbox
+                        checked
+                        aria-label={`Reabrir ${r.title}`}
+                        className="mt-1"
+                        onCheckedChange={() => setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "pending" } : x)))}
+                      />
+                      <span className="flex-1 text-[15px] leading-6 break-words line-through">{r.title}</span>
+                      <Badge variant="outline">Feito</Badge>
+                    </div>
+                  ))}
+                </BentoCard>
+              ) : null}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 
