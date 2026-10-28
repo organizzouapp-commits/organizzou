@@ -23,18 +23,18 @@ const [MAIN_GROUP, ...FOLDED_GROUPS] = NAV_GROUPS
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
 const chip = "inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-[15px] transition-colors duration-[400ms] ease-organizzou motion-reduce:transition-none"
 const chipActive = "border border-transparent bg-highlight font-medium text-highlight-foreground"
-// Idle chips are glass; GlassSurface clips to the pill, so their focus ring is drawn inside.
+// Idle chips are flat glass (tint + border, no photo layer); GlassSurface clips to the pill, so their focus ring is drawn inside.
 const chipIdle = "text-muted-foreground focus-visible:ring-inset"
 
 /** Glass pill, or the solid Lima pill when it is the current route. */
 function ChipLink({ active, className, ...props }: Omit<React.ComponentProps<typeof Link>, "as"> & { active: boolean }) {
   if (active) return <Link aria-current="page" className={cn(chip, focus, chipActive, className)} {...props} />
-  return <GlassSurface as={Link} className={cn(chip, focus, chipIdle, className)} {...props} />
+  return <GlassSurface as={Link} flat className={cn(chip, focus, chipIdle, className)} {...props} />
 }
 
 function ChipButton({ active, className, ...props }: React.ComponentProps<"button"> & { active: boolean }) {
   if (active) return <button type="button" className={cn(chip, focus, chipActive, className)} {...props} />
-  return <GlassSurface as="button" type="button" className={cn(chip, focus, chipIdle, className)} {...props} />
+  return <GlassSurface as="button" type="button" flat className={cn(chip, focus, chipIdle, className)} {...props} />
 }
 
 type MobileHeaderProps = {
@@ -161,7 +161,8 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
           compact ? "top-[calc(env(safe-area-inset-top)+0.5rem)] opacity-100" : "pointer-events-none top-[-6rem] opacity-0"
         )}
       >
-        <div className="flex items-center">
+        {/* The avatar sits inset in the bar, with no outline of its own (a subtle fill instead) so it never clashes with the bar border. */}
+        <div className="flex items-center [&_[data-slot=avatar-fallback]]:bg-muted/40 [&_[data-slot=avatar]]:size-9 [&_[data-slot=avatar]]:after:hidden">
           <UserMenu user={user} compact />
         </div>
         <Logo className="h-7" />

@@ -3,7 +3,8 @@
 //
 //   public/images/app-bg.webp, app-bg-mobile.webp   lightly blurred photo = the fixed full-screen base layer (AppBackground)
 //   public/images/app-bg-frost.webp                 heavily blurred photo = the copy painted INSIDE the big frame (FrameGlass)
-//   public/images/app-bg-mobile-frost.webp          the same heavy blur of the phone photo, painted inside the phone glass surfaces (GlassSurface)
+//   public/images/app-bg-mobile-glass-dark.webp    phone photo, heavy blur + ~68% less saturation + ~50% brightness (GlassSurface, dark theme)
+//   public/images/app-bg-mobile-glass-light.webp    same, desaturated and lightened (GlassSurface, light theme)
 //
 // >>> TWEAK THE BLUR HERE <<< Strengths are Gaussian sigmas in pixels of each ORIGINAL photo at its own width; each output
 // is scaled down proportionally, so the look is the same at any export size.
@@ -21,13 +22,18 @@ import sharp from "sharp"
 
 const BASE_BLUR = 7
 const FROST_BLUR = 88
+// Phone glass is neutral, never a green surface: blur, then desaturate and darken (or lighten) the heavily blurred copy.
+const GLASS_DARK = { saturation: 0.32, brightness: 0.5 }
+// The light variant lifts the dark photo toward Papel (out = a * in + b) so the glass stays light.
+const GLASS_LIGHT = { saturation: 0.35, linear: [0.55, 140] }
 
 const dir = path.join(process.cwd(), "public", "images")
 const jobs = [
   { from: "auth-background.png", to: "app-bg.webp", width: 1671, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background-mobile.png", to: "app-bg-mobile.webp", width: 900, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background.png", to: "app-bg-frost.webp", width: 960, blur: FROST_BLUR, quality: 85 },
-  { from: "auth-background-mobile.png", to: "app-bg-mobile-frost.webp", width: 540, blur: FROST_BLUR, quality: 85 },
+  { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-dark.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_DARK },
+  { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-light.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_LIGHT },
 ]
 
 for (const job of jobs) {
@@ -43,7 +49,12 @@ for (const job of jobs) {
   const blurred = await sharp(extended).blur(sigma).toBuffer()
   const padded = await sharp(blurred).extract({ left: pad, top: pad, width, height }).toBuffer()
   const out = path.join(dir, job.to)
-  await sharp(padded).webp({ quality: job.quality, effort: 6 }).toFile(out)
+  let image = sharp(padded)
+  if (job.modulate) {
+    image = image.modulate({ saturation: job.modulate.saturation, ...(job.modulate.brightness && { brightness: job.modulate.brightness }) })
+  }
+  if (job.modulate?.linear) image = image.linear(...job.modulate.linear)
+  await image.webp({ quality: job.quality, effort: 6 }).toFile(out)
   const { size } = await stat(out)
   console.log(`${job.to}  ${width}x${height}  sigma ${sigma.toFixed(1)}  ${(size / 1024).toFixed(1)} KB`)
 }
