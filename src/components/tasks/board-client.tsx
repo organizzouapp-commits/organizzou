@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { SearchXIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -10,6 +10,8 @@ import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { BoardApi } from "@/features/tasks/board-api"
@@ -60,6 +62,19 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<TaskView | null>(null)
   const [listToDelete, setListToDelete] = useState<ListRow | null>(null)
+  const [doneToClear, setDoneToClear] = useState<ListRow | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const hoveredTask = useRef<string | null>(null)
+  // ≥1024 px the details open as a side panel next to the board; below that, as a full-screen drawer.
+  const panelMode = useMediaQuery("(min-width: 1024px)")
+
+  // Phones start on the list view unless the URL says otherwise.
+  const [mobileChecked, setMobileChecked] = useState(false)
+  if (isMobile && !mobileChecked) {
+    setMobileChecked(true)
+    if (!new URL(window.location.href).searchParams.has("visao") && view === "kanban") setView("lista")
+  }
 
   const timeZone = initial.timezone
   const boardId = initial.board.id
@@ -271,6 +286,75 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
 
   usePrimaryAction("Nova tarefa", () => setNewTaskOpen(true))
 
+  async function confirmClearDone() {
+    const list = doneToClear
+    setDoneToClear(null)
+    if (!list) return
+    const doomed = tasks.filter((t) => t.list_id === list.id)
+    const snapshot = tasks
+    setTasks((current) => current.filter((t) => t.list_id !== list.id))
+    for (const task of doomed) {
+      const result = await api.deleteTask(task.id)
+      if (!result.ok) {
+        setTasks(snapshot)
+        toast.error(result.error)
+        return
+      }
+    }
+    toast(`${doomed.length} ${doomed.length === 1 ? "tarefa concluída removida" : "tarefas concluídas removidas"}.`)
+  }
+
+  // Keyboard shortcuts: N new, / search, E edit, Space complete, ? help (ignored while typing or with a dialog open).
+  const shortcutRef = useRef<(event: KeyboardEvent) => void>(() => {})
+  useEffect(() => {
+    shortcutRef.current = (event) => {
+      const el = event.target as HTMLElement | null
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (el && (el.closest("input, textarea, select, [contenteditable=true]") || el.closest("[role=dialog], [role=menu], [role=listbox]"))) {
+        if (event.key === "Escape" && openId && el.closest("aside[aria-label='Detalhes da tarefa']")) setOpenId(null)
+        return
+      }
+      const focusedCard = el?.closest<HTMLElement>("[data-task-id]")?.dataset.taskId ?? hoveredTask.current
+      const current = focusedCard ? tasks.find((t) => t.id === focusedCard) : undefined
+      switch (event.key) {
+        case "n":
+        case "N":
+          event.preventDefault()
+          setNewTaskOpen(true)
+          break
+        case "/":
+          event.preventDefault()
+          searchRef.current?.focus()
+          break
+        case "e":
+        case "E":
+          if (current) {
+            event.preventDefault()
+            setOpenId(current.id)
+          }
+          break
+        case " ":
+          if (current && !(el instanceof HTMLButtonElement && el.getAttribute("role") === "checkbox")) {
+            event.preventDefault()
+            void toggleComplete(current)
+          }
+          break
+        case "?":
+          event.preventDefault()
+          setHelpOpen(true)
+          break
+        case "Escape":
+          if (openId) setOpenId(null)
+          break
+      }
+    }
+  })
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => shortcutRef.current(event)
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
   const listTaskCount = listToDelete ? tasks.filter((t) => t.list_id === listToDelete.id).length : 0
   const viewProps = {
     lists,
@@ -288,6 +372,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     <div className="flex flex-col gap-5">
       <div className={bentoCardClass()}>
       <BoardToolbar
+        ref={searchRef}
+        isMobile={isMobile}
         boards={boards.map((b) => (b.id === boardId ? { ...b, name: boardName } : b))}
         boardId={boardId}
         onSelectBoard={(id) => router.push(`${basePath}/${id}`)}
@@ -307,6 +393,16 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       />
       </div>
 
+      <div
+        className="flex items-start gap-5"
+        onMouseOver={(e) => {
+          hoveredTask.current = (e.target as HTMLElement).closest<HTMLElement>("[data-task-id]")?.dataset.taskId ?? null
+        }}
+        onMouseLeave={() => {
+          hoveredTask.current = null
+        }}
+      >
+      <div className="min-w-0 flex-1">
       {view !== "kanban" && filtering && visible.length === 0 ? (
         <EmptyState
           icon={SearchXIcon}
@@ -328,6 +424,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           onToggleDoneList={(list) => void toggleDoneList(list)}
           onMoveList={(list, direction) => void moveList(list, direction)}
           onDeleteList={setListToDelete}
+          isMobile={isMobile}
+          onMoveTaskToList={moveTaskToList}
+          onClearDone={setDoneToClear}
         />
       ) : view === "lista" ? (
         <div className={bentoCardClass()}>
@@ -338,7 +437,26 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           <CalendarView {...viewProps} />
         </div>
       )}
+      </div>
+      {panelMode ? (
+        <TaskSheet
+          panel
+          api={api}
+          task={openTask}
+          lists={lists}
+          tags={tags}
+          timeZone={timeZone}
+          isMobile={isMobile}
+          onClose={() => setOpenId(null)}
+          onTaskChange={replaceTask}
+          onMoveToList={moveTaskToList}
+          onTagCreated={(tag) => setTags((current) => [...current, tag].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))}
+          onDelete={setTaskToDelete}
+        />
+      ) : null}
+      </div>
 
+      {panelMode ? null : (
       <TaskSheet
         api={api}
         task={openTask}
@@ -352,6 +470,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         onTagCreated={(tag) => setTags((current) => [...current, tag].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))}
         onDelete={setTaskToDelete}
       />
+      )}
 
       <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} onCreate={createFromDialog} />
       <PromptDialog open={newBoardOpen} onOpenChange={setNewBoardOpen} title="Novo quadro" label="Nome do quadro" submitLabel="Criar quadro" onSubmit={newBoard} />
@@ -371,6 +490,39 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         description={taskToDelete ? `“${taskToDelete.title}” será apagada. Essa ação não pode ser desfeita.` : ""}
         onConfirm={() => void confirmDeleteTask()}
       />
+      <ConfirmDialog
+        open={Boolean(doneToClear)}
+        onOpenChange={(open) => !open && setDoneToClear(null)}
+        title="Limpar as tarefas concluídas?"
+        description={doneToClear ? `As ${tasks.filter((t) => t.list_id === doneToClear.id).length} tarefas de “${doneToClear.name}” serão apagadas. Essa ação não pode ser desfeita.` : ""}
+        confirmLabel="Limpar concluídas"
+        onConfirm={() => void confirmClearDone()}
+      />
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Atalhos do teclado</DialogTitle>
+            <DialogDescription>Funcionam fora dos campos de texto.</DialogDescription>
+          </DialogHeader>
+          <dl className="flex flex-col">
+            {[
+              ["N", "Nova tarefa"],
+              ["/", "Buscar"],
+              ["E", "Editar a tarefa sob o cursor ou em foco"],
+              ["Espaço", "Concluir ou reabrir a tarefa em foco"],
+              ["Esc", "Fechar os detalhes"],
+              ["?", "Mostrar esta ajuda"],
+            ].map(([key, text]) => (
+              <div key={key} className="flex min-h-11 items-center gap-4 border-b border-border last:border-b-0">
+                <dt>
+                  <kbd className="rounded-md border border-border px-2 py-0.5 text-[13px]">{key}</kbd>
+                </dt>
+                <dd className="text-[15px] leading-6">{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={Boolean(listToDelete)}
         onOpenChange={(open) => !open && setListToDelete(null)}

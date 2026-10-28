@@ -104,7 +104,7 @@ export function CalendarView({ tasks, now, timeZone, onOpenTask }: ViewProps) {
                 aria-selected={isSelected}
                 onClick={() => setSelected(key)}
                 className={cn(
-                  "flex min-h-16 flex-col items-stretch gap-1 border-r border-b border-border p-1.5 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-28",
+                  "flex min-h-16 flex-col items-stretch gap-1 border-r border-b border-border p-1.5 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-24",
                   !isSameMonth(day, month) && "text-muted-foreground",
                   isSelected && "bg-muted"
                 )}

@@ -12,6 +12,8 @@ import type { TagRow, TaskView } from "@/features/tasks/types"
 import { DueLabel, PriorityIcon, TagChip, TaskCounters } from "./task-meta"
 
 type TaskCardBodyProps = {
+  /** Hover/focus actions (edit, move, delete). */
+  menu?: React.ReactNode
   task: TaskView
   tags: TagRow[]
   now: Date
@@ -22,16 +24,17 @@ type TaskCardBodyProps = {
 }
 
 /** The visual card, shared by the sortable item and the drag overlay. */
-export function TaskCardBody({ task, tags, now, timeZone, onOpen, onToggleComplete, className }: TaskCardBodyProps) {
+export function TaskCardBody({ task, tags, now, timeZone, onOpen, onToggleComplete, menu, className }: TaskCardBodyProps) {
   const swatch = getSwatch(task.swatch)
   const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
-  const hasMeta =
-    Boolean(task.due_at) || task.priority !== "none" || task.checklistTotal + task.commentCount + task.attachmentCount > 0
+  // The flag only shows above normal priority.
+  const flagged = task.priority === "high" || task.priority === "medium"
+  const hasMeta = Boolean(task.due_at) || flagged || task.checklistTotal + task.commentCount + task.attachmentCount > 0
 
   return (
     <div
       className={cn(
-        "relative flex gap-3 overflow-hidden rounded-xl border border-border bg-card p-3 text-card-foreground",
+        "group/card relative flex gap-3 overflow-hidden rounded-xl border border-border bg-card p-3 text-card-foreground transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent/40 motion-reduce:transition-none",
         task.completed_at && "opacity-70",
         className
       )}
@@ -67,11 +70,16 @@ export function TaskCardBody({ task, tags, now, timeZone, onOpen, onToggleComple
         {hasMeta ? (
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <DueLabel task={task} now={now} timeZone={timeZone} />
-            <PriorityIcon priority={task.priority} className="text-muted-foreground" />
+            {flagged ? <PriorityIcon priority={task.priority} className="text-muted-foreground" /> : null}
             <TaskCounters task={task} />
           </span>
         ) : null}
       </button>
+      {menu ? (
+        <div className="absolute top-1.5 right-1.5 opacity-0 transition-opacity duration-150 group-focus-within/card:opacity-100 group-hover/card:opacity-100 max-md:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
+          {menu}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -93,6 +101,7 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
     <div
       ref={setNodeRef}
       style={style}
+      data-task-id={body.task.id}
       {...attributes}
       {...listeners}
       className={cn("touch-manipulation outline-none", isDragging && "opacity-40")}

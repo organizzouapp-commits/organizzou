@@ -29,7 +29,7 @@ function TaskRowItem({
       rightLabel={done ? "Reabrir" : "Concluir"}
       onSwipeLeft={() => props.onDeleteRequest(task)}
     >
-      <div className="flex min-h-14 items-center gap-4 border-b border-border py-3">
+      <div data-task-id={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3">
         <Checkbox
           checked={done}
           onCheckedChange={() => props.onToggleComplete(task)}

@@ -9,7 +9,7 @@ import {
   SquareCheckIcon,
 } from "lucide-react"
 
-import { formatDue, isOverdue } from "@/lib/dates"
+import { dayDiff, formatDue, isOverdue } from "@/lib/dates"
 import { getSwatch } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 import { asPriority, PRIORITY_LABELS } from "@/features/tasks/types"
@@ -58,22 +58,27 @@ type DueLabelProps = {
   className?: string
 }
 
-/** Due date with icon + text. Overdue adds an alert icon and underline, never color alone. */
+/**
+ * Due date with icon + text, never color alone. Overdue: alert icon + "Atrasada". Today: an outlined chip (Lima outline in dark mode,
+ * a Tinta outline in light mode, where Lima lines would be invisible).
+ */
 export function DueLabel({ task, now, timeZone, className }: DueLabelProps) {
   if (!task.due_at) return null
   const overdue = !task.completed_at && isOverdue(task, now, timeZone)
+  const today = !overdue && !task.completed_at && dayDiff(task.due_at, now, timeZone) === 0
   const Icon = overdue ? CircleAlertIcon : CalendarIcon
 
   return (
     <span
       className={cn(
         "tabular inline-flex items-center gap-1 text-[13px] leading-5",
-        overdue ? "font-medium text-foreground underline underline-offset-2" : "text-muted-foreground",
+        overdue ? "font-medium text-foreground" : "text-muted-foreground",
+        today && "rounded-full border border-foreground/40 px-2 font-medium text-foreground dark:border-highlight",
         className
       )}
     >
       <Icon aria-hidden strokeWidth={1.75} className="size-3.5" />
-      {overdue ? <span className="sr-only">Atrasada: </span> : null}
+      {overdue ? "Atrasada · " : null}
       {formatDue(task, now, timeZone)}
     </span>
   )

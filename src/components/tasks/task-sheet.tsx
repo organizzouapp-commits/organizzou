@@ -67,6 +67,8 @@ type TaskSheetProps = {
   onTagCreated: (tag: TagRow) => void
   onDelete: (task: TaskView) => void
   isMobile: boolean
+  /** ≥1024 px: render as a side panel next to the board (no overlay) instead of a drawer. */
+  panel?: boolean
 }
 
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
@@ -80,6 +82,22 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; 
   )
 }
 
+/** Header and title: Radix dialog parts inside the drawer, plain elements inside the side panel (no dialog context there). */
+function HeaderShell({ panel, className, children }: { panel?: boolean; className?: string; children: React.ReactNode }) {
+  return panel ? <div className={className}>{children}</div> : <SheetHeader className={className}>{children}</SheetHeader>
+}
+
+function TitleShell({ panel, children }: { panel?: boolean; children: React.ReactNode }) {
+  return panel ? (
+    <h2 className="sr-only">{children}</h2>
+  ) : (
+    <>
+      <SheetTitle className="sr-only">{children}</SheetTitle>
+      <SheetDescription className="sr-only">Edite os detalhes da tarefa.</SheetDescription>
+    </>
+  )
+}
+
 function formatSize(bytes: number | null) {
   if (bytes == null) return ""
   if (bytes < 1024) return `${bytes} B`
@@ -88,17 +106,28 @@ function formatSize(bytes: number | null) {
 }
 
 export function TaskSheet(props: TaskSheetProps) {
-  const { task, onClose, isMobile } = props
+  const { task, onClose, panel } = props
+
+  if (panel) {
+    // The board stays visible and usable: this is a plain column, not a dialog.
+    if (!task) return null
+    return (
+      <aside
+        aria-label="Detalhes da tarefa"
+        className="no-scrollbar sticky top-0 flex max-h-[calc(100dvh-8rem)] w-[clamp(340px,32vw,440px)] shrink-0 flex-col overflow-y-auto rounded-[24px] border border-border bg-card"
+      >
+        <TaskSheetBody key={task.id} {...props} task={task} />
+      </aside>
+    )
+  }
 
   return (
     <Sheet open={Boolean(task)} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
-        side={isMobile ? "bottom" : "right"}
+        side="bottom"
         onOpenAutoFocus={(event) => event.preventDefault()}
-        className={cn(
-          "gap-0 overflow-y-auto p-0",
-          isMobile ? "max-h-[92dvh] rounded-t-[20px]" : "w-full sm:max-w-lg"
-        )}
+        // Below 1024 px it is a full-screen drawer.
+        className="h-dvh max-h-dvh gap-0 overflow-y-auto rounded-none p-0"
       >
         {/* Keyed by task so every task starts from fresh local state. */}
         {task ? <TaskSheetBody key={task.id} {...props} task={task} /> : null}
@@ -117,7 +146,17 @@ function TaskSheetBody({
   onMoveToList,
   onTagCreated,
   onDelete,
+  onClose,
+  panel,
 }: TaskSheetProps & { task: TaskView }) {
+  const [saved, setSaved] = useState(false)
+  const savedTimer = useRef<number | undefined>(undefined)
+  function flashSaved() {
+    setSaved(true)
+    window.clearTimeout(savedTimer.current)
+    savedTimer.current = window.setTimeout(() => setSaved(false), 1800)
+  }
+  useEffect(() => () => window.clearTimeout(savedTimer.current), [])
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? "")
   const [category, setCategory] = useState(task.category ?? "")
@@ -162,6 +201,7 @@ function TaskSheetBody({
       return false
     }
     onTaskChange(result.data)
+    flashSaved()
     return true
   }
 
@@ -328,9 +368,22 @@ function TaskSheetBody({
 
   return (
     <>
-      <SheetHeader className="gap-1 border-b border-border p-4 md:p-6">
-        <SheetTitle className="sr-only">Tarefa: {task.title}</SheetTitle>
-        <SheetDescription className="sr-only">Edite os detalhes da tarefa.</SheetDescription>
+      <HeaderShell panel={panel} className="sticky top-0 z-10 gap-1 border-b border-border bg-card p-4 md:p-6">
+        <div className="flex items-center justify-between gap-2">
+          <span role="status" aria-live="polite" className="inline-flex h-5 items-center gap-1 text-[13px] leading-5 text-muted-foreground">
+            {saved ? (
+              <>
+                <CheckIcon aria-hidden strokeWidth={2} className="size-3.5" /> Salvo
+              </>
+            ) : (
+              "Alterações são salvas sozinhas"
+            )}
+          </span>
+          <Button variant="ghost" size="icon-sm" aria-label="Fechar detalhes" onClick={onClose}>
+            <XIcon strokeWidth={1.75} />
+          </Button>
+        </div>
+        <TitleShell panel={panel}>Tarefa: {task.title}</TitleShell>
         <Input
           aria-label="Título da tarefa"
           value={title}
@@ -343,7 +396,7 @@ function TaskSheetBody({
           }}
           className="h-auto border-transparent bg-transparent px-0 text-xl font-semibold tracking-[-0.01em] shadow-none md:text-xl dark:bg-transparent"
         />
-      </SheetHeader>
+      </HeaderShell>
 
       <div className="flex flex-col gap-6 p-4 md:p-6">
         <div className="grid grid-cols-2 gap-4">
@@ -414,6 +467,32 @@ function TaskSheetBody({
               onChange={(e) => void changeTime(e.target.value)}
             />
           </Field>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Lembrete" htmlFor="task-reminder">
+              <Select value="none" disabled>
+                <SelectTrigger id="task-reminder" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem lembrete</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Repetir" htmlFor="task-repeat">
+              <Select value="none" disabled>
+                <SelectTrigger id="task-repeat" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não repete</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <p className="text-[13px] leading-5 text-muted-foreground">Em breve: avisos pelo WhatsApp e tarefas que se repetem.</p>
         </div>
 
         <Field label="Descrição" htmlFor="task-description">

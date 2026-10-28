@@ -150,7 +150,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
   const billsDue = bills.filter((b) => b.status === "overdue" || b.daysLeft <= 0)
   const pending = [
     ...agenda.filter((i) => i.allDay).map((i) => ({ key: i.key, kind: "event" as const, title: i.title, detail: "Dia todo" })),
-    ...focus.filter((t) => overdue.includes(t) || !t.due_at || !t.due_has_time).map((t) => ({ key: t.id, kind: "task" as const, title: t.title, task: t, detail: overdue.includes(t) ? `Atrasada · ${t.boardName}` : t.boardName })),
+    ...focus.filter((t) => overdue.includes(t) || !t.due_at || !t.due_has_time).map((t) => ({ key: t.id, kind: "task" as const, title: t.title, task: t, detail: t.boardName })),
     ...billsDue.map((b) => ({ key: b.bill.id, kind: "bill" as const, title: b.bill.name, detail: b.status === "overdue" ? `Venceu há ${Math.abs(b.daysLeft)} dias · ${formatBRL(b.bill.amount_cents)}` : `Vence hoje · ${formatBRL(b.bill.amount_cents)}` })),
   ]
   const timed = [
