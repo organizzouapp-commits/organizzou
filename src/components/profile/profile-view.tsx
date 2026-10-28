@@ -7,6 +7,7 @@ import { useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
+import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,7 @@ function initials(name: string) {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase()
 }
 
-function ProfileForm({ displayName, email, phone }: ProfileViewProps) {
+export function ProfileForm({ displayName, email, phone }: ProfileViewProps) {
   const [name, setName] = useState(displayName)
   const [phoneValue, setPhoneValue] = useState(phone ? maskPhone(phone) : "")
   const [error, setError] = useState<string | null>(null)
@@ -53,11 +54,16 @@ function ProfileForm({ displayName, email, phone }: ProfileViewProps) {
         <div className="flex min-w-0 flex-col gap-1">
           <p className="truncate text-[17px] leading-6 font-semibold">{name || "Sem nome"}</p>
           <p className="truncate text-[13px] leading-5 text-muted-foreground">{email}</p>
-          <p className="text-[13px] leading-5 text-muted-foreground">Foto de perfil: em breve.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" disabled>
+              Alterar foto
+            </Button>
+            <SoonBadge />
+          </div>
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-5">
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Label htmlFor="profile-name">Nome</Label>
           <Input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
@@ -92,7 +98,7 @@ function ProfileForm({ displayName, email, phone }: ProfileViewProps) {
   )
 }
 
-function PasswordForm() {
+export function PasswordForm() {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const {

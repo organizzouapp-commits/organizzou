@@ -14,7 +14,7 @@ const ROWS: LimitKey[] = ["taskBoards", "banks", "assistantMessagesPerDay"]
 export function PlanSettings() {
   const { definition, pro } = usePlan()
   return (
-    <div className="flex max-w-xl flex-col gap-6">
+    <div className="@container grid w-full gap-8 @min-[860px]:grid-cols-2">
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <SparklesIcon aria-hidden strokeWidth={1.75} className="size-6" />

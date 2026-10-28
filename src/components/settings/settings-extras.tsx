@@ -7,6 +7,7 @@ import {
   InfoIcon,
   LandmarkIcon,
   MessageCircleIcon,
+  SmartphoneIcon,
   MonitorSmartphoneIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -40,16 +41,20 @@ export function NotificationsSettings() {
   const [to, setTo] = useState("07:00")
 
   return (
-    <div className="flex max-w-3xl flex-col gap-10">
+    <div className="@container grid w-full gap-10 @min-[900px]:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] @min-[900px]:items-start">
       <section className="flex flex-col">
         <div className="flex items-end justify-between gap-3 border-b border-border pb-2">
           <span className="flex items-center gap-3">
             <SectionTitle>O que avisar</SectionTitle>
             <SoonBadge />
           </span>
-          <div className="tabular flex gap-6 pr-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            <span>App</span>
-            <span>WhatsApp</span>
+          <div className="grid w-44 shrink-0 grid-cols-2 place-items-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+            <span className="inline-flex items-center gap-1">
+              <SmartphoneIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> WhatsApp
+            </span>
           </div>
         </div>
         {NOTIFICATION_TYPES.map((type) => (
@@ -58,7 +63,7 @@ export function NotificationsSettings() {
               <span className="text-[15px] leading-6">{type.label}</span>
               <span className="text-[13px] leading-5 text-muted-foreground">{type.hint}</span>
             </div>
-            <div className="flex w-36 items-center justify-between pr-2">
+            <div className="grid w-44 shrink-0 grid-cols-2 place-items-center">
               <Switch
                 aria-label={`${type.label} no app`}
                 checked={prefs[type.key].app}
@@ -74,7 +79,7 @@ export function NotificationsSettings() {
         ))}
       </section>
 
-      <section className="flex max-w-md flex-col gap-4">
+      <section className="flex flex-col gap-4 rounded-2xl border border-border p-5">
         <SectionTitle>Não perturbe</SectionTitle>
         <label className="flex min-h-11 items-center justify-between gap-3 text-[15px]">
           Silenciar avisos à noite
@@ -104,8 +109,8 @@ export function NotificationsSettings() {
 
 export function WhatsAppSettings() {
   return (
-    <div className="flex max-w-xl flex-col gap-8">
-      <section className="flex flex-col gap-5">
+    <div className="@container grid w-full gap-8 @min-[860px]:grid-cols-2">
+      <section className="flex max-w-xl flex-col gap-5">
         <div className="flex items-center gap-3">
           <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-6" />
           <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">WhatsApp</h2>
@@ -130,6 +135,15 @@ export function WhatsAppSettings() {
         </Button>
         <p className="text-[13px] leading-5 text-muted-foreground">O cofre de senhas nunca será acessível pelo WhatsApp.</p>
       </section>
+      <section aria-label="Como vai funcionar" className="flex flex-col rounded-2xl border border-border p-5">
+        <SectionTitle>Como vai funcionar</SectionTitle>
+        {["Registrar tarefas, gastos e treinos por texto ou áudio", "Receber lembretes e o resumo do dia", "Confirmar ações sensíveis com botões", "Falar só a partir do número verificado"].map((item) => (
+          <p key={item} className="flex min-h-12 items-center gap-3 border-b border-border text-[15px] leading-6 last:border-b-0">
+            <InfoIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+            {item}
+          </p>
+        ))}
+      </section>
     </div>
   )
 }
@@ -137,7 +151,7 @@ export function WhatsAppSettings() {
 export function SecuritySettings() {
 
   return (
-    <div className="flex max-w-xl flex-col">
+    <div className="@container grid w-full gap-x-10 gap-y-2 @min-[860px]:grid-cols-2">
       <section className="flex flex-col gap-4 border-b border-border pb-8">
         <SectionTitle>Segurança da conta</SectionTitle>
         <label className="flex min-h-11 items-center justify-between gap-3 text-[15px]">
