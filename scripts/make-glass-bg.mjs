@@ -3,6 +3,7 @@
 //
 //   public/images/app-bg.webp, app-bg-mobile.webp   lightly blurred photo = the fixed full-screen base layer (AppBackground)
 //   public/images/app-bg-frost.webp                 heavily blurred photo = the copy painted INSIDE the big frame (FrameGlass)
+//   public/images/app-bg-mobile-frost.webp          the same heavy blur of the phone photo, painted inside the phone glass surfaces (GlassSurface)
 //
 // >>> TWEAK THE BLUR HERE <<< Strengths are Gaussian sigmas in pixels of each ORIGINAL photo at its own width; each output
 // is scaled down proportionally, so the look is the same at any export size.
@@ -10,7 +11,6 @@
 //   FROST_BLUR ~80-96 soft, diffuse glass. Raise it for more frost, lower it for less.
 // Both layers are derived from the SAME sharp original (never blur the blurred one: that causes banding) and keep its aspect
 // ratio, so with object-fit: cover they stay aligned pixel for pixel. The heavy blur is low-frequency, hence the small export.
-// Phones have no frame (FrameGlass is md+ only), so no mobile frost image is generated.
 //
 // Uses the sharp that Next.js already installs. Run after changing the auth background or the strengths:
 //   npm run glass-bg
@@ -27,6 +27,7 @@ const jobs = [
   { from: "auth-background.png", to: "app-bg.webp", width: 1671, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background-mobile.png", to: "app-bg-mobile.webp", width: 900, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background.png", to: "app-bg-frost.webp", width: 960, blur: FROST_BLUR, quality: 85 },
+  { from: "auth-background-mobile.png", to: "app-bg-mobile-frost.webp", width: 540, blur: FROST_BLUR, quality: 85 },
 ]
 
 for (const job of jobs) {
