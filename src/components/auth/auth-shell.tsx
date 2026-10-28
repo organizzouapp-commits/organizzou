@@ -49,11 +49,8 @@ const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 /** Text on the photo follows the theme, matching the logo: dark theme -> Tinta (logo-preta), light theme -> Papel (logo-branca). */
 const ON_PHOTO = "text-palette-papel dark:text-palette-tinta"
 
-/** Scrim of the opposite tone, only as strong as needed: Tinta behind Papel text (light), Papel behind Tinta text (dark). */
-const SCRIM = "bg-gradient-to-b from-palette-tinta/10 via-palette-tinta/20 to-palette-tinta/35 dark:from-palette-papel/0 dark:via-palette-papel/10 dark:to-palette-papel/25"
-
 const glass =
-  "border-2 border-palette-papel/20 bg-palette-papel/10 backdrop-blur-[16px] dark:border-palette-tinta/20 dark:bg-palette-tinta/10"
+  "border border-foreground/15 bg-foreground/10"
 
 const BELOW_LG = "(max-width: 1023px)"
 
@@ -71,8 +68,58 @@ function useBelowLg() {
 }
 
 /** The animated entrance logo over the photo: dark theme gets dark text, light theme light text (inverse of the theme). */
-function ThemedLogo({ className }: { className: string }) {
-  return <AnimatedLogo variant="entrance" inverse className={className} />
+function ThemedLogo({ className, inverse = true }: { className: string; inverse?: boolean }) {
+  return <AnimatedLogo variant="entrance" inverse={inverse} className={className} />
+}
+
+/**
+ * The highlight card's frosted glass, FAKED like the app frame (no backdrop-filter, no CSS blur): the same photo, pre-blurred
+ * (public/images/app-bg-frost.webp, same source and aspect as the sharp background), drawn viewport-sized and shifted by the
+ * card's own distance from the viewport so every pixel lines up with the sharp photo behind it. The tint and the 1 px border are
+ * separate layers (the border is a ::after overlay in globals.css, so the image never bleeds over the rounded corners).
+ * Placement is written straight to the DOM (no React state, no re-render) and re-measured while the card animates.
+ */
+function PanelGlass() {
+  const img = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    const el = img.current
+    const host = el?.parentElement
+    if (!el || !host) return
+    let raf = 0
+    let until = performance.now() + 2200
+    const place = () => {
+      const r = host.getBoundingClientRect()
+      el.style.transform = `translate(${-r.left}px, ${-r.top}px)`
+    }
+    const tick = () => {
+      place()
+      raf = performance.now() < until ? requestAnimationFrame(tick) : 0
+    }
+    const wake = () => {
+      until = performance.now() + 900
+      if (!raf) raf = requestAnimationFrame(tick)
+    }
+    wake()
+    window.addEventListener("resize", wake)
+    document.addEventListener("transitionstart", wake, true)
+    const observer = new ResizeObserver(wake)
+    observer.observe(host)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener("resize", wake)
+      document.removeEventListener("transitionstart", wake, true)
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img ref={img} src="/images/app-bg-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
+      <span aria-hidden className="auth-glass-tint pointer-events-none absolute inset-0 -z-10" />
+    </>
+  )
 }
 
 function HighlightCopy({
@@ -93,18 +140,18 @@ function HighlightCopy({
   return (
     <div aria-hidden={!active} inert={!active} className={cn("col-start-1 row-start-1 flex flex-col gap-(--auth-gap)", !active && "pointer-events-none")}>
       <span
-        className={cn("auth-hide-short inline-flex w-fit items-center rounded-full px-3 py-1 text-[13px] leading-5", ON_PHOTO, glass, enter, reveal)}
+        className={cn("auth-hide-short inline-flex w-fit items-center rounded-full px-3 py-1 text-[13px] leading-5 text-foreground", glass, enter, reveal)}
         style={{ transitionDelay: "0ms", ...rs(1) }}
       >
         {copy.badge}
       </span>
       <h2
-        className={cn("text-(length:--auth-hl) leading-[1.12] font-semibold tracking-[-0.02em]", ON_PHOTO, enter, reveal)}
+        className={cn("text-(length:--auth-hl) leading-[1.12] font-semibold tracking-[-0.02em] text-foreground", enter, reveal)}
         style={{ transitionDelay: active ? "60ms" : "0ms", ...rs(2) }}
       >
         {copy.headline}
       </h2>
-      <p className={cn("auth-hide-tiny text-(length:--auth-sub) leading-snug opacity-80", ON_PHOTO, enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
+      <p className={cn("auth-hide-tiny text-(length:--auth-sub) leading-snug text-foreground/80", enter, reveal)} style={{ transitionDelay: active ? "120ms" : "0ms", ...rs(3) }}>
         {copy.subtitle}
       </p>
       <ol className="mt-1 grid grid-cols-3 gap-[clamp(8px,1.5dvh,12px)]">
@@ -123,14 +170,13 @@ function HighlightCopy({
                   "hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:ring-3 focus-visible:ring-ring/50",
                   "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                   isActive
-                    ? "border-palette-papel/20 bg-highlight text-highlight-foreground dark:border-palette-tinta/20"
+                    ? "border-foreground/15 bg-highlight text-highlight-foreground"
                     : cn(
-                        "border-palette-papel/20 bg-palette-papel/8 backdrop-blur-[16px]",
-                        "dark:border-palette-tinta/20 dark:bg-palette-tinta/8",
+                        "border-foreground/15 bg-foreground/8",
                         // Hover/focus: the whole card takes the active (Lima) style.
                         "hover:border-highlight hover:bg-highlight hover:text-highlight-foreground focus-visible:border-highlight focus-visible:bg-highlight focus-visible:text-highlight-foreground",
                         "dark:hover:border-highlight dark:hover:bg-highlight dark:focus-visible:border-highlight dark:focus-visible:bg-highlight",
-                        ON_PHOTO
+                        "text-foreground"
                       )
                 )}
               >
@@ -140,7 +186,7 @@ function HighlightCopy({
                     "transition-all duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
                     isActive
                       ? "border-highlight-foreground bg-highlight-foreground text-highlight"
-                      : "border-palette-papel/50 dark:border-palette-tinta/50 group-hover/step:border-highlight-foreground group-hover/step:bg-highlight-foreground group-hover/step:text-highlight group-focus-visible/step:border-highlight-foreground group-focus-visible/step:bg-highlight-foreground group-focus-visible/step:text-highlight"
+                      : "border-foreground/50 group-hover/step:border-highlight-foreground group-hover/step:bg-highlight-foreground group-hover/step:text-highlight group-focus-visible/step:border-highlight-foreground group-focus-visible/step:bg-highlight-foreground group-focus-visible/step:text-highlight"
                   )}
                 >
                   {index + 1}
@@ -159,11 +205,10 @@ function HighlightPanel({ signup, className }: { signup: boolean; className?: st
   // Active step per copy (visual only).
   const [steps, setSteps] = useState<Record<CopyKey, number>>({ login: 0, signup: 0 })
   return (
-    <aside aria-label="Organizzou" className={cn("relative flex flex-col justify-between gap-4 overflow-hidden rounded-[20px] p-[clamp(16px,3.2dvh,28px)]", ON_PHOTO, className)}>
-      {/* Transparent panel: the photo shows through; only the subtle scrim helps legibility. */}
-      <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
+    <aside aria-label="Organizzou" className={cn("auth-glass relative isolate flex flex-col justify-between gap-4 overflow-hidden rounded-[20px] p-[clamp(16px,3.2dvh,28px)] text-foreground", className)}>
+      <PanelGlass />
       <div className="relative">
-        <ThemedLogo className="h-(--auth-logo)" />
+        <ThemedLogo className="h-(--auth-logo)" inverse={false} />
       </div>
       <div className="relative grid">
         <HighlightCopy copyKey="login" active={!signup} activeStep={steps.login} onStep={(i) => setSteps((s) => ({ ...s, login: i }))} />
@@ -181,7 +226,6 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
       aria-hidden={hidden}
       className={cn("fixed inset-0 z-10 flex flex-col transition-opacity duration-500 lg:hidden", ON_PHOTO, hidden && "opacity-0")}
     >
-      <span aria-hidden className={cn("pointer-events-none absolute inset-0", SCRIM)} />
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
         <div>
           <ThemedLogo className="h-10" />

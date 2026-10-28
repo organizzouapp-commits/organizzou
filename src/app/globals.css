@@ -372,3 +372,22 @@ html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) {
 
 /* Route skeletons appear only after 200 ms, so a fast navigation never flashes them (pure CSS, no timers). */
 .page-skeleton { animation: loading-in 0.2s ease-out 0.2s backwards; }
+
+/* Auth highlight card: tint over the pre-blurred photo and the 1 px border drawn on top (same tokens as the app frame). */
+.auth-glass-tint {
+  background-color: var(--auth-glass-bg);
+  box-shadow: var(--glass-edge);
+}
+.auth-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-frame-border);
+  pointer-events: none;
+}
+:root { --auth-glass-bg: color-mix(in oklab, var(--palette-papel) 50%, transparent); }
+.dark { --auth-glass-bg: color-mix(in oklab, var(--palette-tinta) 44%, transparent); }
+@media (prefers-reduced-transparency: reduce) {
+  :root, .dark { --auth-glass-bg: var(--background); }
+}
