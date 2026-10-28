@@ -32,6 +32,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { shiftDay } from "@/features/habits/stats"
 import { dayTotals, formatServings, itemMacros, mealTotals } from "@/features/diet/stats"
 import { MEAL_LABELS, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import {
@@ -54,6 +56,26 @@ function findFood(id: string): FoodRow | undefined {
   return mockFoods.find((f) => f.id === id)
 }
 
+/** Calories ring: remaining kcal in the middle; the arc is foreground (Tinta/Papel), never a thin Lima line. */
+function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
+  const r = 52
+  const c = 2 * Math.PI * r
+  const ratio = Math.min(1, eaten / goal)
+  const remaining = goal - eaten
+  return (
+    <div role="img" aria-label={`${eaten} de ${goal} kcal`} className="relative size-40 shrink-0">
+      <svg viewBox="0 0 128 128" className="size-40 -rotate-90">
+        <circle cx="64" cy="64" r={r} fill="none" strokeWidth="12" className="stroke-muted" />
+        <circle cx="64" cy="64" r={r} fill="none" strokeWidth="12" strokeLinecap="round" className="stroke-foreground" strokeDasharray={c} strokeDashoffset={c * (1 - ratio)} />
+      </svg>
+      <span className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="tabular text-[30px] leading-9 font-semibold tracking-[-0.02em]">{Math.abs(remaining)}</span>
+        <span className="text-[13px] leading-5 text-muted-foreground">kcal {remaining >= 0 ? "restam" : "acima"}</span>
+      </span>
+    </div>
+  )
+}
+
 function liters(ml: number) {
   return `${(ml / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L`
 }
@@ -67,10 +89,10 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
   const [adding, setAdding] = useState<MealKind | null>(null)
   const [editing, setEditing] = useState<MealItemRow | null>(null)
   const [weighing, setWeighing] = useState(false)
+  const [period, setPeriod] = useState("90")
   const history = buildMockDailyKcal(nowIso)
 
   const totals = dayTotals(items, mockFoods)
-  const remaining = goal.kcal - totals.kcal
 
   function addItem(meal: MealKind, foodId: string, servings: number) {
     setItems((current) => [...current, { id: mockId("item"), meal, food_id: foodId, servings }])
@@ -97,11 +119,14 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
   const averageKcal = Math.round(kcalSeries.reduce((s, d) => s + d.kcal, 0) / kcalSeries.length)
   // One point per day, in date order: the card, the variation and the chart all read the same sorted list.
   const sortedWeights = [...weights].sort((a, b) => a.log_date.localeCompare(b.log_date))
-  const weightSeries = sortedWeights.map((w) => ({ label: format(parseISO(w.log_date), "dd/MM"), weight: w.weight_kg }))
+  const periodDays = period === "30" ? 30 : period === "90" ? 90 : 365
+  const inPeriod = sortedWeights.filter((w) => w.log_date >= shiftDay(today, -periodDays))
+  const periodWeights = inPeriod.length >= 2 ? inPeriod : sortedWeights
+  const weightSeries = periodWeights.map((w) => ({ label: format(parseISO(w.log_date), "dd/MM"), weight: w.weight_kg }))
   const currentWeight = sortedWeights[sortedWeights.length - 1]?.weight_kg ?? 0
-  const firstWeight = sortedWeights[0]?.weight_kg ?? currentWeight
+  const firstWeight = periodWeights[0]?.weight_kg ?? currentWeight
   // The y-axis always contains every point and the target line, with a little room.
-  const weightValues = [...sortedWeights.map((w) => w.weight_kg), goal.target_weight_kg]
+  const weightValues = [...periodWeights.map((w) => w.weight_kg), goal.target_weight_kg]
   const weightDomain: [number, number] = [Math.floor(Math.min(...weightValues)) - 1, Math.ceil(Math.max(...weightValues)) + 1]
 
   // The "+ Novo" button adds a food to the meal that fits the time of day.
@@ -121,50 +146,49 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         <TabsContent value="hoje" className="pt-5">
-          <Bento>
-          <KpiCard tone="highlight" label="Consumido" value={`${totals.kcal}`} support="kcal hoje" className="col-span-12 @min-[560px]:col-span-4" />
-          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 @min-[560px]:col-span-4" />
-          <KpiCard label={remaining >= 0 ? "Restam" : "Acima"} value={`${Math.abs(remaining)}`} support="kcal" className="col-span-6 @min-[560px]:col-span-4" />
-          <BentoCard title="Calorias e macros" className="col-span-12 @min-[900px]:col-span-7" bodyClassName="flex flex-col gap-6">
-            <Progress value={Math.min(100, (totals.kcal / goal.kcal) * 100)} aria-label="Calorias do dia" />
-            <div className="grid gap-4 sm:grid-cols-3">
-              {macroRows.map((m) => (
-                <div key={m.label} className="flex flex-col gap-2">
-                  <div className="tabular flex justify-between text-[13px] leading-5">
-                    <span>{m.label}</span>
-                    <span className="text-muted-foreground">
-                      {Math.round(m.value)} / {m.goal} g
-                    </span>
-                  </div>
-                  <Progress value={Math.min(100, (m.value / m.goal) * 100)} aria-label={`${m.label} do dia`} />
+          <div className="@container flex flex-col gap-5">
+            <div className="grid gap-5 @min-[900px]:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+              <BentoCard title="Calorias e macros" bodyClassName="flex flex-col items-center gap-6 @min-[560px]:flex-row">
+                <CalorieRing eaten={totals.kcal} goal={goal.kcal} />
+                <div className="grid w-full min-w-0 flex-1 gap-4">
+                  {macroRows.map((m) => (
+                    <div key={m.label} className="flex flex-col gap-2">
+                      <div className="tabular flex justify-between text-[13px] leading-5">
+                        <span>{m.label}</span>
+                        <span className="text-muted-foreground">
+                          {Math.round(m.value)} / {m.goal} g
+                        </span>
+                      </div>
+                      <Progress value={Math.min(100, (m.value / m.goal) * 100)} aria-label={`${m.label} do dia`} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </BentoCard>
+              </BentoCard>
 
-          <BentoCard title="Água" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4">
-              <span className="tabular text-[15px] leading-6">
-                {liters(water)} <span className="text-muted-foreground">de {liters(goal.water_ml)}</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" aria-label="Remover um copo" disabled={water <= 0} onClick={() => setWater((w) => Math.max(0, w - GLASS_ML))}>
-                  <MinusIcon strokeWidth={1.75} />
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setWater((w) => w + GLASS_ML)
-                    if (water + GLASS_ML >= goal.water_ml && water < goal.water_ml) toast.success("Meta de água batida.")
-                  }}
-                >
-                  <GlassWaterIcon strokeWidth={1.75} /> + 250 ml
-                </Button>
-              </div>
+              <BentoCard title="Água" bodyClassName="flex h-full flex-col justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{liters(water)}</span>
+                  <span className="tabular text-[13px] leading-5 text-muted-foreground">de {liters(goal.water_ml)} hoje</span>
+                </div>
+                <Progress value={Math.min(100, (water / goal.water_ml) * 100)} aria-label="Água do dia" />
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" aria-label="Remover um copo" disabled={water <= 0} onClick={() => setWater((w) => Math.max(0, w - GLASS_ML))}>
+                    <MinusIcon strokeWidth={1.75} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setWater((w) => w + GLASS_ML)
+                      if (water + GLASS_ML >= goal.water_ml && water < goal.water_ml) toast.success("Meta de água batida.")
+                    }}
+                  >
+                    <GlassWaterIcon strokeWidth={1.75} /> + 250 ml
+                  </Button>
+                </div>
+              </BentoCard>
             </div>
-            <Progress value={Math.min(100, (water / goal.water_ml) * 100)} aria-label="Água do dia" />
-          </BentoCard>
 
+            <div className="grid gap-5 @min-[900px]:grid-cols-2 @min-[1400px]:grid-cols-3">
             {MEALS.map((meal) => {
               const list = items.filter((i) => i.meal === meal)
               const subtotal = mealTotals(items, mockFoods, meal)
@@ -172,7 +196,6 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                 <BentoCard
                   key={meal}
                   title={MEAL_LABELS[meal]}
-                  className="col-span-12 @min-[900px]:col-span-6"
                   actions={
                     <>
                     <span className="tabular text-[13px] leading-5 text-muted-foreground">{subtotal.kcal} kcal</span>
@@ -234,7 +257,8 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                 </BentoCard>
               )
             })}
-          </Bento>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="historico" className="pt-5">
@@ -243,7 +267,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
           <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 @min-[560px]:col-span-4" />
           <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 @min-[560px]:col-span-4" />
           <BentoCard title="Calorias nos últimos 15 dias" className="col-span-12">
-          <ChartContainer config={kcalConfig} className="aspect-[16/6] w-full">
+          <ChartContainer config={kcalConfig} className="aspect-auto h-72 w-full @min-[900px]:h-96">
             <BarChart data={kcalSeries} margin={{ left: -8, right: 4 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={1} />
@@ -264,7 +288,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             label="Variação"
             value={`${Math.abs(Math.round((currentWeight - firstWeight) * 10) / 10).toLocaleString("pt-BR")} kg`}
             trend={currentWeight <= firstWeight ? "down" : "up"}
-            support="em 12 semanas"
+            support={period === "30" ? "em 30 dias" : period === "90" ? "em 90 dias" : "no último ano"}
             className="col-span-6 @min-[560px]:col-span-4"
           />
           <KpiCard
@@ -277,18 +301,25 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             title="Evolução do peso"
             className="col-span-12"
             actions={
-              <Button variant="outline" size="sm" onClick={() => setWeighing(true)}>
-                <PlusIcon strokeWidth={1.75} /> Registrar peso
-              </Button>
+              <>
+                <ToggleGroup type="single" variant="outline" size="sm" value={period} onValueChange={(v) => v && setPeriod(v)} aria-label="Período">
+                  <ToggleGroupItem value="30">30 dias</ToggleGroupItem>
+                  <ToggleGroupItem value="90">90 dias</ToggleGroupItem>
+                  <ToggleGroupItem value="365">1 ano</ToggleGroupItem>
+                </ToggleGroup>
+                <Button variant="outline" size="sm" onClick={() => setWeighing(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Registrar peso
+                </Button>
+              </>
             }
           >
-          <ChartContainer config={weightConfig} className="aspect-[16/6] w-full">
+          <ChartContainer config={weightConfig} className="aspect-auto h-72 w-full @min-[900px]:h-96">
             <LineChart data={weightSeries} margin={{ left: -8, right: 8 }}>
               <CartesianGrid vertical={false} strokeOpacity={0.5} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis tickLine={false} axisLine={false} domain={weightDomain} allowDecimals={false} width={48} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <ReferenceLine y={goal.target_weight_kg} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${Number(value).toLocaleString("pt-BR")} kg`} />} />
+              <ReferenceLine y={goal.target_weight_kg} label={{ value: "Meta", position: "insideTopRight", fill: "var(--muted-foreground)", fontSize: 12 }} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
               <Line dataKey="weight" type="monotone" stroke="var(--color-weight)" strokeWidth={1.75} dot={{ r: 3 }} isAnimationActive={false} />
             </LineChart>
           </ChartContainer>
