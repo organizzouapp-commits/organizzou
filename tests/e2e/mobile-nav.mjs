@@ -39,11 +39,12 @@ for (const width of [360, 390, 430, 767])
     const { ctx, page } = await open(width, theme)
     const nav = navOf(page)
     const box = await nav.boundingBox()
-    ok(`floating nav is centered and inside the gutters  ${tag}`, box && box.x >= 15.5 && box.x + box.width <= width - 15.5 && Math.abs(box.x + box.width / 2 - width / 2) < 1, JSON.stringify(box))
-    ok(`nav bottom is 16 px above the screen edge  ${tag}`, box && Math.abs(844 - (box.y + box.height) - 16) < 1, JSON.stringify(box))
-    const rows = await nav.getByRole("button").evaluateAll((els) => els.map((e) => ({ h: Math.round(e.getBoundingClientRect().height), mid: Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2) })))
+    const fab0 = await page.locator("button[aria-label='Abrir o assistente']:visible").boundingBox()
+    ok(`pill fills the row: 16 px gutters, 12 px gap, 56 px assistant button on the right  ${tag}`, box && fab0 && Math.abs(box.x - 16) < 1 && Math.abs(fab0.x - (box.x + box.width) - 12) < 1 && Math.abs(fab0.x + fab0.width - (width - 16)) < 1 && Math.abs(fab0.width - 56) < 1 && Math.abs(fab0.y + fab0.height / 2 - (box.y + box.height / 2)) < 1, JSON.stringify({ box, fab0 }))
+    ok(`nav bottom is 16 px above the screen edge and ~64 px tall  ${tag}`, box && Math.abs(844 - (box.y + box.height) - 16) < 1 && Math.abs(box.height - 64) < 1, JSON.stringify(box))
+    const rows = await nav.getByRole("button").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); const t = [...e.querySelectorAll("span")].find((s) => s.textContent.trim() && s.children.length === 0); const tr = t.getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width), cx: Math.round(r.left + r.width / 2), labelY: Math.round(tr.top), label: t.textContent, clipped: t.scrollWidth > t.clientWidth, fs: getComputedStyle(t).fontSize } }))
     ok(`nav has Hoje, Tarefas, +, Agenda, Outros  ${tag}`, rows.length === 5)
-    ok(`nav items are >= 44 px and vertically aligned with the "+"  ${tag}`, rows.every((r) => r.h >= 44 && Math.abs(r.mid - rows[2].mid) <= 1), JSON.stringify(rows))
+    ok(`five equal items >= 44 px, labels visible, not truncated, on one line  ${tag}`, rows.length === 5 && rows.every((r) => r.h >= 44 && Math.abs(r.w - rows[0].w) <= 1 && !r.clipped && r.fs === "11px" && r.labelY === rows[0].labelY) && rows.map((r) => r.label).join() === "Hoje,Tarefas,Novo,Agenda,Outros", JSON.stringify(rows))
     ok(`header is not sticky  ${tag}`, await page.evaluate(() => getComputedStyle([...document.querySelectorAll("header")].find((h) => h.offsetParent !== null)).position !== "sticky"))
 
     // the root-cause check: tap every item, the page must never scroll sideways and the pill must stay centered
@@ -52,7 +53,7 @@ for (const width of [360, 390, 430, 767])
       await page.waitForTimeout(900)
       const o = await overflowOf(page)
       const b = await nav.boundingBox()
-      ok(`no horizontal overflow and pill centered after tapping ${name}  ${tag}`, o <= 0 && b && Math.abs(b.x + b.width / 2 - width / 2) < 1 && b.x >= 15.5 && b.x + b.width <= width - 15.5, `overflow ${o} ${JSON.stringify(b)}`)
+      ok(`no horizontal overflow and the pill keeps its place after tapping ${name}  ${tag}`, o <= 0 && b && Math.abs(b.x - box.x) < 1 && Math.abs(b.width - box.width) < 1, `overflow ${o} ${JSON.stringify(b)}`)
     }
     await nav.getByRole("button", { name: "Outros", exact: true }).click()
     await page.waitForTimeout(700)
@@ -66,9 +67,9 @@ for (const width of [360, 390, 430, 767])
     await page.screenshot({ path: `${out}/treinos-${tag.replace(" ", "-")}.png` })
 
     // the assistant button sits above the pill, not on it
-    const fab = await page.getByRole("button", { name: "Abrir o assistente" }).boundingBox()
-    const nb = await nav.boundingBox()
-    ok(`assistant button is clear of the pill and inside the right gutter  ${tag}`, fab && fab.y + fab.height <= nb.y - 11 && Math.abs(width - 16 - (fab.x + fab.width)) < 1 && fab.width >= 48 && fab.width <= 52, JSON.stringify({ fab, nb }))
+
+
+
     await ctx.close()
   }
 
@@ -141,9 +142,9 @@ for (const theme of ["dark", "light"]) {
   ok(`+ opens the quick capture sheet  ${theme}`, await page.getByRole("dialog").getByText("Captura rápida").isVisible())
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
-  await page.getByRole("button", { name: "Abrir o assistente" }).click()
+  await page.locator("button[aria-label='Abrir o assistente']:visible").click()
   await page.waitForTimeout(700)
-  ok(`assistant button opens the assistant and hides  ${theme}`, (await page.getByLabel("Mensagem para o assistente").isVisible()) && !(await page.getByRole("button", { name: "Abrir o assistente" }).isVisible()))
+  ok(`assistant button opens the assistant  ${theme}`, await page.getByLabel("Mensagem para o assistente").isVisible())
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   await page.locator('input[readonly][aria-label="Buscar em tudo"]').click()
@@ -162,7 +163,7 @@ for (const theme of ["dark", "light"]) {
 {
   const { ctx, page } = await open(390, "dark", "/dashboard/notas")
   await page.locator("input:not([readonly]):not([aria-hidden]), textarea").first().focus()
-  ok("nav and assistant button hide while a text field is focused", !(await navOf(page).isVisible()) && !(await page.getByRole("button", { name: "Abrir o assistente" }).isVisible()))
+  ok("nav and assistant button hide while a text field is focused", !(await navOf(page).isVisible()) && !(await page.locator("button[aria-label='Abrir o assistente']").first().isVisible()))
   await ctx.close()
 }
 

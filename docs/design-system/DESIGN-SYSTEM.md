@@ -144,13 +144,14 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 - **Mobile (< 768 px)**: sem sidebar. Cabeçalho que rola com a página (não é fixo) em 3 linhas: avatar (menu da conta, com
   "Conectar WhatsApp"), logo e sino; busca + alternador de tema; chips só de texto (Hoje, Tarefas, Agenda, Finanças, Vida ▾,
   Organização ▾), de vidro quando inativos e Lima no ativo. Depois que o cabeçalho sai da tela, entra uma barra compacta de vidro
-  no topo (avatar, logo, busca e sino). `BottomNav` flutuante em pílula de vidro (Hoje · Tarefas · **+** · Agenda · Outros): o item
-  ativo expande em pílula Lima com o rótulo, o "+" é um círculo Lima na mesma linha e faz o mesmo que o "+ Novo" do desktop, e
-  "Outros" abre uma gaveta com Finanças, Vida e Organização. O assistente é um botão Lima de 48 px acima da ponta direita da pílula.
+  no topo (avatar, logo, busca e sino). `BottomNav` flutuante em pílula de vidro com cinco itens iguais, ícone e rótulo sempre visíveis (Hoje · Tarefas · **Novo** · Agenda · Outros): o
+  item ativo ganha fundo Lima, o "+" é um círculo Lima na mesma linha e faz o mesmo que o "+ Novo" do desktop, e "Outros" abre uma gaveta
+  com Finanças, Vida e Organização. O assistente é um botão Lima de 56 px à direita da pílula, na mesma linha.
   O título e o subtítulo da página ficam no conteúdo, abaixo do cabeçalho.
-- **Vidro no celular** (`GlassSurface`): sem `backdrop-filter`. Uma cópia muito desfocada da foto (`app-bg-mobile-frost.webp`, gerada por
-  `npm run glass-bg`) é pintada dentro da superfície com `position: fixed; inset: 0`, alinhada ao pixel com a camada de fundo e
-  recortada com `clip-path`, mais um tom (`bg-background/60`) e borda de 1 px. Nenhum ancestral pode ter `transform`/`contain`/`filter`.
+- **Vidro no celular** (`GlassSurface`): sem `backdrop-filter`. Camadas: cópia muito desfocada e dessaturada da foto (`app-bg-mobile-glass-dark/light.webp`, geradas
+  por `npm run glass-bg`) em `position: fixed; inset: 0`, alinhada ao pixel com o fundo e recortada com `clip-path`; tom (`bg-card/60` no escuro,
+  `bg-background/65` no claro); conteúdo; e a borda de 1 px como `::after` por cima, que segue o raio sem a imagem vazar. Os chips inativos
+  usam só tom + borda (`flat`). Nenhum ancestral pode ter `transform`/`contain`/`filter`.
 
 ### 5.3 Telas de acesso (entrar, criar conta, recuperar senha)
 

@@ -62,10 +62,22 @@ function useIsTablet() {
   )
 }
 
-/** The floating nav's "+" does what the desktop "+ Novo" does: the screen's primary action, or quick capture. */
-function ShellBottomNav({ activeId, onSelect, onCapture }: { activeId: string; onSelect: (id: string) => void; onCapture: () => void }) {
+type ShellBottomBarProps = { activeId: string; onSelect: (id: string) => void; onCapture: () => void; onAssistant: () => void }
+
+/**
+ * Phones: one fixed row above the bottom safe area, 16 px from both edges. The floating nav takes the remaining width and the
+ * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The nav's "+" does what the desktop
+ * "+ Novo" does: the screen's primary action, or quick capture. The row hides while the keyboard is open.
+ */
+function ShellBottomBar({ activeId, onSelect, onCapture, onAssistant }: ShellBottomBarProps) {
   const primary = usePrimaryActionValue()
-  return <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 mx-auto w-fit max-w-full md:hidden" />
+  const typing = useTextEntryFocused()
+  return (
+    <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex items-center gap-3 md:hidden", typing && "hidden")}>
+      <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} onAdd={primary?.onClick ?? onCapture} className="flex-1" />
+      <AssistantFab className="shrink-0 bg-highlight text-highlight-foreground" onClick={onAssistant} />
+    </div>
+  )
 }
 
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
@@ -97,7 +109,6 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [captureOpen, setCaptureOpen] = useState(false)
   const [othersOpen, setOthersOpen] = useState(false)
-  const typing = useTextEntryFocused()
   const pathname = usePathname()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -158,24 +169,17 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] md:px-0 md:pt-0 md:pb-0">
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] md:px-0 md:pt-0 md:pb-0">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>
             </div>
           </SidebarInset>
 
-          {/* Phones: a 48 px Lima circle above the right end of the floating nav (16 px gutter + 56 px pill + 12 px gap); hidden while the
-              assistant or the keyboard is open. Desktop keeps the corner button. */}
-          <AssistantFab
-            className={cn(
-              "fixed z-40 max-md:size-12 max-md:bg-highlight max-md:text-highlight-foreground max-md:right-[calc(env(safe-area-inset-right)+1rem)] max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:right-6 md:bottom-6",
-              (assistantOpen || typing) && "max-md:hidden"
-            )}
-            onClick={() => setAssistantOpen(true)}
-          />
+          {/* Desktop keeps the corner button; phones have it in the bottom bar. */}
+          <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
 
-          <ShellBottomNav activeId={activeId} onSelect={onSelect} onCapture={() => setCaptureOpen(true)} />
+          <ShellBottomBar activeId={activeId} onSelect={onSelect} onCapture={() => setCaptureOpen(true)} onAssistant={() => setAssistantOpen(true)} />
 
           <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
           <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />

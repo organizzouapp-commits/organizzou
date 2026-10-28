@@ -3,7 +3,6 @@
 import { PlusIcon, type LucideIcon } from "lucide-react"
 
 import { GlassSurface } from "@/components/organizzou/GlassSurface"
-import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 export type BottomNavItem = {
@@ -13,7 +12,7 @@ export type BottomNavItem = {
 }
 
 type BottomNavProps = {
-  /** Exactly 4 items; the "+" action sits in the middle, between the second and the third. */
+  /** Exactly 4 items; the "+" action ("Novo") sits in the middle, between the second and the third. */
   items: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem]
   /** Id of the current route's item, or "" when none of them is active. */
   activeId: string
@@ -22,68 +21,53 @@ type BottomNavProps = {
   className?: string
 }
 
-const ease = "duration-[400ms] ease-organizzou motion-reduce:transition-none"
+// Five equal columns. The icon sits in a 28 px box (the "+" circle is 40 px and overhangs it by 6 px on both sides), so the
+// icons share one center line and the labels share one line, whatever the item.
+const item = "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl outline-none transition-colors duration-[400ms] ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+const label = "max-w-full truncate text-[11px] leading-none font-medium"
 
-function NavButton({ item, active, onSelect }: { item: BottomNavItem; active: boolean; onSelect?: (id: string) => void }) {
-  const Icon = item.icon
+function NavButton({ entry, active, onSelect }: { entry: BottomNavItem; active: boolean; onSelect?: (id: string) => void }) {
+  const Icon = entry.icon
 
   return (
     <button
       type="button"
-      aria-label={item.label}
+      aria-label={entry.label}
       aria-current={active ? "page" : undefined}
-      onClick={() => onSelect?.(item.id)}
-      className={cn(
-        "flex h-11 items-center justify-center rounded-full px-2.5 outline-none transition-[background-color,color]",
-        ease,
-        "focus-visible:ring-3 focus-visible:ring-ring/50",
-        // Only the active item may shrink (its label truncates), so the pill can never outgrow the screen.
-        active ? "min-w-0 bg-highlight text-highlight-foreground" : "w-11 shrink-0 text-muted-foreground"
-      )}
+      onClick={() => onSelect?.(entry.id)}
+      className={cn(item, active ? "bg-highlight text-highlight-foreground" : "text-muted-foreground")}
     >
-      <Icon aria-hidden strokeWidth={1.75} className="size-6 shrink-0" />
-      <span
-        aria-hidden
-        className={cn(
-          "min-w-0 truncate text-sm leading-5 font-medium transition-[max-width,padding,opacity]",
-          ease,
-          active ? "max-w-24 pl-2 opacity-100" : "max-w-0 pl-0 opacity-0"
-        )}
-      >
-        {item.label}
+      <span className="flex h-7 items-center justify-center">
+        <Icon aria-hidden strokeWidth={1.75} className="size-6" />
       </span>
+      <span className={label}>{entry.label}</span>
     </button>
   )
 }
 
 /**
- * Mobile floating pill: permanent glass (GlassSurface), hairline border, no shadow. The active route expands into a Lima pill
- * with its label; the middle "+" is a regular Lima circle in the same row as the other items. It hides while a text field has
- * focus (the keyboard is open). Where it floats is up to the caller (className): use `inset-x-4 mx-auto w-fit max-w-full`
- * (not left-1/2 + translate), so the layout centers it and it can never be wider than the screen minus its gutters.
+ * Mobile floating pill: permanent glass (GlassSurface), hairline border, no shadow. Five equal items, each an icon with its
+ * label below; the active route gets a Lima rounded background. The middle "+" is a regular item in the same row (a Lima
+ * circle labelled "Novo"), not raised. It takes the width it is given (flex-1), so it can never outgrow the screen; where it
+ * floats is up to the caller, which also decides what sits next to it.
  */
 export function BottomNav({ items, activeId, onSelect, onAdd, className }: BottomNavProps) {
   const [first, second, third, fourth] = items
-  const typing = useTextEntryFocused()
 
   return (
-    <GlassSurface
-      as="nav"
-      aria-label="Navegação principal"
-      className={cn("flex h-14 items-center gap-0.5 px-1.5", typing && "hidden", className)}
-    >
-      <NavButton item={first} active={activeId === first.id} onSelect={onSelect} />
-      <NavButton item={second} active={activeId === second.id} onSelect={onSelect} />
-      <button
-        type="button"
-        aria-label="Criar novo"
-        onClick={onAdd}
-        className="mx-1 flex size-12 shrink-0 items-center justify-center rounded-full bg-highlight text-highlight-foreground outline-none transition-transform duration-120 ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95 motion-reduce:transition-none"
-      >
-        <PlusIcon aria-hidden strokeWidth={1.75} className="size-6" />
+    <GlassSurface as="nav" aria-label="Navegação principal" className={cn("flex h-16 min-w-0 items-center px-2", className)}>
+      <NavButton entry={first} active={activeId === first.id} onSelect={onSelect} />
+      <NavButton entry={second} active={activeId === second.id} onSelect={onSelect} />
+      <button type="button" aria-label="Criar novo" onClick={onAdd} className={cn(item, "text-muted-foreground")}>
+        <span className="flex h-7 items-center justify-center">
+          <span className="-my-1.5 flex size-10 items-center justify-center rounded-full bg-highlight text-highlight-foreground">
+            <PlusIcon aria-hidden strokeWidth={1.75} className="size-6" />
+          </span>
+        </span>
+        <span className={label}>Novo</span>
       </button>
-      <NavButton item={third} active={activeId === third.id} onSelect={onSelect} />
-      <NavButton item={fourth} active={activeId === fourth.id} onSelect={onSelect} />
+      <NavButton entry={third} active={activeId === third.id} onSelect={onSelect} />
+      <NavButton entry={fourth} active={activeId === fourth.id} onSelect={onSelect} />
     </GlassSurface>
   )
 }
