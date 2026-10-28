@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
@@ -17,7 +16,6 @@ import { signInSchema, type SignInInput } from "@/features/auth/schemas"
 import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
 
 export function SignInForm({ next, linkError, oauthError }: { next: string; linkError?: boolean; oauthError?: boolean }) {
-  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(
     oauthError
@@ -40,10 +38,8 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
         setError(result.error)
         return
       }
-      // The overlay lives in the root layout, so it survives the navigation until the dashboard is ready.
-      startLoadingHandoff()
-      router.replace(next)
-      router.refresh()
+      // The overlay (root layout) prefetches the destination and navigates only after the logo intro has played.
+      startLoadingHandoff(next)
     })
   }
 
