@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, LogOutIcon, MessageCircleIcon, SparklesIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, SparklesIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -29,7 +29,7 @@ import type { ShellUser } from "./app-sidebar"
 import { ACCOUNT_ITEMS } from "./account-menu"
 import { metaFor } from "./nav"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { WHATSAPP_HREF } from "./whatsapp-cta"
+import { useWhatsAppAccess } from "./whatsapp-cta"
 
 const NOTIFICATIONS = [
   { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
@@ -101,6 +101,7 @@ const menuIcon = "size-[18px]"
 export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
   const { definition, pro } = usePlan()
+  const whatsapp = useWhatsAppAccess()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -127,21 +128,18 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={compact ? "start" : "end"} sideOffset={8} collisionPadding={16} className="w-auto max-w-[calc(100vw-2rem)] min-w-60 rounded-2xl p-2">
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <Badge variant="secondary">{definition.name}</Badge>
-          {pro ? null : (
-            <Button asChild size="sm" className="rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90">
-              <Link href="/dashboard/plano">
-                <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
-              </Link>
-            </Button>
-          )}
-        </div>
-        <DropdownMenuSeparator className="mx-1 my-1" />
         <DropdownMenuLabel className="flex min-w-0 flex-col px-3 py-3 leading-tight">
           <span className="truncate text-[15px] font-medium text-foreground">{user.name}</span>
           <span className="truncate text-[13px] font-normal text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
+        <div className="flex items-center justify-between gap-3 p-3 pt-0">
+          <Badge className={cn("rounded-full", pro ? "bg-highlight text-highlight-foreground" : "bg-muted text-muted-foreground")}>{definition.name}</Badge>
+          <DropdownMenuItem asChild className="size-8 justify-center rounded-full border border-border p-0">
+            <Link href="/dashboard/plano" aria-label="Ver planos">
+              <ChevronRightIcon strokeWidth={1.75} className="size-4" />
+            </Link>
+          </DropdownMenuItem>
+        </div>
         <DropdownMenuSeparator className="mx-1 my-2" />
         {ACCOUNT_ITEMS.map((item) => (
           <DropdownMenuItem key={item.id} asChild className={menuItem}>
@@ -150,10 +148,15 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             </Link>
           </DropdownMenuItem>
         ))}
-        {compact ? (
+        {compact && !(whatsapp.connected && !whatsapp.locked) ? (
           <DropdownMenuItem asChild className={menuItem}>
-            <Link href={WHATSAPP_HREF}>
-              <MessageCircleIcon strokeWidth={1.75} className={menuIcon} /> Conectar WhatsApp
+            <Link href={whatsapp.href}>
+              <MessageCircleIcon strokeWidth={1.75} className={menuIcon} />
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                Conectar WhatsApp
+                {whatsapp.locked ? <span className="text-[11px] text-muted-foreground">Plano Pro</span> : null}
+              </span>
+              {whatsapp.locked ? <SparklesIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" /> : null}
             </Link>
           </DropdownMenuItem>
         ) : null}
