@@ -10,6 +10,7 @@ import {
   GraduationCapIcon,
   LaughIcon,
   MehIcon,
+  CalendarDaysIcon,
   PlusIcon,
   SmileIcon,
   SparklesIcon,
@@ -20,7 +21,8 @@ import {
 import { toast } from "sonner"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { StatRow } from "@/components/organizzou/layout"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { HabitCheck } from "@/components/organizzou/HabitCheck"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
@@ -143,44 +145,68 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
 
   const [mood, setMood] = useState<Mood | null>(null)
   const workout = agenda.find((a) => a.kind === "workout")
-  return (
-    <Bento>
-      {/* One highlighted KPI per screen: today's tasks. */}
-      <KpiCard
-        tone="highlight"
-        label="Tarefas hoje"
-        value={`${pendingCount}`}
-        support={planned === 0 ? "0 tarefas" : `${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
-        href="/dashboard/tarefas"
-        className="col-span-6 @min-[1040px]:col-span-3"
-      />
-      <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/dashboard/rotina" className="col-span-6 @min-[1040px]:col-span-3" />
-      <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/dashboard/financas" className="col-span-6 @min-[1040px]:col-span-3" />
-      <KpiCard
-        label="Água"
-        value={`${(water / 1000).toLocaleString("pt-BR")} L`}
-        support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`}
-        href="/dashboard/dieta"
-        className="col-span-6 @min-[1040px]:col-span-3"
-      />
 
-      <BentoCard className="col-span-12" bodyClassName="flex-none">
-        <button
-          type="button"
-          onClick={openAssistant}
-          className="-m-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-2xl p-2 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <SparklesIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
-          <span className="flex flex-col gap-0.5">
-            <span className="text-[15px] leading-6">Você gastou 12% menos com restaurantes esta semana. Bom ritmo para fechar o mês dentro do orçamento.</span>
-            <span className="text-[13px] leading-5 text-muted-foreground">Insight do assistente · toque para conversar</span>
+  // ------------------------------------------------------ "Seu dia" timeline
+  const billsDue = bills.filter((b) => b.status === "overdue" || b.daysLeft <= 0)
+  const pending = [
+    ...agenda.filter((i) => i.allDay).map((i) => ({ key: i.key, kind: "event" as const, title: i.title, detail: "Dia todo" })),
+    ...focus.filter((t) => overdue.includes(t) || !t.due_at || !t.due_has_time).map((t) => ({ key: t.id, kind: "task" as const, title: t.title, task: t, detail: overdue.includes(t) ? `Atrasada · ${t.boardName}` : t.boardName })),
+    ...billsDue.map((b) => ({ key: b.bill.id, kind: "bill" as const, title: b.bill.name, detail: b.status === "overdue" ? `Venceu há ${Math.abs(b.daysLeft)} dias · ${formatBRL(b.bill.amount_cents)}` : `Vence hoje · ${formatBRL(b.bill.amount_cents)}` })),
+  ]
+  const timed = [
+    ...agenda.filter((i) => !i.allDay).map((i) => ({ key: i.key, kind: i.kind, title: i.title, detail: i.detail, at: i.start })),
+    ...focus.filter((t) => !overdue.includes(t) && t.due_at && t.due_has_time).map((t) => ({ key: t.id, kind: "task" as const, title: t.title, detail: t.boardName, at: new Date(t.due_at as string), task: t })),
+  ].sort((x, y) => x.at.getTime() - y.at.getTime())
+  const nowIndex = timed.findIndex((i) => i.at.getTime() > now.getTime())
+  const markerAt = nowIndex === -1 ? timed.length : nowIndex
+  const timelineEmpty = pending.length === 0 && timed.length === 0 && todaysHabits.length === 0
+
+  const KindIcon = ({ kind }: { kind: "event" | "workout" | "study" | "task" | "bill" }) => {
+    const Icon = kind === "workout" ? DumbbellIcon : kind === "study" ? GraduationCapIcon : kind === "bill" ? TriangleAlertIcon : kind === "task" ? SquareCheckIcon : CalendarDaysIcon
+    return <Icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+  }
+  const rowClass = "flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0"
+  const taskRow = (task: (typeof focus)[number], time?: string, detail?: string) => {
+    const checked = completed.has(task.id)
+    return (
+      <div key={task.id} className={rowClass}>
+        {time ? <span className="tabular w-12 shrink-0 text-[13px] leading-5 text-muted-foreground">{time}</span> : null}
+        <Checkbox checked={checked} onCheckedChange={() => void toggleTask(task)} aria-label={checked ? `Reabrir ${task.title}` : `Concluir ${task.title}`} />
+        <Link href={`/dashboard/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>{task.title}</span>
+          <span className="flex items-center gap-3">
+            <DueLabel task={task} now={now} timeZone={MOCK_TIMEZONE} />
+            <span className="truncate text-[13px] leading-5 text-muted-foreground">{detail}</span>
           </span>
-        </button>
-      </BentoCard>
+        </Link>
+        <PriorityIcon priority={task.priority} className="shrink-0 text-muted-foreground" />
+      </div>
+    )
+  }
+  const nowMarker = (
+    <div key="now" role="separator" aria-label={`Agora, ${formatTime(now)}`} className="flex items-center gap-3 py-1">
+      <span className="tabular w-12 shrink-0 rounded-full bg-highlight px-2 py-0.5 text-center text-[11px] leading-4 font-semibold text-highlight-foreground">agora</span>
+      <span aria-hidden className="h-0.5 flex-1 rounded-full bg-highlight" />
+    </div>
+  )
 
-      <BentoCard title="Tarefas de hoje" href="/dashboard/tarefas" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-7">
-        <div className="flex flex-col gap-3">
-          {planned === 0 ? null : (
+  const main = (
+    <BentoCard title="Seu dia" href="/dashboard/agenda">
+      {timelineEmpty ? (
+        <EmptyState
+          icon={SquareCheckIcon}
+          title="Nada marcado para hoje"
+          description="Seu dia está livre. Adicione uma tarefa para começar."
+          action={
+            <Button variant="outline" onClick={openQuickCapture}>
+              <PlusIcon strokeWidth={1.75} /> Adicionar tarefa
+            </Button>
+          }
+          className="py-8"
+        />
+      ) : (
+        <div className="flex flex-col gap-5">
+          {planned > 0 ? (
             <div className="flex flex-col gap-2">
               <div className="tabular flex justify-between text-[13px] leading-5">
                 <span>Progresso do dia</span>
@@ -188,117 +214,101 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
               </div>
               <Progress value={Math.min(100, progress)} aria-label="Progresso do dia" />
             </div>
-          )}
-          {focus.length === 0 ? (
-            <EmptyState
-              icon={SquareCheckIcon}
-              title="Nada marcado para hoje"
-              description={planned === 0 ? "Adicione uma tarefa para começar o dia." : "Tudo o que estava marcado para hoje foi concluído."}
-              action={
-                <Button variant="outline" onClick={openQuickCapture}>
-                  <PlusIcon strokeWidth={1.75} /> Adicionar tarefa
-                </Button>
-              }
-              className="py-8"
-            />
-          ) : (
+          ) : null}
+
+          {pending.length > 0 ? (
             <div>
-              {focus.map((task) => {
-                const checked = completed.has(task.id)
-                const late = overdue.includes(task)
-                return (
-                  <div key={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                    <Checkbox checked={checked} onCheckedChange={() => void toggleTask(task)} aria-label={checked ? `Reabrir ${task.title}` : `Concluir ${task.title}`} />
-                    <Link href={`/dashboard/tarefas/${task.boardId}`} className="flex min-w-0 flex-1 flex-col rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-                      <span className={cn("truncate text-[15px] leading-6", checked && "text-muted-foreground line-through")}>{task.title}</span>
-                      <span className="flex items-center gap-3">
-                        <DueLabel task={task} now={now} timeZone={MOCK_TIMEZONE} />
-                        <span className="truncate text-[13px] leading-5 text-muted-foreground">
-                          {late ? "Atrasada · " : ""}
-                          {task.boardName}
-                        </span>
-                      </span>
-                    </Link>
-                    <PriorityIcon priority={task.priority} className="shrink-0 text-muted-foreground" />
+              <SectionTitle className="mb-1">Pendências</SectionTitle>
+              {pending.map((item) =>
+                item.kind === "task" ? (
+                  taskRow(item.task, undefined, item.detail)
+                ) : (
+                  <div key={item.key} className={rowClass}>
+                    <KindIcon kind={item.kind} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[15px] leading-6">{item.title}</span>
+                      <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span>
+                    </span>
+                    {item.kind === "bill" ? (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href="/dashboard/financas">Ver conta</Link>
+                      </Button>
+                    ) : null}
                   </div>
                 )
-              })}
+              )}
             </div>
-          )}
-        </div>
-      </BentoCard>
+          ) : null}
 
-      <BentoCard title="Rotina" href="/dashboard/rotina" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-5">
-        <div className="flex flex-col">
-          {todaysHabits.map((habit) => (
-            <HabitCheck
-              key={habit.id}
-              label={habit.name}
-              support={habit.type === "goal" ? `meta: ${habit.target_qty?.toLocaleString("pt-BR")} ${habit.unit}` : undefined}
-              checked={isDone(habit, logs, today)}
-              onCheckedChange={(v) => toggleHabit(habit.id, v)}
-            />
-          ))}
-        </div>
-      </BentoCard>
-
-      <BentoCard title="Agenda de hoje" href="/dashboard/agenda" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-7">
-        {agenda.length === 0 ? (
-          <p className="py-4 text-[15px] leading-6 text-muted-foreground">Dia livre, sem compromissos.</p>
-        ) : (
           <div>
-            {agenda.map((item) => (
-              <div key={item.key} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-2 text-[15px] leading-6">
-                    {item.kind === "workout" ? <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
-                    {item.kind === "study" ? <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
-                    <span className="truncate">{item.title}</span>
-                  </span>
-                  {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
-                </span>
+            <SectionTitle className="mb-1">Linha do tempo</SectionTitle>
+            {timed.length === 0 ? <p className="py-3 text-[15px] leading-6 text-muted-foreground">Nenhum compromisso com horário hoje.</p> : null}
+            {timed.map((item, index) => (
+              <div key={item.key}>
+                {index === markerAt ? nowMarker : null}
+                {item.kind === "task" ? (
+                  taskRow(item.task, formatTime(item.at), item.detail)
+                ) : (
+                  <div className={rowClass}>
+                    <span className="tabular w-12 shrink-0 text-[13px] leading-5 text-muted-foreground">{formatTime(item.at)}</span>
+                    <KindIcon kind={item.kind} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[15px] leading-6">{item.title}</span>
+                      {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
+            {timed.length > 0 && markerAt === timed.length ? nowMarker : null}
           </div>
-        )}
-        {upcomingTasks.length > 0 ? (
-          <div className="pt-5">
-            <SectionTitle className="mb-1">Próximas entregas</SectionTitle>
-            {upcomingTasks.map((task) => (
-              <div key={task.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-                <SquareCheckIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate text-[15px] leading-6">{task.title}</span>
-                <span className="tabular text-[13px] leading-5 text-muted-foreground">{formatDue(task, now, MOCK_TIMEZONE)}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </BentoCard>
 
-      <BentoCard title="Finanças" href="/dashboard/financas" linkLabel="Ver tudo" className="col-span-12 @min-[900px]:col-span-5">
+          {todaysHabits.length > 0 ? (
+            <div>
+              <SectionTitle className="mb-1">Rotina, ao longo do dia</SectionTitle>
+              {todaysHabits.map((habit) => (
+                <HabitCheck
+                  key={habit.id}
+                  label={habit.name}
+                  support={habit.type === "goal" ? `meta: ${habit.target_qty?.toLocaleString("pt-BR")} ${habit.unit}` : undefined}
+                  checked={isDone(habit, logs, today)}
+                  onCheckedChange={(v) => toggleHabit(habit.id, v)}
+                  className="border-b border-border last:border-b-0"
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {upcomingTasks.length > 0 ? (
+            <div>
+              <SectionTitle className="mb-1">Próximas entregas</SectionTitle>
+              {upcomingTasks.map((task) => (
+                <div key={task.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
+                  <SquareCheckIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate text-[15px] leading-6">{task.title}</span>
+                  <span className="tabular text-[13px] leading-5 text-muted-foreground">{formatDue(task, now, MOCK_TIMEZONE)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </BentoCard>
+  )
+
+  const aside = (
+    <>
+      <BentoCard title="Finanças" href="/dashboard/financas">
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Stat size="xs" label="Sobra do mês" value={formatBRL(monthTotals.surplus)} trend={monthTotals.surplus >= 0 ? "up" : "down"} />
             <Stat size="xs" label="Orçamento" value={`${budget === 0 ? 0 : Math.round((budgetSpent / budget) * 100)}%`} support={`${formatBRL(budgetSpent)} de ${formatBRL(budget)}`} />
           </div>
           <Progress value={budget === 0 ? 0 : Math.min(100, (budgetSpent / budget) * 100)} aria-label="Orçamento usado" />
-          {bills.slice(0, 2).map(({ bill, status, daysLeft }) => (
-            <div key={bill.id} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-              <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] leading-6">{bill.name}</span>
-                <span className="text-[13px] leading-5 text-muted-foreground">
-                  {status === "overdue" ? `Venceu há ${Math.abs(daysLeft)} dias` : daysLeft === 0 ? "Vence hoje" : `Vence em ${daysLeft} dias`}
-                </span>
-              </span>
-              <span className="tabular text-[15px]">{formatBRL(bill.amount_cents)}</span>
-            </div>
-          ))}
         </div>
       </BentoCard>
 
-      <BentoCard title="Dieta e água" href="/dashboard/dieta" linkLabel="Ver tudo" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
+      <BentoCard title="Dieta e água" href="/dashboard/dieta">
         <div className="flex flex-col gap-3">
           <div className="tabular flex justify-between text-[15px] leading-6">
             <span>
@@ -318,14 +328,14 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Treino e estudos" href="/dashboard/treinos" linkLabel="Treinos" className="col-span-12 @min-[700px]:col-span-6 @min-[1000px]:col-span-4">
+      <BentoCard title="Treino e estudos" href="/dashboard/treinos">
         <div className="flex flex-col">
           <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
             <DumbbellIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
             <span className="flex-1 text-[15px] leading-6">{workout ? workout.title : "Dia de descanso"}</span>
             {workout ? <Badge variant="secondary">{formatTime(workout.start)}</Badge> : null}
           </div>
-          <div className="flex min-h-12 items-center gap-3 border-b border-border py-2">
+          <div className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
             <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
             <span className="tabular flex-1 text-[15px] leading-6">
               {Math.floor(studiedToday / 60)} h {studiedToday % 60} min hoje <span className="text-muted-foreground">· meta {Math.round((weeklyGoal / 60) * 10) / 10} h</span>
@@ -343,7 +353,7 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
       </BentoCard>
 
-      <BentoCard title="Como você está?" href="/dashboard/diario" linkLabel="Diário" className="col-span-12 @min-[1000px]:col-span-4">
+      <BentoCard title="Como você está?" href="/dashboard/diario">
         <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">
           {MOODS.map(({ value, icon: Icon }) => (
             <button
@@ -368,6 +378,39 @@ export function HojeScreen({ nowIso }: { nowIso: string }) {
         </div>
         <p className="pt-4 text-[13px] leading-5 text-muted-foreground">Um toque por dia alimenta o gráfico do Diário.</p>
       </BentoCard>
-    </Bento>
+    </>
+  )
+
+  return (
+    // Phones: insight, "Seu dia", stats, side cards. From 1000 px of width: stats, insight, then main + side column.
+    <div className="@container">
+    <div className="grid min-w-0 grid-cols-1 gap-5 @min-[880px]:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] @min-[880px]:items-start">
+      <StatRow min={160} className="order-3 @min-[880px]:order-1 @min-[880px]:col-span-2">
+        <KpiCard
+          tone="highlight"
+          label="Tarefas hoje"
+          value={`${pendingCount}`}
+          support={planned === 0 ? "0 tarefas" : `${doneToday} ${doneToday === 1 ? "concluída" : "concluídas"} · ${Math.min(100, progress)}% do dia`}
+          href="/dashboard/tarefas"
+        />
+        <KpiCard label="Hábitos" value={`${habitsDone}/${todaysHabits.length}`} support="em dia hoje" href="/dashboard/rotina" />
+        <KpiCard label="Gasto de hoje" value={formatBRL(spentToday)} support={`mês: ${formatBRL(monthTotals.expense)}`} href="/dashboard/financas" />
+        <KpiCard label="Água" value={`${(water / 1000).toLocaleString("pt-BR")} L`} support={`meta ${(mockDietGoal.water_ml / 1000).toLocaleString("pt-BR")} L`} href="/dashboard/dieta" />
+      </StatRow>
+
+      <button
+        type="button"
+        onClick={openAssistant}
+        className="order-1 @min-[880px]:order-2 @min-[880px]:col-span-2 flex min-h-11 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-[15px] leading-6">Você gastou 12% menos com restaurantes esta semana. Bom ritmo para fechar o mês dentro do orçamento.</span>
+        <span className="hidden shrink-0 text-[13px] leading-5 text-muted-foreground sm:inline">Insight · toque para conversar</span>
+      </button>
+
+      <div className="order-2 @min-[880px]:order-3 min-w-0">{main}</div>
+      <aside className="order-4 flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0">{aside}</aside>
+    </div>
+    </div>
   )
 }
