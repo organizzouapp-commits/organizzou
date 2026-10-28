@@ -39,7 +39,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SplitLayout, StatRow } from "@/components/organizzou/layout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -67,6 +67,32 @@ function stepFor(habit: HabitRow) {
 
 function formatQty(value: number) {
   return value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+}
+
+/** Last 7 days of a habit: weekday initial above a 20 px dot (filled = done, ring = missed, plain = day off). */
+function WeekDots({ habit, logs, today }: { habit: HabitRow; logs: HabitLogRow[]; today: string }) {
+  return (
+    <div className="flex items-end gap-1.5" role="group" aria-label={`Últimos 7 dias de ${habit.name}`}>
+      {Array.from({ length: 7 }, (_, index) => {
+        const day = shiftDay(today, index - 6)
+        const doneDay = isDone(habit, logs, day)
+        const planned = isScheduled(habit, day)
+        const label = format(parseISO(day), "EEEE, d", { locale: ptBR })
+        return (
+          <span key={day} title={`${label}: ${doneDay ? "feito" : planned ? "não feito" : "folga"}`} className="flex flex-col items-center gap-1">
+            <span aria-hidden className="text-[11px] leading-3 font-semibold text-muted-foreground uppercase">
+              {format(parseISO(day), "EEEEE", { locale: ptBR })}
+            </span>
+            <span
+              role="img"
+              aria-label={`${label}: ${doneDay ? "feito" : planned ? "não feito" : "folga"}`}
+              className={cn("size-5 rounded-full border-2", doneDay ? "border-foreground bg-foreground" : planned ? "border-foreground/40" : "border-transparent bg-muted")}
+            />
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 const chartConfig = { rate: { label: "Constância", color: "var(--chart-1)" } } satisfies ChartConfig
@@ -158,169 +184,184 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
         </TabsList>
 
         <TabsContent value="hoje" className="pt-5">
-          <Bento>
-          <KpiCard
-            tone="highlight"
-            label="Hábitos hoje"
-            value={`${doneToday}/${todays.length}`}
-            support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`}
-            className="col-span-12 @min-[560px]:col-span-4"
-          />
-          <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 @min-[560px]:col-span-4" />
-          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[560px]:col-span-4" />
-          <BentoCard title="Hábitos de hoje" className="col-span-12">
-          <div className="flex flex-col gap-2 pb-4">
-            <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
-          </div>
-
-          <div className="flex flex-col">
-            {habits.map((habit) => {
-              const scheduled = isScheduled(habit, today)
-              const qty = logs.find((l) => l.habit_id === habit.id && l.log_date === today)?.qty ?? 0
-              const done = isDone(habit, logs, today)
-              const streak = currentStreak(habit, logs, today)
-              return (
-                <div
-                  key={habit.id}
-                  className={cn(
-                    "flex min-h-16 items-center gap-4 border-b border-border py-3 last:border-b-0",
-                    (habit.paused || !scheduled) && "opacity-60"
-                  )}
-                >
-                  {habit.type === "fixed" ? (
-                    <Checkbox
-                      checked={done}
-                      disabled={habit.paused || !scheduled}
-                      onCheckedChange={() => toggleFixed(habit)}
-                      aria-label={`Marcar ${habit.name}`}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <Button variant="outline" size="icon-sm" disabled={habit.paused || !scheduled || qty <= 0} aria-label={`Diminuir ${habit.name}`} onClick={() => stepGoal(habit, -1)}>
-                        <MinusIcon strokeWidth={1.75} />
-                      </Button>
-                      <Button variant="outline" size="icon-sm" disabled={habit.paused || !scheduled} aria-label={`Aumentar ${habit.name}`} onClick={() => stepGoal(habit, 1)}>
-                        <PlusIcon strokeWidth={1.75} />
-                      </Button>
-                    </div>
-                  )}
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className={cn("truncate text-[15px] leading-6", done && "text-muted-foreground line-through")}>
-                      {habit.name}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-5 text-muted-foreground">
-                      {habit.paused ? <span>Pausado</span> : null}
-                      {!habit.paused && !scheduled ? <span>Folga hoje</span> : null}
-                      {!habit.paused && scheduled && habit.type === "goal" ? (
-                        <span className="tabular">
-                          {formatQty(qty)} / {formatQty(habit.target_qty ?? 0)} {habit.unit}
-                        </span>
-                      ) : null}
-                      {streak > 0 ? (
-                        <span className="tabular inline-flex items-center gap-1">
-                          <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
-                          {streak} {streak === 1 ? "dia" : "dias"}
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div className="hidden items-center gap-1 sm:flex" aria-label="Últimos 7 dias">
-                    {Array.from({ length: 7 }, (_, index) => {
-                      const day = shiftDay(today, index - 6)
-                      const doneDay = isDone(habit, logs, day)
-                      const planned = isScheduled(habit, day)
-                      return (
-                        <span
-                          key={day}
-                          title={`${format(parseISO(day), "EEE d", { locale: ptBR })}: ${doneDay ? "feito" : planned ? "não feito" : "folga"}`}
-                          className={cn(
-                            "size-3 rounded-full border",
-                            doneDay ? "border-foreground bg-foreground" : planned ? "border-foreground/40" : "border-transparent bg-muted"
-                          )}
-                        />
-                      )
-                    })}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Opções de ${habit.name}`}>
-                        <EllipsisIcon strokeWidth={1.75} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => togglePause(habit)}>
-                        {habit.paused ? <PlayIcon strokeWidth={1.75} /> : <PauseIcon strokeWidth={1.75} />}
-                        {habit.paused ? "Retomar" : "Pausar"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(habit)}>
-                        <Trash2Icon strokeWidth={1.75} /> Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+          <div className="flex flex-col gap-5">
+            <StatRow min={180}>
+              <KpiCard tone="highlight" label="Hábitos hoje" value={`${doneToday}/${todays.length}`} support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`} />
+              <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" />
+              <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" />
+            </StatRow>
+            <SplitLayout
+              aside={
+                <BentoCard title="Últimos 7 dias" bodyClassName="flex flex-col gap-3">
+                  {Array.from({ length: 7 }, (_, index) => {
+                    const day = shiftDay(today, index - 6)
+                    const value = dayCompletion(active, logs, day)
+                    return (
+                      <div key={day} className="flex items-center gap-3">
+                        <span className="w-20 shrink-0 text-[13px] leading-5 text-muted-foreground capitalize">{format(parseISO(day), "EEE", { locale: ptBR })}</span>
+                        <Progress value={value === null ? 0 : value * 100} aria-label={`${format(parseISO(day), "EEEE", { locale: ptBR })}`} />
+                        <span className="tabular w-10 shrink-0 text-right text-[13px] leading-5 text-muted-foreground">{value === null ? "—" : `${Math.round(value * 100)}%`}</span>
+                      </div>
+                    )
+                  })}
+                </BentoCard>
+              }
+            >
+              <BentoCard title="Hábitos de hoje">
+                <div className="flex flex-col gap-2 pb-4">
+                  <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
                 </div>
-              )
-            })}
+                <div className="flex flex-col">
+                  {habits.map((habit) => {
+                    const scheduled = isScheduled(habit, today)
+                    const qty = logs.find((l) => l.habit_id === habit.id && l.log_date === today)?.qty ?? 0
+                    const done = isDone(habit, logs, today)
+                    const streak = currentStreak(habit, logs, today)
+                    return (
+                      <div key={habit.id} className={cn("flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-3 last:border-b-0", (habit.paused || !scheduled) && "opacity-60")}>
+                        {habit.type === "fixed" ? (
+                          <Checkbox checked={done} disabled={habit.paused || !scheduled} onCheckedChange={() => toggleFixed(habit)} aria-label={`Marcar ${habit.name}`} />
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <Button variant="outline" size="icon" disabled={habit.paused || !scheduled || qty <= 0} aria-label={`Diminuir ${habit.name}`} onClick={() => stepGoal(habit, -1)}>
+                              <MinusIcon strokeWidth={1.75} />
+                            </Button>
+                            <Button variant="outline" size="icon" disabled={habit.paused || !scheduled} aria-label={`Aumentar ${habit.name}`} onClick={() => stepGoal(habit, 1)}>
+                              <PlusIcon strokeWidth={1.75} />
+                            </Button>
+                          </div>
+                        )}
+                        <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
+                          <span className={cn("truncate text-[15px] leading-6", done && "text-muted-foreground line-through")}>{habit.name}</span>
+                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-5 text-muted-foreground">
+                            {habit.paused ? <span>Pausado</span> : null}
+                            {!habit.paused && !scheduled ? <span>Folga hoje</span> : null}
+                            {!habit.paused && scheduled && habit.type === "goal" ? (
+                              <span className="tabular">
+                                {formatQty(qty)} / {formatQty(habit.target_qty ?? 0)} {habit.unit}
+                              </span>
+                            ) : null}
+                            {streak > 0 ? (
+                              <span className="tabular inline-flex items-center gap-1">
+                                <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
+                                {streak} {streak === 1 ? "dia" : "dias"}
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                        <WeekDots habit={habit} logs={logs} today={today} />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`Opções de ${habit.name}`}>
+                              <EllipsisIcon strokeWidth={1.75} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => togglePause(habit)}>
+                              {habit.paused ? <PlayIcon strokeWidth={1.75} /> : <PauseIcon strokeWidth={1.75} />}
+                              {habit.paused ? "Retomar" : "Pausar"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(habit)}>
+                              <Trash2Icon strokeWidth={1.75} /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )
+                  })}
+                </div>
+              </BentoCard>
+            </SplitLayout>
           </div>
-          </BentoCard>
-          </Bento>
         </TabsContent>
 
         <TabsContent value="historico" className="pt-5">
-          <Bento>
-          <BentoCard
-            title={format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}
-            className="col-span-12 @min-[900px]:col-span-8"
-            actions={
-              <Select value={historyHabit} onValueChange={setHistoryHabit}>
-                <SelectTrigger aria-label="Hábito" className="w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os hábitos</SelectItem>
-                  {habits.map((h) => (
-                    <SelectItem key={h.id} value={h.id}>
-                      {h.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-          >
-          <div role="grid" aria-label="Calendário de constância" className="grid max-w-xl grid-cols-7 gap-1.5">
-            {WEEKDAY_LABELS.map((label, index) => (
-              <span key={index} className="pb-1 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                {label}
-              </span>
-            ))}
-            {days.map((day) => {
-              const key = format(day, "yyyy-MM-dd")
-              const value = isSameMonth(day, month) && key <= today ? dayCompletion(historyList, logs, key) : null
-              return (
-                <div
-                  key={key}
-                  role="gridcell"
-                  title={value === null ? format(day, "d 'de' MMMM", { locale: ptBR }) : `${format(day, "d 'de' MMMM", { locale: ptBR })}: ${Math.round(value * 100)}%`}
+          <div className="flex flex-col gap-5">
+            <div role="group" aria-label="Filtrar por hábito" className="no-scrollbar flex gap-2 overflow-x-auto">
+              {[{ id: "all", name: "Todos" }, ...habits].map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  aria-pressed={historyHabit === h.id}
+                  onClick={() => setHistoryHabit(h.id)}
                   className={cn(
-                    "tabular flex aspect-square items-center justify-center rounded-lg text-[13px] leading-5",
-                    isSameMonth(day, month) ? intensityClass(value) : "opacity-30",
-                    value !== null && value >= 1 && "text-primary-foreground",
-                    key === today && "ring-2 ring-ring"
+                    "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[14px] outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+                    historyHabit === h.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border hover:bg-accent"
                   )}
                 >
-                  {format(day, "d")}
-                </div>
-              )
-            })}
+                  {h.name}
+                </button>
+              ))}
+            </div>
+            <div className="@container">
+              <div className="grid min-w-0 grid-cols-1 gap-5 @min-[880px]:grid-cols-2">
+                <BentoCard title={format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}>
+                  <div role="grid" aria-label="Calendário de constância" className="grid grid-cols-7 gap-1.5">
+                    {WEEKDAY_LABELS.map((label, index) => (
+                      <span key={index} className="pb-1 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+                        {label}
+                      </span>
+                    ))}
+                    {days.map((day) => {
+                      const key = format(day, "yyyy-MM-dd")
+                      const value = isSameMonth(day, month) && key <= today ? dayCompletion(historyList, logs, key) : null
+                      return (
+                        <div
+                          key={key}
+                          role="gridcell"
+                          title={value === null ? format(day, "d 'de' MMMM", { locale: ptBR }) : `${format(day, "d 'de' MMMM", { locale: ptBR })}: ${Math.round(value * 100)}%`}
+                          className={cn(
+                            "tabular flex aspect-square items-center justify-center rounded-lg text-[13px] leading-5",
+                            isSameMonth(day, month) ? intensityClass(value) : "opacity-30",
+                            value !== null && value >= 1 && "text-primary-foreground",
+                            key === today && "ring-2 ring-ring"
+                          )}
+                        >
+                          {format(day, "d")}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="flex items-center gap-2 pt-4 text-[13px] leading-5 text-muted-foreground">
+                    Menos
+                    {["bg-muted", "bg-primary/25", "bg-primary/60", "bg-primary"].map((c) => (
+                      <span key={c} className={cn("size-4 rounded-md", c)} />
+                    ))}
+                    Mais
+                  </p>
+                </BentoCard>
+                <BentoCard title="Por hábito, nas últimas 4 semanas" bodyClassName="flex flex-col">
+                  {historyList.map((habit) => {
+                    const streak = currentStreak(habit, logs, today)
+                    return (
+                      <div key={habit.id} className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate text-[15px] leading-6">{habit.name}</span>
+                          <span className="tabular inline-flex items-center gap-1 text-[13px] leading-5 text-muted-foreground">
+                            <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
+                            {streak} {streak === 1 ? "dia" : "dias"} · melhor {bestStreak(habit, logs, today)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-1" aria-label={`Últimos 28 dias de ${habit.name}`}>
+                          {Array.from({ length: 28 }, (_, i) => {
+                            const day = shiftDay(today, i - 27)
+                            const planned = isScheduled(habit, day)
+                            return (
+                              <span
+                                key={day}
+                                title={`${format(parseISO(day), "d 'de' MMMM", { locale: ptBR })}: ${isDone(habit, logs, day) ? "feito" : planned ? "não feito" : "folga"}`}
+                                className={cn("aspect-square rounded-[4px]", !planned ? "bg-transparent ring-1 ring-border" : isDone(habit, logs, day) ? "bg-primary" : "bg-muted")}
+                              />
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </BentoCard>
+              </div>
+            </div>
           </div>
-          <p className="flex items-center gap-2 text-[13px] leading-5 text-muted-foreground">
-            Menos
-            {["bg-muted", "bg-primary/25", "bg-primary/60", "bg-primary"].map((c) => (
-              <span key={c} className={cn("size-4 rounded-md", c)} />
-            ))}
-            Mais
-          </p>
-          </BentoCard>
-          </Bento>
         </TabsContent>
 
         <TabsContent value="estatisticas" className="pt-5">
@@ -329,8 +370,8 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
           <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Check-ins no mês" value={`${monthCheckins}`} support="registros" className="col-span-6 @min-[1040px]:col-span-3" />
-          <BentoCard title="Constância por semana" className="col-span-12 @min-[900px]:col-span-7">
-            <ChartContainer config={chartConfig} className="aspect-[16/7] w-full">
+          <BentoCard title="Constância por semana" className="col-span-12 @min-[900px]:col-span-7 @min-[900px]:h-full">
+            <ChartContainer config={chartConfig} className="aspect-auto h-72 w-full @min-[900px]:h-full @min-[900px]:min-h-72">
               <BarChart data={weekly} margin={{ left: -16, right: 4 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.5} />
                 <XAxis dataKey="semana" tickLine={false} axisLine={false} tickMargin={8} />
@@ -340,7 +381,7 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
               </BarChart>
             </ChartContainer>
           </BentoCard>
-          <BentoCard title="Por hábito" className="col-span-12 @min-[900px]:col-span-5" bodyClassName="flex flex-col gap-4">
+          <BentoCard title="Por hábito" className="col-span-12 @min-[900px]:col-span-5 @min-[900px]:h-full" bodyClassName="flex flex-col justify-between gap-4">
             {habits.map((habit) => {
               const rate = consistency(habit, logs, today)
               return (
