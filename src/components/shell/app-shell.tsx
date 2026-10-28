@@ -65,15 +65,15 @@ function useIsTablet() {
 type ShellBottomBarProps = { activeId: string; onSelect: (id: string) => void; onAssistant: () => void }
 
 /**
- * Phones: one fixed row above the bottom safe area, 16 px from both edges. The floating nav takes the remaining width and the
+ * Phones: one fixed row 12 px above the bottom safe area, 16 px from both edges. `--bottom-bar-h` (52 px) is the height of both the nav and the assistant button. The floating nav takes the remaining width and the
  * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The row hides while the keyboard is open.
  */
 function ShellBottomBar({ activeId, onSelect, onAssistant }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
-    <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex items-center gap-3 md:hidden", typing && "hidden")}>
+    <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex items-center gap-3 [--bottom-bar-h:52px] md:hidden", typing && "hidden")}>
       <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} className="flex-1" />
-      <AssistantFab className="shrink-0 bg-highlight text-highlight-foreground" onClick={onAssistant} />
+      <AssistantFab className="size-(--bottom-bar-h) shrink-0 bg-highlight text-highlight-foreground [&_svg]:size-5" onClick={onAssistant} />
     </div>
   )
 }
@@ -167,7 +167,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+6.5rem)] md:px-0 md:pt-0 md:pb-0">
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:px-0 md:pt-0 md:pb-0">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>
