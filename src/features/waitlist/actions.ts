@@ -33,6 +33,7 @@ export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult
   const phone = toE164(parsed.data.phone)
   if (!phone) return { ok: false, error: "Informe um WhatsApp válido com DDD.", fieldErrors: { phone: "Informe um WhatsApp válido com DDD." } }
   const email = parsed.data.email.toLowerCase()
+  const source = parsed.data.source ?? "em-breve"
 
   const requestHeaders = await headers()
   const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || requestHeaders.get("x-real-ip") || "unknown"
@@ -59,11 +60,15 @@ export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult
       phone,
       email,
       consent_at: new Date().toISOString(),
-      source: "em-breve",
+      source,
       user_agent: userAgent,
     })
     if (error) {
-      if (error.code === "23505") return { ok: true, already: true }
+      if (error.code === "23505") {
+        // Already on the list. Someone asking for the Pro plan is tagged so the owner can tell the two apart.
+        if (source === "plano-pro") await admin.from("waitlist").update({ source }).eq("email", email)
+        return { ok: true, already: true }
+      }
       return { ok: false, error: GENERIC_ERROR }
     }
     return { ok: true }

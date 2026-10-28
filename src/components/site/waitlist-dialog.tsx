@@ -24,7 +24,28 @@ const inputClass = cn("h-[52px] rounded-xl px-4 py-0 text-base md:h-[52px] md:te
 const TITLE = "Em breve!"
 const DESCRIPTION = "Deixe seu contato e avisamos você em primeira mão quando o Organizzou for lançado."
 
-function WaitlistForm({ onClose }: { onClose: () => void }) {
+type WaitlistFormProps = {
+  onClose: () => void
+  /** Prefilled values (e.g. the signed-in user's name and e-mail). */
+  defaults?: Partial<Pick<WaitlistInput, "name" | "phone" | "email">>
+  source?: "em-breve" | "plano-pro"
+  submitLabel?: string
+  doneTitle?: string
+  doneText?: string
+  alreadyTitle?: string
+  alreadyText?: string
+}
+
+export function WaitlistForm({
+  onClose,
+  defaults,
+  source = "em-breve",
+  submitLabel = "Quero ser avisado",
+  doneTitle = "Pronto! Você está na lista.",
+  doneText = "Avisamos você em primeira mão quando o Organizzou for lançado.",
+  alreadyTitle = "Você já está na lista! 😉",
+  alreadyText = "Seu e-mail já estava cadastrado. Avisamos você assim que o Organizzou for lançado.",
+}: WaitlistFormProps) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<null | "new" | "already">(null)
@@ -36,14 +57,14 @@ function WaitlistForm({ onClose }: { onClose: () => void }) {
     formState: { errors },
   } = useForm<WaitlistInput>({
     resolver: zodResolver(waitlistSchema),
-    defaultValues: { name: "", phone: "", email: "", consent: false, website: "" },
+    defaultValues: { name: defaults?.name ?? "", phone: defaults?.phone ?? "", email: defaults?.email ?? "", consent: false, website: "" },
     mode: "onTouched",
   })
 
   function onSubmit(values: WaitlistInput) {
     setError(null)
     startTransition(async () => {
-      const result = await joinWaitlist(values)
+      const result = await joinWaitlist({ ...values, source })
       if (!result.ok) {
         setError(result.error)
         for (const [field, message] of Object.entries(result.fieldErrors ?? {})) setFieldError(field as keyof WaitlistInput, { message })
@@ -60,10 +81,10 @@ function WaitlistForm({ onClose }: { onClose: () => void }) {
           <CheckIcon strokeWidth={1.75} className="size-10" />
         </span>
         <h2 className="text-[24px] leading-8 font-semibold tracking-[-0.02em]">
-          {done === "already" ? "Você já está na lista! 😉" : "Pronto! Você está na lista."}
+          {done === "already" ? alreadyTitle : doneTitle}
         </h2>
         <p className="text-base leading-6 text-muted-foreground">
-          {done === "already" ? "Seu e-mail já estava cadastrado. Avisamos você assim que o Organizzou for lançado." : "Avisamos você em primeira mão quando o Organizzou for lançado."}
+          {done === "already" ? alreadyText : doneText}
         </p>
         <Button type="button" size="xl" className={cn("w-full", MOTION)} onClick={onClose}>
           Fechar
@@ -150,7 +171,7 @@ function WaitlistForm({ onClose }: { onClose: () => void }) {
 
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}
       <Button type="submit" size="xl" className={cn("w-full", MOTION)} disabled={pending}>
-        {pending ? "Enviando…" : "Quero ser avisado"}
+        {pending ? "Enviando…" : submitLabel}
       </Button>
     </form>
   )

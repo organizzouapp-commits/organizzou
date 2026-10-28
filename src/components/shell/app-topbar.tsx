@@ -5,9 +5,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, LogOutIcon, MessageCircleIcon } from "lucide-react"
+import { BellIcon, ChevronDownIcon, LogOutIcon, MessageCircleIcon, SparklesIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
+import { usePlan } from "@/components/organizzou/plan-context"
+import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -98,6 +100,7 @@ const menuIcon = "size-[18px]"
  */
 export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
+  const { definition, pro } = usePlan()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -124,6 +127,17 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={compact ? "start" : "end"} sideOffset={8} collisionPadding={16} className="w-auto max-w-[calc(100vw-2rem)] min-w-60 rounded-2xl p-2">
+        <div className="flex items-center justify-between gap-3 px-3 py-2">
+          <Badge variant="secondary">{definition.name}</Badge>
+          {pro ? null : (
+            <Button asChild size="sm" className="rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90">
+              <Link href="/dashboard/plano">
+                <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
+              </Link>
+            </Button>
+          )}
+        </div>
+        <DropdownMenuSeparator className="mx-1 my-1" />
         <DropdownMenuLabel className="flex min-w-0 flex-col px-3 py-3 leading-tight">
           <span className="truncate text-[15px] font-medium text-foreground">{user.name}</span>
           <span className="truncate text-[13px] font-normal text-muted-foreground">{user.email}</span>

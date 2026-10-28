@@ -21,6 +21,8 @@ export const waitlistSchema = z.object({
   consent: z.boolean().refine((value) => value === true, "Aceite para entrar na lista."),
   // Honeypot: real people never see or fill it.
   website: z.string().optional(),
+  // Which list the person joins; defaults to the launch list.
+  source: z.enum(["em-breve", "plano-pro"]).optional(),
 })
 
 export type WaitlistInput = z.input<typeof waitlistSchema>

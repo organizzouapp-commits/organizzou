@@ -5,6 +5,7 @@ import { cookies } from "next/headers"
 import { LoadingScreen } from "@/components/organizzou/loading-screen"
 import { AppBackground } from "@/components/shell/app-background"
 import { AppShell } from "@/components/shell/app-shell"
+import { getUserPlan } from "@/lib/plan-server"
 import { getSession } from "@/lib/supabase/session"
 
 // The app is private: keep it out of search results (robots.txt disallows /dashboard too).
@@ -19,6 +20,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
     .eq("id", userId)
     .maybeSingle()
 
+  const plan = await getUserPlan(supabase, userId)
   const name = profile?.display_name || email.split("@")[0] || "Você"
 
   // The collapsed/expanded sidebar is remembered per user in a cookie.
@@ -30,6 +32,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
     <AppShell
       user={{ name, email }}
       theme={profile?.theme}
+      plan={plan}
       nowIso={new Date().toISOString()}
       sidebarOpen={sidebarOpen}
       sidebarCookie={sidebarCookie}

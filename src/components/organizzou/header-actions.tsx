@@ -1,9 +1,11 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { PlusIcon, SearchIcon } from "lucide-react"
+import Link from "next/link"
+import { PlusIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
+import { usePlan } from "@/components/organizzou/plan-context"
 import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Bell, UserMenu } from "@/components/shell/app-topbar"
@@ -84,6 +86,7 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
   const primary = usePrimaryActionValue()
   const [searchOpen, setSearchOpen] = useState(false)
   const primaryLabel = primary?.label ?? "Novo"
+  const { pro } = usePlan()
 
   return (
     <div className="flex shrink-0 items-center gap-3">
@@ -95,6 +98,14 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
       <div className={cn(headerGroup, "p-[3px]")}>
         <UserMenu user={user} header />
       </div>
+      {pro ? null : (
+        // Below 1280 px the upgrade lives only in the avatar menu.
+        <Button asChild variant="outline" size="lg" className="hidden h-11 rounded-full px-5 min-[1280px]:inline-flex">
+          <Link href="/dashboard/plano">
+            <SparklesIcon strokeWidth={1.75} /> Fazer upgrade
+          </Link>
+        </Button>
+      )}
       <Button size="lg" className="h-11 rounded-full px-3 min-[1280px]:px-5" aria-label={primaryLabel} onClick={primary?.onClick ?? openQuickCapture}>
         <PlusIcon strokeWidth={1.75} /> <span className="hidden min-[1280px]:inline">{primaryLabel}</span>
       </Button>

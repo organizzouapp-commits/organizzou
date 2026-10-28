@@ -26,6 +26,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   "/dashboard/diario": { title: "Diário", subtitle: "Um minuto por dia para entender seu humor." },
   "/dashboard/configuracoes": { title: "Configurações", subtitle: "Aparência, avisos e segurança." },
   "/dashboard/perfil": { title: "Perfil", subtitle: "Seus dados e a sua senha." },
+  "/dashboard/plano": { title: "Plano Pro", subtitle: "Compare os planos e veja o que muda." },
   "/dashboard/ajuda": { title: "Ajuda", subtitle: "Dúvidas frequentes e contato." },
 }
 

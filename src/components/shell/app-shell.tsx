@@ -10,7 +10,7 @@ import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
-import type { ModuleId } from "@/components/organizzou/modules"
+import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
@@ -18,6 +18,9 @@ import { isMock } from "@/mocks/config"
 import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
+import { PlanProvider } from "@/components/organizzou/plan-context"
+import { ACCOUNT_ITEMS } from "./account-menu"
+import type { PlanId } from "@/lib/plans"
 import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
 import { FrameGlass } from "./frame-glass"
 import { AppTopBar, usePageHeading } from "./app-topbar"
@@ -93,6 +96,8 @@ type AppShellProps = {
   user: ShellUser
   /** Saved preference from the profile; undefined keeps whatever the browser has. */
   theme?: string
+  /** The user's plan (profiles.plan, defaults to free). */
+  plan: PlanId
   /** Request time from the server, used by the prototype assistant to answer relative questions. */
   nowIso: string
   /** Stored sidebar choice (per user cookie). Null when the user never toggled it. */
@@ -101,7 +106,7 @@ type AppShellProps = {
   children: React.ReactNode
 }
 
-export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
+export function AppShell({ user, theme, plan, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const [assistantOpen, setAssistantOpen] = useState(false)
@@ -135,6 +140,17 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
     setSearchOpen(value)
     if (!value) setSearchQuery("")
   }, [])
+  // Warm every module route while the browser is idle (production only; in dev Next does not prefetch), so opening a module
+  // streams its skeleton from the cache instead of waiting for the server.
+  useEffect(() => {
+    const hrefs = [...Object.values(modules).map((m) => m.href), ...ACCOUNT_ITEMS.map((i) => i.href), "/dashboard/plano"]
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500))
+    const handle = idle(() => hrefs.forEach((href) => router.prefetch(href)))
+    return () => {
+      if (window.cancelIdleCallback) window.cancelIdleCallback(handle as number)
+      else window.clearTimeout(handle as number)
+    }
+  }, [router])
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
@@ -145,6 +161,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
 
   return (
     <AssistantProvider value={assistantContext}>
+      <PlanProvider plan={plan}>
       <SignOutProvider value={requestSignOut}>
       <PrimaryActionProvider>
         {/* Layer 0 (the tiny pre-blurred photo) is rendered once by the (app) layout. Layer 1 (md+): the frame, fixed at 20px,
@@ -187,6 +204,7 @@ export function AppShell({ user, theme, nowIso, sidebarOpen, sidebarCookie, chil
         </SidebarProvider>
       </PrimaryActionProvider>
       </SignOutProvider>
+      </PlanProvider>
     </AssistantProvider>
   )
 }

@@ -3,9 +3,10 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, type LucideIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, HeartPulseIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, type LucideIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
+import { usePlan } from "@/components/organizzou/plan-context"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -191,6 +192,32 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
   )
 }
 
+/** Compact "Fazer upgrade" row above Configurações (expanded sidebar). Hidden for Pro users. */
+function UpgradeRow({ pathname }: { pathname: string }) {
+  const { pro } = usePlan()
+  if (pro) return null
+  const active = isActivePath(pathname, "/dashboard/plano")
+  return (
+    <Link href="/dashboard/plano" aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
+      <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+      <span className="truncate">Fazer upgrade</span>
+    </Link>
+  )
+}
+
+function RailUpgrade({ pathname }: { pathname: string }) {
+  const { pro } = usePlan()
+  if (pro) return null
+  const active = isActivePath(pathname, "/dashboard/plano")
+  return (
+    <RailTip label="Fazer upgrade">
+      <Link href="/dashboard/plano" aria-label="Fazer upgrade" aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+        <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5" />
+      </Link>
+    </RailTip>
+  )
+}
+
 /** Bottom of the collapsed rail: the same Configurações group as the expanded sidebar (plus the WhatsApp link), as a flyout like the other rail groups. */
 function RailAccount({ pathname }: { pathname: string }) {
   const requestSignOut = useRequestSignOut()
@@ -299,6 +326,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
           ))}
         </nav>
         <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
+          <RailUpgrade pathname={pathname} />
           <RailAccount pathname={pathname} />
         </div>
         <SidebarRail />
@@ -326,6 +354,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
       </nav>
 
       <div className="flex shrink-0 flex-col gap-0.5 px-3 pt-2 pb-4 [@media(max-height:900px)]:pb-3">
+        <UpgradeRow pathname={pathname} />
         <AccountGroup pathname={pathname} {...groupProps(ACCOUNT_GROUP_LABEL)} />
         {/* The very last element of the sidebar. */}
         <WhatsAppCta className="mt-3" />
