@@ -7,7 +7,7 @@
  *   E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... E2E_TARGET_EMAIL=... (and SUPABASE_SECRET_KEY set on the server)
  * Without them it is skipped: it cannot be faked.
  */
-import { expect, test, type BrowserContext } from "@playwright/test"
+import { expect, test, type BrowserContext, type Page } from "@playwright/test"
 
 const CONSENT = encodeURIComponent(JSON.stringify({ version: 1, necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }))
 const SIDEBAR_COOKIE = "sidebar_state_00000000000040008000000000000001"
@@ -176,35 +176,66 @@ test.describe("the app shell is unchanged for regular users", () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Needs a real project: sign in as an admin, change someone's plan, and find the audit entry.
+// Needs a real project (run the server WITHOUT PROTOTYPE_BYPASS_AUTH): an admin changes a throwaway account's plan, the list and
+// the audit log show it, and the person's own session sees it. It puts the account back to Gratuito at the end.
+//   E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD   an admin (app_metadata.role = 'admin')
+//   E2E_TARGET_EMAIL / E2E_TARGET_PASSWORD a throwaway account that is NOT an admin
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
 const TARGET_EMAIL = process.env.E2E_TARGET_EMAIL
+const TARGET_PASSWORD = process.env.E2E_TARGET_PASSWORD
 
-test.describe("change plan writes an audit entry (real project)", () => {
-  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD || !TARGET_EMAIL, "Set E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD and E2E_TARGET_EMAIL (and run the server WITHOUT PROTOTYPE_BYPASS_AUTH).")
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-  test("Pro de cortesia on the target, then the entry shows up in Auditoria", async ({ page, context, baseURL }) => {
-    await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
-    await page.setViewportSize({ width: 1440, height: 900 })
+async function signIn(page: Page, email: string, password: string) {
+  await page.goto("/login")
+  await page.getByLabel("E-mail").fill(email)
+  await page.getByLabel("Senha").fill(password)
+  await page.getByRole("button", { name: "Entrar" }).click()
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 30000 })
+}
 
-    await page.goto("/login")
-    await page.getByLabel("E-mail").fill(ADMIN_EMAIL!)
-    await page.getByLabel("Senha").fill(ADMIN_PASSWORD!)
-    await page.getByRole("button", { name: "Entrar" }).click()
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30000 })
+test.describe("change plan (real project)", () => {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD || !TARGET_EMAIL || !TARGET_PASSWORD, "Set E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_TARGET_EMAIL and E2E_TARGET_PASSWORD (and run the server WITHOUT PROTOTYPE_BYPASS_AUTH).")
+  test.use({ viewport: { width: 1440, height: 900 } })
 
+  async function changeTo(page: Page, plan: "Pro" | "Gratuito", toast: RegExp) {
     await page.goto(`/admin/usuarios?q=${encodeURIComponent(TARGET_EMAIL!)}`)
-    await page.getByRole("link", { name: new RegExp(`Abrir`) }).first().click()
+    await page.getByRole("link", { name: /Abrir/ }).first().click()
     await page.getByRole("button", { name: "Alterar plano" }).click()
     // Confirmation first: nothing is written until the dialog is confirmed.
     const dialog = page.getByRole("alertdialog")
     await expect(dialog).toBeVisible()
+    await dialog.getByRole("combobox", { name: "Novo plano" }).click()
+    await page.getByRole("option", { name: plan, exact: true }).click()
     await dialog.getByRole("button", { name: "Alterar plano" }).click()
-    await expect(page.getByText(/Plano|Pro|Gratuito/).first()).toBeVisible()
+    // The toast is the verified result (the action reads the row back); a failure would be a red "Não consegui alterar o plano. …".
+    await expect(page.getByText(toast)).toBeVisible({ timeout: 30000 })
+    await expect(page.getByText(/Não consegui alterar o plano/)).toHaveCount(0)
+  }
+
+  test("Pro: the list shows it, the audit log has the entry, the person's app drops 'Fazer upgrade'; then back to Gratuito", async ({ page, browser, baseURL }) => {
+    await page.context().addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
+    await signIn(page, ADMIN_EMAIL!, ADMIN_PASSWORD!)
+    await changeTo(page, "Pro", /Plano Pro ativado/)
+
+    // The users list and the detail panel show Pro right away (no reload by hand).
+    await page.goto(`/admin/usuarios?q=${encodeURIComponent(TARGET_EMAIL!)}`)
+    await expect(page.getByRole("row", { name: new RegExp(escapeRe(TARGET_EMAIL!)) }).getByText("Pro", { exact: true })).toBeVisible()
 
     await page.goto("/admin/auditoria")
     await expect(page.getByRole("row", { name: /Plano alterado/ }).first()).toBeVisible({ timeout: 30000 })
-    await expect(page.getByRole("row", { name: new RegExp(TARGET_EMAIL!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).first()).toBeVisible()
+
+    // The person's own session reads the plan from the database on its next request.
+    const person = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    await person.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
+    const app = await person.newPage()
+    await signIn(app, TARGET_EMAIL!, TARGET_PASSWORD!)
+    await expect(app.getByRole("link", { name: "Fazer upgrade" })).toHaveCount(0)
+
+    await changeTo(page, "Gratuito", /Plano alterado para Gratuito/)
+    await app.reload()
+    await expect(app.getByRole("link", { name: "Fazer upgrade" }).first()).toBeVisible()
+    await person.close()
   })
 })
