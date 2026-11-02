@@ -15,7 +15,9 @@
     "glass-bg": "node scripts/make-glass-bg.mjs",
     "check:case": "node scripts/check-import-case.mjs",
     "admin:grant": "node --env-file=.env.local scripts/make-admin.ts grant",
-    "admin:revoke": "node --env-file=.env.local scripts/make-admin.ts revoke"
+    "admin:revoke": "node --env-file=.env.local scripts/make-admin.ts revoke",
+    "users:backfill": "node --env-file=.env.local scripts/backfill-users.ts",
+    "seed:demo": "node --env-file=.env.local scripts/seed-demo.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
