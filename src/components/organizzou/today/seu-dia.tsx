@@ -22,7 +22,7 @@ import {
 import { toast } from "sonner"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
-import { bentoCardClass } from "@/components/organizzou/Bento"
+import { bentoCardClass, cardHover } from "@/components/organizzou/Bento"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { SwipeRow } from "@/components/organizzou/SwipeRow"
 import { Badge } from "@/components/ui/badge"
@@ -311,7 +311,7 @@ function Group({ id, label, count, open, onToggle, summary, emphasis, children }
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] cursor-pointer items-center gap-2 rounded-xl px-2 text-left outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+        className={cn("-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 text-left", cardHover)}
       >
         <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", !open && "-rotate-90")} />
         {emphasis ? <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
