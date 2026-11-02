@@ -252,6 +252,8 @@ export async function getDay(nowIso: string): Promise<DayData> {
       meta: `Tarefas · ${t.boardName}`,
       at: t.due_has_time ? t.due_at : null,
       overdue,
+      overdueSince: overdue ? (t.due_at ?? undefined) : undefined,
+      priority: asPriorityValue(t.priority),
       due: t.due_at ? { at: t.due_at, hasTime: t.due_has_time } : undefined,
       href: `/dashboard/tarefas/${t.boardId}`,
       action: "check",
@@ -271,6 +273,8 @@ export async function getDay(nowIso: string): Promise<DayData> {
       meta: `Tarefas · ${t.boardName}`,
       at: t.due_at && t.due_has_time ? t.due_at : null,
       overdue: isLate,
+      overdueSince: isLate ? (t.due_at ?? undefined) : undefined,
+      priority: asPriorityValue(t.priority),
       due: t.due_at ? { at: t.due_at, hasTime: t.due_has_time } : undefined,
       href: `/dashboard/tarefas/${t.boardId}`,
       action: "check",
@@ -278,44 +282,50 @@ export async function getDay(nowIso: string): Promise<DayData> {
   }
   // Tasks done today (before the page opened) go straight to "Concluídos".
   for (const t of m.allTasks.filter((x) => x.completed_at && dayDiff(x.completed_at, m.now, m.tz) === 0)) {
-    items.push({ id: t.id, kind: "task", title: t.title, meta: `Tarefas · ${t.boardName}`, at: t.due_at && t.due_has_time ? t.due_at : null, href: `/dashboard/tarefas/${t.boardId}`, action: "check", done: true })
+    items.push({ id: t.id, kind: "task", title: t.title, meta: `Tarefas · ${t.boardName}`, at: t.due_at && t.due_has_time ? t.due_at : null, href: `/dashboard/tarefas/${t.boardId}`, action: "check", done: true, doneAtMs: t.completed_at ? new Date(t.completed_at).getTime() : undefined })
   }
 
   for (const e of m.todaysEvents) {
     const minutes = e.allDay ? undefined : Math.round(((e.end?.getTime() ?? e.start.getTime()) - e.start.getTime()) / 60000) || undefined
-    items.push({ id: e.key, kind: "event", title: e.title, meta: ["Agenda", e.allDay ? "Dia todo" : e.detail].filter(Boolean).join(" · "), at: e.allDay ? null : e.start.toISOString(), durationMin: minutes, href: "/dashboard/agenda", action: "none" })
+    items.push({ id: e.key, kind: "event", title: e.title, meta: ["Agenda", e.allDay ? "Dia todo" : e.detail].filter(Boolean).join(" · "), at: e.allDay ? null : e.start.toISOString(), endAt: e.allDay || !e.end ? undefined : e.end.toISOString(), durationMin: minutes, href: "/dashboard/agenda", action: "none" })
   }
   for (const s of m.slotsToday(mockWorkoutSlots(nowIso))) {
-    items.push({ id: s.id, kind: "workout", title: s.title, meta: `Treinos · ${s.detail}`, at: s.start, durationMin: Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000), href: "/dashboard/treinos", action: "none" })
+    items.push({ id: s.id, kind: "workout", title: s.title, meta: `Treinos · ${s.detail}`, at: s.start, endAt: s.end, durationMin: Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000), href: "/dashboard/treinos", action: "none" })
   }
   for (const s of m.slotsToday(mockStudySlots(nowIso))) {
-    items.push({ id: s.id, kind: "study", title: s.title, meta: `Estudos · ${s.detail}`, at: s.start, durationMin: Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000), href: "/dashboard/estudos", action: "none" })
+    items.push({ id: s.id, kind: "study", title: s.title, meta: `Estudos · ${s.detail}`, at: s.start, endAt: s.end, durationMin: Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000), href: "/dashboard/estudos", action: "none" })
   }
 
   for (const h of m.todaysHabits) {
     const log = m.logs.find((l) => l.habit_id === h.id && l.log_date === m.today)
     const goal = h.type === "goal"
+    const streak = goal ? 0 : currentStreak(h, m.logs, m.today)
     items.push({
       id: h.id,
       kind: "habit",
       title: h.name,
-      meta: goal ? `Hábitos · meta ${h.target_qty?.toLocaleString("pt-BR")} ${h.unit}` : "Hábitos",
+      meta: "Hábitos",
       at: null,
       href: "/dashboard/rotina",
       action: goal ? "plus" : "check",
       done: isDone(h, m.logs, m.today),
+      streak: streak >= 2 ? streak : undefined,
       habit: goal ? { qty: log?.qty ?? 0, target: h.target_qty ?? 1, unit: h.unit ?? "" } : undefined,
     })
   }
 
   for (const b of m.bills.filter((x) => x.status === "overdue" || (x.status === "soon" && x.daysLeft <= 0))) {
+    const late = b.status === "overdue"
+    const days = Math.abs(b.daysLeft)
     items.push({
       id: b.bill.id,
       kind: "bill",
       title: b.bill.name,
-      meta: `Finanças · ${b.status === "overdue" ? `venceu há ${Math.abs(b.daysLeft)} ${Math.abs(b.daysLeft) === 1 ? "dia" : "dias"}` : "vence hoje"} · ${formatBRL(b.bill.amount_cents)}`,
+      meta: "Finanças",
       at: null,
-      overdue: b.status === "overdue",
+      overdue: late,
+      overdueSince: late ? at(nowIso, -days, "00:00") : undefined,
+      bill: { amount: formatBRL(b.bill.amount_cents), when: late ? `Venceu há ${days} ${days === 1 ? "dia" : "dias"}` : "Vence hoje" },
       href: "/dashboard/financas",
       action: "pay",
     })
@@ -323,6 +333,8 @@ export async function getDay(nowIso: string): Promise<DayData> {
 
   return { state: items.length === 0 ? "empty" : "ok", nowIso, items }
 }
+
+const asPriorityValue = (value: string): DayItem["priority"] => (value === "high" || value === "medium" || value === "low" ? value : "none")
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Panels
@@ -333,7 +345,7 @@ export async function getNotes(nowIso: string): Promise<NotesData> {
   const reminders = buildMockReminders(nowIso)
     .filter((r) => r.status === "pending" && dayDiff(r.remind_at, m.now, m.tz) === 0)
     .sort((a, b) => a.remind_at.localeCompare(b.remind_at))
-    .slice(0, 3)
+    .slice(0, 5)
     .map((r) => ({ id: r.id, title: r.title, at: r.remind_at }))
   const pinned = buildMockNotes(nowIso)
     .filter((n) => n.pinned)

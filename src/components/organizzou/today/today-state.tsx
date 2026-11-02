@@ -10,6 +10,8 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 type TodayState = {
   /** Item id -> done. Only ids the person touched; everything else keeps the server's value. */
   done: Record<string, boolean>
+  /** Item id -> when it was ticked on this page (ms), so "Concluídos" can list the most recent first. */
+  doneAt: Record<string, number>
   /** Habit id -> logged quantity today (goal habits). */
   qty: Record<string, number>
   postponed: Set<string>
@@ -29,9 +31,18 @@ type TodayApi = TodayState & {
 const Context = createContext<TodayApi | null>(null)
 
 export function TodayStateProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<TodayState>({ done: {}, qty: {}, postponed: new Set(), waterMl: 0, mood: null })
+  const [state, setState] = useState<TodayState>({ done: {}, doneAt: {}, qty: {}, postponed: new Set(), waterMl: 0, mood: null })
 
-  const setDone = useCallback((id: string, done: boolean) => setState((s) => ({ ...s, done: { ...s.done, [id]: done } })), [])
+  const setDone = useCallback(
+    (id: string, done: boolean) =>
+      setState((s) => {
+        const doneAt = { ...s.doneAt }
+        if (done) doneAt[id] = Date.now()
+        else delete doneAt[id]
+        return { ...s, done: { ...s.done, [id]: done }, doneAt }
+      }),
+    []
+  )
   const setQty = useCallback((id: string, qty: number) => setState((s) => ({ ...s, qty: { ...s.qty, [id]: qty } })), [])
   const postpone = useCallback(
     (id: string, postponed: boolean) =>
@@ -53,6 +64,7 @@ export function TodayStateProvider({ children }: { children: React.ReactNode }) 
 /** Falls back to an inert state when a widget is rendered outside the page (stories, tests): no crash, no overrides. */
 const INERT: TodayApi = {
   done: {},
+  doneAt: {},
   qty: {},
   postponed: new Set(),
   waterMl: 0,

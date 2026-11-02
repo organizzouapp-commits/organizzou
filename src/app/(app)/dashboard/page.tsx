@@ -6,6 +6,7 @@ import { renderWidget, widgetRegistry, widgetSkeleton } from "@/components/organ
 import { StatCardSkeleton } from "@/components/organizzou/today/stat-card"
 import { TodayLayout } from "@/components/organizzou/today/today-layout"
 import { PanelSkeleton } from "@/components/organizzou/today/widget-error"
+import { wantedKeys } from "@/features/today/prefs"
 import { readPrefs } from "@/features/today/prefs.server"
 
 export const metadata: Metadata = { title: "Início" }
@@ -19,7 +20,7 @@ async function TodayContent() {
   const nowIso = new Date().toISOString()
   const { prefs, source } = await readPrefs()
 
-  const wanted = [...prefs.highlights.map((id) => `stat:${id}`), ...prefs.panels.filter((p) => p.visible).map((p) => `panel:${p.id}`)]
+  const wanted = wantedKeys(prefs)
   const slots = Object.fromEntries(wanted.map((key) => [key, renderWidget(key, nowIso)]))
   const skeletons = Object.fromEntries(Object.keys(widgetRegistry).map((key) => [key, widgetSkeleton(key)]))
 

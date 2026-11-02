@@ -24,8 +24,20 @@ type BentoCardProps = {
 
 const cardBase = "min-w-0 rounded-[24px] p-6"
 
+/**
+ * How an interactive card responds: a hand cursor, the 0.4 s color ease (instant with reduced motion) and the focus ring.
+ * Born on the Destaques cards; the side-panel and group headers reuse it so every card-like control feels the same.
+ */
+export const cardInteract =
+  "cursor-pointer transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+/** `cardInteract` plus the surface lift on hover (the `accent` token). */
+/** While lifted, secondary text steps up toward the foreground so it keeps 4.5:1 on the lighter, translucent surface. */
+export const cardHover = `${cardInteract} hover:bg-accent hover:[--muted-foreground:color-mix(in_oklch,var(--foreground)_82%,transparent)]`
+/** The same lift and ease for a whole card that is not itself one control: no pointer cursor (its inner controls set their own). */
+export const cardSurfaceHover = "transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent hover:[--muted-foreground:color-mix(in_oklch,var(--foreground)_82%,transparent)] motion-reduce:transition-none"
+
 export function bentoCardClass(tone: "default" | "highlight" = "default") {
-  return cn(cardBase, tone === "highlight" ? "border border-transparent bg-highlight text-highlight-foreground" : "border border-border bg-card text-card-foreground")
+  return cn(cardBase, tone === "highlight" ? "border border-transparent bg-highlight text-highlight-foreground [--secondary-foreground:var(--highlight-foreground)] [--secondary:color-mix(in_oklch,var(--highlight-foreground)_12%,transparent)]" : "border border-border bg-card text-card-foreground")
 }
 
 export function ArrowLink({ href, label, tone = "default" }: { href: string; label: string; tone?: "default" | "highlight" }) {

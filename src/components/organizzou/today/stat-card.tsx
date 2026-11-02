@@ -4,7 +4,7 @@ import { createContext, useContext } from "react"
 import Link from "next/link"
 import { ArrowDownRightIcon, ArrowUpRightIcon } from "lucide-react"
 
-import { bentoCardClass } from "@/components/organizzou/Bento"
+import { bentoCardClass, cardHover, cardInteract } from "@/components/organizzou/Bento"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Progress } from "@/components/ui/progress"
 import { statMeta } from "@/features/today/catalog"
@@ -70,19 +70,20 @@ export function StatCard({ data, tone, className }: { data: StatData; tone?: "de
     <Link
       href={data.href}
       aria-label={`${meta?.title}: ${live.value}. ${live.support}`}
-      className={cn(bentoCardClass(tone), "group flex h-full min-h-[148px] flex-col gap-2 rounded-[24px] p-5 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", !highlight && "hover:bg-accent", className)}
+      data-tone={tone}
+      className={cn(bentoCardClass(tone), "group flex h-full min-h-[148px] flex-col gap-2 rounded-[inherit] p-5", highlight ? cardInteract : cardHover, className)}
     >
-      <span className={cn("flex items-center gap-2 text-[11px] leading-4 font-semibold tracking-[0.12em] uppercase", muted)}>
+      <span className={cn("flex items-center gap-2 text-[11px] leading-4 font-semibold tracking-[0.12em] uppercase transition-colors duration-[400ms] motion-reduce:transition-none", muted)}>
         {meta ? <meta.icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
         <span className="min-w-0 flex-1">{meta?.title}</span>
         {live.state === "soon" ? <SoonBadge /> : null}
       </span>
       <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em] break-words">{live.value}</span>
-      <span className={cn("tabular flex items-start gap-1.5 text-[13px] leading-5", muted)}>
+      <span className={cn("tabular flex items-start gap-1.5 text-[13px] leading-5 transition-colors duration-[400ms] motion-reduce:transition-none", muted)}>
         {data.trend ? <TrendIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" /> : null}
         <span>{live.support}</span>
       </span>
-      {live.progress !== undefined ? <Progress value={live.progress} aria-hidden className={cn("mt-auto h-1.5", highlight && "bg-highlight-foreground/15 [&>[data-slot=progress-indicator]]:bg-highlight-foreground")} /> : <span className="mt-auto" />}
+      {live.progress !== undefined ? <Progress value={live.progress} aria-hidden className={cn("mt-auto h-1.5 transition-colors duration-[400ms] motion-reduce:transition-none", highlight && "bg-highlight-foreground/15 [&>[data-slot=progress-indicator]]:bg-highlight-foreground")} /> : <span className="mt-auto" />}
     </Link>
   )
 }

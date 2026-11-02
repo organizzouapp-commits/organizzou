@@ -40,6 +40,18 @@ export type DayItem = {
   /** Minutes, shown in the meta line when known. */
   durationMin?: number
   overdue?: boolean
+  /** Overdue items: when they were due, so the list can sort the oldest first and say "há 2 dias". */
+  overdueSince?: string
+  /** Tasks only: "high" gets a flag icon. */
+  priority?: "none" | "low" | "medium" | "high"
+  /** When it ends (timed items): between `at` and `endAt` the item is "Agora". */
+  endAt?: string
+  /** Fixed habits with a run of 2+ days: shown with a flame. */
+  streak?: number
+  /** Bills: the amount (right-aligned) and the due wording. */
+  bill?: { amount: string; when: string }
+  /** When it was completed (ms since epoch), for "most recent first" in Concluídos. */
+  doneAtMs?: number
   /** Tasks only: the real due date, so "adiar" can move it by a day. */
   due?: { at: string; hasTime: boolean }
   href: string

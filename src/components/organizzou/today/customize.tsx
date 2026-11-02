@@ -1,6 +1,5 @@
 "use client"
 
-import { useMemo, useState } from "react"
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -11,13 +10,11 @@ import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
-import { modules } from "@/components/organizzou/modules"
-import { STAT_WIDGETS, panelMeta, statMeta, type StatId } from "@/features/today/catalog"
+import { panelMeta, statMeta, type StatId } from "@/features/today/catalog"
 import { DEFAULT_PREFS, type TodayPrefs } from "@/features/today/prefs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
-const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] uppercase text-muted-foreground"
 const iconButton = "size-11 shrink-0 rounded-full"
 
 function SortableRow({ id, label, children }: { id: string; label: string; children: (handle: React.ReactNode) => React.ReactNode }) {
@@ -66,124 +63,67 @@ function useSortSensors() {
 
 function Highlights({ prefs, onChange }: { prefs: TodayPrefs; onChange: (next: TodayPrefs) => void }) {
   const sensors = useSortSensors()
-  /** The stat the person just tapped while 4 were already chosen: waiting for "which one should it replace?". */
-  const [incoming, setIncoming] = useState<StatId | null>(null)
-  const selected = prefs.highlights
+  const list = prefs.highlights
+  const ids = list.map((h) => h.id)
+  const enabledCount = list.filter((h) => h.enabled).length
 
-  const groups = useMemo(() => {
-    const map = new Map<string, typeof STAT_WIDGETS[number][]>()
-    for (const w of STAT_WIDGETS) map.set(w.module, [...(map.get(w.module) ?? []), w])
-    return [...map.entries()]
-  }, [])
-
-  const move = (from: number, to: number) => onChange({ ...prefs, highlights: arrayMove(selected, from, to) })
+  const move = (from: number, to: number) => onChange({ ...prefs, highlights: arrayMove(list, from, to) })
+  const setEnabled = (id: StatId, enabled: boolean) => onChange({ ...prefs, highlights: list.map((h) => (h.id === id ? { ...h, enabled } : h)) })
+  const setAll = (enabled: boolean) => onChange({ ...prefs, highlights: list.map((h) => ({ ...h, enabled })) })
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
-    move(selected.indexOf(active.id as StatId), selected.indexOf(over.id as StatId))
+    move(ids.indexOf(active.id as StatId), ids.indexOf(over.id as StatId))
   }
 
   return (
     <section aria-label="Destaques" className="flex flex-col gap-4">
       <div>
         <h3 className="text-[17px] leading-6 font-semibold">Destaques</h3>
-        <p className="text-[15px] leading-6 text-muted-foreground">Escolha 4 números para o topo da página e arraste para mudar a ordem.</p>
+        <p className="text-[15px] leading-6 text-muted-foreground">Ligue os números que quer ver no topo e arraste para mudar a ordem. Pode ser quantos quiser.</p>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="tabular text-[13px] leading-5 text-muted-foreground" role="status">
+          {enabledCount} de {list.length} ligados
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" className="h-11 rounded-full px-4" disabled={enabledCount === list.length} onClick={() => setAll(true)}>
+            Ativar todos
+          </Button>
+          <Button type="button" variant="outline" className="h-11 rounded-full px-4" disabled={enabledCount === 0} onClick={() => setAll(false)}>
+            Desativar todos
+          </Button>
+        </div>
+      </div>
+      {enabledCount === 0 ? (
+        <p className="rounded-2xl border border-border p-3 text-[15px] leading-6 text-muted-foreground">Nenhum destaque ligado: a faixa de destaques fica escondida na página. Ligue um para ela voltar.</p>
+      ) : null}
+
       <div data-vaul-no-drag>
-        <p className={cn(overline, "pb-1")}>Seus 4 destaques, em ordem</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={selected} strategy={verticalListSortingStrategy}>
-            <ol aria-label="Destaques escolhidos">
-              {selected.map((id, index) => {
-                const meta = statMeta(id)!
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <ul aria-label="Destaques da página">
+              {list.map((h, index) => {
+                const meta = statMeta(h.id)!
                 return (
-                  <SortableRow key={id} id={id} label={meta.title}>
+                  <SortableRow key={h.id} id={h.id} label={meta.title}>
                     {(handle) => (
                       <>
                         {handle}
-                        <span aria-hidden className="tabular flex size-7 shrink-0 items-center justify-center rounded-full bg-highlight text-[13px] font-semibold text-highlight-foreground">
-                          {index + 1}
+                        <meta.icon aria-hidden strokeWidth={1.75} className={cn("size-5 shrink-0", h.enabled ? "text-foreground" : "text-muted-foreground")} />
+                        <span className={cn("min-w-0 flex-1 px-1 text-[15px] leading-6", !h.enabled && "text-muted-foreground")}>{meta.title}</span>
+                        <MoveButtons label={meta.title} index={index} count={list.length} onMove={(to) => move(index, to)} />
+                        <span className="flex size-11 shrink-0 items-center justify-center">
+                          <Switch checked={h.enabled} aria-label={h.enabled ? `Desligar ${meta.title}` : `Ligar ${meta.title}`} onCheckedChange={(enabled) => setEnabled(h.id, enabled)} />
                         </span>
-                        <meta.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 px-1 text-[15px] leading-6">{meta.title}</span>
-                        <MoveButtons label={meta.title} index={index} count={selected.length} onMove={(to) => move(index, to)} />
                       </>
                     )}
                   </SortableRow>
                 )
               })}
-            </ol>
+            </ul>
           </SortableContext>
         </DndContext>
-      </div>
-
-      {incoming ? (
-        <div role="group" aria-label="Qual destaque substituir?" className="flex flex-col gap-2 rounded-2xl border border-border p-3">
-          <p className="text-[15px] leading-6">
-            Você já tem 4 destaques. Qual deles <strong className="font-semibold">“{statMeta(incoming)?.title}”</strong> deve substituir?
-          </p>
-          <div className="flex flex-col">
-            {selected.map((id, index) => (
-              <Button
-                key={id}
-                type="button"
-                variant="ghost"
-                className="h-auto min-h-11 justify-start gap-3 rounded-xl px-3 py-2 text-left text-[15px] whitespace-normal"
-                onClick={() => {
-                  onChange({ ...prefs, highlights: selected.map((s) => (s === id ? incoming : s)) })
-                  setIncoming(null)
-                }}
-              >
-                <span aria-hidden className="tabular flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-[12px]">
-                  {index + 1}
-                </span>
-                {statMeta(id)?.title}
-              </Button>
-            ))}
-          </div>
-          <Button type="button" variant="outline" className="h-11 self-start rounded-full px-5" onClick={() => setIncoming(null)}>
-            Cancelar
-          </Button>
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-4">
-        {groups.map(([module, widgets]) => (
-          <div key={module}>
-            <p className={cn(overline, "pb-1")}>{modules[module as keyof typeof modules].name}</p>
-            {widgets.map((w) => {
-              const order = selected.indexOf(w.id)
-              const chosen = order !== -1
-              return (
-                <button
-                  key={w.id}
-                  type="button"
-                  aria-pressed={chosen}
-                  aria-label={chosen ? `${w.title}: destaque ${order + 1}` : `Adicionar ${w.title} aos destaques`}
-                  onClick={() => {
-                    if (chosen) return
-                    setIncoming(w.id)
-                    if (selected.length < 4) {
-                      onChange({ ...prefs, highlights: [...selected, w.id] })
-                      setIncoming(null)
-                    }
-                  }}
-                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-1 text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <w.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 py-1 leading-6">{w.title}</span>
-                  {chosen ? (
-                    <span aria-hidden className="tabular flex size-7 shrink-0 items-center justify-center rounded-full bg-highlight text-[13px] font-semibold text-highlight-foreground">
-                      {order + 1}
-                    </span>
-                  ) : (
-                    <span aria-hidden className="size-7 shrink-0 rounded-full border border-border" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        ))}
       </div>
     </section>
   )
