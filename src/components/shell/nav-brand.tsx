@@ -17,10 +17,10 @@ export const BACK_TO_APP_HREF = "/dashboard"
 export function NavBrand({ className, logoClassName = "h-8" }: { className?: string; logoClassName?: string }) {
   const nav = useNav()
   return (
-    <span className={cn("flex items-center gap-2", className)}>
+    <span className={cn("flex min-w-0 items-center gap-1.5", className)}>
       <Logo className={logoClassName} />
       {nav.badge ? (
-        <Badge variant="outline" className="h-6 rounded-full px-2.5 text-[11px] font-semibold tracking-[0.08em] uppercase">
+        <Badge variant="outline" className="h-5 shrink-0 rounded-full px-2 text-[10px] font-semibold tracking-[0.06em] uppercase">
           {nav.badge}
         </Badge>
       ) : null}

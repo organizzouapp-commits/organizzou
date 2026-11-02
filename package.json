@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "glass-bg": "node scripts/make-glass-bg.mjs"
+    "glass-bg": "node scripts/make-glass-bg.mjs",
+    "admin:grant": "node --env-file=.env.local scripts/make-admin.ts grant",
+    "admin:revoke": "node --env-file=.env.local scripts/make-admin.ts revoke"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

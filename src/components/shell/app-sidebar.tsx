@@ -323,7 +323,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
     <Sidebar variant="floating" collapsible="icon">
       <div className="flex shrink-0 items-center justify-between gap-2 px-5 pt-5 pb-3 [@media(max-height:900px)]:pt-4">
         <Link href={nav.home.href} aria-label={nav.home.label} className={cn("rounded-md", focus)}>
-          <NavBrand />
+          <NavBrand logoClassName={nav.badge ? "h-7" : "h-8"} />
         </Link>
         {toggle}
       </div>
