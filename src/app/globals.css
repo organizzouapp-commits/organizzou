@@ -167,6 +167,9 @@
   html { color-scheme: dark; }
   html:not(.dark) { color-scheme: light; }
   body { -webkit-font-smoothing: antialiased; }
+  /* Tailwind's reset makes every button an arrow. Anything that can be pressed shows a hand; a disabled control says so. */
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [role="tab"], [role="switch"], [role="checkbox"], [role="menuitem"], summary, select, label[for] { cursor: pointer; }
+  button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   .tabular { font-variant-numeric: tabular-nums; }
   ::selection { background: var(--highlight); color: var(--highlight-foreground); }
   @media (prefers-reduced-motion: reduce) {
