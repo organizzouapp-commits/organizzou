@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { panelMeta, type PanelId } from "@/features/today/catalog"
+import { isPanelOpen } from "@/features/today/prefs"
 import type { DietData, FinanceData, NotesData, StudyData, WidgetState, WorkoutData } from "@/features/today/types"
 import { MOOD_LABELS, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
@@ -35,19 +36,39 @@ const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] uppercas
 export function PanelCard({ id, summary, href, state, children }: { id: PanelId; summary: string; href: string; state: WidgetState; children: React.ReactNode }) {
   const meta = panelMeta(id)
   const { prefs, update } = useTodayPrefs()
-  const open = prefs.expandedPanels.includes(id)
+  const open = isPanelOpen(prefs, id)
+  // The first visible side panel takes the Lima surface (Tinta content); the rest use the normal card.
+  const lima = prefs.panels.find((p) => p.visible && p.id !== "seu-dia")?.id === id
   const bodyId = useId()
   const Icon: LucideIcon | undefined = meta?.icon
-  const toggle = () => update((p) => ({ ...p, expandedPanels: open ? p.expandedPanels.filter((x) => x !== id) : [...p.expandedPanels, id] }), { silent: true })
+  const toggle = () =>
+    update(
+      (p) => ({
+        ...p,
+        expandedPanels: open ? p.expandedPanels.filter((x) => x !== id) : [...p.expandedPanels.filter((x) => x !== id), id],
+        closedPanels: open ? [...p.closedPanels.filter((x) => x !== id), id] : p.closedPanels.filter((x) => x !== id),
+      }),
+      { silent: true }
+    )
   return (
-    <section aria-label={meta?.title} data-open={open ? "" : undefined} className={cn(bentoCardClass(), "flex flex-col rounded-[24px] p-4")}>
+    <section
+      aria-label={meta?.title}
+      data-open={open ? "" : undefined}
+      data-tone={lima ? "highlight" : "default"}
+      className={cn(
+        bentoCardClass(lima ? "highlight" : "default"),
+        "flex flex-col rounded-[24px] p-4",
+        // Inside the Lima card the neutral tokens become Tinta (text 100 / secondary 70 / lines 15), so the content needs no special cases.
+        lima && "[--border:color-mix(in_oklch,var(--highlight-foreground)_18%,transparent)] [--foreground:var(--highlight-foreground)] [--muted-foreground:color-mix(in_oklch,var(--highlight-foreground)_72%,transparent)]"
+      )}
+    >
       <header className="flex items-center gap-2">
         <button
           type="button"
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={toggle}
-          className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl px-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={cn("flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl px-2 text-left outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", lima ? "hover:bg-highlight-foreground/10" : "hover:bg-accent")}
         >
           {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" /> : null}
           <span className="flex min-w-0 flex-1 flex-col">
@@ -57,14 +78,14 @@ export function PanelCard({ id, summary, href, state, children }: { id: PanelId;
           {state === "soon" ? <SoonBadge /> : null}
           <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-5 shrink-0 text-muted-foreground transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open && "rotate-180")} />
         </button>
-        <Link href={href} aria-label={`Abrir ${meta?.title}`} className="flex size-11 shrink-0 items-center justify-center rounded-full border border-border outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+        <Link href={href} aria-label={`Abrir ${meta?.title}`} className={cn("flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", lima ? "hover:bg-highlight-foreground/10" : "hover:bg-accent")}>
           <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-4" />
         </Link>
       </header>
       {/* grid-rows 0fr -> 1fr animates the height of content whose size is not known in advance. */}
       <div id={bodyId} className={cn("grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
         <div inert={!open} className="min-h-0 overflow-hidden">
-          <div className="min-w-0 px-1 pt-3 pb-1">
+          <div className="min-w-0 px-2 pt-3 pb-1">
             {state === "soon" ? <p className="text-[15px] leading-6 text-muted-foreground">Este módulo ainda não tem dados reais. Em breve aparece aqui.</p> : children}
           </div>
         </div>

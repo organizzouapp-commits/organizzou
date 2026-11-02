@@ -129,7 +129,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
       <TodayStateProvider>
         {/* From 768 px the page sits in a frame with 24 px rounded corners. The top padding keeps the first row (label, arrows, button)
             clear of that corner zone, so nothing is ever clipped by the curve. */}
-        <div className="@container flex min-w-0 flex-col gap-5 pb-6 md:pt-6">
+        <div className="@container flex min-w-0 flex-col gap-5 pb-6 md:pt-4">
           <HighlightsSection items={items} customize={customize} />
 
           {visible.length === 0 ? (
@@ -149,7 +149,10 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
             <div
               style={{ "--aside": Math.max(asideCount, 1) } as React.CSSProperties}
               className={cn(
-                "grid min-w-0 grid-cols-1 items-start gap-4 @min-[880px]:gap-5",
+                // Rows are as tall as their panel and no taller (align-content: start). The main card spans the aside rows plus one
+                // flexible spare row, so when it is taller the extra height goes to the spare row, never between the panels.
+                "grid min-w-0 grid-cols-1 content-start items-start gap-3 @min-[880px]:gap-x-5",
+                hasMain && "@min-[880px]:[grid-template-rows:repeat(var(--aside),auto)_1fr]",
                 hasMain ? "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]" : "@min-[880px]:grid-cols-2 @min-[1320px]:grid-cols-3"
               )}
             >
@@ -159,7 +162,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
                   <div
                     key={panel.id}
                     data-panel={panel.id}
-                    className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/span_var(--aside)]" : hasMain && "@min-[880px]:col-start-2")}
+                    className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/-1]" : hasMain && "@min-[880px]:col-start-2")}
                   >
                     {node(`panel:${panel.id}`)}
                   </div>

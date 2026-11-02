@@ -18,6 +18,9 @@ import "swiper/css/a11y"
 
 export type HighlightItem = { id: string; node: React.ReactNode }
 
+/** Alternates by position in the current order (1st, 3rd, 5th… are Lima), not by which stat it is. */
+const toneAt = (index: number) => (index % 2 === 0 ? ("highlight" as const) : ("default" as const))
+
 const GAP = 16
 const MIN_CARD = 240
 const MAX_CARD = 320
@@ -58,7 +61,7 @@ function DesktopRow({ items, onApi }: { items: HighlightItem[]; onApi: (api: Car
         <CarouselContent className="ml-0 touch-pan-y gap-4">
           {items.map((item, index) => (
             <CarouselItem key={item.id} aria-label={`${index + 1} de ${items.length}`} className="pl-0" style={{ flex: `0 0 ${width}px` }}>
-              <StatToneProvider tone={index === 0 ? "highlight" : "default"}>
+              <StatToneProvider tone={toneAt(index)}>
                 <div className="h-full rounded-[24px]">{item.node}</div>
               </StatToneProvider>
             </CarouselItem>
@@ -84,10 +87,10 @@ export function HighlightArrows({ api }: { api: CarouselApi | undefined }) {
   if (!api || (!state.prev && !state.next)) return null
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
+      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full hover:bg-accent" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
         <ChevronLeftIcon strokeWidth={1.75} />
       </Button>
-      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
+      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full hover:bg-accent" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
         <ChevronRightIcon strokeWidth={1.75} />
       </Button>
     </div>
@@ -145,7 +148,7 @@ function CardsDeck({ items }: { items: HighlightItem[] }) {
         <div role="region" aria-roledescription="carousel" aria-label="Destaques" tabIndex={0} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           {items.map((item, index) => (
             <div key={item.id} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${items.length}`} className="h-[172px] w-[78vw] max-w-[320px] shrink-0 snap-center">
-              <StatToneProvider tone="default">
+              <StatToneProvider tone={toneAt(index)}>
                 <div className="h-full rounded-[20px]">{item.node}</div>
               </StatToneProvider>
             </div>
@@ -169,9 +172,9 @@ function CardsDeck({ items }: { items: HighlightItem[] }) {
         onSlideChange={(s) => setActive(s.realIndex)}
         className={cn(deckBox, "overflow-visible! [&_.swiper-slide]:rounded-[20px]")}
       >
-        {items.map((item) => (
+        {items.map((item, index) => (
           <SwiperSlide key={item.id}>
-            <StatToneProvider tone="default">
+            <StatToneProvider tone={toneAt(index)}>
               <div className="h-full rounded-[20px]">{item.node}</div>
             </StatToneProvider>
           </SwiperSlide>
