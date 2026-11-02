@@ -4,8 +4,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
 import { getSupabaseEnv } from "@/lib/supabase/env"
 
-/** Shown next to every privileged action when SUPABASE_SECRET_KEY is not set. */
-export const SECRET_KEY_HINT = "Configure a chave do servidor"
+import { SECRET_KEY_HINT } from "./secret-hint"
+
+export { SECRET_KEY_HINT }
 
 /** True when SUPABASE_SECRET_KEY is set in the server environment (`.env.local`). The value is never read into the UI. */
 export function secretKeyConfigured() {
