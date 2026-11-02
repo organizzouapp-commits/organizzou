@@ -129,6 +129,10 @@ página). Ele grava `profiles.last_seen_at` e uma linha `(usuário, hora)` em `u
   dados (não há sessão) e **não funciona em produção** (testado: 404).
 - `npx vitest run`: inclui `admin-privacy.test.ts` (regras de privacidade e acesso, sem banco).
 - `npx playwright test admin`: 404 para não-admins em todas as rotas, admin vê todas as páginas, shell do app inalterado. O teste
-  "alterar plano grava na auditoria" precisa de projeto real e é pulado sem `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`,
-  `E2E_TARGET_EMAIL`.
+  "alterar plano" (Pro na lista, auditoria, o app da pessoa sem "Fazer upgrade") precisa de projeto real e é pulado sem `E2E_ADMIN_EMAIL`,
+  `E2E_ADMIN_PASSWORD`, `E2E_TARGET_EMAIL` e `E2E_TARGET_PASSWORD` (conta descartável, que não seja admin).
+- `src/features/admin/change-plan.test.ts`: a ação de plano nunca dá sucesso falso (sem linha em `profiles`, gravação não guardada, chave ausente).
 - `supabase/tests/admin_forbidden.sql`: comportamento no banco (não-admin recebe `forbidden`; `anon` não executa).
+- `supabase/tests/profiles_protect_plan.sql`: o gatilho deixa o service role mudar `plan`/`plan_until` e bloqueia o usuário comum (faz rollback).
+
+**Conta sem linha em `profiles`**: o `UPDATE` de um perfil que não existe afeta 0 linhas e não dá erro. A ação de plano agora cria o perfil que falta, lê a linha de volta e só então registra histórico e auditoria; a migration `20261102000002_profiles_backfill.sql` cria os perfis que faltam nas contas antigas.
