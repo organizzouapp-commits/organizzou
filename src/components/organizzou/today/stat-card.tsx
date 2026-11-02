@@ -70,7 +70,7 @@ export function StatCard({ data, tone, className }: { data: StatData; tone?: "de
     <Link
       href={data.href}
       aria-label={`${meta?.title}: ${live.value}. ${live.support}`}
-      className={cn(bentoCardClass(tone), "group flex h-full min-h-[148px] flex-col gap-2 rounded-[24px] p-5 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", !highlight && "hover:bg-accent", className)}
+      className={cn(bentoCardClass(tone), "group flex h-full min-h-[148px] flex-col gap-2 rounded-[inherit] p-5 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", !highlight && "hover:bg-accent", className)}
     >
       <span className={cn("flex items-center gap-2 text-[11px] leading-4 font-semibold tracking-[0.12em] uppercase", muted)}>
         {meta ? <meta.icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}

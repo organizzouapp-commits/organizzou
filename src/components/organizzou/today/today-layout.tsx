@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { LayoutPanelTopIcon, SlidersHorizontalIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -9,16 +9,16 @@ import { EmptyState } from "@/components/organizzou/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { savePrefs } from "@/features/today/actions"
-import { PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, type TodayPrefs } from "@/features/today/prefs"
+import { enabledHighlights, PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, wantedKeys, type TodayPrefs } from "@/features/today/prefs"
 import { cn } from "@/lib/utils"
 
 import { CustomizeDialog } from "./customize"
-import { StatsCarousel } from "./stats-carousel"
-import { StatToneProvider } from "./stat-card"
+import { HighlightsSection } from "./highlights"
+import { PrefsProvider } from "./prefs-context"
 import { TodayStateProvider } from "./today-state"
 
 type TodayLayoutProps = {
-  /** Server-rendered widgets (each in its own Suspense boundary), keyed "stat:<id>" and "panel:<id>". Only the selected ones exist. */
+  /** Server-rendered widgets (each in its own Suspense boundary), keyed "stat:<id>" and "panel:<id>". Only the wanted ones exist. */
   slots: Record<string, React.ReactNode>
   /** Placeholder for a widget the person just turned on, until the server sends the real one. */
   skeletons: Record<string, React.ReactNode>
@@ -53,6 +53,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   const router = useRouter()
   const [prefs, setPrefs] = useState(serverPrefs)
   const [open, setOpen] = useState(false)
+  const current = useRef(serverPrefs)
   const confirmed = useRef(serverPrefs)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -67,6 +68,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
       // localStorage only exists in the browser, so this one-time reconcile cannot happen during render.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrefs(local)
+      current.current = local
       confirmed.current = local
       void savePrefs(local).then(() => router.refresh())
     }
@@ -78,12 +80,14 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
 
   const change = useCallback(
     (next: TodayPrefs) => {
+      current.current = next
       setPrefs(next)
       writeLocal(next)
       clearTimeout(timer.current)
       timer.current = setTimeout(async () => {
         const result = await savePrefs(next).catch(() => ({ ok: false as const, error: "" }))
         if (!result.ok) {
+          current.current = confirmed.current
           setPrefs(confirmed.current)
           writeLocal(confirmed.current)
           toast.error("Não foi possível salvar a personalização. Voltamos ao que estava salvo.")
@@ -92,19 +96,17 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
         confirmed.current = next
         toast("Salvo", { duration: 1500 })
         // A widget that was not part of the server render needs its data: ask for it.
-        const missing = [...next.highlights.map((id) => `stat:${id}`), ...next.panels.filter((p) => p.visible).map((p) => `panel:${p.id}`)].some((key) => !(key in slots))
-        if (missing) router.refresh()
+        if (wantedKeys(next).some((key) => !(key in slots))) router.refresh()
       }, SAVE_DELAY_MS)
     },
     [router, slots]
   )
 
+  const update = useCallback((fn: (p: TodayPrefs) => TodayPrefs) => change(fn(current.current)), [change])
+  const api = useMemo(() => ({ prefs, update }), [prefs, update])
+
   const node = (key: string) => slots[key] ?? skeletons[key] ?? null
-  const highlights = prefs.highlights.map((id, index) => (
-    <StatToneProvider key={id} tone={index === 0 ? "highlight" : "default"}>
-      {node(`stat:${id}`)}
-    </StatToneProvider>
-  ))
+  const items = enabledHighlights(prefs).map((id) => ({ id, node: node(`stat:${id}`) }))
 
   const visible = prefs.panels.filter((p) => p.visible)
   const hasMain = visible.some((p) => p.id === "seu-dia")
@@ -123,64 +125,52 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   )
 
   return (
-    <TodayStateProvider>
-      <div className="@container flex min-w-0 flex-col gap-5 pb-6">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Destaques</h2>
-          {customize}
-        </div>
+    <PrefsProvider value={api}>
+      <TodayStateProvider>
+        {/* From 768 px the page sits in a frame with 24 px rounded corners. The top padding keeps the first row (label, arrows, button)
+            clear of that corner zone, so nothing is ever clipped by the curve. */}
+        <div className="@container flex min-w-0 flex-col gap-5 pb-6 md:pt-6">
+          <HighlightsSection items={items} customize={customize} />
 
-        {/* Phones: 3D coverflow. From 768 px: 2x2, then 4 across from 1024 px. Same server-rendered cards in both. */}
-        <div className="md:hidden">
-          <StatsCarousel items={highlights} />
-        </div>
-        <div className="hidden grid-cols-2 gap-4 md:grid lg:grid-cols-4 xl:gap-5">
-          {highlights.map((card, index) => (
-            <div key={index} className="min-w-0">
-              {card}
+          {visible.length === 0 ? (
+            <div className="rounded-[24px] border border-border bg-card">
+              <EmptyState
+                icon={LayoutPanelTopIcon}
+                title="Nenhum painel por aqui"
+                description="Você escondeu todos os painéis. Mostre os que quiser em Personalizar."
+                action={
+                  <Button type="button" className="h-11 rounded-full px-5" onClick={() => setOpen(true)}>
+                    <SlidersHorizontalIcon strokeWidth={1.75} /> Personalizar
+                  </Button>
+                }
+              />
             </div>
-          ))}
+          ) : (
+            <div
+              style={{ "--aside": Math.max(asideCount, 1) } as React.CSSProperties}
+              className={cn(
+                "grid min-w-0 grid-cols-1 items-start gap-4 @min-[880px]:gap-5",
+                hasMain ? "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]" : "@min-[880px]:grid-cols-2 @min-[1320px]:grid-cols-3"
+              )}
+            >
+              {visible.map((panel) => {
+                const isMain = hasMain && panel.id === "seu-dia"
+                return (
+                  <div
+                    key={panel.id}
+                    data-panel={panel.id}
+                    className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/span_var(--aside)]" : hasMain && "@min-[880px]:col-start-2")}
+                  >
+                    {node(`panel:${panel.id}`)}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {visible.length === 0 ? (
-          <div className="rounded-[24px] border border-border bg-card">
-            <EmptyState
-              icon={LayoutPanelTopIcon}
-              title="Nenhum painel por aqui"
-              description="Você escondeu todos os painéis. Mostre os que quiser em Personalizar."
-              action={
-                <Button type="button" className="h-11 rounded-full px-5" onClick={() => setOpen(true)}>
-                  <SlidersHorizontalIcon strokeWidth={1.75} /> Personalizar
-                </Button>
-              }
-            />
-          </div>
-        ) : (
-          <div
-            style={{ "--aside": Math.max(asideCount, 1) } as React.CSSProperties}
-            className={cn(
-              "grid min-w-0 grid-cols-1 items-start gap-4 @min-[880px]:gap-5",
-              hasMain ? "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]" : "@min-[880px]:grid-cols-2 @min-[1320px]:grid-cols-3"
-            )}
-          >
-            {visible.map((panel) => {
-              const isMain = hasMain && panel.id === "seu-dia"
-              return (
-                <div
-                  key={panel.id}
-                  data-panel={panel.id}
-                  className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/span_var(--aside)]" : hasMain && "@min-[880px]:col-start-2")}
-                >
-                  {node(`panel:${panel.id}`)}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <CustomizeDialog open={open} onOpenChange={setOpen} prefs={prefs} onChange={change} />
-    </TodayStateProvider>
+        <CustomizeDialog open={open} onOpenChange={setOpen} prefs={prefs} onChange={change} />
+      </TodayStateProvider>
+    </PrefsProvider>
   )
 }
-
