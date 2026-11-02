@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+/** Sent with every response. HSTS is added by Vercel itself on its domains and on custom domains. */
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // The app does not use the camera, microphone, location, payments or USB in the browser. Turn one on here when a feature needs it.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
+];
+
 const nextConfig: NextConfig = {
   /* config options here */
   // A second dev server (screenshots) can use its own build folder: NEXT_DIST_DIR=.next-preview
@@ -7,6 +16,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   images: { formats: ["image/avif", "image/webp"] },
   partialPrefetching: true,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   // Old URLs -> new URLs (308, query string preserved: Next forwards it automatically).
   async redirects() {
     const permanent = true;

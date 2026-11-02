@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
 import { isAdminClaims } from "@/lib/admin/claims"
+import { bypassAuth } from "./bypass"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
 
@@ -22,7 +23,7 @@ function isAdminPath(pathname: string) {
  * Local screenshots only: `PROTOTYPE_BYPASS_AUTH=1 npm run dev` skips the login redirect so every
  * prototype screen can be captured without an account. Ignored in production builds.
  */
-export const bypassAuth = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production"
+export { bypassAuth }
 
 /** While this cookie exists the person was already counted as "seen": last_seen_at is written at most once every 10 minutes. */
 const SEEN_COOKIE = "org_seen"

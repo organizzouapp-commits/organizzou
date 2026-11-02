@@ -33,7 +33,7 @@ URLs antigas (`/entrar`, `/hoje`, `/tarefas`, `/em-breve`, `/termos`, `/privacid
 | `NEXT_PUBLIC_SITE_URL` | `https://organizzouapp.com` (sem barra no final) |
 | `NEXT_PUBLIC_COOKIE_DOMAIN` | `.organizzouapp.com` (o ponto inicial compartilha a escolha de cookies entre o site e o app) |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | as do projeto Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | chave secreta do Supabase (obrigatória para a lista de espera gravar) |
+| `SUPABASE_SECRET_KEY` | chave secreta do Supabase (obrigatória para a lista de espera gravar e para as ações do admin). Lista completa em `docs/DEPLOY-VERCEL.md` |
 
 Depois de alterar variáveis `NEXT_PUBLIC_*`, faça um novo deploy (elas entram no build).
 
