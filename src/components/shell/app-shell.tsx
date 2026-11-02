@@ -29,6 +29,8 @@ import { CommandPalette } from "./command-palette"
 import { MobileHeader } from "./mobile-header"
 import { OthersDrawer, isOtherPath } from "./others-drawer"
 import { PrimaryActionProvider } from "./primary-action"
+import { NotificationsProvider } from "./notifications"
+import type { AppNotification } from "@/features/notifications/types"
 
 // The last slot ("Outros" in the app, "Mais" in the admin) opens a drawer with the remaining pages; the header chips reach them too.
 function bottomNavItems(nav: NavConfig): BottomNavItem[] {
@@ -101,13 +103,15 @@ type AppShellProps = {
   nowIso: string
   /** Tasks not done yet, for the sidebar badge (real accounts). */
   openTasks?: number
+  /** The latest notifications of the person, for the bell. */
+  notifications?: AppNotification[]
   /** Stored sidebar choice (per user cookie). Null when the user never toggled it. */
   sidebarOpen: boolean | null
   sidebarCookie: string
   children: React.ReactNode
 }
 
-export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, openTasks = 0, children }: AppShellProps) {
+export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, openTasks = 0, notifications = [], children }: AppShellProps) {
   const nav = NAVS[navId]
   const bottomItems = useMemo(() => bottomNavItems(nav), [nav])
   const navValue = useMemo(() => ({ nav, isAdmin }), [nav, isAdmin])
@@ -169,6 +173,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whats
   }
 
   return (
+    <NotificationsProvider initial={notifications}>
     <NavProvider value={navValue}>
     <AssistantProvider value={assistantContext}>
       <PlanProvider plan={plan} whatsappConnected={whatsappConnected}>
@@ -223,5 +228,6 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whats
       </PlanProvider>
     </AssistantProvider>
     </NavProvider>
+    </NotificationsProvider>
   )
 }
