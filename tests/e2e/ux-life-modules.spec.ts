@@ -13,6 +13,7 @@ test.beforeEach(async ({ context, baseURL, page }) => {
 })
 
 test("Finanças: quick add creates a gasto in today's group and a goal can be created", async ({ page }) => {
+  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
   await page.goto("/dashboard/financas")
   await page.getByRole("tab", { name: "Lançamentos" }).click({ timeout: 30000 })
   await page.getByLabel("Adicionar lançamento rápido").fill("padaria 18,50")
@@ -35,6 +36,7 @@ test("Finanças: quick add creates a gasto in today's group and a goal can be cr
 })
 
 test("Finanças: paying a conta fixa marks it as Pago with text, not color", async ({ page }) => {
+  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
   await page.goto("/dashboard/financas")
   await page.getByRole("tab", { name: "Contas fixas" }).click({ timeout: 30000 })
   const pagar = page.getByRole("button", { name: "Pagar" }).first()
@@ -45,6 +47,7 @@ test("Finanças: paying a conta fixa marks it as Pago with text, not color", asy
 })
 
 test("Rotina: labeled 7-day dots and the +/- buttons are 44px", async ({ page }) => {
+  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
   await page.goto("/dashboard/rotina")
   await expect(page.getByRole("group", { name: /Últimos 7 dias de/ }).first()).toBeVisible({ timeout: 30000 })
   const minus = page.getByRole("button", { name: /Aumentar/ }).first()
@@ -56,6 +59,7 @@ test("Rotina: labeled 7-day dots and the +/- buttons are 44px", async ({ page })
 })
 
 test("Treinos: log a set (rest timer appears) and duplicate a plan", async ({ page }) => {
+  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
   await page.goto("/dashboard/treinos")
   const check = page.getByLabel("Série 1 feita").first()
   await expect(check).toBeVisible({ timeout: 30000 })
