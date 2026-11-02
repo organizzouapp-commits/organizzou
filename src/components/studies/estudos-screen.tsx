@@ -47,6 +47,7 @@ import {
   PRIORITY_LABELS,
   SUBJECT_TYPE_LABELS,
   type DeadlineRow,
+  type FlashcardDeckRow,
   type FlashcardRow,
   type Priority,
   type StudySessionRow,
@@ -55,6 +56,8 @@ import {
 } from "@/features/studies/types"
 import type { SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { isMock } from "@/mocks/config"
 import { studyTemplates } from "@/mocks/schedule"
 import {
   buildMockCards,
@@ -91,13 +94,18 @@ function hours(minutes: number) {
   return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
-export function EstudosScreen({ nowIso }: { nowIso: string }) {
+export type StudiesInitial = { subjects: SubjectRow[]; sessions: StudySessionRow[]; deadlines: DeadlineRow[]; decks: FlashcardDeckRow[]; cards: FlashcardRow[] }
+
+export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: StudiesInitial }) {
   const today = dayOf(nowIso)
   const weekStart = format(startOfWeek(parseISO(today), { weekStartsOn: 1 }), "yyyy-MM-dd")
-  const [subjects, setSubjects] = useState<SubjectRow[]>(mockSubjects)
-  const [sessions, setSessions] = useState<StudySessionRow[]>(() => buildMockSessions(nowIso))
-  const [deadlines, setDeadlines] = useState<DeadlineRow[]>(() => buildMockDeadlines(nowIso))
-  const [cards, setCards] = useState<FlashcardRow[]>(() => buildMockCards(nowIso))
+  const [subjects, setSubjects] = usePersistedRows<SubjectRow>("subjects", () => (isMock ? mockSubjects : initial.subjects))
+  const [sessions, setSessions] = usePersistedRows<StudySessionRow>("study_sessions", () => (isMock ? buildMockSessions(nowIso) : initial.sessions))
+  const [deadlines, setDeadlines] = usePersistedRows<DeadlineRow>("study_deadlines", () => (isMock ? buildMockDeadlines(nowIso) : initial.deadlines))
+  const [decks, setDecks] = usePersistedRows<FlashcardDeckRow>("flashcard_decks", () => (isMock ? mockDecks : initial.decks))
+  const [cards, setCards] = usePersistedRows<FlashcardRow>("flashcards", () => (isMock ? buildMockCards(nowIso) : initial.cards))
+  const [creatingDeck, setCreatingDeck] = useState(false)
+  const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [creatingSubject, setCreatingSubject] = useState(false)
   const [creatingDeadline, setCreatingDeadline] = useState(false)
   const [studyDeck, setStudyDeck] = useState<string | null>(null)
@@ -112,7 +120,9 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   const modeMinutes = MODES.find((m) => m.value === mode)?.minutes ?? 25
   const [remaining, setRemaining] = useState(25 * 60)
   const [running, setRunning] = useState(false)
-  const [timerSubject, setTimerSubject] = useState(subjects[0].id)
+  const [chosenSubject, setTimerSubject] = useState("")
+  // The chosen subject, or the first one while nothing is chosen (a new account may have none yet: then nothing is recorded).
+  const timerSubject = subjects.some((s) => s.id === chosenSubject) ? chosenSubject : (subjects[0]?.id ?? "")
 
   useEffect(() => {
     if (!running) return
@@ -124,7 +134,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   if (running && remaining === 0 && !finishedHandled) {
     setFinishedHandled(true)
     setRunning(false)
-    if (mode === "focus") {
+    if (mode === "focus" && timerSubject) {
       setSessions((current) => [
         ...current,
         { id: mockId("ses"), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: modeMinutes, mode: "pomodoro" },
@@ -158,6 +168,10 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
       toast("Estude pelo menos 1 minuto em foco para registrar.")
       return
     }
+    if (!timerSubject) {
+      toast("Cadastre uma matéria para registrar o estudo.")
+      return
+    }
     setSessions((current) => [...current, { id: mockId("ses"), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: elapsedMin, mode: "free" }])
     setRunning(false)
     setRemaining(modeMinutes * 60)
@@ -176,7 +190,8 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
   const chartData = bySubject.map((r) => ({ name: r.subject.name.split(" — ")[0], hours: Math.round((r.minutes / 60) * 10) / 10 }))
   const upcoming = [...deadlines].sort((a, b) => a.due_on.localeCompare(b.due_on))
   const dueCards = cards.filter((c) => isDue(c, today))
-  const todaysBlocks = studyTemplates.filter((t) => t.weekdays.includes(parseISO(today).getDay()))
+  // The weekly study blocks are example data: a real account has no such schedule (yet), so it shows none.
+  const todaysBlocks = isMock ? studyTemplates.filter((t) => t.weekdays.includes(parseISO(today).getDay())) : []
 
   usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
 
@@ -358,7 +373,7 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                 <p className="text-[15px] leading-6 text-muted-foreground">{dueCards.length === 0 ? "Nada para revisar hoje." : "cartões para revisar hoje, espalhados pelos baralhos."}</p>
                 <Button
                   disabled={dueCards.length === 0}
-                  onClick={() => setStudyDeck(mockDecks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))?.id ?? null)}
+                  onClick={() => setStudyDeck(decks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))?.id ?? null)}
                 >
                   Começar a revisão
                 </Button>
@@ -368,20 +383,21 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
           <BentoCard
             title="Baralhos"
             actions={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled
-              title="Em breve"
-            >
-              <SparklesIcon strokeWidth={1.75} /> Gerar com IA (em breve)
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setCreatingDeck(true)}>
+                <PlusIcon strokeWidth={1.75} /> Novo baralho
+              </Button>
+              <Button size="sm" variant="outline" disabled title="Em breve">
+                <SparklesIcon strokeWidth={1.75} /> Gerar com IA (em breve)
+              </Button>
+            </div>
             }
           >
           <p className="pb-2 text-[15px] leading-6 text-muted-foreground">
             {dueCards.length === 0 ? "Nada para revisar hoje." : `${dueCards.length} cartões para revisar hoje.`}
           </p>
-          {mockDecks.map((deck) => {
+          {decks.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nenhum baralho ainda. Crie o primeiro para revisar com repetição espaçada.</p> : null}
+          {decks.map((deck) => {
             const list = cards.filter((c) => c.deck_id === deck.id)
             const due = list.filter((c) => isDue(c, today))
             return (
@@ -393,6 +409,9 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
                     {list.length} cartões · {due.length} para revisar
                   </span>
                 </div>
+                <Button variant="ghost" size="icon" aria-label={`Adicionar cartão em ${deck.name}`} onClick={() => setAddingCardTo(deck)}>
+                  <PlusIcon strokeWidth={1.75} />
+                </Button>
                 <Button variant={due.length > 0 ? "default" : "outline"} disabled={due.length === 0} onClick={() => setStudyDeck(deck.id)}>
                   Estudar
                 </Button>
@@ -507,12 +526,111 @@ export function EstudosScreen({ nowIso }: { nowIso: string }) {
       />
       <QuizDialog
         deckId={studyDeck}
+        decks={decks}
         cards={cards}
         today={today}
         onClose={() => setStudyDeck(null)}
         onUpdate={(card) => setCards((current) => current.map((c) => (c.id === card.id ? card : c)))}
       />
+      <Dialog open={creatingDeck} onOpenChange={setCreatingDeck}>
+        <DialogContent>
+          {creatingDeck ? (
+            <DeckForm
+              onCreate={(name) => {
+                setDecks((current) => [...current, { id: mockId("deck"), user_id: USER, subject_id: null, name }])
+                toast.success("Baralho criado.")
+              }}
+              onClose={() => setCreatingDeck(false)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(addingCardTo)} onOpenChange={(open) => !open && setAddingCardTo(null)}>
+        <DialogContent>
+          {addingCardTo ? (
+            <CardForm
+              deck={addingCardTo}
+              today={today}
+              onCreate={(card) => {
+                setCards((current) => [...current, card])
+                toast.success("Cartão adicionado.")
+              }}
+              onClose={() => setAddingCardTo(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function DeckForm({ onCreate, onClose }: { onCreate: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState("")
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!name.trim()) return
+        onCreate(name.trim())
+        onClose()
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Novo baralho</DialogTitle>
+        <DialogDescription className="sr-only">Dê um nome ao baralho de cartões.</DialogDescription>
+      </DialogHeader>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="deck-name">Nome</Label>
+        <Input id="deck-name" autoFocus value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={!name.trim()}>
+          Criar baralho
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+function CardForm({ deck, today, onCreate, onClose }: { deck: FlashcardDeckRow; today: string; onCreate: (card: FlashcardRow) => void; onClose: () => void }) {
+  const [front, setFront] = useState("")
+  const [back, setBack] = useState("")
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!front.trim() || !back.trim()) return
+        // A new card is due today, with the standard starting ease of the spaced-repetition scheduler.
+        onCreate({ id: mockId("card"), deck_id: deck.id, front: front.trim(), back: back.trim(), ease: 2.5, interval_days: 0, repetitions: 0, due_on: today })
+        onClose()
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Novo cartão</DialogTitle>
+        <DialogDescription>{deck.name}</DialogDescription>
+      </DialogHeader>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="card-front">Frente (pergunta)</Label>
+        <Input id="card-front" autoFocus value={front} maxLength={500} onChange={(e) => setFront(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="card-back">Verso (resposta)</Label>
+        <Input id="card-back" value={back} maxLength={500} onChange={(e) => setBack(e.target.value)} />
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={!front.trim() || !back.trim()}>
+          Adicionar cartão
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 
@@ -726,12 +844,14 @@ function DeadlineForm({
 
 function QuizDialog({
   deckId,
+  decks,
   cards,
   today,
   onClose,
   onUpdate,
 }: {
   deckId: string | null
+  decks: FlashcardDeckRow[]
   cards: FlashcardRow[]
   today: string
   onClose: () => void
@@ -739,7 +859,7 @@ function QuizDialog({
 }) {
   return (
     <Dialog open={Boolean(deckId)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>{deckId ? <QuizBody queue={cards.filter((c) => c.deck_id === deckId && isDue(c, today))} deckName={mockDecks.find((d) => d.id === deckId)?.name ?? ""} today={today} onClose={onClose} onUpdate={onUpdate} /> : null}</DialogContent>
+      <DialogContent>{deckId ? <QuizBody queue={cards.filter((c) => c.deck_id === deckId && isDue(c, today))} deckName={decks.find((d) => d.id === deckId)?.name ?? ""} today={today} onClose={onClose} onUpdate={onUpdate} /> : null}</DialogContent>
     </Dialog>
   )
 }

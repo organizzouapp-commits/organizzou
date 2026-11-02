@@ -51,8 +51,10 @@ import {
   isScheduled,
   shiftDay,
 } from "@/features/habits/stats"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import type { HabitLogRow, HabitRow, HabitType } from "@/features/habits/types"
 import { buildMockHabitLogs, mockHabits } from "@/mocks/habits"
+import { isMock } from "@/mocks/config"
 import { dayOf, mockId } from "@/mocks/time"
 import { cn } from "@/lib/utils"
 
@@ -105,10 +107,10 @@ function intensityClass(value: number | null) {
   return "bg-primary"
 }
 
-export function RotinaScreen({ nowIso }: { nowIso: string }) {
+export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[] }) {
   const today = dayOf(nowIso)
-  const [habits, setHabits] = useState<HabitRow[]>(mockHabits)
-  const [logs, setLogs] = useState<HabitLogRow[]>(() => buildMockHabitLogs(nowIso))
+  const [habits, setHabits] = usePersistedRows<HabitRow>("habits", () => (isMock ? mockHabits : initialHabits))
+  const [logs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", () => (isMock ? buildMockHabitLogs(nowIso) : initialLogs))
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<HabitRow | null>(null)
   const [historyHabit, setHistoryHabit] = useState("all")
@@ -119,10 +121,12 @@ export function RotinaScreen({ nowIso }: { nowIso: string }) {
 
   function setQty(habit: HabitRow, qty: number) {
     setLogs((current) => {
-      const rest = current.filter((l) => !(l.habit_id === habit.id && l.log_date === today))
-      if (qty <= 0) return rest
+      const existing = current.find((l) => l.habit_id === habit.id && l.log_date === today)
+      if (qty <= 0) return current.filter((l) => l !== existing)
       const stamp = new Date().toISOString()
-      return [...rest, { id: mockId("log"), user_id: habit.user_id, habit_id: habit.id, log_date: today, qty, created_at: stamp, updated_at: stamp }]
+      // The same day keeps the same row: one log per habit per day.
+      if (existing) return current.map((l) => (l === existing ? { ...l, qty, updated_at: stamp } : l))
+      return [...current, { id: mockId("log"), user_id: habit.user_id, habit_id: habit.id, log_date: today, qty, created_at: stamp, updated_at: stamp }]
     })
   }
 

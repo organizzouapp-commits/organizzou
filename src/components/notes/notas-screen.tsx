@@ -51,10 +51,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { parseMarkdown, wordCount, type Inline } from "@/features/notes/markdown"
-import type { NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
+import type { NoteFolderRow, NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
 import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { buildMockNotes, buildMockReminders, mockFolders } from "@/mocks/notes"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { isMock } from "@/mocks/config"
 import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
@@ -114,11 +116,16 @@ function NotePreview({ source }: { source: string }) {
   )
 }
 
-export function NotasScreen({ nowIso }: { nowIso: string }) {
+export type NotesInitial = { folders: NoteFolderRow[]; notes: NoteRow[]; reminders: ReminderRow[] }
+
+export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: NotesInitial }) {
   const today = dayOf(nowIso)
   const now = new Date(nowIso)
-  const [notes, setNotes] = useState<NoteRow[]>(() => buildMockNotes(nowIso))
-  const [reminders, setReminders] = useState<ReminderRow[]>(() => buildMockReminders(nowIso))
+  // Typing in a note is saved after a short pause; every other change is saved at once.
+  const [notes, setNotes] = usePersistedRows<NoteRow>("notes", () => (isMock ? buildMockNotes(nowIso) : initial.notes), { debounceMs: 800 })
+  const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", () => (isMock ? buildMockReminders(nowIso) : initial.reminders))
+  const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", () => (isMock ? mockFolders : initial.folders))
+  const [newFolder, setNewFolder] = useState("")
   const [folder, setFolder] = useState<string>("all")
   const [query, setQuery] = useState("")
   const [openId, setOpenId] = useState<string | null>(null)
@@ -176,7 +183,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
   const sections = [
     { key: "all", label: "Todas as notas", icon: NotebookPenIcon, count: notes.length },
     { key: "pinned", label: "Fixadas", icon: PinIcon, count: notes.filter((n) => n.pinned).length },
-    ...mockFolders.map((f) => ({ key: f.id, label: f.name, icon: FolderIcon, count: notes.filter((n) => n.folder_id === f.id).length })),
+    ...folders.map((f) => ({ key: f.id, label: f.name, icon: FolderIcon, count: notes.filter((n) => n.folder_id === f.id).length })),
   ]
 
   // ---------------------------------------------------------- reminders
@@ -227,6 +234,22 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   <span className="tabular text-[13px] opacity-70">{count}</span>
                 </button>
               ))}
+              <form
+                className="mt-1 flex items-center gap-2 pt-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const name = newFolder.trim()
+                  if (!name) return
+                  setFolders((current) => [...current, { id: mockId("folder"), user_id: USER, name }])
+                  setNewFolder("")
+                  toast.success("Pasta criada.")
+                }}
+              >
+                <Input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="Nova pasta" aria-label="Nova pasta" maxLength={60} className="h-9 min-w-0 flex-1" />
+                <Button type="submit" size="icon" variant="outline" aria-label="Criar pasta" disabled={!newFolder.trim()}>
+                  <PlusIcon strokeWidth={1.75} />
+                </Button>
+              </form>
             </nav>
 
             {/* list */}
@@ -350,7 +373,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   )}
 
                   <p className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {wordCount(open.body)} palavras · {mockFolders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
+                    {wordCount(open.body)} palavras · {folders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
                     <span role="status" aria-live="polite">{saved ? "Salvo" : "Alterações são salvas sozinhas"}</span>
                   </p>
                 </div>

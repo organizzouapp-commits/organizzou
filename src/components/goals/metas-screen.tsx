@@ -32,8 +32,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { goalProgress, linkRatio } from "@/features/goals/progress"
-import type { GoalLinkRow, GoalWithDetails } from "@/features/goals/types"
+import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
 import { daysUntil } from "@/features/studies/spaced-repetition"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { isMock } from "@/mocks/config"
 import { buildMockGoals } from "@/mocks/goals"
 import { dayOf, mockId } from "@/mocks/time"
 
@@ -52,9 +54,23 @@ function formatValue(value: number, unit: string) {
   return unit === "R$" ? `R$ ${text}` : `${text} ${unit}`
 }
 
-export function MetasScreen({ nowIso }: { nowIso: string }) {
+/** The goal row itself, without the nested links and milestones (those are their own tables). */
+const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_id, title: g.title, description: g.description, deadline: g.deadline, status: g.status, created_at: g.created_at, updated_at: g.updated_at })
+
+export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: GoalWithDetails[] }) {
   const today = dayOf(nowIso)
-  const [goals, setGoals] = useState<GoalWithDetails[]>(() => buildMockGoals(nowIso))
+  // A goal is three tables (the goal, what feeds it, its milestones). The screen edits the nested shape; each table is saved on its own, parents first.
+  const start = isMock ? buildMockGoals(nowIso) : initial
+  const [goalRows, setGoalRows] = usePersistedRows<LifeGoalRow>("life_goals", () => start.map(plain))
+  const [linkRows, setLinkRows] = usePersistedRows<GoalLinkRow>("life_goal_links", () => start.flatMap((g) => g.links))
+  const [milestoneRows, setMilestoneRows] = usePersistedRows<GoalMilestoneRow>("life_goal_milestones", () => start.flatMap((g) => g.milestones))
+  const goals: GoalWithDetails[] = goalRows.map((g) => ({ ...g, links: linkRows.filter((l) => l.goal_id === g.id), milestones: milestoneRows.filter((m) => m.goal_id === g.id) }))
+  const setGoals = (update: (current: GoalWithDetails[]) => GoalWithDetails[]) => {
+    const next = update(goals)
+    setGoalRows(next.map(plain))
+    setLinkRows(next.flatMap((g) => g.links))
+    setMilestoneRows(next.flatMap((g) => g.milestones))
+  }
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<GoalWithDetails | null>(null)
 

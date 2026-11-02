@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { createContext, useContext, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -57,7 +57,9 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { guessCategory } from "@/mocks/assistant"
+import { isMock } from "@/mocks/config"
 import {
   accountBalance,
   billStatus,
@@ -68,7 +70,7 @@ import {
   totalBalance,
   totals,
 } from "@/features/finance/stats"
-import type { FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
+import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { formatBRL, formatSignedBRL, parseBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 import {
@@ -89,13 +91,10 @@ const chartConfig = {
 
 const BANKS = ["Nubank", "Itaú", "Bradesco", "Banco do Brasil", "Santander", "Inter", "Caixa", "C6 Bank"]
 
-function categoryName(id: string | null) {
-  return mockCategories.find((c) => c.id === id)?.name ?? "Sem categoria"
-}
-
-function accountName(id: string) {
-  return mockAccounts.find((a) => a.id === id)?.name ?? ""
-}
+/** The person's accounts and categories (real rows; the example ones only in the local prototype), available to every part of the screen. */
+type Refs = { accounts: AccountRow[]; categories: CategoryRow[]; categoryName: (id: string | null) => string; accountName: (id: string) => string }
+const RefsContext = createContext<Refs>({ accounts: [], categories: [], categoryName: () => "Sem categoria", accountName: () => "" })
+const useRefs = () => useContext(RefsContext)
 
 function dayLabel(day: string, today: string) {
   if (day === today) return "Hoje"
@@ -153,12 +152,31 @@ function ProgressRing({ value, label }: { value: number; label: string }) {
   )
 }
 
-export function FinancasScreen({ nowIso }: { nowIso: string }) {
+export type FinanceInitial = { accounts: AccountRow[]; categories: CategoryRow[]; transactions: TransactionRow[]; bills: RecurringBillRow[]; goals: FinancialGoalRow[] }
+
+export function FinancasScreen({ nowIso, initial }: { nowIso: string; initial: FinanceInitial }) {
+  const accounts = isMock ? mockAccounts : initial.accounts
+  const categoryRows = isMock ? mockCategories : initial.categories
+  const refs: Refs = {
+    accounts,
+    categories: categoryRows,
+    categoryName: (id) => categoryRows.find((c) => c.id === id)?.name ?? "Sem categoria",
+    accountName: (id) => accounts.find((a) => a.id === id)?.name ?? "",
+  }
+  return (
+    <RefsContext.Provider value={refs}>
+      <FinanceBody nowIso={nowIso} initial={initial} />
+    </RefsContext.Provider>
+  )
+}
+
+function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInitial }) {
+  const refs = useRefs()
   const today = dayOf(nowIso)
   const month = monthOf(today)
-  const [transactions, setTransactions] = useState<TransactionRow[]>(() => buildMockTransactions(nowIso))
-  const [bills, setBills] = useState<RecurringBillRow[]>(() => buildMockBills(nowIso))
-  const [goals, setGoals] = useState<FinancialGoalRow[]>(() => buildMockGoals(nowIso))
+  const [transactions, setTransactions] = usePersistedRows<TransactionRow>("finance_transactions", () => (isMock ? buildMockTransactions(nowIso) : initial.transactions))
+  const [bills, setBills] = usePersistedRows<RecurringBillRow>("finance_bills", () => (isMock ? buildMockBills(nowIso) : initial.bills))
+  const [goals, setGoals] = usePersistedRows<FinancialGoalRow>("finance_goals", () => (isMock ? buildMockGoals(nowIso) : initial.goals))
   const [newTransaction, setNewTransaction] = useState(false)
   const [newBill, setNewBill] = useState(false)
   const [bankOpen, setBankOpen] = useState(false)
@@ -172,9 +190,9 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
   const [newGoal, setNewGoal] = useState(false)
 
   const month_totals = totals(transactions, month)
-  const balance = totalBalance(mockAccounts, transactions)
-  const categories = spendByCategory(mockCategories, transactions, month)
-  const budget = mockCategories.reduce((sum, c) => sum + (c.monthly_limit_cents ?? 0), 0)
+  const balance = totalBalance(refs.accounts, transactions)
+  const categories = spendByCategory(refs.categories, transactions, month)
+  const budget = refs.categories.reduce((sum, c) => sum + (c.monthly_limit_cents ?? 0), 0)
   const spentInBudget = categories.filter((c) => c.limit).reduce((sum, c) => sum + c.spent, 0)
   const series = monthlySeries(transactions, month, 6).map((s) => ({
     ...s,
@@ -213,12 +231,16 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
     const cents = match ? parseBRL(match[2]) : null
     const description = match?.[1].trim()
     if (!cents || !description) return false
+    if (!refs.accounts[0]) {
+      toast.error("Crie uma conta antes de registrar lançamentos.")
+      return false
+    }
     const name = income ? "Salário" : guessCategory(description)
     addTransaction({
       id: mockId("tx"),
       user_id: USER,
-      account_id: mockAccounts[0].id,
-      category_id: mockCategories.find((c) => c.name === name)?.id ?? mockCategories[0].id,
+      account_id: refs.accounts[0].id,
+      category_id: refs.categories.find((c) => c.name === name)?.id ?? refs.categories[0]?.id ?? null,
       kind: income ? "in" : "out",
       amount_cents: cents,
       occurred_on: today,
@@ -240,11 +262,15 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
   }
 
   function payBill(bill: RecurringBillRow) {
+    if (!refs.accounts[0]) {
+      toast.error("Crie uma conta antes de pagar uma conta.")
+      return
+    }
     setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: month } : b)))
     addTransaction({
       id: mockId("tx"),
       user_id: USER,
-      account_id: mockAccounts[0].id,
+      account_id: refs.accounts[0].id,
       category_id: bill.category_id,
       kind: "out",
       amount_cents: bill.amount_cents,
@@ -281,7 +307,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
         <TabsContent value="visao" className="pt-5">
           <div className="flex flex-col gap-5">
             <StatRow min={200}>
-              <KpiCard tone="highlight" label="Saldo total" value={formatBRL(balance)} support={`${mockAccounts.length} contas`} />
+              <KpiCard tone="highlight" label="Saldo total" value={formatBRL(balance)} support={`${refs.accounts.length} contas`} />
               <KpiCard label="Entradas do mês" value={formatBRL(month_totals.income)} trend="up" support="+ recebido" />
               <KpiCard label="Saídas do mês" value={formatBRL(month_totals.expense)} trend="down" support="− gasto" />
               <KpiCard
@@ -310,7 +336,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                   </BentoCard>
                   <BentoCard title="Contas e bancos">
                     <div>
-                      {mockAccounts.map((account) => (
+                      {refs.accounts.map((account) => (
                         <div key={account.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
                           {account.institution === "Dinheiro" ? (
                             <BanknoteIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
@@ -464,7 +490,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                     </FilterChip>
                   ))}
                   <span aria-hidden className="mx-1 w-px shrink-0 self-stretch bg-border" />
-                  {mockCategories.map((c) => (
+                  {refs.categories.map((c) => (
                     <FilterChip key={c.id} on={categoryFilter === c.id} onClick={() => setCategoryFilter(categoryFilter === c.id ? "all" : c.id)}>
                       {c.name}
                     </FilterChip>
@@ -489,12 +515,12 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                             <SwipeRow key={t.id} rightLabel="Editar" onSwipeRight={() => setEditing(t)} onSwipeLeft={() => setToDelete(t)}>
                               <div className="flex min-h-14 items-center gap-3 border-b border-border bg-card py-2.5 last:border-b-0">
                                 <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border">
-                                  <CategoryIcon name={categoryName(t.category_id)} className="size-[18px]" />
+                                  <CategoryIcon name={refs.categoryName(t.category_id)} className="size-[18px]" />
                                 </span>
                                 <div className="flex min-w-0 flex-1 flex-col">
                                   <span className="truncate text-[15px] leading-6">{t.description}</span>
                                   <span className="truncate text-[13px] leading-5 text-muted-foreground">
-                                    {categoryName(t.category_id)} · {accountName(t.account_id)}
+                                    {refs.categoryName(t.category_id)} · {refs.accountName(t.account_id)}
                                   </span>
                                 </div>
                                 {t.source === "open_finance" ? <Badge variant="outline" className="hidden sm:inline-flex">Importado</Badge> : null}
@@ -576,7 +602,7 @@ export function FinancasScreen({ nowIso }: { nowIso: string }) {
                     </div>
                     <div className="flex min-w-0 flex-1 basis-40 flex-col">
                       <span className="truncate text-[15px] leading-6">{bill.name}</span>
-                      <span className="text-[13px] leading-5 text-muted-foreground">{categoryName(bill.category_id)}</span>
+                      <span className="text-[13px] leading-5 text-muted-foreground">{refs.categoryName(bill.category_id)}</span>
                     </div>
                     <span className="tabular text-[15px]">{formatBRL(bill.amount_cents)}</span>
                     {status === "paid" ? (
@@ -750,15 +776,16 @@ function TransactionForm({
   onClose: () => void
   row?: TransactionRow | null
 }) {
+  const refs = useRefs()
   const [kind, setKind] = useState<TransactionKind>(row?.kind ?? "out")
   const [amount, setAmount] = useState(row ? (row.amount_cents / 100).toFixed(2).replace(".", ",") : "")
   const [description, setDescription] = useState(row?.description ?? "")
-  const [category, setCategory] = useState(row?.category_id ?? mockCategories[1].id)
-  const [account, setAccount] = useState(row?.account_id ?? mockAccounts[0].id)
+  const [category, setCategory] = useState(row?.category_id ?? (refs.categories[1] ?? refs.categories[0])?.id ?? "")
+  const [account, setAccount] = useState(row?.account_id ?? refs.accounts[0]?.id ?? "")
   const [date, setDate] = useState(row?.occurred_on ?? today)
   const cents = parseBRL(amount)
   const valid = Boolean(cents && cents > 0 && description.trim())
-  const options = mockCategories.filter((c) => (kind === "in" ? ["Salário", "Renda extra"].includes(c.name) : !["Salário", "Renda extra"].includes(c.name)))
+  const options = refs.categories.filter((c) => (kind === "in" ? ["Salário", "Renda extra"].includes(c.name) : !["Salário", "Renda extra"].includes(c.name)))
 
   return (
     <form
@@ -795,7 +822,7 @@ function TransactionForm({
         onValueChange={(v) => {
           if (!v) return
           setKind(v as TransactionKind)
-          const first = mockCategories.find((c) => (v === "in" ? ["Salário", "Renda extra"].includes(c.name) : !["Salário", "Renda extra"].includes(c.name)))
+          const first = refs.categories.find((c) => (v === "in" ? ["Salário", "Renda extra"].includes(c.name) : !["Salário", "Renda extra"].includes(c.name)))
           if (first) setCategory(first.id)
         }}
         className="justify-start"
@@ -844,7 +871,7 @@ function TransactionForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {mockAccounts.map((a) => (
+              {refs.accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.name}
                 </SelectItem>
@@ -884,6 +911,7 @@ function BillDialog({
 }
 
 function BillForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (bill: RecurringBillRow) => void; onClose: () => void }) {
+  const refs = useRefs()
   const [name, setName] = useState("")
   const [amount, setAmount] = useState("")
   const [day, setDay] = useState("10")
@@ -902,7 +930,7 @@ function BillForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (bi
           name: name.trim(),
           amount_cents: cents,
           due_day: dueDay,
-          category_id: mockCategories[6].id,
+          category_id: (refs.categories.find((c) => c.name === "Assinaturas") ?? refs.categories[0])?.id ?? null,
           active: true,
           last_paid_month: null,
           created_at: nowIso,

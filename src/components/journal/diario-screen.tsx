@@ -30,6 +30,8 @@ import { average, moodInsights } from "@/features/journal/insights"
 import { MOOD_LABELS, type JournalDay, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
 import { buildMockJournal } from "@/mocks/journal"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { isMock } from "@/mocks/config"
 import { dayOf, mockId } from "@/mocks/time"
 
 const MOODS: { value: Mood; icon: LucideIcon }[] = [
@@ -49,9 +51,9 @@ function formatAvg(value: number | null) {
   return value === null ? "—" : value.toLocaleString("pt-BR", { minimumFractionDigits: 1 })
 }
 
-export function DiarioScreen({ nowIso }: { nowIso: string }) {
+export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: JournalDay[] }) {
   const today = dayOf(nowIso)
-  const [days, setDays] = useState<JournalDay[]>(() => buildMockJournal(nowIso))
+  const [days, setDays] = usePersistedRows<JournalDay>("journal_entries", () => (isMock ? buildMockJournal(nowIso) : initial))
   const todayEntry = days.find((d) => d.entry_date === today)
   const [mood, setMood] = useState<Mood | null>(todayEntry?.mood ?? null)
   const [text, setText] = useState(todayEntry?.text ?? "")
