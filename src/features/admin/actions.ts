@@ -50,11 +50,30 @@ const planInput = z.object({
     .nullish(),
 })
 
+const planFail = (reason: string) => fail(`Não consegui alterar o plano. ${reason}`)
+
+/** What the profile name would be for an account that has no profile row yet (the same rule as the sign-up trigger). */
+function profileName(user: { email?: string; user_metadata?: Record<string, unknown> }) {
+  const meta = user.user_metadata ?? {}
+  for (const key of ["display_name", "full_name", "name"]) {
+    const value = meta[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return (user.email ?? "").split("@")[0] || null
+}
+
+/**
+ * Changes someone's plan with the secret key, and only reports success after reading the row back.
+ *
+ * An UPDATE that matches no row is not an error in Postgres, so an account without a profiles row (created before the sign-up
+ * trigger, or by hand in the dashboard) used to get a green toast, a plan_history row and an audit entry while profiles.plan
+ * never changed. Now: no row -> the row is created; the write is verified; history and audit are written only afterwards.
+ */
 export async function changePlan(input: z.input<typeof planInput>): Promise<AdminActionResult> {
   const parsed = planInput.safeParse(input)
   if (!parsed.success) return fail("Dados inválidos.")
   const ctx = await begin()
-  if (!ctx.ok) return fail(ctx.error)
+  if (!ctx.ok) return planFail(ctx.error)
 
   const { userId: id, plan } = parsed.data
   // End of the chosen day in São Paulo (UTC-3, no daylight saving).
@@ -64,19 +83,34 @@ export async function changePlan(input: z.input<typeof planInput>): Promise<Admi
   const target = await targetOf(ctx.secret, id)
   if (!target) return fail("Usuário não encontrado.")
 
-  const { error } = await ctx.secret
-    .from("profiles")
-    .update({ plan, plan_until: until ? until.toISOString() : null })
-    .eq("id", id)
-  if (error) return fail("Não foi possível alterar o plano. A migration do painel admin já foi aplicada?")
+  const values = { plan, plan_until: until ? until.toISOString() : null }
+  const updated = await ctx.secret.from("profiles").update(values).eq("id", id).select("id")
+  if (updated.error) return planFail(`O banco recusou a mudança (${updated.error.message}). A migration do painel admin já foi aplicada?`)
+  if (!updated.data || updated.data.length === 0) {
+    // No profile row for this account: create it (the secret key may insert), then the plan is part of that row.
+    const created = await ctx.secret.from("profiles").insert({ id, display_name: profileName(target), ...values }).select("id")
+    if (created.error || !created.data?.length) return planFail(`Essa conta não tem perfil e não foi possível criar um (${created.error?.message ?? "nenhuma linha gravada"}).`)
+  }
 
-  await ctx.secret.from("plan_history").insert({
+  // Read it back: success is what the database now says, not what the write call returned.
+  const check = await ctx.secret.from("profiles").select("plan, plan_until").eq("id", id).maybeSingle()
+  const row = check.data as { plan: string | null; plan_until: string | null } | null
+  const sameEnd = (row?.plan_until ? new Date(row.plan_until).getTime() : null) === (until ? until.getTime() : null)
+  if (check.error || !row || row.plan !== plan || !sameEnd) {
+    return planFail(check.error ? `Não deu para confirmar a gravação (${check.error.message}).` : "O banco não guardou a mudança. Nada foi registrado na auditoria.")
+  }
+
+  const history = await ctx.secret.from("plan_history").insert({
     user_id: id,
     plan,
     kind: plan === "pro" && until ? "courtesy" : "admin",
     until: until ? until.toISOString() : null,
     changed_by: ctx.admin.adminId,
   })
+  if (history.error) {
+    revalidatePath("/admin", "layout")
+    return fail("O plano foi alterado, mas o histórico do plano não foi gravado. Avise quem cuida do servidor.")
+  }
 
   return finish(
     ctx,
