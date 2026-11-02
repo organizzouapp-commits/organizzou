@@ -1,6 +1,8 @@
 import { TZDate } from "@date-fns/tz"
 import { format } from "date-fns"
 
+import { isMock } from "./config"
+
 export const MOCK_TIMEZONE = "America/Sao_Paulo"
 
 /** ISO instant for "now + offsetDays" at the given São Paulo wall-clock time. */
@@ -17,8 +19,12 @@ export function dayOf(now: Date | string, offsetDays = 0) {
 }
 
 let counter = 0
-/** Deterministic-looking uuid-shaped id for rows created in memory. */
+/**
+ * Id for a row created on screen. With real data it is a random uuid (the row is saved as it is); in the local prototype it is a
+ * deterministic-looking uuid-shaped id.
+ */
 export function mockId(prefix = "m") {
+  if (!isMock) return crypto.randomUUID()
   counter += 1
   const n = counter.toString(16).padStart(12, "0")
   return `00000000-${prefix.padEnd(4, "0").slice(0, 4)}-4000-8000-${n}`

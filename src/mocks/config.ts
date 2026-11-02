@@ -1,6 +1,6 @@
 /**
- * The UI prototype runs on static example data from `src/mocks/`.
- * Each screen reads its data through a small adapter, so a later phase swaps the mock
- * for Supabase queries without touching the screen. Never shown in the UI.
+ * Example data (src/mocks) is used ONLY by the local no-login prototype (PROTOTYPE_BYPASS_AUTH=1, never in production), where there
+ * is no session and so no database. Everywhere else the screens read and write Supabase. The flag is set in next.config.ts
+ * (NEXT_PUBLIC_DATA_MOCK) so server and client agree. Never shown in the UI.
  */
-export const isMock = true
+export const isMock = process.env.NEXT_PUBLIC_DATA_MOCK === "1"
