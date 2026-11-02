@@ -462,7 +462,7 @@ begin
       union all
       select 'etiquetas', g.user_id from public.tags g where g.user_id in (select user_id from active)
       union all
-      select 'anexos', a.user_id from public.attachments a where a.user_id in (select user_id from active)
+      select 'anexos', att.user_id from public.attachments att where att.user_id in (select user_id from active)
     ) f
     group by f.feature
     order by f.feature;

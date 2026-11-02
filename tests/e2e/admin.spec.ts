@@ -1,0 +1,206 @@
+/**
+ * Admin area. The first block runs against the dev server with the login bypass (the `dev_admin` cookie plays the admin, and also
+ * drives the proxy's 404 there):
+ *   PROTOTYPE_BYPASS_AUTH=1 NEXT_DIST_DIR=.next-preview npx next dev -p 3100 ; npx playwright test admin
+ *
+ * The last block needs a real project with the admin migrations applied, an admin account and a target account:
+ *   E2E_ADMIN_EMAIL=... E2E_ADMIN_PASSWORD=... E2E_TARGET_EMAIL=... (and SUPABASE_SECRET_KEY set on the server)
+ * Without them it is skipped: it cannot be faked.
+ */
+import { expect, test, type BrowserContext } from "@playwright/test"
+
+const CONSENT = encodeURIComponent(JSON.stringify({ version: 1, necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }))
+const SIDEBAR_COOKIE = "sidebar_state_00000000000040008000000000000001"
+
+const PAGES: { path: string; title: string }[] = [
+  { path: "/admin", title: "Visão geral" },
+  { path: "/admin/usuarios", title: "Usuários" },
+  { path: "/admin/atividade", title: "Atividade" },
+  { path: "/admin/assinaturas", title: "Assinaturas e pagamentos" },
+  { path: "/admin/lista-de-espera", title: "Lista de espera" },
+  { path: "/admin/planos", title: "Planos e limites" },
+  { path: "/admin/modulos", title: "Uso dos módulos" },
+  { path: "/admin/assistente", title: "Assistente e IA" },
+  { path: "/admin/integracoes", title: "Integrações" },
+  { path: "/admin/status", title: "Status" },
+  { path: "/admin/suporte", title: "Suporte" },
+  { path: "/admin/auditoria", title: "Auditoria" },
+]
+
+async function setup(context: BrowserContext, baseURL: string, { admin, sidebarOpen = true }: { admin: boolean; sidebarOpen?: boolean }) {
+  await context.addCookies([
+    { name: "organizzou_consent", value: CONSENT, url: baseURL },
+    { name: SIDEBAR_COOKIE, value: String(sidebarOpen), url: baseURL },
+    ...(admin ? [{ name: "dev_admin", value: "1", url: baseURL }] : []),
+  ])
+}
+
+test.describe("access: non-admins", () => {
+  for (const { path } of PAGES) {
+    test(`${path} answers 404 (no redirect, no hint)`, async ({ page, context, baseURL }) => {
+      await setup(context, baseURL!, { admin: false })
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(404)
+      expect(new URL(page.url()).pathname).toBe(path)
+      await expect(page.getByText("Organizzou Admin")).toHaveCount(0)
+      await expect(page.getByRole("link", { name: "Voltar ao app" })).toHaveCount(0)
+    })
+  }
+
+  test("unknown admin sub-routes are 404 too", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: false })
+    expect((await page.goto("/admin/qualquer-coisa"))?.status()).toBe(404)
+  })
+})
+
+test.describe("admin sees every page", () => {
+  for (const { path, title } of PAGES) {
+    test(`${path} renders "${title}" inside the shared shell, without horizontal scroll`, async ({ page, context, baseURL }) => {
+      await setup(context, baseURL!, { admin: true })
+      await page.setViewportSize({ width: 1440, height: 900 })
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(200)
+      await expect(page.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible({ timeout: 30000 })
+      // Same shell as the app: the sidebar, with the Admin badge next to the logo.
+      await expect(page.locator("[data-sidebar=sidebar] [data-slot=badge]").filter({ hasText: /^Admin$/ }).first()).toBeVisible()
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
+      expect(overflow).toBe(false)
+    })
+  }
+})
+
+test.describe("admin shell", () => {
+  test("sidebar groups, footer link and header actions", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/admin")
+    const sidebar = page.locator("[data-sidebar=sidebar]")
+    await expect(sidebar.getByRole("link", { name: "Visão geral", exact: true })).toBeVisible({ timeout: 30000 })
+    for (const name of ["Usuários", "Atividade"]) await expect(sidebar.getByRole("link", { name, exact: true })).toBeVisible()
+    for (const group of ["Negócio", "Produto", "Sistema"]) await expect(sidebar.getByRole("button", { name: group })).toBeVisible()
+    // The app's plan card, WhatsApp card and assistant do not exist here.
+    await expect(page.getByText("Desbloqueie o Plano Pro")).toHaveCount(0)
+    await expect(page.getByRole("button", { name: /assistente/i })).toHaveCount(0)
+    // Header actions: search and "Voltar ao app" (outline button), no "Novo" and no bell.
+    await expect(page.getByRole("button", { name: "Buscar" }).first()).toBeVisible()
+    await expect(page.getByRole("link", { name: "Voltar ao app" }).first()).toBeVisible()
+    await expect(page.getByRole("button", { name: "Novo" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: /Notificações/ })).toHaveCount(0)
+  })
+
+  test("avatar menu offers Voltar ao app and Sair", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/admin")
+    await page.getByRole("button", { name: "Menu da conta" }).click()
+    await expect(page.getByRole("menuitem", { name: "Voltar ao app" })).toBeVisible()
+    await expect(page.getByRole("menuitem", { name: "Sair" })).toBeVisible()
+    await expect(page.getByRole("menuitem", { name: "Perfil" })).toHaveCount(0)
+  })
+
+  test("Ctrl K opens the admin palette and jumps to a page", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/admin")
+    await expect(page.getByRole("heading", { level: 1, name: "Visão geral" })).toBeVisible({ timeout: 30000 })
+    await page.keyboard.press("Control+k")
+    await page.getByPlaceholder("Ir para…").fill("auditoria")
+    await page.getByRole("option", { name: /Auditoria/ }).click()
+    await expect(page).toHaveURL(/\/admin\/auditoria$/)
+  })
+
+  test("collapsed rail keeps the same destinations", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true, sidebarOpen: false })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/admin")
+    const rail = page.locator("[data-sidebar=sidebar]")
+    await expect(rail.getByRole("link", { name: "Usuários" })).toBeVisible({ timeout: 30000 })
+    for (const group of ["Negócio", "Produto", "Sistema"]) await expect(rail.getByRole("button", { name: group })).toBeVisible()
+    await expect(rail.getByRole("link", { name: "Voltar ao app" })).toBeVisible()
+  })
+
+  test("phone: floating pill is Visão geral · Usuários · Pagamentos · Status · Mais, and Mais lists the rest", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto("/admin")
+    const pill = page.getByRole("navigation", { name: "Navegação principal" })
+    await expect(pill).toBeVisible({ timeout: 30000 })
+    for (const name of ["Visão geral", "Usuários", "Pagamentos", "Status", "Mais"]) await expect(pill.getByRole("button", { name })).toBeVisible()
+    await pill.getByRole("button", { name: "Mais" }).click()
+    const sheet = page.getByRole("dialog")
+    for (const name of ["Atividade", "Lista de espera", "Planos e limites", "Uso dos módulos", "Assistente e IA", "Integrações", "Suporte", "Auditoria"]) {
+      await expect(sheet.getByRole("link", { name })).toBeVisible()
+    }
+    // Every touch target is at least 44 px tall.
+    for (const link of await sheet.getByRole("link").all()) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  })
+
+  test("the users page shows its filters and an honest empty/unavailable state, never fake rows", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/admin/usuarios")
+    await expect(page.getByRole("search", { name: "Filtrar usuários" })).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole("button", { name: "Exportar CSV" })).toBeDisabled()
+    await expect(page.getByText("Configure a chave do servidor").first()).toBeVisible()
+  })
+})
+
+test.describe("the app shell is unchanged for regular users", () => {
+  test("no Admin badge, no admin entry, same modules", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: false })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/dashboard")
+    const sidebar = page.locator("[data-sidebar=sidebar]")
+    await expect(sidebar.getByRole("link", { name: "Tarefas" })).toBeVisible({ timeout: 30000 })
+    await expect(sidebar.locator("[data-slot=badge]").filter({ hasText: /^Admin$/ })).toHaveCount(0)
+    for (const group of ["Vida", "Organização", "Configurações"]) await expect(sidebar.getByRole("button", { name: group })).toBeVisible()
+    await page.getByRole("button", { name: "Menu da conta" }).click()
+    await expect(page.getByRole("menuitem", { name: "Área do admin" })).toHaveCount(0)
+    await expect(page.getByRole("menuitem", { name: "Perfil" })).toBeVisible()
+  })
+
+  test("admins get one extra entry, Área do admin, in the avatar menu", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!, { admin: true })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto("/dashboard")
+    await page.getByRole("button", { name: "Menu da conta" }).click()
+    const entry = page.getByRole("menuitem", { name: "Área do admin" })
+    await expect(entry).toBeVisible({ timeout: 30000 })
+    await entry.click()
+    await expect(page).toHaveURL(/\/admin$/)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Needs a real project: sign in as an admin, change someone's plan, and find the audit entry.
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD
+const TARGET_EMAIL = process.env.E2E_TARGET_EMAIL
+
+test.describe("change plan writes an audit entry (real project)", () => {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD || !TARGET_EMAIL, "Set E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD and E2E_TARGET_EMAIL (and run the server WITHOUT PROTOTYPE_BYPASS_AUTH).")
+
+  test("Pro de cortesia on the target, then the entry shows up in Auditoria", async ({ page, context, baseURL }) => {
+    await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
+    await page.setViewportSize({ width: 1440, height: 900 })
+
+    await page.goto("/login")
+    await page.getByLabel("E-mail").fill(ADMIN_EMAIL!)
+    await page.getByLabel("Senha").fill(ADMIN_PASSWORD!)
+    await page.getByRole("button", { name: "Entrar" }).click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30000 })
+
+    await page.goto(`/admin/usuarios?q=${encodeURIComponent(TARGET_EMAIL!)}`)
+    await page.getByRole("link", { name: new RegExp(`Abrir`) }).first().click()
+    await page.getByRole("button", { name: "Alterar plano" }).click()
+    // Confirmation first: nothing is written until the dialog is confirmed.
+    const dialog = page.getByRole("alertdialog")
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole("button", { name: "Alterar plano" }).click()
+    await expect(page.getByText(/Plano|Pro|Gratuito/).first()).toBeVisible()
+
+    await page.goto("/admin/auditoria")
+    await expect(page.getByRole("row", { name: /Plano alterado/ }).first()).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole("row", { name: new RegExp(TARGET_EMAIL!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).first()).toBeVisible()
+  })
+})
