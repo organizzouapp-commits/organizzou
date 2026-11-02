@@ -110,10 +110,10 @@ export function HighlightArrows({ api }: { api: CarouselApi | undefined }) {
   if (!api || (!state.prev && !state.next)) return null
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full hover:bg-accent" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
+      <Button type="button" size="icon" className="size-11 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
         <ChevronLeftIcon strokeWidth={1.75} />
       </Button>
-      <Button type="button" variant="outline" size="icon" className="size-11 rounded-full hover:bg-accent" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
+      <Button type="button" size="icon" className="size-11 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
         <ChevronRightIcon strokeWidth={1.75} />
       </Button>
     </div>

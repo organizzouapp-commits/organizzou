@@ -503,11 +503,11 @@ export function SeuDia({ data }: { data: DayData }) {
               </p>
             ) : null}
           </div>
-          <Button asChild variant="outline" size="sm" className="h-11 shrink-0 gap-2 rounded-xl border-input px-3.5 text-[14px] hover:bg-accent md:h-9">
+          <Button asChild size="sm" className="h-11 shrink-0 gap-2 rounded-xl bg-highlight px-3.5 text-[14px] text-highlight-foreground hover:bg-highlight/85 md:h-9">
             <Link href="/dashboard/agenda">
               <CalendarIcon strokeWidth={1.75} className="size-4" />
               Abrir agenda
-              <ArrowUpRightIcon strokeWidth={1.75} className="size-3.5 text-muted-foreground" />
+              <ArrowUpRightIcon strokeWidth={1.75} className="size-3.5" />
             </Link>
           </Button>
         </div>
