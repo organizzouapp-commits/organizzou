@@ -18,8 +18,8 @@ import "swiper/css/a11y"
 
 export type HighlightItem = { id: string; node: React.ReactNode }
 
-/** Alternates by position in the current order (1st, 3rd, 5th… are Lima), not by which stat it is. */
-const toneAt = (index: number) => (index % 2 === 0 ? ("highlight" as const) : ("default" as const))
+/** Exactly one card is Lima: the one in front. Everything else is the normal card surface. */
+const toneOf = (index: number, front: number) => (index === front ? ("highlight" as const) : ("default" as const))
 
 const GAP = 16
 const MIN_CARD = 240
@@ -38,6 +38,22 @@ const reducedNow = () => window.matchMedia("(prefers-reduced-motion: reduce)").m
 function DesktopRow({ items, onApi }: { items: HighlightItem[]; onApi: (api: CarouselApi) => void }) {
   const box = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(280)
+  const [api, setApi] = useState<CarouselApi>()
+  // The Lima card is the first one in view at the left edge. The server renders card 0, so nothing flashes on load.
+  const [front, setFront] = useState(0)
+
+  useEffect(() => {
+    if (!api) return
+    const sync = () => {
+      const inView = api.slidesInView()
+      setFront(inView.length > 0 ? Math.min(...inView) : api.selectedScrollSnap())
+    }
+    sync()
+    api.on("select", sync).on("settle", sync).on("reInit", sync).on("slidesInView", sync)
+    return () => {
+      api.off("select", sync).off("settle", sync).off("reInit", sync).off("slidesInView", sync)
+    }
+  }, [api])
 
   // Card width from the room the row really has (it sits next to the sidebar, so the viewport width is no guide).
   useLayoutEffect(() => {
@@ -57,11 +73,18 @@ function DesktopRow({ items, onApi }: { items: HighlightItem[]; onApi: (api: Car
 
   return (
     <div ref={box} className="min-w-0">
-      <Carousel opts={{ align: "start", dragFree: true, containScroll: "trimSnaps", skipSnaps: true }} setApi={onApi} aria-label="Destaques" className="w-full">
+      <Carousel
+        opts={{ align: "start", dragFree: true, containScroll: "trimSnaps", skipSnaps: true, inViewThreshold: 0.6 }}
+        setApi={(next) => {
+          setApi(next)
+          onApi(next)
+        }} aria-label="Destaques"
+        className="w-full"
+      >
         <CarouselContent className="ml-0 touch-pan-y gap-4">
           {items.map((item, index) => (
             <CarouselItem key={item.id} aria-label={`${index + 1} de ${items.length}`} className="pl-0" style={{ flex: `0 0 ${width}px` }}>
-              <StatToneProvider tone={toneAt(index)}>
+              <StatToneProvider tone={toneOf(index, front)}>
                 <div className="h-full rounded-[24px]">{item.node}</div>
               </StatToneProvider>
             </CarouselItem>
@@ -140,15 +163,37 @@ function CardsDeck({ items }: { items: HighlightItem[] }) {
   const [swiper, setSwiper] = useState<SwiperInstance | null>(null)
   const [active, setActive] = useState(0)
   const go = useCallback((index: number) => swiper?.slideToLoop(index), [swiper])
+  const strip = useRef<HTMLDivElement>(null)
+  const [firstSeen, setFirstSeen] = useState(0)
+
+  // Flat strip: the first card that is mostly visible is the Lima one.
+  useEffect(() => {
+    const root = strip.current
+    if (!reduced || !root) return
+    const visible = new Set<number>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const index = Number((entry.target as HTMLElement).dataset.index)
+          if (entry.isIntersecting) visible.add(index)
+          else visible.delete(index)
+        }
+        if (visible.size > 0) setFirstSeen(Math.min(...visible))
+      },
+      { root, threshold: 0.6 }
+    )
+    root.querySelectorAll("[data-index]").forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [reduced, items.length])
 
   if (reduced) {
     // prefers-reduced-motion: a plain strip you scroll sideways, no 3D, no stacking.
     return (
       <div className="flex flex-col">
-        <div role="region" aria-roledescription="carousel" aria-label="Destaques" tabIndex={0} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <div ref={strip} role="region" aria-roledescription="carousel" aria-label="Destaques" tabIndex={0} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           {items.map((item, index) => (
-            <div key={item.id} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${items.length}`} className="h-[172px] w-[78vw] max-w-[320px] shrink-0 snap-center">
-              <StatToneProvider tone={toneAt(index)}>
+            <div key={item.id} data-index={index} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${items.length}`} className="h-[172px] w-[78vw] max-w-[320px] shrink-0 snap-center">
+              <StatToneProvider tone={toneOf(index, firstSeen)}>
                 <div className="h-full rounded-[20px]">{item.node}</div>
               </StatToneProvider>
             </div>
@@ -174,7 +219,7 @@ function CardsDeck({ items }: { items: HighlightItem[] }) {
       >
         {items.map((item, index) => (
           <SwiperSlide key={item.id}>
-            <StatToneProvider tone={toneAt(index)}>
+            <StatToneProvider tone={toneOf(index, active)}>
               <div className="h-full rounded-[20px]">{item.node}</div>
             </StatToneProvider>
           </SwiperSlide>
