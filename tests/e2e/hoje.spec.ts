@@ -330,6 +330,8 @@ async function contrastOf(page: Page, selector: string, surface: string) {
   )
 }
 
+const lima = (page: Page) => page.locator('a[data-tone="highlight"]:visible')
+
 const bg = (locator: ReturnType<Page["locator"]>) => locator.evaluate((el) => getComputedStyle(el).backgroundColor)
 
 test.describe("round 2: desktop (1440x900)", () => {
@@ -375,51 +377,85 @@ test.describe("round 2: desktop (1440x900)", () => {
     await expect(arrow.locator("xpath=ancestor::button")).toHaveCount(0)
   })
 
-  test("a new person: Notas e lembretes is Lima and open, the other panels are folded cards", async ({ page, context, baseURL }) => {
+  test("a new person: Notas e lembretes is open on the normal surface, the other panels are folded", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
     const notes = page.locator('[data-panel="notas"] section')
     const finance = page.locator('[data-panel="financas"] section')
-    await expect(notes).toHaveAttribute("data-tone", "highlight")
-    await expect(finance).toHaveAttribute("data-tone", "default")
     await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
-    expect(await bg(notes)).not.toBe(await bg(finance))
-    // Lima card: title and secondary text (Tinta 72%) read in dark and in light.
+    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "false")
+    // Same surface as every other card, and not the Lima highlight.
+    expect(await bg(notes)).toBe(await bg(finance))
+    expect(await bg(notes)).not.toBe(await bg(lima(page).first()))
+  })
+
+  test("exactly one Lima highlight: the first card in view; it moves with the arrows and returns to normal behind", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!)
+    await open(page)
+    // First paint: card 1 is Lima and it is the only one.
+    await expect(lima(page)).toHaveCount(1)
+    await expect(deskCards(page).first()).toHaveAttribute("data-tone", "highlight")
+    const limaColor = await bg(deskCards(page).first())
+    const normalColor = await bg(deskCards(page).nth(1))
+    expect(limaColor).not.toBe(normalColor)
+
+    // The first card in view (left edge) after each arrow press is the Lima one.
+    const firstInView = async () => {
+      const row = (await page.locator('[data-slot="carousel"]').boundingBox())!
+      const cards = await deskCards(page).all()
+      for (let i = 0; i < cards.length; i++) {
+        const b = (await cards[i].boundingBox())!
+        if (b.x + b.width * 0.6 > row.x) return i
+      }
+      return -1
+    }
+    for (let press = 0; press < 3; press++) {
+      await page.getByRole("button", { name: "Próximos destaques" }).click()
+      await expect.poll(async () => deskCards(page).nth(await firstInView()).getAttribute("data-tone")).toBe("highlight")
+      await expect(lima(page)).toHaveCount(1)
+    }
+    expect(await firstInView()).toBeGreaterThan(0)
+    // The first card went back to the normal surface (the color eases over 0.4 s).
+    await expect(deskCards(page).first()).toHaveAttribute("data-tone", "default")
+    await expect.poll(() => bg(deskCards(page).first())).toBe(normalColor)
+
+    // At the very end of the track, the first card in view is still the Lima one.
+    const next = page.getByRole("button", { name: "Próximos destaques" })
+    for (let i = 0; i < 20 && (await next.isEnabled()); i++) await next.click()
+    await expect(lima(page)).toHaveCount(1)
+    await expect.poll(async () => deskCards(page).nth(await firstInView()).getAttribute("data-tone")).toBe("highlight")
+
+    // Lima card text: secondary text (Tinta 70%) stays readable in both schemes.
+    await lima(page).first().evaluate((el) => el.setAttribute("data-probe", "1"))
     for (const scheme of ["dark", "light"] as const) {
       await page.evaluate((s) => document.documentElement.classList.toggle("dark", s === "dark"), scheme)
-      const title = await contrastOf(page, '[data-panel="notas"] h2', '[data-panel="notas"] section')
-      const summary = await contrastOf(page, '[data-panel="notas"] button[aria-controls] span.truncate', '[data-panel="notas"] section')
-      expect(title, `title ${scheme}`).toBeGreaterThanOrEqual(4.5)
-      expect(summary, `summary ${scheme}`).toBeGreaterThanOrEqual(4.5)
+      await page.waitForTimeout(600) // the text colors ease over 0.4 s
+      expect(await contrastOf(page, '[data-probe="1"] > span:nth-of-type(3)', '[data-probe="1"]'), `support ${scheme}`).toBeGreaterThanOrEqual(4.5)
     }
   })
 
-  test("Destaques alternate Lima / normal by position, and re-alternate after turning one off", async ({ page, context, baseURL }) => {
+  test("hovering a side-panel header looks exactly like hovering a Destaques card", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
-    const colors = async () => Promise.all((await deskCards(page).all()).slice(0, 5).map((c) => bg(c)))
-    const before = await colors()
-    expect(before[0]).not.toBe(before[1])
-    expect([before[2], before[4]]).toEqual([before[0], before[0]])
-    expect(before[3]).toBe(before[1])
-    const lima = before[0]
-
-    await customize(page)
-    await page.getByRole("switch", { name: "Desligar Tarefas de hoje" }).click()
-    await page.getByRole("button", { name: "Pronto" }).click()
-    await expect(deskCards(page).first()).toHaveAttribute("aria-label", /^Hábitos de hoje:/)
-    // The new first card is Lima, whichever stat it is (colors ease over 0.4 s, so wait for them to settle).
-    await expect.poll(async () => (await colors())[0]).toBe(lima)
-    const after = await colors()
-    expect(after[1]).not.toBe(lima)
-    expect(after[2]).toBe(lima)
-
-    // Secondary text on a Lima card (Tinta 70%) stays readable in both schemes.
-    await deskCards(page).first().evaluate((el) => el.setAttribute("data-probe", "1"))
-    for (const scheme of ["dark", "light"] as const) {
-      await page.evaluate((s) => document.documentElement.classList.toggle("dark", s === "dark"), scheme)
-      expect(await contrastOf(page, '[data-probe="1"] > span:nth-of-type(3)', '[data-probe="1"]'), `support ${scheme}`).toBeGreaterThanOrEqual(4.5)
-    }
+    const look = (locator: ReturnType<Page["locator"]>) =>
+      locator.evaluate((el) => {
+        const s = getComputedStyle(el)
+        return { background: s.backgroundColor, cursor: s.cursor, duration: s.transitionDuration, easing: s.transitionTimingFunction, property: s.transitionProperty }
+      })
+    const card = deskCards(page).nth(1)
+    await card.hover()
+    await page.waitForTimeout(500)
+    const onCard = await look(card)
+    const header = page.locator('[data-panel="financas"] button[aria-controls]')
+    await header.hover()
+    await page.waitForTimeout(500)
+    const onHeader = await look(header)
+    expect(onHeader).toEqual(onCard)
+    // And the Seu dia group headers share it.
+    const group = page.getByTestId("seu-dia-list").getByRole("button", { name: /^Atrasados/ })
+    await group.hover()
+    await page.waitForTimeout(500)
+    expect(await look(group)).toEqual(onCard)
   })
 
   test("Destaques sits close to the top of the page and the two columns align to the top", async ({ page, context, baseURL }) => {
@@ -520,16 +556,43 @@ test.describe("round 2: desktop (1440x900)", () => {
 test.describe("round 2: phone (390x844)", () => {
   test.use(phone)
 
-  test("deck cards alternate Lima / normal; Notas is Lima and open; the panel title toggles", async ({ page, context, baseURL }) => {
+  test("the deck has one Lima card, the front one, and it changes with the swipe; Notas is open on the normal surface; the panel title toggles", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
-    const slides = page.locator('.swiper-slide a[aria-label*=": "]')
-    expect(await bg(slides.nth(0))).not.toBe(await bg(slides.nth(1)))
-    await expect(page.locator('[data-panel="notas"] section')).toHaveAttribute("data-tone", "highlight")
+    const deck = page.locator(".swiper").first()
+    await expect(deck.locator('.swiper-slide-active a[data-tone="highlight"]')).toHaveCount(1)
+    // Only the front card is Lima; the ones behind keep the normal surface and their border.
+    await expect(deck.locator('.swiper-slide:not(.swiper-slide-active) a[data-tone="highlight"]')).toHaveCount(0)
+    const front = await deck.locator(".swiper-slide-active a").getAttribute("aria-label")
+
+    const box = (await deck.boundingBox())!
+    const y = box.y + box.height / 2
+    await page.mouse.move(box.x + box.width * 0.8, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.1, y, { steps: 12 })
+    await page.mouse.up()
+    await expect(page.getByText("2 de 16", { exact: true })).toBeVisible()
+    await expect(deck.locator('.swiper-slide-active a[data-tone="highlight"]')).toHaveCount(1)
+    expect(await deck.locator(".swiper-slide-active a").getAttribute("aria-label")).not.toBe(front)
+    await expect(deck.locator('.swiper-slide:not(.swiper-slide-active) a[data-tone="highlight"]')).toHaveCount(0)
+
     await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
+    expect(await bg(page.locator('[data-panel="notas"] section'))).toBe(await bg(page.locator('[data-panel="financas"] section')))
     const finance = page.locator('[data-panel="financas"]')
     await finance.getByRole("heading", { name: "Finanças" }).click()
     await expect(finance.locator("button[aria-controls]")).toHaveAttribute("aria-expanded", "true")
+  })
+
+  test("reduced motion: the flat strip marks the first visible card as Lima", async ({ page, context, baseURL }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await setup(context, baseURL!)
+    await open(page)
+    const strip = page.locator('[aria-roledescription="carousel"]').first()
+    await expect(strip.locator('a[data-tone="highlight"]')).toHaveCount(1)
+    await expect(strip.locator("[data-index='0'] a")).toHaveAttribute("data-tone", "highlight")
+    await strip.evaluate((el) => el.scrollTo({ left: el.scrollWidth, behavior: "instant" }))
+    await expect(strip.locator("[data-index='0'] a")).toHaveAttribute("data-tone", "default")
+    await expect(strip.locator('a[data-tone="highlight"]')).toHaveCount(1)
   })
 
   test("no empty time column in Sem horário, and Abrir agenda keeps a 44 px target", async ({ page, context, baseURL }) => {
