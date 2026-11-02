@@ -83,7 +83,9 @@ test("Perfil: same screen, profile section first, avatar upload marked Em breve"
 
 test("Ajuda: the FAQ is searchable and the report form is marked Em breve", async ({ page }) => {
   await page.goto("/dashboard/ajuda")
-  await page.getByLabel("Buscar nas perguntas").fill("senha")
+  // React streams the page in a hidden holder (id "S:n") and then swaps it into place; typing before the swap lands in a node that is thrown away.
+  await page.waitForFunction(() => document.querySelectorAll("[hidden][id^=\"S:\"]").length === 0, undefined, { timeout: 30000 })
+  await page.getByRole("searchbox", { name: "Buscar nas perguntas" }).fill("senha")
   await expect(page.getByText("Como altero minha senha ou meus dados?")).toBeVisible({ timeout: 30000 })
   await expect(page.getByText("Como excluo minha conta?")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Enviar relato" })).toBeDisabled()

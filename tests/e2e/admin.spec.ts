@@ -140,8 +140,12 @@ test.describe("admin shell", () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto("/admin/usuarios")
     await expect(page.getByRole("search", { name: "Filtrar usuários" })).toBeVisible({ timeout: 30000 })
-    await expect(page.getByRole("button", { name: "Exportar CSV" })).toBeDisabled()
-    await expect(page.getByText("Configure a chave do servidor").first()).toBeVisible()
+    // Exports are logged with the server key: without SUPABASE_SECRET_KEY the button is disabled and says why; with it, it is enabled.
+    const exportButton = page.getByRole("button", { name: "Exportar CSV" })
+    await expect(exportButton).toBeVisible()
+    const hint = page.getByText("Configure a chave do servidor")
+    if (await exportButton.isDisabled()) await expect(hint.first()).toBeVisible()
+    else await expect(hint).toHaveCount(0)
   })
 })
 
