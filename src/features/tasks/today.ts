@@ -24,6 +24,8 @@ export type TodayData = {
   upcoming: TodayTask[]
   doneToday: number
   openTotal: number
+  /** Every task of an active board (done and open), for "Seu dia" to list what was finished today. */
+  all: TodayTask[]
 }
 
 /** Real data from Tasks for the "Hoje" dashboard. All day boundaries use the profile timezone. */
@@ -83,5 +85,6 @@ export async function getTodayData(): Promise<TodayData> {
     upcoming,
     doneToday,
     openTotal: open.length,
+    all,
   }
 }

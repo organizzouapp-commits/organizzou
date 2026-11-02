@@ -188,8 +188,10 @@ const MOODS: { value: Mood; icon: LucideIcon }[] = [
   { value: 5, icon: LaughIcon },
 ]
 
-export function MoodPanel() {
-  const { mood, setMood } = useTodayState()
+export function MoodPanel({ data }: { data: { mood: number | null } }) {
+  const { mood: picked, setMood } = useTodayState()
+  // What was picked on this page, or what today's check-in already holds.
+  const mood = picked ?? data.mood
   return (
     <PanelCard id="humor" href="/dashboard/diario" state="ok" summary={mood ? `Hoje: ${MOOD_LABELS[mood as Mood].toLowerCase()}` : "Ainda não registrado"}>
       <div role="radiogroup" aria-label="Humor de hoje" className="flex flex-wrap gap-2">

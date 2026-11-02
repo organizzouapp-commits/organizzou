@@ -82,7 +82,7 @@ export type PanelDataMap = {
   dieta: DietData
   treino: WorkoutData
   estudos: StudyData
-  humor: { state: WidgetState }
+  humor: { state: WidgetState; /** Today's mood (1-5) if the person already checked in. */ mood: number | null }
 }
 
 export type PanelDataOf<K extends PanelId> = PanelDataMap[K]

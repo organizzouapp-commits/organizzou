@@ -218,3 +218,56 @@ export async function loadAgenda() {
     tasks: tasks.map((t) => ({ id: t.id, title: t.title, due_at: t.due_at, due_has_time: t.due_has_time, board_name: boardName.get(t.board_id) ?? "Tarefas" })),
   }
 }
+
+/**
+ * Everything the Hoje widgets read, in one round of queries (the page asks once per request and the widgets share it).
+ * Windows are short on purpose: today, this week, this month, the last streak days.
+ */
+export async function loadTodaySource(now: string) {
+  const supabase = await client()
+  const today = dayOf(now)
+  const [habits, logs, transactions, bills, categories, foods, mealItems, goal, water, weights, plans, sessions, studySessions, subjects, deadlines, cards, reminders, notes, journal, events] = await Promise.all([
+    rows<HabitRow>(supabase, "habits"),
+    rows<HabitLogRow>(supabase, "habit_logs", { since: ["log_date", back(now, 400)] }),
+    rows<TransactionRow>(supabase, "finance_transactions", { since: ["occurred_on", back(now, 62)] }),
+    rows<RecurringBillRow>(supabase, "finance_bills"),
+    rows<CategoryRow>(supabase, "finance_categories"),
+    rows<FoodRow>(supabase, "foods"),
+    rows<MealItemRow>(supabase, "meal_items", { since: ["log_date", today] }),
+    rows<DietGoalRow>(supabase, "diet_goals"),
+    rows<{ log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", today] }),
+    rows<WeightLogRow>(supabase, "weight_logs", { since: ["log_date", back(now, 45)], order: ["log_date"] }),
+    rows<WorkoutPlanRow>(supabase, "workout_plans"),
+    rows<WorkoutSessionRow>(supabase, "workout_sessions", { since: ["performed_on", back(now, 10)] }),
+    rows<StudySessionRow>(supabase, "study_sessions", { since: ["studied_on", back(now, 10)] }),
+    rows<SubjectRow>(supabase, "subjects"),
+    rows<DeadlineRow>(supabase, "study_deadlines", { since: ["due_on", today], order: ["due_on"] }),
+    rows<FlashcardRow>(supabase, "flashcards"),
+    rows<ReminderRow>(supabase, "reminders", { order: ["remind_at"] }),
+    rows<NoteRow>(supabase, "notes", { order: ["updated_at", true], limit: 200 }),
+    rows<JournalEntryRow>(supabase, "journal_entries", { since: ["entry_date", back(now, 8)] }),
+    rows<EventRow>(supabase, "events", { order: ["starts_at"] }),
+  ])
+  return {
+    habits,
+    logs,
+    transactions,
+    bills,
+    categories,
+    foods,
+    mealItems: mealItems.filter((i) => i.log_date === today),
+    goal: goal[0] ?? null,
+    waterMl: water.filter((w) => w.log_date === today).reduce((sum, w) => sum + w.ml, 0),
+    weights,
+    plans,
+    sessions,
+    studySessions,
+    subjects,
+    deadlines,
+    cards,
+    reminders,
+    notes,
+    journal,
+    events,
+  }
+}

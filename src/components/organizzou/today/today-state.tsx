@@ -1,11 +1,16 @@
 "use client"
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react"
+import { toast } from "sonner"
+
+import { logWater, saveMood } from "@/features/today/actions"
+import { isMock } from "@/mocks/config"
 
 /**
  * What the person did on this page since it loaded: ticks, quantities, postponed items, water, mood. The widgets arrive from the
  * server with their initial numbers; this layer is what keeps the cards, the timeline and the panels in step with each other
- * ("2 de 5 concluídas" changes the moment a task is ticked). It is example-data state in the prototype, like every other screen.
+ * ("2 de 5 concluídas" changes the moment a task is ticked). Each change is also saved (tasks, habits, water, mood); in the local
+ * no-login prototype nothing is saved.
  */
 type TodayState = {
   /** Item id -> done. Only ids the person touched; everything else keeps the server's value. */
@@ -54,8 +59,29 @@ export function TodayStateProvider({ children }: { children: React.ReactNode }) 
       }),
     []
   )
-  const addWater = useCallback((ml: number) => setState((s) => ({ ...s, waterMl: s.waterMl + ml })), [])
-  const setMood = useCallback((mood: number) => setState((s) => ({ ...s, mood })), [])
+  // Water and mood show at once and are saved; if the database refuses, the change is undone and the person is told.
+  const addWater = useCallback((ml: number) => {
+    setState((s) => ({ ...s, waterMl: s.waterMl + ml }))
+    if (isMock) return
+    void logWater({ ml }).then((result) => {
+      if (result.ok) return
+      setState((s) => ({ ...s, waterMl: Math.max(0, s.waterMl - ml) }))
+      toast.error("Não consegui registrar a água. A alteração foi desfeita.")
+    })
+  }, [])
+  const setMood = useCallback((mood: number) => {
+    let before: number | null = null
+    setState((s) => {
+      before = s.mood
+      return { ...s, mood }
+    })
+    if (isMock) return
+    void saveMood({ mood }).then((result) => {
+      if (result.ok) return
+      setState((s) => ({ ...s, mood: before }))
+      toast.error("Não consegui registrar o humor. A alteração foi desfeita.")
+    })
+  }, [])
 
   const value = useMemo(() => ({ ...state, setDone, setQty, postpone, addWater, setMood }), [state, setDone, setQty, postpone, addWater, setMood])
   return <Context.Provider value={value}>{children}</Context.Provider>

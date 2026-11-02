@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react"
 
 import { PANEL_WIDGETS, STAT_WIDGETS, type PanelId, type StatId, type WidgetMeta } from "@/features/today/catalog"
 import type { PanelDataMap } from "@/features/today/types"
-import { getDay, getDiet, getFinance, getNotes, getStat, getStudy, getWorkout } from "@/features/today/data"
+import { getDay, getDiet, getFinance, getMood, getNotes, getStat, getStudy, getWorkout } from "@/features/today/data"
 
 import { DietPanel, FinancePanel, MoodPanel, NotesPanel, StudyPanel, WorkoutPanel } from "./panels"
 import { SeuDia } from "./seu-dia"
@@ -41,13 +41,13 @@ async function loadPanel(id: PanelId, nowIso: string): Promise<PanelDataMap[Pane
     case "financas":
       return getFinance(nowIso)
     case "dieta":
-      return getDiet()
+      return getDiet(nowIso)
     case "treino":
       return getWorkout(nowIso)
     case "estudos":
       return getStudy(nowIso)
     case "humor":
-      return { state: "ok" }
+      return getMood(nowIso)
   }
 }
 
@@ -73,7 +73,7 @@ async function PanelBody({ id, nowIso }: { id: PanelId; nowIso: string }) {
     case "estudos":
       return <StudyPanel data={data as PanelDataMap["estudos"]} />
     case "humor":
-      return <MoodPanel />
+      return <MoodPanel data={data as PanelDataMap["humor"]} />
   }
 }
 
