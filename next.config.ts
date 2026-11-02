@@ -9,15 +9,7 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
 ];
 
-/**
- * The screens run on example data (src/mocks) ONLY in the local no-login prototype (PROTOTYPE_BYPASS_AUTH=1, never in production):
- * there is no session there, so there is no database to read. Everywhere else every module reads and writes Supabase.
- * Same rule as src/lib/supabase/bypass.ts, inlined here so client components see it too.
- */
-const dataMock = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production" && process.env.VERCEL_ENV !== "production";
-
 const nextConfig: NextConfig = {
-  env: { NEXT_PUBLIC_DATA_MOCK: dataMock ? "1" : "0" },
   /* config options here */
   // A second dev server (screenshots) can use its own build folder: NEXT_DIST_DIR=.next-preview
   distDir: process.env.NEXT_DIST_DIR || ".next",
