@@ -140,7 +140,7 @@ export function DietPanel({ data }: { data: DietData }) {
 
 export function WorkoutPanel({ data }: { data: WorkoutData }) {
   return (
-    <PanelCard id="treino" href="/dashboard/treinos" state={data.state} summary={data.title && data.time ? `${data.title.split(" — ")[0]} às ${data.time}` : "Dia de descanso"}>
+    <PanelCard id="treino" href="/dashboard/treinos" state={data.state} summary={data.title ? (data.time ? `${data.title.split(" — ")[0]} às ${data.time}` : data.title.split(" — ")[0]) : "Dia de descanso"}>
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <span className="min-w-0 text-[15px] leading-6">{data.title ?? "Dia de descanso"}</span>

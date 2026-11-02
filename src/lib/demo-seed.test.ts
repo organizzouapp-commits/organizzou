@@ -13,6 +13,7 @@ import { checkSeedRequest, PRODUCTION_FLAG } from "../../scripts/demo/guard.ts"
  * the real schema inside a rolled-back transaction when the migrations change (see docs/DATA-AUDIT.md).
  */
 const refs: Refs = {
+  userId: "00000000-0000-4000-8000-000000000000",
   categories: Object.fromEntries(["Moradia", "Mercado", "Restaurantes", "Transporte", "Saúde", "Lazer", "Assinaturas", "Educação", "Salário", "Renda extra", "Outros"].map((n) => [n, `cat-${n}`])),
   foods: new Proxy({}, { get: (_t, name) => `food-${String(name)}` }) as Record<string, string>,
   exercises: new Proxy({}, { get: (_t, name) => `ex-${String(name)}` }) as Record<string, string>,

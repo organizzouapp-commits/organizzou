@@ -30,6 +30,7 @@ import { average, moodInsights } from "@/features/journal/insights"
 import { MOOD_LABELS, type JournalDay, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { shiftDay } from "@/features/habits/stats"
 import { dayOf, newId } from "@/lib/sp-time"
 
 const MOODS: { value: Mood; icon: LucideIcon }[] = [
@@ -79,12 +80,14 @@ export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: Jou
   }
 
   const sorted = [...days].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
-  const series = sorted.map((d) => ({ label: format(parseISO(d.entry_date), "dd/MM"), mood: d.mood, sleep: d.sleep_hours ?? 0 }))
+  // The charts and the averages cover the last 30 days (their titles say so); the list below and the insights use the whole history.
+  const recent = sorted.filter((d) => d.entry_date >= shiftDay(today, -29))
+  const series = recent.map((d) => ({ label: format(parseISO(d.entry_date), "dd/MM"), mood: d.mood, sleep: d.sleep_hours ?? 0 }))
   const insights = moodInsights(sorted.filter((d) => d.entry_date !== today))
   const history = [...sorted].reverse().slice(0, 12)
 
-  const moodAverage = average(sorted.map((d) => d.mood))
-  const sleepAverage = average(sorted.map((d) => d.sleep_hours ?? 0).filter((h) => h > 0))
+  const moodAverage = average(recent.map((d) => d.mood))
+  const sleepAverage = average(recent.map((d) => d.sleep_hours ?? 0).filter((h) => h > 0))
   const loggedDays = sorted.length
 
   return (

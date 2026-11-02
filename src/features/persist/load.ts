@@ -131,13 +131,15 @@ export async function loadGoals() {
 
   const wanted = new Set(links.map((l) => l.module))
   const earliest = goals.map((g) => g.created_at).sort()[0]
+  // Progress counts what HAPPENED since the goal was created, by the date of the event (a study day, a workout day), not by when the row was saved.
+  const earliestDay = earliest.slice(0, 10)
   const [doneTasks, habitLogs, saved, sessions, studied, meals, foods, diet] = await Promise.all([
     wanted.has("tarefas") ? rows<{ completed_at: string }>(supabase, "tasks", { since: ["completed_at", earliest] }) : [],
-    wanted.has("rotina") ? rows<{ log_date: string; created_at: string }>(supabase, "habit_logs", { since: ["created_at", earliest] }) : [],
+    wanted.has("rotina") ? rows<{ log_date: string }>(supabase, "habit_logs", { since: ["log_date", earliestDay] }) : [],
     wanted.has("financas") ? rows<{ current_cents: number }>(supabase, "finance_goals") : [],
-    wanted.has("treinos") ? rows<{ created_at: string; completed: boolean }>(supabase, "workout_sessions", { since: ["created_at", earliest] }) : [],
-    wanted.has("estudos") ? rows<{ created_at: string; minutes: number }>(supabase, "study_sessions", { since: ["created_at", earliest] }) : [],
-    wanted.has("dieta") ? rows<{ log_date: string; food_id: string; servings: number; created_at: string }>(supabase, "meal_items", { since: ["created_at", earliest] }) : [],
+    wanted.has("treinos") ? rows<{ performed_on: string; completed: boolean }>(supabase, "workout_sessions", { since: ["performed_on", earliestDay] }) : [],
+    wanted.has("estudos") ? rows<{ studied_on: string; minutes: number }>(supabase, "study_sessions", { since: ["studied_on", earliestDay] }) : [],
+    wanted.has("dieta") ? rows<{ log_date: string; food_id: string; servings: number }>(supabase, "meal_items", { since: ["log_date", earliestDay] }) : [],
     wanted.has("dieta") ? rows<FoodRow>(supabase, "foods") : [],
     wanted.has("dieta") ? rows<DietGoalRow>(supabase, "diet_goals") : [],
   ])
@@ -148,16 +150,16 @@ export async function loadGoals() {
       case "tarefas":
         return doneTasks.filter((t) => t.completed_at >= since).length
       case "rotina":
-        return new Set(habitLogs.filter((l) => l.created_at >= since).map((l) => l.log_date)).size
+        return new Set(habitLogs.filter((l) => l.log_date >= since.slice(0, 10)).map((l) => l.log_date)).size
       case "financas":
         return Math.round(saved.reduce((sum, g) => sum + g.current_cents, 0) / 100)
       case "treinos":
-        return sessions.filter((s) => s.completed && s.created_at >= since).length
+        return sessions.filter((s) => s.completed && s.performed_on >= since.slice(0, 10)).length
       case "estudos":
-        return Math.round((studied.filter((s) => s.created_at >= since).reduce((sum, s) => sum + s.minutes, 0) / 60) * 10) / 10
+        return Math.round((studied.filter((s) => s.studied_on >= since.slice(0, 10)).reduce((sum, s) => sum + s.minutes, 0) / 60) * 10) / 10
       case "dieta": {
         const perDay = new Map<string, number>()
-        for (const item of meals.filter((m) => m.created_at >= since)) {
+        for (const item of meals.filter((m) => m.log_date >= since.slice(0, 10))) {
           const food = foods.find((f) => f.id === item.food_id)
           perDay.set(item.log_date, (perDay.get(item.log_date) ?? 0) + (food ? food.kcal * item.servings : 0))
         }

@@ -12,10 +12,15 @@ export type Row = Record<string, unknown>
 
 /** What already exists in the account (created by the sign-up provisioning or the catalogs) that demo rows point to. */
 export type Refs = {
+  /** The account the rows are for: attachment files live under `<user id>/...` in Storage. */
+  userId: string
   categories: Record<string, string>
   foods: Record<string, string>
   exercises: Record<string, string>
 }
+
+/** The text of each demo attachment, by file name (the seed uploads them to Storage before the rows that point at them). */
+export const DEMO_FILE_BODIES: Record<string, string> = {}
 
 export type Demo = { table: string; rows: Row[] }[]
 
@@ -37,6 +42,7 @@ export const DEMO_TABLES = [
   "task_tags",
   "task_checklist_items",
   "task_comments",
+  "attachments",
   "habits",
   "habit_logs",
   "events",
@@ -63,9 +69,10 @@ export const DEMO_TABLES = [
   "life_goal_links",
   "life_goal_milestones",
   "journal_entries",
+  "notifications",
 ] as const
 
-/** Monthly limits the demo puts on the default categories (restored to "no limit" by the reset). */
+/** Fallback monthly limits for categories with nothing spent yet this month (the reset puts every limited category back to "no limit"). */
 export const DEMO_CATEGORY_LIMITS: Record<string, number> = {
   Moradia: 240_000,
   Mercado: 120_000,
@@ -110,9 +117,10 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     tags?: string[]
     checklist?: [number, number] // [total, done]
     comments?: string[]
+    attachments?: [name: string, mime: string, text: string][]
     done?: boolean
   }
-  const boards: { key: string; name: string; lists: [string, string, string]; tasks: [TaskSeed[], TaskSeed[], TaskSeed[]] }[] = [
+  const boards: { key: string; name: string; lists: string[]; tasks: TaskSeed[][] }[] = [
     {
       key: "work",
       name: "Trabalho",
@@ -120,12 +128,12 @@ export function buildDemo(now: Date, refs: Refs): Demo {
       tasks: [
         [
           { key: "report", title: "Enviar relatório semanal à Marina", description: "Resumir entregas da semana, indicadores de vendas e pendências.", priority: "high", due: [0, "17:00"], category: "Relatórios", swatch: "tinta-verso", tags: ["work", "urgent"], checklist: [3, 1], comments: ["Marina pediu o gráfico de vendas por região.", "Anexei a planilha de custos na pasta compartilhada."] },
-          { key: "proposal", title: "Revisar proposta do cliente Almeida & Filhos", priority: "medium", due: [1, "10:00"], category: "Comercial", swatch: "lima", tags: ["work"] },
+          { key: "proposal", title: "Revisar proposta do cliente Almeida & Filhos", priority: "medium", due: [1, "10:00"], category: "Comercial", swatch: "lima", tags: ["work"], attachments: [["proposta-almeida.txt", "text/plain", "Proposta comercial — Almeida & Filhos\n\nEscopo, prazos e condições de pagamento (exemplo de demonstração)."]] },
           { key: "costs", title: "Atualizar planilha de custos do trimestre", priority: "low", due: [4], tags: ["work"] },
           { key: "emails", title: "Responder e-mails pendentes", priority: "none", due: [-1], tags: ["work"] },
         ],
         [
-          { key: "slides", title: "Preparar apresentação de resultados do 3º trimestre", description: "Slides com gráficos de faturamento e metas atingidas.", priority: "high", due: [2, "14:00"], category: "Reunião", swatch: "tinta-verso", tags: ["work", "urgent"], checklist: [5, 3], comments: ["Faltam os números de outubro."] },
+          { key: "slides", title: "Preparar apresentação de resultados do 3º trimestre", description: "Slides com gráficos de faturamento e metas atingidas.", priority: "high", due: [2, "14:00"], category: "Reunião", swatch: "tinta-verso", tags: ["work", "urgent"], checklist: [5, 3], comments: ["Faltam os números de outubro."], attachments: [["resultados-3tri.txt", "text/plain", "Resultados do 3º trimestre — faturamento, metas e pendências (demonstração)."], ["roteiro-apresentacao.txt", "text/plain", "Roteiro da apresentação: abertura, números, próximos passos (demonstração)."]] },
           { key: "interview", title: "Entrevistar candidata para vaga de analista", priority: "medium", due: [3, "11:00"], tags: ["work"] },
         ],
         [
@@ -169,12 +177,32 @@ export function buildDemo(now: Date, refs: Refs): Demo {
       ],
     },
   ]
+  boards.push({
+    key: "app",
+    name: "Lançamento do app",
+    lists: ["Backlog", "A fazer", "Em andamento", "Concluído"],
+    tasks: [
+      [
+        { key: "pricing", title: "Definir a página de preços", priority: "medium", due: [12], tags: ["work"] },
+        { key: "faq", title: "Escrever as perguntas frequentes", priority: "low", tags: ["work", "personal"] },
+      ],
+      [
+        { key: "onboarding", title: "Revisar o texto do primeiro acesso", priority: "high", due: [1, "15:30"], category: "Produto", swatch: "lima", tags: ["work", "urgent"], checklist: [4, 2], comments: ["Trocar 'bem-vindo' por algo mais direto."] },
+        { key: "beta", title: "Convidar 10 pessoas para o beta", priority: "medium", due: [3], tags: ["work"] },
+      ],
+      [{ key: "landing", title: "Ajustar a página inicial no celular", priority: "high", due: [0, "11:00"], category: "Design", swatch: "tinta-verso", tags: ["work"], checklist: [3, 1] }],
+      [
+        { key: "domain", title: "Registrar o domínio", tags: ["work"], done: true },
+        { key: "logo", title: "Fechar o logotipo", tags: ["work"], done: true },
+      ],
+    ],
+  })
   boards.forEach((b, bi) => {
     const boardId = id("boards", b.key)
     add("boards", { id: boardId, name: `${b.name}`, position: (bi + 1) * 1000 + 500, archived: false })
     b.lists.forEach((listName, li) => {
       const listId = id("board_lists", `${b.key}:${li}`)
-      add("board_lists", { id: listId, board_id: boardId, name: listName, position: (li + 1) * 1000, is_done_list: li === 2 })
+      add("board_lists", { id: listId, board_id: boardId, name: listName, position: (li + 1) * 1000, is_done_list: li === b.lists.length - 1 })
       b.tasks[li].forEach((t, ti) => {
         const taskId = id("tasks", `${b.key}:${t.key}`)
         add("tasks", {
@@ -189,7 +217,7 @@ export function buildDemo(now: Date, refs: Refs): Demo {
           category: t.category ?? null,
           swatch: t.swatch ?? "neutro",
           position: (ti + 1) * 1000,
-          completed_at: li === 2 ? at(-1 - ti, "16:30") : null,
+          completed_at: li === b.lists.length - 1 ? at(-1 - ti, "16:30") : null,
           archived: false,
         })
         for (const tag of t.tags ?? []) add("task_tags", { id: id("task_tags", `${b.key}:${t.key}:${tag}`), task_id: taskId, tag_id: id("tags", tag) })
@@ -197,6 +225,11 @@ export function buildDemo(now: Date, refs: Refs): Demo {
           for (let n = 0; n < t.checklist[0]; n++) add("task_checklist_items", { id: id("task_checklist_items", `${b.key}:${t.key}:${n}`), task_id: taskId, text: `Etapa ${n + 1} de ${t.title.split(" ").slice(0, 3).join(" ")}`, done: n < t.checklist[1], position: (n + 1) * 1000 })
         }
         ;(t.comments ?? []).forEach((body, n) => add("task_comments", { id: id("task_comments", `${b.key}:${t.key}:${n}`), task_id: taskId, body }))
+        ;(t.attachments ?? []).forEach(([name, mime, text], n) => {
+          const attachmentId = id("attachments", `${b.key}:${t.key}:${n}`)
+          DEMO_FILE_BODIES[name] = text
+          add("attachments", { id: attachmentId, entity_type: "task", entity_id: taskId, storage_path: `${refs.userId}/${taskId}/${attachmentId}-${name}`, file_name: name, mime_type: mime, size_bytes: Buffer.byteLength(text) })
+        })
       })
     })
   })
@@ -210,22 +243,24 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     { key: "meditate", name: "Meditar 10 minutos", type: "fixed", target_qty: null, unit: null, weekdays: ALL, paused: false },
     { key: "english", name: "Estudar inglês", type: "goal", target_qty: 30, unit: "min", weekdays: [1, 2, 3, 4, 5], paused: false },
     { key: "run", name: "Correr 5 km", type: "fixed", target_qty: null, unit: null, weekdays: [6], paused: true },
+    // Taken every day for 40 days, today still pending: a long streak that shows the flame, and a fixed habit that is not done yet.
+    { key: "vitamin", name: "Tomar vitamina D", type: "fixed", target_qty: null, unit: null, weekdays: ALL, paused: false },
   ]
   habits.forEach((h, hi) => {
     add("habits", { id: id("habits", h.key), name: h.name, type: h.type, target_qty: h.target_qty, unit: h.unit, weekdays: h.weekdays, deadline: null, paused: h.paused })
     // About 70% of the scheduled days in the last 90 are done; a longer recent run makes streaks look real. Today stays open.
     for (let i = 1; i <= 90; i++) {
       if (!h.weekdays.includes(weekday(-i))) continue
-      const done = i <= hi + 3 || (i * 7 + hi * 13) % 10 < 7
+      const done = h.key === "vitamin" ? i <= 40 : i <= hi + 3 || (i * 7 + hi * 13) % 10 < 7
       if (!done) continue
       add("habit_logs", { id: id("habit_logs", `${h.key}:${i}`), habit_id: id("habits", h.key), log_date: day(-i), qty: h.type === "goal" ? (h.target_qty ?? 1) : 1 })
     }
   })
   // Today: water half done, meditation checked.
-  add("habit_logs", { id: id("habit_logs", "water:today"), habit_id: id("habits", "water"), log_date: day(0), qty: 1.5 }, { id: id("habit_logs", "meditate:today"), habit_id: id("habits", "meditate"), log_date: day(0), qty: 1 })
+  add("habit_logs", { id: id("habit_logs", "water:today"), habit_id: id("habits", "water"), log_date: day(0), qty: 1.5 }, { id: id("habit_logs", "meditate:today"), habit_id: id("habits", "meditate"), log_date: day(0), qty: 1 }, { id: id("habit_logs", "read:today"), habit_id: id("habits", "read"), log_date: day(0), qty: 20 })
 
   // ------------------------------------------------------------------------------------------------ Agenda
-  const events: { key: string; title: string; start: [number, string]; end: [number, string]; allDay?: boolean; category: string; location?: string; swatch: string; rrule?: string; reminders?: number[] }[] = [
+  const events: { key: string; title: string; start: [number, string]; end: [number, string]; allDay?: boolean; category: string; location?: string; swatch: string; rrule?: string; reminders?: number[]; startsAt?: string; endsAt?: string }[] = [
     { key: "sync", title: "Alinhamento semanal do time", start: [-60, "10:00"], end: [-60, "11:00"], category: "Trabalho", location: "Sala de reuniões 2", swatch: "tinta-verso", rrule: "FREQ=WEEKLY;BYDAY=MO", reminders: [10] },
     { key: "english", title: "Aula de inglês", start: [-60, "19:00"], end: [-60, "20:00"], category: "Estudos", location: "Online — Zoom", swatch: "lima-verso", rrule: "FREQ=WEEKLY;BYDAY=TU,TH", reminders: [30] },
     { key: "soccer", title: "Futebol com os amigos", start: [-60, "17:00"], end: [-60, "18:30"], category: "Lazer", location: "Quadra do Parque Ibirapuera", swatch: "grafite", rrule: "FREQ=WEEKLY;BYDAY=SA" },
@@ -235,10 +270,19 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     { key: "mom", title: "Aniversário da mãe", start: [5, "00:00"], end: [5, "23:59"], allDay: true, category: "Família", swatch: "lima", rrule: "FREQ=YEARLY", reminders: [1440] },
     { key: "cinema", title: "Cinema com a Bia", start: [4, "20:00"], end: [4, "22:30"], category: "Lazer", location: "Cinemark Shopping Eldorado", swatch: "papel" },
     { key: "school", title: "Reunião de pais na escola", start: [8, "18:30"], end: [8, "19:30"], category: "Família", location: "Colégio Santa Clara", swatch: "grafite", reminders: [60] },
+    { key: "now", title: "Foco no relatório (em andamento)", start: [0, "00:00"], end: [0, "00:00"], startsAt: new Date(now.getTime() - 30 * 60_000).toISOString(), endsAt: new Date(now.getTime() + 60 * 60_000).toISOString(), category: "Trabalho", swatch: "lima-verso", reminders: [5, 30] },
+    { key: "past1", title: "Café com a Júlia", start: [-9, "16:00"], end: [-9, "17:00"], category: "Pessoal", swatch: "papel" },
+    { key: "past2", title: "Dentista — limpeza", start: [-5, "08:30"], end: [-5, "09:15"], category: "Saúde", location: "Clínica Sorriso, Pinheiros", swatch: "lima" },
+    { key: "mon1", title: "Planejamento do trimestre", start: [6, "09:00"], end: [6, "11:00"], category: "Trabalho", swatch: "tinta-verso", reminders: [60] },
+    { key: "mon2", title: "Jantar de aniversário da Carol", start: [10, "20:00"], end: [10, "23:00"], category: "Pessoal", location: "Bar do Alemão", swatch: "lima" },
+    { key: "mon3", title: "Corrida no parque", start: [11, "07:00"], end: [11, "08:00"], category: "Saúde", swatch: "grafite" },
+    { key: "mon4", title: "Revisão com o contador", start: [15, "14:30"], end: [15, "15:30"], category: "Finanças", swatch: "neutro", reminders: [120] },
+    { key: "mon5", title: "Feriado — folga", start: [18, "00:00"], end: [18, "23:59"], allDay: true, category: "Pessoal", swatch: "papel" },
+    { key: "mon6", title: "Workshop de fotografia", start: [22, "09:00"], end: [22, "17:00"], category: "Estudos", location: "Estúdio Luz", swatch: "lima-verso" },
     { key: "money", title: "Revisão do plano financeiro do mês", start: [-60, "21:00"], end: [-60, "21:30"], category: "Finanças", swatch: "neutro", rrule: "FREQ=MONTHLY" },
   ]
   for (const e of events) {
-    add("events", { id: id("events", e.key), title: e.title, starts_at: at(...e.start), ends_at: at(...e.end), all_day: e.allDay ?? false, description: null, location: e.location ?? null, category: e.category, swatch: e.swatch, rrule: e.rrule ?? null, reminder_offsets: e.reminders ?? [] })
+    add("events", { id: id("events", e.key), title: e.title, starts_at: e.startsAt ?? at(...e.start), ends_at: e.endsAt ?? at(...e.end), all_day: e.allDay ?? false, description: null, location: e.location ?? null, category: e.category, swatch: e.swatch, rrule: e.rrule ?? null, reminder_offsets: e.reminders ?? [] })
   }
 
   // ------------------------------------------------------------------------------------------------ Finanças
@@ -273,6 +317,9 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     { d: 22, kind: "out", cents: 15_000, desc: "Show — ingressos", cat: "Lazer", acc: "nubank", method: "Cartão" },
     { d: 1, kind: "out", cents: 45_000, desc: "Mensalidade da pós-graduação", cat: "Educação", acc: "itau", method: "Boleto" },
     { d: 20, kind: "in", cents: 120_000, desc: "Freelance — identidade visual", cat: "Renda extra", acc: "nubank", method: "Pix" },
+    { d: 18, kind: "out", cents: 9_800, desc: "Presente de aniversário da Carol", cat: "Outros", acc: "cash", method: "Dinheiro" },
+    { d: 1, kind: "out", cents: 22_300, desc: "Consulta com especialista", cat: "Saúde", acc: "itau", method: "Pix" },
+    { d: 25, kind: "out", cents: 24_900, desc: "Curso de fotografia — parcela", cat: "Educação", acc: "nubank", method: "Cartão" },
   ]
   const today = day(0)
   const [thisYear, thisMonth] = today.split("-").map(Number)
@@ -302,15 +349,20 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     const d = new Date(Date.UTC(thisYear, thisMonth - 2, 1))
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`
   })()
+  // Bills in every state, relative to today (due days are 1-28): paid, due today, overdue and upcoming.
+  const dayOfMonth = Number(today.slice(8))
+  const dueToday = Math.min(28, dayOfMonth)
+  const overdueDay = Math.max(1, Math.min(28, dayOfMonth - 4))
+  const upcomingDay = Math.min(28, dayOfMonth + 6)
   const bills: [string, string, number, number, string, boolean][] = [
     ["rent", "Aluguel", 195_000, 8, "Moradia", true],
     ["condo", "Condomínio", 48_000, 8, "Moradia", true],
-    ["internet", "Internet — Vivo Fibra", 11_990, 15, "Moradia", false],
+    ["internet", "Internet — Vivo Fibra", 11_990, overdueDay, "Moradia", false],
     ["power", "Conta de luz — Enel", 14_200, 12, "Moradia", true],
     ["netflix", "Netflix", 5_590, 3, "Assinaturas", true],
     ["spotify", "Spotify", 2_190, 6, "Assinaturas", true],
-    ["gym", "Academia Smart Fit", 12_990, 27, "Saúde", false],
-    ["health", "Plano de saúde Unimed", 68_000, 28, "Saúde", false],
+    ["gym", "Academia Smart Fit", 12_990, dueToday, "Saúde", false],
+    ["health", "Plano de saúde Unimed", 68_000, upcomingDay, "Saúde", false],
     ["college", "Mensalidade da pós", 45_000, 1, "Educação", true],
   ]
   for (const [key, name, cents, dueDay, cat, paid] of bills) add("finance_bills", { id: id("finance_bills", key), name, amount_cents: cents, due_day: dueDay, category_id: category(cat), active: true, last_paid_month: paid ? monthNow : monthPrev })
@@ -318,7 +370,8 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     "finance_goals",
     { id: id("finance_goals", "reserve"), name: "Reserva de emergência", target_cents: 2_000_000, current_cents: 1_240_000, deadline: `${thisYear + 1}-06-30` },
     { id: id("finance_goals", "trip"), name: "Viagem para Florianópolis", target_cents: 600_000, current_cents: 320_000, deadline: `${thisYear}-12-15` },
-    { id: id("finance_goals", "notebook"), name: "Notebook novo", target_cents: 550_000, current_cents: 210_000, deadline: `${thisYear + 1}-03-31` }
+    { id: id("finance_goals", "notebook"), name: "Notebook novo", target_cents: 550_000, current_cents: 210_000, deadline: `${thisYear + 1}-03-31` },
+    { id: id("finance_goals", "phone"), name: "Troca do celular", target_cents: 300_000, current_cents: 300_000, deadline: null }
   )
 
   // ------------------------------------------------------------------------------------------------ Treinos
@@ -335,7 +388,7 @@ export function buildDemo(now: Date, refs: Refs): Demo {
   for (let back = 70; back >= 1; back--) {
     for (const p of plans) {
       if (!(p.weekdays as readonly number[]).includes(weekday(-back))) continue
-      if ((back * 5 + weekday(-back)) % 7 === 0) continue // a few skipped days
+      if ((back * 5 + p.key.charCodeAt(0)) % 9 === 0) continue // a few skipped sessions (never every one of a plan: that depends on the plan, not the weekday)
       const sessionId = id("workout_sessions", `${p.key}:${back}`)
       add("workout_sessions", { id: sessionId, plan_id: id("workout_plans", p.key), performed_on: day(-back), duration_min: 55 + ((back * 3) % 15), completed: true })
       const weeksIn = Math.floor((70 - back) / 7)
@@ -351,6 +404,7 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     ["breakfast", "Pão francês", 1], ["breakfast", "Ovo cozido", 2], ["breakfast", "Café com leite", 1],
     ["lunch", "Arroz branco cozido", 2], ["lunch", "Feijão carioca cozido", 1.5], ["lunch", "Peito de frango grelhado", 1.5], ["lunch", "Salada de alface e tomate", 1], ["lunch", "Azeite de oliva", 0.5],
     ["snack", "Banana prata", 1], ["snack", "Iogurte natural", 1],
+    ["dinner", "Macarrão cozido", 2], ["dinner", "Carne moída refogada", 1],
   ]
   todayMeals.forEach(([meal, name, servings], i) => add("meal_items", { id: id("meal_items", `today:${i}`), log_date: day(0), meal, food_id: food(name), servings }))
   // The two weeks before: three meals a day, varying a little, so the calories chart and the averages have something to show.
@@ -429,19 +483,20 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     ["gift", "Comprar presente da mãe", 3, "12:00", ["push"], "pending"],
     ["antivirus", "Renovar assinatura do antivírus", 8, "10:00", ["push"], "pending"],
     ["docs", "Enviar documentos ao contador", -1, "11:00", ["push"], "done"],
+    ["rent", "Conferir o reajuste do aluguel", -2, "10:00", ["push"], "pending"],
   ]
   for (const [key, title, offset, time, channels, status] of reminders) add("reminders", { id: id("reminders", key), title, remind_at: at(offset, time), channels, status, note_id: null })
 
   // ------------------------------------------------------------------------------------------------ Metas
   const goals: { key: string; title: string; description: string; deadline: number | null; status: string; links: [string, string, number, number, string][]; milestones: [string, boolean][] }[] = [
-    { key: "oab", title: "Passar na 1ª fase da OAB", description: "Estudar com constância até o exame e chegar na prova com todo o edital revisado.", deadline: 42, status: "active", links: [["estudos", "Horas de estudo", 62, 120, "h"], ["estudos", "Flashcards dominados", 84, 200, "cartões"], ["rotina", "Semanas com meta de estudo batida", 14, 18, "semanas"], ["tarefas", "Listas de exercícios entregues", 7, 12, "listas"]], milestones: [["Fechar o edital de Direito Constitucional", true], ["Fazer 3 simulados completos", false], ["Revisar todos os erros dos simulados", false]] },
-    { key: "reserve", title: "Juntar R$ 20.000 de reserva de emergência", description: "Seis meses de custo fixo guardados em investimento de liquidez diária.", deadline: 240, status: "active", links: [["financas", "Valor guardado (em reais)", 12400, 20000, "R$"], ["rotina", "Meses guardando R$ 500 ou mais", 9, 12, "meses"]], milestones: [["Abrir conta em corretora", true], ["Configurar aporte automático", true], ["Chegar a R$ 15.000", false]] },
-    { key: "run", title: "Correr 10 km sem parar", description: "Evoluir de 5 km para 10 km com treinos leves de corrida aos sábados.", deadline: 90, status: "active", links: [["treinos", "Corridas de 5 km ou mais", 3, 8, "corridas"], ["rotina", "Sábados de corrida cumpridos", 5, 12, "sábados"]], milestones: [["Correr 5 km em menos de 30 minutos", true], ["Correr 8 km sem parar", false]] },
-    { key: "books", title: "Ler 24 livros em 2026", description: "Dois livros por mês, alternando ficção e não ficção.", deadline: null, status: "active", links: [["estudos", "Livros concluídos", 15, 24, "livros"], ["rotina", "Dias lendo 20 páginas", 210, 300, "dias"]], milestones: [] },
-    { key: "photo", title: "Terminar o curso de fotografia", description: "Concluído com certificado no mês passado.", deadline: -30, status: "done", links: [["estudos", "Módulos concluídos", 12, 12, "módulos"]], milestones: [["Entregar o projeto final", true]] },
+    { key: "oab", title: "Passar na 1ª fase da OAB", description: "Estudar com constância até o exame e chegar na prova com todo o edital revisado.", deadline: 42, status: "active", links: [["estudos", "Horas de estudo", 0, 250, "h"], ["tarefas", "Tarefas concluídas", 0, 12, "tarefas"]], milestones: [["Fechar o edital de Direito Constitucional", true], ["Fazer 3 simulados completos", false], ["Revisar todos os erros dos simulados", false]] },
+    { key: "reserve", title: "Juntar R$ 20.000 de reserva de emergência", description: "Seis meses de custo fixo guardados em investimento de liquidez diária.", deadline: 240, status: "active", links: [["financas", "Valor guardado", 0, 30000, "R$"], ["rotina", "Dias com o hábito em dia", 0, 90, "dias"]], milestones: [["Abrir conta em corretora", true], ["Configurar aporte automático", true], ["Chegar a R$ 15.000", false]] },
+    { key: "run", title: "Correr 10 km sem parar", description: "Evoluir de 5 km para 10 km com treinos leves de corrida aos sábados.", deadline: 90, status: "active", links: [["treinos", "Treinos feitos", 0, 60, "treinos"]], milestones: [["Correr 5 km em menos de 30 minutos", true], ["Correr 8 km sem parar", false]] },
+    { key: "books", title: "Ler 24 livros em 2026", description: "Dois livros por mês, alternando ficção e não ficção.", deadline: null, status: "active", links: [["rotina", "Dias com o hábito em dia", 0, 120, "dias"], ["dieta", "Dias dentro da meta", 0, 30, "dias"]], milestones: [] },
+    { key: "photo", title: "Terminar o curso de fotografia", description: "Concluído com certificado no mês passado.", deadline: -30, status: "done", links: [["estudos", "Horas de estudo", 0, 12, "h"]], milestones: [["Entregar o projeto final", true]] },
   ]
   for (const g of goals) {
-    add("life_goals", { id: id("life_goals", g.key), title: g.title, description: g.description, deadline: g.deadline === null ? null : day(g.deadline), status: g.status })
+    add("life_goals", { id: id("life_goals", g.key), created_at: at(-90, "09:00"), title: g.title, description: g.description, deadline: g.deadline === null ? null : day(g.deadline), status: g.status })
     g.links.forEach(([module, label, done, total, unit], i) => add("life_goal_links", { id: id("life_goal_links", `${g.key}:${i}`), goal_id: id("life_goals", g.key), module, label, done, total, unit }))
     g.milestones.forEach(([title, done], i) => add("life_goal_milestones", { id: id("life_goal_milestones", `${g.key}:${i}`), goal_id: id("life_goals", g.key), title, done }))
   }
@@ -462,8 +517,49 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     const trained = (back * 5) % 7 < 3
     const studied = ((back * 11) % 5) * 30
     const raw = 2.4 + (sleep >= 7 ? 1.2 : sleep >= 6 ? 0.5 : 0) + (trained ? 0.6 : 0) + (studied >= 60 ? 0.4 : 0) + (((back * 3) % 5) - 2) * 0.25
-    add("journal_entries", { id: id("journal_entries", String(back)), entry_date: day(-back), mood: Math.max(1, Math.min(5, Math.round(raw))), text: back % 3 === 0 ? diary[back % diary.length] : "", sleep_hours: sleep })
+    const forced: Record<number, number> = { 4: 1, 9: 1, 13: 5, 20: 5, 27: 1 }
+    add("journal_entries", { id: id("journal_entries", String(back)), entry_date: day(-back), mood: forced[back] ?? Math.max(1, Math.min(5, Math.round(raw))), text: back % 3 === 0 ? diary[back % diary.length] : "", sleep_hours: sleep })
+  }
+
+  // ------------------------------------------------------------------------------------------------ Notificações (o sino)
+  const ago = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
+  const notifications: [string, string, string, string | null, string | null, number, boolean][] = [
+    ["bill", "bill", "Internet — Vivo Fibra venceu", "R$ 119,90 · confira em Finanças", "/dashboard/financas", 25, false],
+    ["cards", "study", "Flashcards para revisar", "Direito Constitucional e inglês", "/dashboard/estudos", 95, false],
+    ["workout", "workout", "Treino de hoje", "Veja o plano do dia", "/dashboard/treinos", 3 * 60, false],
+    ["event", "agenda", "Consulta com a Dra. Camila", "Começa hoje às 9h, na Clínica Sorriso", "/dashboard/agenda", 5 * 60, true],
+    ["task", "task", "Enviar relatório semanal à Marina", "Vence hoje às 17h", "/dashboard/tarefas", 8 * 60, true],
+    ["habit", "habit", "Você está há 40 dias tomando a vitamina D", "Continue assim", "/dashboard/rotina", 26 * 60, true],
+    ["goal", "goal", "Meta concluída: Troca do celular", "Parabéns, você chegou aos R$ 3.000,00", "/dashboard/financas", 2 * 24 * 60, true],
+    ["reminder", "reminder", "Lembrete: conferir o reajuste do aluguel", null, "/dashboard/notas", 3 * 24 * 60, true],
+    ["welcome", "info", "Bem-vindo ao Organizzou", "Esta conta tem dados de demonstração", null, 6 * 24 * 60, true],
+  ]
+  for (const [key, kind, title, body, link, minutes, read] of notifications) {
+    add("notifications", { id: id("notifications", key), kind, title, body, link, read_at: read ? ago(minutes - 5) : null, created_at: ago(minutes) })
   }
 
   return DEMO_TABLES.map((table) => ({ table, rows: out[table] }))
+}
+
+/**
+ * Monthly limits for the default categories, chosen from what was actually spent so far this month so the budget shows every state
+ * on any day: the category with the most spending is over its limit, the next one is near it (about 90%), the others are comfortably under.
+ * A category with nothing spent yet gets a plain fallback limit.
+ */
+export function categoryLimits(demo: Demo, refs: Refs, now: Date): Record<string, number> {
+  const month = sp(now).slice(0, 7)
+  const nameOf = new Map(Object.entries(refs.categories).map(([name, id]) => [id, name]))
+  const spent = new Map<string, number>()
+  for (const row of demo.find((t) => t.table === "finance_transactions")?.rows ?? []) {
+    if (row.kind !== "out" || !String(row.occurred_on).startsWith(month)) continue
+    const name = nameOf.get(row.category_id as string)
+    if (name && name in DEMO_CATEGORY_LIMITS) spent.set(name, (spent.get(name) ?? 0) + Number(row.amount_cents))
+  }
+  const ranked = [...spent].sort((a, b) => b[1] - a[1])
+  const limits: Record<string, number> = { ...DEMO_CATEGORY_LIMITS }
+  ranked.forEach(([name, amount], index) => {
+    const factor = index === 0 ? 0.8 : index === 1 ? 1 / 0.92 : 2.2
+    limits[name] = Math.max(1000, Math.round((amount * factor) / 1000) * 1000)
+  })
+  return limits
 }

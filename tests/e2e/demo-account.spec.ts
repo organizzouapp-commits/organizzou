@@ -7,12 +7,15 @@
  *      PROTOTYPE_BYPASS_AUTH=1 NEXT_DIST_DIR=.next-preview npx next dev -p 3100 ; npx playwright test demo-account
  *
  * 2. On the DEMO account the things you do in "Hoje" are kept: mark a task done, a fixed habit and a quantity habit, reload, and they are
- *    still done. Needs the real project with the migrations applied, the demo loaded (npm run seed:demo -- organizzouapp@gmail.com), the
- *    server WITHOUT the bypass, and the demo account signed in with e-mail and password:
- *      E2E_DEMO_EMAIL=organizzouapp@gmail.com E2E_DEMO_PASSWORD=... npx playwright test demo-account
- *    It changes only demo rows; run \`npm run seed:demo -- organizzouapp@gmail.com\` again to put the demo back the way it was.
+ *    still done; the bell shows the unread count and keeps "lida" after a reload. Needs the real project with the migrations applied, the
+ *    demo loaded (npm run seed:demo -- organizzouapp@gmail.com) and the server WITHOUT the bypass. The session is a one-time token made
+ *    with the secret key in .env.local (no password needed):
+ *      E2E_DEMO_SESSION=1 npx playwright test demo-account
+ *    It changes only demo rows; run `npm run seed:demo -- organizzouapp@gmail.com` again to put the demo back the way it was.
  */
 import { expect, test, type Page } from "@playwright/test"
+
+import { demoSessionCookies } from "./helpers/demo-session"
 
 const CONSENT = encodeURIComponent(JSON.stringify({ version: 1, necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }))
 const SIDEBAR_COOKIE = "sidebar_state_00000000000040008000000000000001"
@@ -71,9 +74,7 @@ test.describe("a clean account: every module shows its empty state", () => {
 })
 
 test.describe("the demo account keeps what you do in Hoje", () => {
-  const EMAIL = process.env.E2E_DEMO_EMAIL
-  const PASSWORD = process.env.E2E_DEMO_PASSWORD
-  test.skip(!EMAIL || !PASSWORD, "Set E2E_DEMO_EMAIL and E2E_DEMO_PASSWORD (and run the server WITHOUT PROTOTYPE_BYPASS_AUTH, with the demo loaded).")
+  test.skip(!process.env.E2E_DEMO_SESSION, "Set E2E_DEMO_SESSION=1 (real project, demo loaded, server WITHOUT PROTOTYPE_BYPASS_AUTH).")
   test.use({ viewport: { width: 1440, height: 900 } })
 
   async function openHoje(page: Page) {
@@ -85,12 +86,27 @@ test.describe("the demo account keeps what you do in Hoje", () => {
   }
 
   test.beforeEach(async ({ page, context, baseURL }) => {
-    await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
-    await page.goto("/login")
-    await page.getByLabel("E-mail").fill(EMAIL!)
-    await page.getByLabel("Senha").fill(PASSWORD!)
-    await page.getByRole("button", { name: "Entrar" }).click()
+    await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }, ...(await demoSessionCookies("organizzouapp@gmail.com", baseURL!))])
+    await page.goto("/dashboard")
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 30000 })
+  })
+
+  test("the bell shows the unread count, and marking all as read survives a reload", async ({ page }) => {
+    await page.goto("/dashboard")
+    const unread = page.getByRole("button", { name: /^Notificações, \d+ (nova|novas)$/ }).first()
+    await expect(unread, "the demo has unread notifications (needs npm run seed:demo and migration 20261103000005)").toBeVisible({ timeout: 60000 })
+    await expect(page.getByTestId("bell-dot").first()).toBeVisible()
+    await unread.click()
+    await expect(page.getByRole("img", { name: "Não lida" }).first()).toBeVisible()
+    await page.getByRole("button", { name: "Marcar todas como lidas" }).click()
+    await expect(page.getByRole("img", { name: "Não lida" })).toHaveCount(0)
+    await page.waitForTimeout(1500)
+    await page.reload()
+    // Read stays read: the bell has no count and no dot, and the list is still there.
+    await expect(page.getByRole("button", { name: "Notificações", exact: true }).first()).toBeVisible({ timeout: 60000 })
+    await expect(page.getByTestId("bell-dot")).toHaveCount(0)
+    await page.getByRole("button", { name: "Notificações", exact: true }).first().click()
+    await expect(page.getByText("Internet — Vivo Fibra venceu")).toBeVisible()
   })
 
   test("a task marked done is still done after a reload (and can be reopened)", async ({ page }) => {
