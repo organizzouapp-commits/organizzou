@@ -23,6 +23,8 @@ export const MEAL_LABELS: Record<MealKind, string> = {
 
 export type MealItemRow = {
   id: string
+  /** "yyyy-MM-dd" in the user's timezone. Every saved row has it. */
+  log_date?: string
   meal: MealKind
   food_id: string
   /** Number of servings, e.g. 1.5. */
@@ -36,7 +38,8 @@ export type DietGoalRow = {
   carbs_g: number
   fat_g: number
   water_ml: number
-  target_weight_kg: number
+  /** Null until the person sets one. */
+  target_weight_kg: number | null
 }
 
 export type WeightLogRow = { id: string; user_id: string; log_date: string; weight_kg: number }

@@ -3,7 +3,7 @@ import type { PanelId, StatId } from "./catalog"
 /** Serializable shapes the "Hoje" widgets get from the server. Nothing in here is a function or a component. */
 
 /**
- * "ok": real numbers (or the example data of the prototype, see isMock). "empty": the module works but has nothing to show.
+ * "ok": real numbers. "empty": the module works but has nothing to show.
  * "soon": the module has no backend yet. The card says so instead of showing a number.
  */
 export type WidgetState = "ok" | "empty" | "soon"
@@ -82,7 +82,7 @@ export type PanelDataMap = {
   dieta: DietData
   treino: WorkoutData
   estudos: StudyData
-  humor: { state: WidgetState }
+  humor: { state: WidgetState; /** Today's mood (1-5) if the person already checked in. */ mood: number | null }
 }
 
 export type PanelDataOf<K extends PanelId> = PanelDataMap[K]

@@ -1,8 +1,10 @@
 # Status das integrações e funcionalidades
 
-Legenda: **Real** = funciona de ponta a ponta com backend; **Simulado** = a interface existe, mas usa dados de exemplo
-(`src/mocks/`, `isMock = true` em `src/mocks/config.ts`) ou uma resposta local, sem efeito fora do navegador; **Não construído**
+Legenda: **Real** = funciona de ponta a ponta com backend; **Simulado** = a interface existe, mas é só local, sem efeito fora do navegador (não existe mais dado de exemplo no app: a demonstração
+vive no banco, só na conta de teste, ver `docs/DATA-AUDIT.md`); **Não construído**
 = nada além de um aviso de "Em breve".
+
+Auditoria completa por módulo, com as tabelas: `docs/DATA-AUDIT.md`.
 
 Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu. Tudo que é simulado e tem efeito externo
 (WhatsApp, banco, e-mail, pagamento, IA) aparece com selo **"Em breve"** e controle desabilitado com uma explicação curta.
@@ -20,7 +22,7 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Verificação em duas etapas | Não construído (selo "Em breve") | `src/components/settings/settings-extras.tsx` |
 | Passkeys (biometria) | Não construído (selo "Em breve") | `src/components/settings/settings-extras.tsx` |
 | Excluir conta | Não construído (botão desabilitado com explicação) | `src/components/settings/settings-extras.tsx` |
-| Foto de perfil (upload) | Não construído (botão desabilitado, selo "Em breve") | `src/components/profile/profile-view.tsx` |
+| Foto de perfil (upload) | Não construído (botão desabilitado, selo "Em breve"); bucket `avatars` e `profiles.avatar_path` já existem | `src/components/profile/profile-view.tsx` |
 | Reportar problema (Ajuda) | Não construído (formulário desabilitado, selo "Em breve"; o e-mail de suporte é um endereço provisório) | `src/components/help/help-view.tsx` |
 
 ## Pagamentos e planos
@@ -36,14 +38,14 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 
 | Funcionalidade | Status | Onde está no código |
 |---|---|---|
-| Assistente de conversa (app) | Simulado: respostas por regras (regex) sobre dados de exemplo, sem IA. Marcado como "Prévia" | `src/mocks/assistant.ts`, `src/components/assistant/assistant-sheet.tsx` |
-| Captura rápida (Novo) | Simulado: classifica o texto por regras e não grava nada | `src/components/assistant/quick-capture.tsx` |
-| Busca global (Ctrl K) | Simulado: pesquisa só nos dados de exemplo | `src/mocks/search.ts`, `src/components/shell/command-palette.tsx` |
+| Assistente de conversa (app) | **"Em breve"**: a janela explica que a IA ainda não está ligada; nenhuma resposta é inventada | `src/mocks/assistant.ts`, `src/components/assistant/assistant-sheet.tsx` |
+| Captura rápida (Novo) | **Real**: vira tarefa, gasto ("gastei 45 no mercado") ou nota | `src/components/assistant/quick-capture.tsx`, `src/features/assistant/actions.ts` |
+| Busca global (Ctrl K) | **Real** (títulos dos dados do próprio usuário) | `src/features/search/actions.ts`, `src/components/shell/command-palette.tsx` |
 | Flashcards gerados a partir de anotações | Simulado (sem IA); marcado como "Em breve" | `src/components/studies/estudos-screen.tsx` |
 | WhatsApp: conectar número, enviar código | Não construído (selo "Em breve"; nenhum código é enviado) | `src/components/settings/settings-extras.tsx` |
 | WhatsApp: texto e voz com o assistente | Não construído | — |
-| Avisos (app e WhatsApp), não perturbe | Simulado: preferências só no navegador, nada é enviado | `src/components/settings/settings-extras.tsx` |
-| Lembretes das notas | Simulado: ficam só na lista; a tela avisa "Em breve" para app e WhatsApp | `src/components/notes/notas-screen.tsx` |
+| Avisos (app e WhatsApp), não perturbe | Simulado: preferências só no navegador, nada é enviado (a tabela `notification_preferences` já existe e é criada no cadastro) | `src/components/settings/settings-extras.tsx` |
+| Lembretes das notas | **Real** (gravados em `reminders`); a entrega por app e WhatsApp segue "Em breve" e a tela avisa | `src/components/notes/notas-screen.tsx` |
 | Lembrete e repetição de tarefas | Não construído (campos desabilitados; migration aditiva `20260105000002` escrita e não aplicada) | `src/components/tasks/task-sheet.tsx` |
 
 ## Finanças
@@ -51,17 +53,17 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Funcionalidade | Status | Onde está no código |
 |---|---|---|
 | Open Finance (conectar banco, importar lançamentos) | Não construído (selo "Em breve"; nenhum banco aparece como conectado) | `src/components/finance/financas-screen.tsx` |
-| Lançamentos, contas fixas, orçamento, metas de economia | Simulado: estado local sobre dados de exemplo | `src/mocks/finance.ts`, `src/components/finance/financas-screen.tsx` |
+| Lançamentos, contas fixas, orçamento, metas de economia | **Real** (`finance_*`) | `src/features/persist/`, `src/components/finance/financas-screen.tsx` |
 
 ## Módulos (dados)
 
 | Módulo | Status | Onde está no código |
 |---|---|---|
-| Tarefas (quadros, lista, calendário, anexos) | Simulado no app (`isMock`); o servidor já tem ações e consultas reais prontas para ligar | `src/features/tasks/`, `src/mocks/tasks-api.ts` |
-| Hoje, Rotina, Agenda, Treinos, Dieta, Estudos, Notas, Metas, Diário | Simulado: estado local sobre dados de exemplo; nada é salvo ao recarregar | `src/mocks/`, `src/components/*/` |
-| Cofre de senhas | Simulado: itens de exemplo na memória. Exportação de backup e criptografia ainda não ligadas. O assistente e a busca global nunca leem o cofre (teste em `src/mocks/vault-guard.test.ts`) | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
+| Tarefas (quadros, lista, calendário, anexos) | **Real** | `src/features/tasks/` |
+| Hoje, Rotina, Agenda, Treinos, Dieta, Estudos, Notas, Metas, Diário | **Real**: gravam por usuário (RLS) e sobrevivem ao recarregar. Exigem as migrations `20261103000001..3` | `src/features/persist/`, `supabase/migrations/20261103*`, `docs/DATA-AUDIT.md` |
+| Cofre de senhas | **Em breve** (página honesta, nada é guardado). Criptografia no navegador ainda não construída. O assistente e a busca global nunca leem o cofre (teste em `src/mocks/vault-guard.test.ts`) | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
 | Exportar dados (JSON/CSV) | Não construído (botões desabilitados) | `src/components/settings/settings-extras.tsx` |
-| Notificações no sino | Simulado (exemplos fixos) | `src/components/shell/app-topbar.tsx` |
+| Notificações no sino | **Vazio e "em breve"** (sem exemplos inventados) | `src/components/shell/app-topbar.tsx` |
 
 ## Área admin
 

@@ -251,3 +251,4 @@ export async function exportWaitlistCsv(input: { search: string | null; source: 
   if (!logged.ok) return { ok: false, error: "Não foi possível registrar a exportação na auditoria, então ela foi cancelada." }
   return { ok: true, csv, filename: `lista-de-espera-${new Date().toISOString().slice(0, 10)}.csv`, rows: rows.length }
 }
+

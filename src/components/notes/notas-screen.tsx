@@ -51,11 +51,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { parseMarkdown, wordCount, type Inline } from "@/features/notes/markdown"
-import type { NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
+import type { NoteFolderRow, NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
 import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { buildMockNotes, buildMockReminders, mockFolders } from "@/mocks/notes"
-import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -114,11 +114,16 @@ function NotePreview({ source }: { source: string }) {
   )
 }
 
-export function NotasScreen({ nowIso }: { nowIso: string }) {
+export type NotesInitial = { folders: NoteFolderRow[]; notes: NoteRow[]; reminders: ReminderRow[] }
+
+export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: NotesInitial }) {
   const today = dayOf(nowIso)
   const now = new Date(nowIso)
-  const [notes, setNotes] = useState<NoteRow[]>(() => buildMockNotes(nowIso))
-  const [reminders, setReminders] = useState<ReminderRow[]>(() => buildMockReminders(nowIso))
+  // Typing in a note is saved after a short pause; every other change is saved at once.
+  const [notes, setNotes] = usePersistedRows<NoteRow>("notes", initial.notes, { debounceMs: 800 })
+  const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
+  const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
+  const [newFolder, setNewFolder] = useState("")
   const [folder, setFolder] = useState<string>("all")
   const [query, setQuery] = useState("")
   const [openId, setOpenId] = useState<string | null>(null)
@@ -150,7 +155,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
   function createNote() {
     const stamp = new Date().toISOString()
     const created: NoteRow = {
-      id: mockId("note"),
+      id: newId(),
       user_id: USER,
       folder_id: folder !== "all" && folder !== "pinned" ? folder : null,
       title: "Nova nota",
@@ -176,14 +181,14 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
   const sections = [
     { key: "all", label: "Todas as notas", icon: NotebookPenIcon, count: notes.length },
     { key: "pinned", label: "Fixadas", icon: PinIcon, count: notes.filter((n) => n.pinned).length },
-    ...mockFolders.map((f) => ({ key: f.id, label: f.name, icon: FolderIcon, count: notes.filter((n) => n.folder_id === f.id).length })),
+    ...folders.map((f) => ({ key: f.id, label: f.name, icon: FolderIcon, count: notes.filter((n) => n.folder_id === f.id).length })),
   ]
 
   // ---------------------------------------------------------- reminders
   const pending = reminders.filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at))
   const done = reminders.filter((r) => r.status === "done")
   const groupOf = (r: ReminderRow) => {
-    const diff = dayDiff(r.remind_at, now, MOCK_TIMEZONE)
+    const diff = dayDiff(r.remind_at, now, SP_TIMEZONE)
     return diff < 0 ? "Atrasados" : diff === 0 ? "Hoje" : diff === 1 ? "Amanhã" : "Mais tarde"
   }
   const groups = ["Atrasados", "Hoje", "Amanhã", "Mais tarde"]
@@ -227,6 +232,22 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   <span className="tabular text-[13px] opacity-70">{count}</span>
                 </button>
               ))}
+              <form
+                className="mt-1 flex items-center gap-2 pt-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const name = newFolder.trim()
+                  if (!name) return
+                  setFolders((current) => [...current, { id: newId(), user_id: USER, name }])
+                  setNewFolder("")
+                  toast.success("Pasta criada.")
+                }}
+              >
+                <Input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="Nova pasta" aria-label="Nova pasta" maxLength={60} className="h-9 min-w-0 flex-1" />
+                <Button type="submit" size="icon" variant="outline" aria-label="Criar pasta" disabled={!newFolder.trim()}>
+                  <PlusIcon strokeWidth={1.75} />
+                </Button>
+              </form>
             </nav>
 
             {/* list */}
@@ -350,7 +371,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                   )}
 
                   <p className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {wordCount(open.body)} palavras · {mockFolders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
+                    {wordCount(open.body)} palavras · {folders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
                     <span role="status" aria-live="polite">{saved ? "Salvo" : "Alterações são salvas sozinhas"}</span>
                   </p>
                 </div>
@@ -387,7 +408,7 @@ export function NotasScreen({ nowIso }: { nowIso: string }) {
                       <div className="flex min-w-0 flex-1 flex-col">
                         <span className="text-[15px] leading-6 break-words">{r.title}</span>
                         <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, MOCK_TIMEZONE)}
+                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, SP_TIMEZONE)}
                           {r.channels.includes("push") ? (
                             <span className="inline-flex items-center gap-1">
                               <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
@@ -496,10 +517,10 @@ function ReminderForm({ today, onCreate, onClose }: { today: string; onCreate: (
         e.preventDefault()
         if (!title.trim() || channels.length === 0) return
         onCreate({
-          id: mockId("rem"),
+          id: newId(),
           user_id: USER,
           title: title.trim(),
-          remind_at: toDueIso(date, time, MOCK_TIMEZONE),
+          remind_at: toDueIso(date, time, SP_TIMEZONE),
           channels: channels as ReminderChannel[],
           status: "pending",
           note_id: null,

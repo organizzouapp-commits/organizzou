@@ -1,11 +1,11 @@
 "use client"
 
-import { memo, useSyncExternalStore } from "react"
+import { memo } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { format } from "date-fns"
+import { format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowLeftIcon, BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon, ShieldIcon } from "lucide-react"
+import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -21,21 +21,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { NotificationKind } from "@/features/notifications/types"
 import { greeting, inTz } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { MOCK_TIMEZONE } from "@/mocks/time"
+import { SP_TIMEZONE } from "@/lib/sp-time"
 
 import type { ShellUser } from "./app-sidebar"
 import { BACK_TO_APP_HREF } from "./nav-brand"
 import { metaFor, useNavContext } from "./nav-config"
+import { useNotifications } from "./notifications"
 import { useRequestSignOut } from "./sign-out-dialog"
 import { useWhatsAppAccess } from "./whatsapp-cta"
-
-const NOTIFICATIONS = [
-  { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
-  { id: "cards", title: "6 flashcards para revisar", detail: "Direito Constitucional e inglês", href: "/dashboard/estudos" },
-  { id: "workout", title: "Treino A amanhã às 7h", detail: "Peito e tríceps", href: "/dashboard/treinos" },
-]
 
 function initials(name: string) {
   return name
@@ -55,37 +51,76 @@ type AppTopBarProps = {
   hideDesktop?: boolean
 }
 
-// The unread flag is shared, so the phone's full header and its compact bar (both mounted) always show the same badge.
-let unreadNotifications = true
-const unreadListeners = new Set<() => void>()
-function markNotificationsRead() {
-  unreadNotifications = false
-  unreadListeners.forEach((listener) => listener())
-}
-function subscribeUnread(listener: () => void) {
-  unreadListeners.add(listener)
-  return () => void unreadListeners.delete(listener)
+const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
+  info: InfoIcon,
+  task: SquareCheckIcon,
+  agenda: CalendarDaysIcon,
+  bill: ReceiptTextIcon,
+  habit: RepeatIcon,
+  workout: DumbbellIcon,
+  study: GraduationCapIcon,
+  goal: TargetIcon,
+  reminder: AlarmClockIcon,
 }
 
-/** `bare`: no border or fill of its own, for use inside a pill group (the collapsed header). */
+/**
+ * The bell. It lists the person's own notifications (newest first): unread ones carry a Lima dot, tapping one marks it read and opens
+ * what it is about, "Marcar todas como lidas" clears the dot, and with nothing to show it says so. The dot on the bell is the unread
+ * count > 0. `bare`: no border or fill of its own, for use inside a pill group (the collapsed header).
+ */
 export function Bell({ bare = false }: { bare?: boolean }) {
-  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => true)
+  const { items, unread, markRead, markAllRead } = useNotifications()
   return (
-    <Popover onOpenChange={(open) => open && markNotificationsRead()}>
+    <Popover>
       <PopoverTrigger asChild>
-        <Button variant={bare ? "ghost" : "surface"} size="icon" className={cn("relative rounded-full", bare && "size-10 md:size-10")} aria-label={unread ? "Notificações, há novas" : "Notificações"}>
+        <Button variant={bare ? "ghost" : "surface"} size="icon" className={cn("relative rounded-full", bare && "size-10 md:size-10")} aria-label={unread > 0 ? `Notificações, ${unread} ${unread === 1 ? "nova" : "novas"}` : "Notificações"}>
           <BellIcon strokeWidth={1.75} />
-          {unread ? <span aria-hidden className={cn("absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2", bare ? "ring-card" : "ring-background")} /> : null}
+          {unread > 0 ? <span aria-hidden data-testid="bell-dot" className={cn("absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2", bare ? "ring-card" : "ring-background")} /> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-2">
-        <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
-        {NOTIFICATIONS.map((n) => (
-          <Link key={n.id} href={n.href} className="flex flex-col rounded-xl px-3 py-2.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
-            <span className="text-[15px] leading-5">{n.title}</span>
-            <span className="text-[13px] leading-5 text-muted-foreground">{n.detail}</span>
-          </Link>
-        ))}
+        <div className="flex items-center justify-between gap-2 px-3 py-1">
+          <p className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
+          {unread > 0 ? (
+            <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-3 text-[13px]" onClick={markAllRead}>
+              Marcar todas como lidas
+            </Button>
+          ) : null}
+        </div>
+        {items.length === 0 ? (
+          <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p>
+        ) : (
+          <ul className="max-h-[min(24rem,60dvh)] overflow-y-auto overscroll-contain">
+            {items.map((n) => {
+              const Icon = KIND_ICONS[n.kind] ?? InfoIcon
+              const row = (
+                <>
+                  <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={cn("text-[15px] leading-5", !n.read_at && "font-medium")}>{n.title}</span>
+                    {n.body ? <span className="text-[13px] leading-5 text-muted-foreground">{n.body}</span> : null}
+                    <span className="text-[12px] leading-4 text-muted-foreground">{formatDistanceToNowStrict(new Date(n.created_at), { locale: ptBR, addSuffix: true })}</span>
+                  </span>
+                  {!n.read_at ? <span aria-label="Não lida" role="img" className="mt-1.5 size-2 shrink-0 rounded-full bg-highlight" /> : null}
+                </>
+              )
+              const className = "flex min-h-11 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+              return (
+                <li key={n.id} data-read={n.read_at ? "" : undefined}>
+                  {n.link ? (
+                    <Link href={n.link} onClick={() => markRead(n.id)} className={className}>
+                      {row}
+                    </Link>
+                  ) : (
+                    <button type="button" onClick={() => markRead(n.id)} className={className}>
+                      {row}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </PopoverContent>
     </Popover>
   )
@@ -195,9 +230,9 @@ export function usePageHeading(user: ShellUser, nowIso: string) {
   const firstName = user.name.split(" ")[0]
   const meta = metaFor(nav, pathname)
   const isToday = nav.features.greeting && pathname === nav.home.href
-  const title = isToday ? `${greeting(now, MOCK_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
+  const title = isToday ? `${greeting(now, SP_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
   const subtitle = isToday
-    ? format(inTz(now, MOCK_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
+    ? format(inTz(now, SP_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
     : (meta?.subtitle ?? "")
   return { title, subtitle, isToday }
 }

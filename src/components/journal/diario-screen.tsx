@@ -29,8 +29,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { average, moodInsights } from "@/features/journal/insights"
 import { MOOD_LABELS, type JournalDay, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
-import { buildMockJournal } from "@/mocks/journal"
-import { dayOf, mockId } from "@/mocks/time"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { shiftDay } from "@/features/habits/stats"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const MOODS: { value: Mood; icon: LucideIcon }[] = [
   { value: 1, icon: FrownIcon },
@@ -49,9 +50,9 @@ function formatAvg(value: number | null) {
   return value === null ? "—" : value.toLocaleString("pt-BR", { minimumFractionDigits: 1 })
 }
 
-export function DiarioScreen({ nowIso }: { nowIso: string }) {
+export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: JournalDay[] }) {
   const today = dayOf(nowIso)
-  const [days, setDays] = useState<JournalDay[]>(() => buildMockJournal(nowIso))
+  const [days, setDays] = usePersistedRows<JournalDay>("journal_entries", initial)
   const todayEntry = days.find((d) => d.entry_date === today)
   const [mood, setMood] = useState<Mood | null>(todayEntry?.mood ?? null)
   const [text, setText] = useState(todayEntry?.text ?? "")
@@ -63,7 +64,7 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
     setDays((current) => [
       ...current.filter((d) => d.entry_date !== today),
       {
-        id: todayEntry?.id ?? mockId("jr"),
+        id: todayEntry?.id ?? newId(),
         user_id: "00000000-0000-4000-8000-000000000001",
         entry_date: today,
         mood,
@@ -79,12 +80,14 @@ export function DiarioScreen({ nowIso }: { nowIso: string }) {
   }
 
   const sorted = [...days].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
-  const series = sorted.map((d) => ({ label: format(parseISO(d.entry_date), "dd/MM"), mood: d.mood, sleep: d.sleep_hours ?? 0 }))
+  // The charts and the averages cover the last 30 days (their titles say so); the list below and the insights use the whole history.
+  const recent = sorted.filter((d) => d.entry_date >= shiftDay(today, -29))
+  const series = recent.map((d) => ({ label: format(parseISO(d.entry_date), "dd/MM"), mood: d.mood, sleep: d.sleep_hours ?? 0 }))
   const insights = moodInsights(sorted.filter((d) => d.entry_date !== today))
   const history = [...sorted].reverse().slice(0, 12)
 
-  const moodAverage = average(sorted.map((d) => d.mood))
-  const sleepAverage = average(sorted.map((d) => d.sleep_hours ?? 0).filter((h) => h > 0))
+  const moodAverage = average(recent.map((d) => d.mood))
+  const sleepAverage = average(recent.map((d) => d.sleep_hours ?? 0).filter((h) => h > 0))
   const loggedDays = sorted.length
 
   return (

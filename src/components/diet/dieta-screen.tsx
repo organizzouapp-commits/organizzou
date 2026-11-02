@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { createContext, useContext, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { CopyIcon, EllipsisIcon, GlassWaterIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
@@ -35,16 +35,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { shiftDay } from "@/features/habits/stats"
 import { dayTotals, formatServings, itemMacros, mealTotals } from "@/features/diet/stats"
-import { MEAL_LABELS, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
-import {
-  buildMockDailyKcal,
-  buildMockMealItems,
-  buildMockWeight,
-  mockDietGoal,
-  mockFoods,
-} from "@/mocks/diet"
+import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { inTz } from "@/lib/dates"
-import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
+import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 const MEALS = Object.keys(MEAL_LABELS) as MealKind[]
 const GLASS_ML = 250
@@ -52,9 +46,9 @@ const GLASS_ML = 250
 const kcalConfig = { kcal: { label: "Calorias", color: "var(--chart-1)" } } satisfies ChartConfig
 const weightConfig = { weight: { label: "Peso (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
 
-function findFood(id: string): FoodRow | undefined {
-  return mockFoods.find((f) => f.id === id)
-}
+/** The food catalog (shared rows plus the person's own; the example list only in the local prototype). */
+const FoodsContext = createContext<FoodRow[]>([])
+const useFoods = () => useContext(FoodsContext)
 
 /** Calories ring: remaining kcal in the middle; the arc is foreground (Tinta/Papel), never a thin Lima line. */
 function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
@@ -80,28 +74,66 @@ function liters(ml: number) {
   return `${(ml / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L`
 }
 
-export function DietaScreen({ nowIso }: { nowIso: string }) {
+export type DietInitial = {
+  foods: FoodRow[]
+  mealItems: MealItemRow[]
+  goal: DietGoalRow | null
+  weights: WeightLogRow[]
+  water: { id: string; log_date: string; ml: number }[]
+}
+
+/** What a new person gets before choosing anything (the same numbers the sign-up provisioning stores). */
+const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
+
+export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+  return (
+    <FoodsContext.Provider value={initial.foods}>
+      <DietBody nowIso={nowIso} initial={initial} />
+    </FoodsContext.Provider>
+  )
+}
+
+function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+  const foods = useFoods()
   const today = dayOf(nowIso)
-  const goal = mockDietGoal
-  const [items, setItems] = useState<MealItemRow[]>(() => buildMockMealItems())
-  const [water, setWater] = useState(1250)
-  const [weights, setWeights] = useState<WeightLogRow[]>(() => buildMockWeight(nowIso))
+  const goal = initial.goal ?? DEFAULT_GOAL
+  // Today's meals are what the screen edits; the earlier days only feed the calories chart.
+  const [allItems, setAllItems] = usePersistedRows<MealItemRow>("meal_items", initial.mealItems)
+  const items = allItems.filter((i) => !i.log_date || i.log_date === today)
+  const setItems = (update: (current: MealItemRow[]) => MealItemRow[]) =>
+    setAllItems((all) => {
+      const others = all.filter((i) => i.log_date && i.log_date !== today)
+      return [...others, ...update(all.filter((i) => !i.log_date || i.log_date === today))]
+    })
+  const [waterRows, setWaterRows] = usePersistedRows<{ id: string; log_date: string; ml: number }>("water_logs", initial.water)
+  const water = waterRows.filter((w) => w.log_date === today).reduce((sum, w) => sum + w.ml, 0)
+  const setWater = (update: (current: number) => number) => {
+    const next = update(water)
+    if (next > water) setWaterRows((rows) => [...rows, { id: newId(), log_date: today, ml: next - water }])
+    else if (next < water) {
+      // Remove the most recent glass of today.
+      const last = [...waterRows].reverse().find((w) => w.log_date === today)
+      if (last) setWaterRows((rows) => rows.filter((w) => w.id !== last.id))
+    }
+  }
+  const [weights, setWeights] = usePersistedRows<WeightLogRow>("weight_logs", initial.weights)
   const [adding, setAdding] = useState<MealKind | null>(null)
   const [editing, setEditing] = useState<MealItemRow | null>(null)
   const [weighing, setWeighing] = useState(false)
   const [period, setPeriod] = useState("90")
-  const history = buildMockDailyKcal(nowIso)
+  // Earlier days: from the saved meals (days with no meals logged are not counted as zero), the example series in the prototype.
+  const history = [...new Set(allItems.map((i) => i.log_date).filter((d): d is string => Boolean(d) && d !== today))].sort().map((day) => ({ day, kcal: dayTotals(allItems.filter((i) => i.log_date === day), foods).kcal }))
 
-  const totals = dayTotals(items, mockFoods)
+  const totals = dayTotals(items, foods)
 
   function addItem(meal: MealKind, foodId: string, servings: number) {
-    setItems((current) => [...current, { id: mockId("item"), meal, food_id: foodId, servings }])
+    setItems((current) => [...current, { id: newId(), log_date: today, meal, food_id: foodId, servings }])
     toast.success("Alimento adicionado.")
   }
 
   function copyMeal(from: MealKind, to: MealKind) {
     const source = items.filter((i) => i.meal === from)
-    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: mockId("item"), meal: to }))])
+    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: newId(), log_date: today, meal: to }))])
     toast.success(`${MEAL_LABELS[from]} copiado para ${MEAL_LABELS[to].toLowerCase()}.`)
   }
 
@@ -126,11 +158,13 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
   const currentWeight = sortedWeights[sortedWeights.length - 1]?.weight_kg ?? 0
   const firstWeight = periodWeights[0]?.weight_kg ?? currentWeight
   // The y-axis always contains every point and the target line, with a little room.
-  const weightValues = [...periodWeights.map((w) => w.weight_kg), goal.target_weight_kg]
-  const weightDomain: [number, number] = [Math.floor(Math.min(...weightValues)) - 1, Math.ceil(Math.max(...weightValues)) + 1]
+  const target = goal.target_weight_kg
+  const weightValues = [...periodWeights.map((w) => w.weight_kg), ...(target === null ? [] : [target])]
+  const hasWeights = weightValues.length > 0
+  const weightDomain: [number, number] = hasWeights ? [Math.floor(Math.min(...weightValues)) - 1, Math.ceil(Math.max(...weightValues)) + 1] : [0, 100]
 
   // The "+ Novo" button adds a food to the meal that fits the time of day.
-  const hour = inTz(new Date(nowIso), MOCK_TIMEZONE).getHours()
+  const hour = inTz(new Date(nowIso), SP_TIMEZONE).getHours()
   const nextMeal: MealKind = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : hour < 18 ? "snack" : "dinner"
   usePrimaryAction("Adicionar alimento", () => setAdding(nextMeal))
 
@@ -191,7 +225,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
             <div className="grid gap-5 @min-[900px]:grid-cols-2 @min-[1400px]:grid-cols-3">
             {MEALS.map((meal) => {
               const list = items.filter((i) => i.meal === meal)
-              const subtotal = mealTotals(items, mockFoods, meal)
+              const subtotal = mealTotals(items, foods, meal)
               return (
                 <BentoCard
                   key={meal}
@@ -229,7 +263,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
                   }
                 >
                   {list.map((entry) => {
-                    const foodRow = findFood(entry.food_id)
+                    const foodRow = foods.find((f) => f.id === entry.food_id)
                     if (!foodRow) return null
                     const macros = itemMacros(entry, foodRow)
                     return (
@@ -293,8 +327,8 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
           />
           <KpiCard
             label="Meta"
-            value={`${goal.target_weight_kg} kg`}
-            support={`faltam ${Math.max(0, Math.round((currentWeight - goal.target_weight_kg) * 10) / 10).toLocaleString("pt-BR")} kg`}
+            value={target === null ? "—" : `${target} kg`}
+            support={target === null ? "sem meta definida" : `faltam ${Math.max(0, Math.round((currentWeight - target) * 10) / 10).toLocaleString("pt-BR")} kg`}
             className="col-span-6 @min-[560px]:col-span-4"
           />
           <BentoCard
@@ -317,7 +351,7 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis tickLine={false} axisLine={false} domain={weightDomain} allowDecimals={false} width={48} />
               <ChartTooltip content={<ChartTooltipContent formatter={(value) => `${Number(value).toLocaleString("pt-BR")} kg`} />} />
-              <ReferenceLine y={goal.target_weight_kg} label={{ value: "Meta", position: "insideTopRight", fill: "var(--muted-foreground)", fontSize: 12 }} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
+              {target === null ? null : <ReferenceLine y={target} label={{ value: "Meta", position: "insideTopRight", fill: "var(--muted-foreground)", fontSize: 12 }} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />}
               <Line dataKey="weight" type="monotone" stroke="var(--color-weight)" strokeWidth={1.75} dot={{ r: 3 }} isAnimationActive={false} />
             </LineChart>
           </ChartContainer>
@@ -342,7 +376,11 @@ export function DietaScreen({ nowIso }: { nowIso: string }) {
         initial={currentWeight}
         onSave={(kg) => {
           // A second weigh-in on the same day replaces the first instead of adding a duplicate point.
-          setWeights((current) => [...current.filter((w) => w.log_date !== today), { id: mockId("w"), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }])
+          setWeights((current) => {
+            const existing = current.find((w) => w.log_date === today)
+            if (existing) return current.map((w) => (w === existing ? { ...w, weight_kg: kg } : w))
+            return [...current, { id: newId(), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }]
+          })
           toast.success("Peso registrado.")
         }}
       />
@@ -375,6 +413,7 @@ function FoodSearchBody({
   onAdd: (meal: MealKind, foodId: string, servings: number) => void
   onClose: () => void
 }) {
+  const foods = useFoods()
   const [chosen, setChosen] = useState<FoodRow | null>(null)
   const [servings, setServings] = useState("1")
 
@@ -427,7 +466,7 @@ function FoodSearchBody({
         <CommandList className="max-h-72">
           <CommandEmpty>Nenhum alimento encontrado.</CommandEmpty>
           <CommandGroup>
-            {mockFoods.map((f) => (
+            {foods.map((f) => (
               <CommandItem key={f.id} value={f.name} onSelect={() => setChosen(f)}>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{f.name}</span>
@@ -472,7 +511,7 @@ function EditItemBody({
   onSave: (id: string, servings: number) => void
   onRemove: (id: string) => void
 }) {
-  const food = findFood(item.food_id)
+  const food = useFoods().find((f) => f.id === item.food_id)
   const [servings, setServings] = useState(String(item.servings).replace(".", ","))
   const amount = Number(servings.replace(",", ".")) || 0
   if (!food) return null

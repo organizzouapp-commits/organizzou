@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { addDays, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -40,10 +40,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { loadProgress, personalRecords, volume, weeklyVolume } from "@/features/workouts/stats"
-import type { PlanExerciseRow, WorkoutPlanRow } from "@/features/workouts/types"
+import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { cn } from "@/lib/utils"
-import { buildMockWorkoutHistory, mockExercises, mockPlanExercises, mockPlans } from "@/mocks/workouts"
-import { dayOf, mockId } from "@/mocks/time"
+import { usePersistedRows } from "@/features/persist/use-persisted-rows"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
@@ -53,9 +53,9 @@ const volumeConfig = { volume: { label: "Volume (kg)", color: "var(--chart-1)" }
 
 type SetDraft = { reps: string; load: string; done: boolean }
 
-function exerciseName(id: string) {
-  return mockExercises.find((e) => e.id === id)?.name ?? "Exercício"
-}
+/** The exercise catalog (shared rows plus the person's own; the example list only in the local prototype). */
+const ExercisesContext = createContext<ExerciseRow[]>([])
+const useExercises = () => useContext(ExercisesContext)
 
 function formatClock(seconds: number) {
   const m = Math.floor(seconds / 60)
@@ -67,28 +67,42 @@ function kg(value: number) {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`
 }
 
-export function TreinosScreen({ nowIso }: { nowIso: string }) {
+export type WorkoutsInitial = { exercises: ExerciseRow[]; plans: WorkoutPlanRow[]; planExercises: PlanExerciseRow[]; sessions: WorkoutSessionRow[]; setLogs: SetLogRow[] }
+
+export function TreinosScreen({ nowIso, initial }: { nowIso: string; initial: WorkoutsInitial }) {
+  return (
+    <ExercisesContext.Provider value={initial.exercises}>
+      <WorkoutsBody nowIso={nowIso} initial={initial} />
+    </ExercisesContext.Provider>
+  )
+}
+
+function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsInitial }) {
+  const exercises = useExercises()
+  const exerciseName = (id: string) => exercises.find((e) => e.id === id)?.name ?? "Exercício"
   const today = dayOf(nowIso)
   const todayWeekday = parseISO(today).getDay()
-  const [plans, setPlans] = useState<WorkoutPlanRow[]>(mockPlans)
-  const [planExercises, setPlanExercises] = useState<PlanExerciseRow[]>(mockPlanExercises)
-  const [history, setHistory] = useState(() => buildMockWorkoutHistory(nowIso))
+  const [plans, setPlans] = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
+  const [planExercises, setPlanExercises] = usePersistedRows<PlanExerciseRow>("plan_exercises", initial.planExercises)
+  const [sessions, setSessions] = usePersistedRows<WorkoutSessionRow>("workout_sessions", initial.sessions)
+  const [sets, setSets] = usePersistedRows<SetLogRow>("set_logs", initial.setLogs)
+  const history = { sessions, sets }
   const scheduled = plans.find((p) => p.weekdays.includes(todayWeekday))
   const [chosenPlanId, setChosenPlanId] = useState<string | null>(null)
   const activePlan = plans.find((p) => p.id === chosenPlanId) ?? scheduled ?? null
   const [drafts, setDrafts] = useState<Record<string, SetDraft[]>>({})
-  const [finishedToday, setFinishedToday] = useState(false)
+  const [finishedToday, setFinishedToday] = useState(() => sessions.some((s) => s.performed_on === today && s.completed))
   const [rest, setRest] = useState<{ remaining: number; total: number; label: string } | null>(null)
   const [creatingPlan, setCreatingPlan] = useState(false)
   const [addingTo, setAddingTo] = useState<WorkoutPlanRow | null>(null)
   const [planToDelete, setPlanToDelete] = useState<WorkoutPlanRow | null>(null)
-  const [progressExercise, setProgressExercise] = useState(mockExercises[0].id)
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(mockPlans[0] ? [mockPlans[0].id] : []))
+  const [progressExercise, setProgressExercise] = useState(exercises[0]?.id ?? "")
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(plans[0] ? [plans[0].id] : []))
 
   function duplicatePlan(plan: WorkoutPlanRow) {
-    const copy: WorkoutPlanRow = { ...plan, id: mockId("plan"), name: `${plan.name} (cópia)` }
+    const copy: WorkoutPlanRow = { ...plan, id: newId(), name: `${plan.name} (cópia)` }
     setPlans((current) => [...current, copy])
-    setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: mockId("pex"), plan_id: copy.id }))])
+    setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: newId(), plan_id: copy.id }))])
     setExpanded((current) => new Set(current).add(copy.id))
     toast.success("Treino duplicado.")
   }
@@ -147,13 +161,13 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
 
   function finishWorkout() {
     if (!activePlan) return
-    const sessionId = mockId("ses")
-    const sets = items.flatMap((item) =>
+    const sessionId = newId()
+    const newSets = items.flatMap((item) =>
       draftsFor(item)
         .map((d, index) => ({ d, index }))
         .filter(({ d }) => d.done)
         .map(({ d, index }) => ({
-          id: mockId("set"),
+          id: newId(),
           session_id: sessionId,
           exercise_id: item.exercise_id,
           set_index: index + 1,
@@ -161,10 +175,9 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
           load_kg: Number(d.load.replace(",", ".")) || 0,
         }))
     )
-    setHistory((h) => ({
-      sessions: [...h.sessions, { id: sessionId, user_id: USER, plan_id: activePlan.id, performed_on: today, duration_min: 58, completed: true }],
-      sets: [...h.sets, ...sets],
-    }))
+    // The session first, then its sets (the sets point at it).
+    setSessions((current) => [...current, { id: sessionId, user_id: USER, plan_id: activePlan.id, performed_on: today, duration_min: null, completed: true }])
+    setSets((current) => [...current, ...newSets])
     setFinishedToday(true)
     setRest(null)
     toast.success(`Treino concluído: ${doneSets} séries, ${Math.round(sessionVolume).toLocaleString("pt-BR")} kg de volume.`)
@@ -460,7 +473,7 @@ export function TreinosScreen({ nowIso }: { nowIso: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockExercises.map((e) => (
+                  {exercises.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {e.name}
                     </SelectItem>
@@ -593,7 +606,7 @@ function PlanForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (pl
       onSubmit={(e) => {
         e.preventDefault()
         if (!name.trim()) return
-        onCreate({ id: mockId("plan"), user_id: USER, name: name.trim(), weekdays: days.map(Number), created_at: nowIso, updated_at: nowIso })
+        onCreate({ id: newId(), user_id: USER, name: name.trim(), weekdays: days.map(Number), created_at: nowIso, updated_at: nowIso })
         onClose()
       }}
     >
@@ -656,7 +669,8 @@ function AddExerciseForm({
   onAdd: (row: PlanExerciseRow) => void
   onClose: () => void
 }) {
-  const [exercise, setExercise] = useState(mockExercises[0].id)
+  const exercises = useExercises()
+  const [exercise, setExercise] = useState(exercises[0]?.id ?? "")
   const [sets, setSets] = useState("3")
   const [reps, setReps] = useState("10")
   const [restSeconds, setRestSeconds] = useState("60")
@@ -667,7 +681,7 @@ function AddExerciseForm({
       onSubmit={(e) => {
         e.preventDefault()
         onAdd({
-          id: mockId("pex"),
+          id: newId(),
           plan_id: plan.id,
           exercise_id: exercise,
           position,
@@ -690,7 +704,7 @@ function AddExerciseForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {mockExercises.map((e) => (
+            {exercises.map((e) => (
               <SelectItem key={e.id} value={e.id}>
                 {e.name}
               </SelectItem>

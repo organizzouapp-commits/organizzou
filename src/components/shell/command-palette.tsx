@@ -16,7 +16,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import { buildSearchIndex } from "@/mocks/search"
+import { loadSearchIndex, type SearchHit } from "@/features/search/actions"
 
 type CommandPaletteProps = {
   open: boolean
@@ -36,7 +36,7 @@ const GROUPS = [
   { module: "metas", heading: "Metas" },
 ] as const
 
-export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso, initialQuery = "" }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, onAskAssistant, initialQuery = "" }: CommandPaletteProps) {
   const router = useRouter()
   const [query, setQuery] = useState(initialQuery)
   const [wasOpen, setWasOpen] = useState(open)
@@ -61,7 +61,19 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso, ini
     router.push(href)
   }
 
-  const hits = open ? buildSearchIndex(nowIso) : []
+  // The person searches their own rows (loaded each time the palette opens).
+  const [found, setFound] = useState<SearchHit[]>([])
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    loadSearchIndex()
+      .then((list) => live && setFound(list))
+      .catch(() => live && setFound([]))
+    return () => {
+      live = false
+    }
+  }, [open])
+  const hits = open ? found : []
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} title="Busca" description="Busque em todos os módulos ou escolha uma ação.">

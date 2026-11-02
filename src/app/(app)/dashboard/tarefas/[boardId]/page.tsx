@@ -2,18 +2,15 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { WithNow } from "@/components/mock/with-now"
 import { ServerBoard } from "@/components/tasks/server-board"
-import { MockBoard } from "@/components/tasks/mock-board"
 import type { ViewMode } from "@/components/tasks/board-toolbar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getBoardData } from "@/features/tasks/queries"
-import { isMock } from "@/mocks/config"
 import { getSession } from "@/lib/supabase/session"
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { boardId } = await params
-  if (isMock || !/^[0-9a-f-]{36}$/i.test(boardId)) return { title: "Tarefas" }
+  if (!/^[0-9a-f-]{36}$/i.test(boardId)) return { title: "Tarefas" }
   const data = await getBoardData(boardId)
   return { title: data?.board.name || "Tarefas" }
 }
@@ -30,14 +27,6 @@ function parseView(value: string | undefined): ViewMode {
 async function BoardContent({ params, searchParams }: Props) {
   const [{ boardId }, { visao }] = await Promise.all([params, searchParams])
   if (!/^[0-9a-f-]{36}$/i.test(boardId)) notFound()
-
-  if (isMock) {
-    return (
-      <WithNow>
-        {(nowIso) => <MockBoard boardId={boardId} initialView={parseView(visao)} nowIso={nowIso} />}
-      </WithNow>
-    )
-  }
 
   const [{ userId }, data] = await Promise.all([getSession(), getBoardData(boardId)])
   if (!data) notFound()

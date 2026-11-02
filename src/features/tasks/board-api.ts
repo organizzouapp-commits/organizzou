@@ -30,7 +30,7 @@ import type {
 /**
  * Everything the board UI needs from a backend. The screens only talk to this interface:
  * `createServerBoardApi` (Supabase server actions) is the real one, `createMockBoardApi`
- * (src/mocks/tasks-api.ts) keeps the prototype running in memory.
+ * was only ever used by the removed in-memory prototype.
  */
 export type BoardApi = {
   createBoard(input: z.input<typeof createBoardSchema>): Promise<ActionResult<{ id: string }>>

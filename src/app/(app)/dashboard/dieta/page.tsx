@@ -4,13 +4,19 @@ import type { Metadata } from "next"
 import { DietaScreen } from "@/components/diet/dieta-screen"
 import { ScreenSkeleton } from "@/components/mock/screen-skeleton"
 import { WithNow } from "@/components/mock/with-now"
+import { loadDiet } from "@/features/persist/load"
 
 export const metadata: Metadata = { title: "Dieta" }
+
+async function DietData({ nowIso }: { nowIso: string }) {
+  const initial = await loadDiet(nowIso)
+  return <DietaScreen nowIso={nowIso} initial={initial} />
+}
 
 export default function DietaPage() {
   return (
     <Suspense fallback={<ScreenSkeleton />}>
-      <WithNow>{(nowIso) => <DietaScreen nowIso={nowIso} />}</WithNow>
+      <WithNow>{(nowIso) => <DietData nowIso={nowIso} />}</WithNow>
     </Suspense>
   )
 }
