@@ -253,7 +253,7 @@ function DayRow({ item, actions, mark, nowMs, nextAtMs }: { item: DayItem; actio
           <DropdownMenuTrigger asChild>
             <span aria-hidden tabIndex={-1} className="pointer-events-none absolute right-0 bottom-0 size-px" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52 rounded-2xl p-2">
+          <DropdownMenuContent align="end" collisionPadding={{ top: 16, bottom: 104, left: 16, right: 16 }} className="min-w-52 rounded-2xl p-2">
             {canComplete ? (
               <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => actions.complete(item, !done)}>
                 <SquareCheckIcon strokeWidth={1.75} /> {done ? "Reabrir" : "Concluir"}

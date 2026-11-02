@@ -264,7 +264,7 @@ export function NotesPanel({ data }: { data: NotesData }) {
                         <EllipsisIcon strokeWidth={1.75} />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-48 rounded-2xl p-2">
+                    <DropdownMenuContent align="end" collisionPadding={{ top: 16, bottom: 104, left: 16, right: 16 }} className="min-w-48 rounded-2xl p-2">
                       <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => finish(reminder)}>
                         <CheckIcon strokeWidth={1.75} /> Feito
                       </DropdownMenuItem>

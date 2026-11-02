@@ -156,7 +156,7 @@ function CardsDeck({ items }: { items: HighlightItem[] }) {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col overflow-x-clip">
       <Swiper
         modules={[EffectCards, Keyboard, A11y]}
         effect="cards"
