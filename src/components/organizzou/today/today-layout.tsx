@@ -79,7 +79,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   useEffect(() => () => clearTimeout(timer.current), [])
 
   const change = useCallback(
-    (next: TodayPrefs) => {
+    (next: TodayPrefs, silent = false) => {
       current.current = next
       setPrefs(next)
       writeLocal(next)
@@ -94,7 +94,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
           return
         }
         confirmed.current = next
-        toast("Salvo", { duration: 1500 })
+        if (!silent) toast("Salvo", { duration: 1500 })
         // A widget that was not part of the server render needs its data: ask for it.
         if (wantedKeys(next).some((key) => !(key in slots))) router.refresh()
       }, SAVE_DELAY_MS)
@@ -102,7 +102,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
     [router, slots]
   )
 
-  const update = useCallback((fn: (p: TodayPrefs) => TodayPrefs) => change(fn(current.current)), [change])
+  const update = useCallback((fn: (p: TodayPrefs) => TodayPrefs, options?: { silent?: boolean }) => change(fn(current.current), options?.silent), [change])
   const api = useMemo(() => ({ prefs, update }), [prefs, update])
 
   const node = (key: string) => slots[key] ?? skeletons[key] ?? null
