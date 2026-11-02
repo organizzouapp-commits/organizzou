@@ -1,6 +1,8 @@
 "use server"
 
 import { createHmac } from "node:crypto"
+
+import { getSecretKey } from "@/lib/admin/secret"
 import { headers } from "next/headers"
 
 import { toE164 } from "@/features/auth/schemas"
@@ -13,7 +15,7 @@ const GENERIC_ERROR = "Não consegui salvar agora. Tente de novo em instantes."
 
 function hash(value: string) {
   // Keyed with the service role key so hashes can't be reversed or rainbow-tabled without it.
-  return createHmac("sha256", process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").update(value).digest("hex")
+  return createHmac("sha256", getSecretKey() ?? "").update(value).digest("hex")
 }
 
 export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult> {

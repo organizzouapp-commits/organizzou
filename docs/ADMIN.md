@@ -34,7 +34,7 @@ Pegue em Supabase → Project Settings → API Keys → **Secret key**. Não col
 
 Sem a chave, as páginas de leitura funcionam, mas as ações que escrevem (alterar plano, suspender/reativar, reenviar confirmação,
 encerrar sessões, exportar CSV) ficam **desativadas** com o aviso "Configure a chave do servidor".
-(`SUPABASE_SERVICE_ROLE_KEY` continua existindo só para a lista de espera do site.)
+Uma só chave serve a tudo no servidor (admin e lista de espera do site). O nome antigo `SUPABASE_SERVICE_ROLE_KEY` ainda é lido como alternativa, mas use `SUPABASE_SECRET_KEY`.
 
 ## Colocando no ar (ainda não feito)
 

@@ -18,7 +18,7 @@ if (mode !== "grant" && mode !== "revoke") {
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-const secretKey = process.env.SUPABASE_SECRET_KEY
+const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY // the old name still works
 if (!url || !secretKey) {
   console.error("Faltam variáveis em .env.local. Abra o arquivo .env.local e preencha (sem aspas):")
   if (!url) console.error("  NEXT_PUBLIC_SUPABASE_URL=")

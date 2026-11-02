@@ -157,7 +157,7 @@ describe("secret key handling", () => {
   const sources = walk(join(ROOT, "src")).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\./.test(f))
 
   it("SUPABASE_SECRET_KEY is read in one server-only module and nowhere else under src/", () => {
-    const readers = sources.filter((f) => /process\.env\.SUPABASE_SECRET_KEY|env\[["']SUPABASE_SECRET_KEY/.test(readFileSync(f, "utf8"))).map((f) => relative(ROOT, f).replace(/\\/g, "/"))
+    const readers = sources.filter((f) => /process\.env\.SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY/.test(readFileSync(f, "utf8"))).map((f) => relative(ROOT, f).replace(/\\/g, "/"))
     expect(readers).toEqual(["src/lib/admin/secret.ts"])
     expect(readFileSync(join(ROOT, "src/lib/admin/secret.ts"), "utf8")).toMatch(/^import "server-only"/m)
   })

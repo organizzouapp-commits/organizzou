@@ -52,7 +52,7 @@ Deixe as demais como estão:
 
 - `NEXT_PUBLIC_SITE_URL=http://localhost:3000`
 - `NEXT_PUBLIC_COOKIE_DOMAIN` vazio (só se usa quando o site de marketing existir)
-- `SUPABASE_SERVICE_ROLE_KEY` **vazio**. A chave secreta não é necessária para rodar o app. Nunca a cole em chats, commits ou arquivos que vão para o GitHub.
+- `SUPABASE_SECRET_KEY` (antes `SUPABASE_SERVICE_ROLE_KEY`) **vazio**. A chave secreta não é necessária para rodar o app. Nunca a cole em chats, commits ou arquivos que vão para o GitHub.
 
 ## 5. Rodar o app
 
