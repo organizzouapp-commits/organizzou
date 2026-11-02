@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CheckIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, Trash2Icon, type LucideIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -13,6 +13,10 @@ type SwipeRowProps = {
   /** Swipe left (touch only). Should open a confirmation, never delete directly. */
   onSwipeLeft?: () => void
   leftLabel?: string
+  /** Icon shown while swiping left (default: trash, for destructive swipes). */
+  leftIcon?: LucideIcon
+  /** Background of the row itself; must match the surface it sits on (default: the page background). */
+  surfaceClassName?: string
   className?: string
 }
 
@@ -26,6 +30,8 @@ export function SwipeRow({
   rightLabel = "Concluir",
   onSwipeLeft,
   leftLabel = "Excluir",
+  leftIcon: LeftIcon = Trash2Icon,
+  surfaceClassName = "bg-background",
   className,
 }: SwipeRowProps) {
   const [dx, setDx] = useState(0)
@@ -67,7 +73,7 @@ export function SwipeRow({
           <CheckIcon strokeWidth={1.75} className="size-5" /> {rightLabel}
         </span>
         <span className={cn("flex items-center gap-2", dx < 0 ? "opacity-100" : "opacity-0")}>
-          {leftLabel} <Trash2Icon strokeWidth={1.75} className="size-5" />
+          {leftLabel} <LeftIcon strokeWidth={1.75} className="size-5" />
         </span>
       </div>
       <div
@@ -77,7 +83,8 @@ export function SwipeRow({
         onPointerCancel={finish}
         style={{ transform: `translateX(${dx}px)` }}
         className={cn(
-          "relative touch-pan-y bg-background",
+          "relative touch-pan-y",
+          surfaceClassName,
           !dragging && "transition-transform duration-200 ease-organizzou"
         )}
       >

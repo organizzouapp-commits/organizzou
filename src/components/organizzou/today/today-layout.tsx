@@ -1,0 +1,186 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { LayoutPanelTopIcon, SlidersHorizontalIcon } from "lucide-react"
+import { toast } from "sonner"
+
+import { EmptyState } from "@/components/organizzou/EmptyState"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { savePrefs } from "@/features/today/actions"
+import { PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, type TodayPrefs } from "@/features/today/prefs"
+import { cn } from "@/lib/utils"
+
+import { CustomizeDialog } from "./customize"
+import { StatsCarousel } from "./stats-carousel"
+import { StatToneProvider } from "./stat-card"
+import { TodayStateProvider } from "./today-state"
+
+type TodayLayoutProps = {
+  /** Server-rendered widgets (each in its own Suspense boundary), keyed "stat:<id>" and "panel:<id>". Only the selected ones exist. */
+  slots: Record<string, React.ReactNode>
+  /** Placeholder for a widget the person just turned on, until the server sends the real one. */
+  skeletons: Record<string, React.ReactNode>
+  serverPrefs: TodayPrefs
+  /** Where `serverPrefs` came from: the database wins over this device's localStorage; the cookie and the defaults do not. */
+  source: "db" | "cookie" | "default"
+}
+
+const SAVE_DELAY_MS = 500
+
+function readLocal() {
+  try {
+    return parsePrefsJson(window.localStorage.getItem(PREFS_STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+function writeLocal(prefs: TodayPrefs) {
+  try {
+    window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs))
+  } catch {
+    // Private mode / blocked storage: the cookie and the database still keep the layout.
+  }
+}
+
+/**
+ * Owns the layout preferences of "Hoje". Hiding and reordering happen instantly on the widgets already streamed from the server;
+ * turning on a widget that was not sent yet shows its skeleton and asks the server for it (`router.refresh`). A change is applied
+ * optimistically, saved after a short pause, and rolled back with an honest error if the save fails.
+ */
+export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayoutProps) {
+  const router = useRouter()
+  const [prefs, setPrefs] = useState(serverPrefs)
+  const [open, setOpen] = useState(false)
+  const confirmed = useRef(serverPrefs)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // This device's localStorage wins over the cookie/defaults (not over the database). Mirror it to the cookie so the server can render it next time.
+  useEffect(() => {
+    const local = readLocal()
+    if (source === "db" || !local) {
+      writeLocal(serverPrefs)
+      return
+    }
+    if (!prefsEqual(local, serverPrefs)) {
+      // localStorage only exists in the browser, so this one-time reconcile cannot happen during render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPrefs(local)
+      confirmed.current = local
+      void savePrefs(local).then(() => router.refresh())
+    }
+    // Runs once per page load on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const change = useCallback(
+    (next: TodayPrefs) => {
+      setPrefs(next)
+      writeLocal(next)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(async () => {
+        const result = await savePrefs(next).catch(() => ({ ok: false as const, error: "" }))
+        if (!result.ok) {
+          setPrefs(confirmed.current)
+          writeLocal(confirmed.current)
+          toast.error("Não foi possível salvar a personalização. Voltamos ao que estava salvo.")
+          return
+        }
+        confirmed.current = next
+        toast("Salvo", { duration: 1500 })
+        // A widget that was not part of the server render needs its data: ask for it.
+        const missing = [...next.highlights.map((id) => `stat:${id}`), ...next.panels.filter((p) => p.visible).map((p) => `panel:${p.id}`)].some((key) => !(key in slots))
+        if (missing) router.refresh()
+      }, SAVE_DELAY_MS)
+    },
+    [router, slots]
+  )
+
+  const node = (key: string) => slots[key] ?? skeletons[key] ?? null
+  const highlights = prefs.highlights.map((id, index) => (
+    <StatToneProvider key={id} tone={index === 0 ? "highlight" : "default"}>
+      {node(`stat:${id}`)}
+    </StatToneProvider>
+  ))
+
+  const visible = prefs.panels.filter((p) => p.visible)
+  const hasMain = visible.some((p) => p.id === "seu-dia")
+  const asideCount = visible.filter((p) => p.id !== "seu-dia").length
+
+  const customize = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="outline" className="h-11 rounded-full px-3 md:px-5" aria-label="Personalizar" onClick={() => setOpen(true)}>
+          <SlidersHorizontalIcon strokeWidth={1.75} />
+          <span className="max-md:hidden">Personalizar</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="md:hidden">Personalizar</TooltipContent>
+    </Tooltip>
+  )
+
+  return (
+    <TodayStateProvider>
+      <div className="@container flex min-w-0 flex-col gap-5 pb-6">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Destaques</h2>
+          {customize}
+        </div>
+
+        {/* Phones: 3D coverflow. From 768 px: 2x2, then 4 across from 1024 px. Same server-rendered cards in both. */}
+        <div className="md:hidden">
+          <StatsCarousel items={highlights} />
+        </div>
+        <div className="hidden grid-cols-2 gap-4 md:grid lg:grid-cols-4 xl:gap-5">
+          {highlights.map((card, index) => (
+            <div key={index} className="min-w-0">
+              {card}
+            </div>
+          ))}
+        </div>
+
+        {visible.length === 0 ? (
+          <div className="rounded-[24px] border border-border bg-card">
+            <EmptyState
+              icon={LayoutPanelTopIcon}
+              title="Nenhum painel por aqui"
+              description="Você escondeu todos os painéis. Mostre os que quiser em Personalizar."
+              action={
+                <Button type="button" className="h-11 rounded-full px-5" onClick={() => setOpen(true)}>
+                  <SlidersHorizontalIcon strokeWidth={1.75} /> Personalizar
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div
+            style={{ "--aside": Math.max(asideCount, 1) } as React.CSSProperties}
+            className={cn(
+              "grid min-w-0 grid-cols-1 items-start gap-4 @min-[880px]:gap-5",
+              hasMain ? "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]" : "@min-[880px]:grid-cols-2 @min-[1320px]:grid-cols-3"
+            )}
+          >
+            {visible.map((panel) => {
+              const isMain = hasMain && panel.id === "seu-dia"
+              return (
+                <div
+                  key={panel.id}
+                  data-panel={panel.id}
+                  className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/span_var(--aside)]" : hasMain && "@min-[880px]:col-start-2")}
+                >
+                  {node(`panel:${panel.id}`)}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <CustomizeDialog open={open} onOpenChange={setOpen} prefs={prefs} onChange={change} />
+    </TodayStateProvider>
+  )
+}
+
