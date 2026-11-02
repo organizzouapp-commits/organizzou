@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { CalendarDaysIcon, EllipsisIcon, LayoutDashboardIcon, SquareKanbanIcon } from "lucide-react"
+import { EllipsisIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { AssistantProvider } from "@/components/assistant/assistant-context"
@@ -10,7 +10,6 @@ import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
-import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
@@ -19,10 +18,12 @@ import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
-import { ACCOUNT_ITEMS } from "./account-menu"
 import type { PlanId } from "@/lib/plans"
-import { AppSidebar, isActivePath, type ShellUser } from "./app-sidebar"
+import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
+import { AppSidebar, type ShellUser } from "./app-sidebar"
 import { FrameGlass } from "./frame-glass"
+import { isActivePath, MORE_ID, NavProvider, type NavConfig } from "./nav-config"
+import { NAVS } from "./nav-registry"
 import { AppTopBar, usePageHeading } from "./app-topbar"
 import { AppTopHeader } from "./app-topheader"
 import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
@@ -31,15 +32,10 @@ import { MobileHeader } from "./mobile-header"
 import { OthersDrawer, isOtherPath } from "./others-drawer"
 import { PrimaryActionProvider } from "./primary-action"
 
-const OTHERS_ID = "outros"
-
-// "Outros" opens a drawer with the remaining modules (Finanças, Vida, Organização); the header chips reach them too.
-const navItems: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem] = [
-  { id: "/dashboard", label: "Hoje", icon: LayoutDashboardIcon },
-  { id: "/dashboard/tarefas", label: "Tarefas", icon: SquareKanbanIcon },
-  { id: "/dashboard/agenda", label: "Agenda", icon: CalendarDaysIcon },
-  { id: OTHERS_ID, label: "Outros", icon: EllipsisIcon },
-]
+// The last slot ("Outros" in the app, "Mais" in the admin) opens a drawer with the remaining pages; the header chips reach them too.
+function bottomNavItems(nav: NavConfig): BottomNavItem[] {
+  return [...nav.mobile.pill.map((item) => ({ id: item.href, label: item.label, icon: item.icon })), { id: MORE_ID, label: nav.mobile.more.label, icon: EllipsisIcon }]
+}
 
 // The profile is the source of truth for the theme across devices.
 function ThemeSync({ theme }: { theme?: string }) {
@@ -65,18 +61,18 @@ function useIsTablet() {
   )
 }
 
-type ShellBottomBarProps = { activeId: string; onSelect: (id: string) => void; onAssistant: () => void }
+type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void; onAssistant: (() => void) | null }
 
 /**
  * Phones: one fixed row 12 px above the bottom safe area, 16 px from both edges. `--bottom-bar-h` (52 px) is the height of both the nav and the assistant button. The floating nav takes the remaining width and the
  * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The row hides while the keyboard is open.
  */
-function ShellBottomBar({ activeId, onSelect, onAssistant }: ShellBottomBarProps) {
+function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
     <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex items-center gap-3 [--bottom-bar-h:52px] md:hidden", typing && "hidden")}>
-      <BottomNav items={navItems} activeId={activeId} onSelect={onSelect} className="flex-1" />
-      <AssistantFab className="size-(--bottom-bar-h) shrink-0 bg-highlight text-highlight-foreground [&_svg]:size-5" onClick={onAssistant} />
+      <BottomNav items={items} activeId={activeId} onSelect={onSelect} className="flex-1" />
+      {onAssistant ? <AssistantFab className="size-(--bottom-bar-h) shrink-0 bg-highlight text-highlight-foreground [&_svg]:size-5" onClick={onAssistant} /> : null}
     </div>
   )
 }
@@ -93,6 +89,10 @@ function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
 }
 
 type AppShellProps = {
+  /** Which navigation the shell renders: the app (/dashboard) or the admin area (/admin). */
+  nav: NavConfig["id"]
+  /** Signed-in user has app_metadata.role = admin: the avatar menu offers "Área do admin". */
+  isAdmin?: boolean
   user: ShellUser
   /** Saved preference from the profile; undefined keeps whatever the browser has. */
   theme?: string
@@ -107,7 +107,10 @@ type AppShellProps = {
   children: React.ReactNode
 }
 
-export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
+export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
+  const nav = NAVS[navId]
+  const bottomItems = useMemo(() => bottomNavItems(nav), [nav])
+  const navValue = useMemo(() => ({ nav, isAdmin }), [nav, isAdmin])
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const [assistantOpen, setAssistantOpen] = useState(false)
@@ -123,11 +126,11 @@ export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebar
   // Collapsed sidebar on desktop = rail + top header layout (the expanded sidebar keeps the classic layout).
   const topLayout = !open
 
-  const activeId = navItems.find((item) => item.id !== OTHERS_ID && isActivePath(pathname, item.id))?.id ?? (isOtherPath(pathname) ? OTHERS_ID : "")
+  const activeId = bottomItems.find((item) => item.id !== MORE_ID && isActivePath(pathname, item.id))?.id ?? (isOtherPath(nav, pathname) ? MORE_ID : "")
   // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
-  const counts = useMemo<Partial<Record<ModuleId, number>>>(
-    () => (isMock ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
-    [nowIso]
+  const counts = useMemo<Partial<Record<string, number>>>(
+    () => (isMock && nav.id === "app" ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
+    [nowIso, nav]
   )
   const openSearch = useCallback(() => {
     setSearchQuery("")
@@ -144,23 +147,26 @@ export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebar
   // Warm every module route while the browser is idle (production only; in dev Next does not prefetch), so opening a module
   // streams its skeleton from the cache instead of waiting for the server.
   useEffect(() => {
-    const hrefs = [...Object.values(modules).map((m) => m.href), ...ACCOUNT_ITEMS.map((i) => i.href), "/dashboard/plano"]
+    const hrefs = [...nav.groups.flatMap((g) => g.items.map((i) => i.href)), ...(nav.account?.items.map((i) => i.href) ?? []), ...(nav.features.plan ? ["/dashboard/plano"] : [])]
     const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500))
     const handle = idle(() => hrefs.forEach((href) => router.prefetch(href)))
     return () => {
       if (window.cancelIdleCallback) window.cancelIdleCallback(handle as number)
       else window.clearTimeout(handle as number)
     }
-  }, [router])
+  }, [router, nav])
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
 
+  const withAssistant = nav.features.assistant
+
   function onSelect(id: string) {
-    if (id === OTHERS_ID) setOthersOpen(true)
+    if (id === MORE_ID) setOthersOpen(true)
     else router.push(id)
   }
 
   return (
+    <NavProvider value={navValue}>
     <AssistantProvider value={assistantContext}>
       <PlanProvider plan={plan} whatsappConnected={whatsappConnected}>
       <SignOutProvider value={requestSignOut}>
@@ -193,13 +199,19 @@ export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebar
           </SidebarInset>
 
           {/* Desktop keeps the corner button; phones have it in the bottom bar. */}
-          <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} />
+          {withAssistant ? <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} /> : null}
 
-          <ShellBottomBar activeId={activeId} onSelect={onSelect} onAssistant={() => setAssistantOpen(true)} />
+          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} onAssistant={withAssistant ? () => setAssistantOpen(true) : null} />
 
-          <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
-          <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
-          <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
+          {withAssistant ? (
+            <>
+              <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
+              <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
+              <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
+            </>
+          ) : (
+            <AdminCommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} />
+          )}
           <OthersDrawer open={othersOpen} onOpenChange={setOthersOpen} />
           <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
         </SidebarProvider>
@@ -207,5 +219,6 @@ export function AppShell({ user, theme, plan, whatsappConnected, nowIso, sidebar
       </SignOutProvider>
       </PlanProvider>
     </AssistantProvider>
+    </NavProvider>
   )
 }

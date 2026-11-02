@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon } from "lucide-react"
+import { ArrowLeftIcon, BellIcon, ChevronDownIcon, ChevronRightIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon, ShieldIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -26,8 +26,8 @@ import { cn } from "@/lib/utils"
 import { MOCK_TIMEZONE } from "@/mocks/time"
 
 import type { ShellUser } from "./app-sidebar"
-import { ACCOUNT_ITEMS } from "./account-menu"
-import { metaFor } from "./nav"
+import { BACK_TO_APP_HREF } from "./nav-brand"
+import { metaFor, useNavContext } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
 import { useWhatsAppAccess } from "./whatsapp-cta"
 
@@ -102,6 +102,8 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
   const requestSignOut = useRequestSignOut()
   const { definition, pro } = usePlan()
   const whatsapp = useWhatsAppAccess()
+  const { nav, isAdmin } = useNavContext()
+  const inAdmin = nav.id === "admin"
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -132,23 +134,39 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           <span className="truncate text-[15px] font-medium text-foreground">{user.name}</span>
           <span className="truncate text-[13px] font-normal text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
-        <div className="flex items-center justify-between gap-3 p-3 pt-0">
-          <Badge className={cn("rounded-full", pro ? "bg-highlight text-highlight-foreground" : "bg-muted text-muted-foreground")}>{definition.name}</Badge>
-          <DropdownMenuItem asChild className="size-8 justify-center rounded-full border border-border p-0">
-            <Link href="/dashboard/plano" aria-label="Ver planos">
-              <ChevronRightIcon strokeWidth={1.75} className="size-4" />
+        {nav.features.plan ? (
+          <div className="flex items-center justify-between gap-3 p-3 pt-0">
+            <Badge className={cn("rounded-full", pro ? "bg-highlight text-highlight-foreground" : "bg-muted text-muted-foreground")}>{definition.name}</Badge>
+            <DropdownMenuItem asChild className="size-8 justify-center rounded-full border border-border p-0">
+              <Link href="/dashboard/plano" aria-label="Ver planos">
+                <ChevronRightIcon strokeWidth={1.75} className="size-4" />
+              </Link>
+            </DropdownMenuItem>
+          </div>
+        ) : null}
+        <DropdownMenuSeparator className="mx-1 my-2" />
+        {inAdmin ? (
+          <DropdownMenuItem asChild className={menuItem}>
+            <Link href={BACK_TO_APP_HREF}>
+              <ArrowLeftIcon strokeWidth={1.75} className={menuIcon} /> Voltar ao app
             </Link>
           </DropdownMenuItem>
-        </div>
-        <DropdownMenuSeparator className="mx-1 my-2" />
-        {ACCOUNT_ITEMS.map((item) => (
+        ) : null}
+        {(nav.account?.items ?? []).map((item) => (
           <DropdownMenuItem key={item.id} asChild className={menuItem}>
             <Link href={item.href}>
               <item.icon strokeWidth={1.75} className={menuIcon} /> {item.label}
             </Link>
           </DropdownMenuItem>
         ))}
-        {compact && !(whatsapp.connected && !whatsapp.locked) ? (
+        {isAdmin && !inAdmin ? (
+          <DropdownMenuItem asChild className={menuItem}>
+            <Link href="/admin">
+              <ShieldIcon strokeWidth={1.75} className={menuIcon} /> Área do admin
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {nav.features.plan && compact && !(whatsapp.connected && !whatsapp.locked) ? (
           <DropdownMenuItem asChild className={menuItem}>
             <Link href={whatsapp.href}>
               <MessageCircleIcon strokeWidth={1.75} className={menuIcon} />
@@ -172,10 +190,11 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
 /** Title and subtitle of the current page ("Boa tarde, Ana" on the home screen). */
 export function usePageHeading(user: ShellUser, nowIso: string) {
   const pathname = usePathname()
+  const { nav } = useNavContext()
   const now = new Date(nowIso)
   const firstName = user.name.split(" ")[0]
-  const meta = metaFor(pathname)
-  const isToday = pathname === "/dashboard"
+  const meta = metaFor(nav, pathname)
+  const isToday = nav.features.greeting && pathname === nav.home.href
   const title = isToday ? `${greeting(now, MOCK_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
   const subtitle = isToday
     ? format(inTz(now, MOCK_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())

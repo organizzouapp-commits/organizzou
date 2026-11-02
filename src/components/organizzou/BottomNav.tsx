@@ -12,7 +12,7 @@ export type BottomNavItem = {
 }
 
 type BottomNavProps = {
-  items: [BottomNavItem, BottomNavItem, BottomNavItem, BottomNavItem]
+  items: BottomNavItem[]
   /** Id of the current route's item, or "" when none of them is active. */
   activeId: string
   onSelect?: (id: string) => void

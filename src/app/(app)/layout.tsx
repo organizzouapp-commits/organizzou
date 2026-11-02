@@ -14,7 +14,7 @@ import { getSession } from "@/lib/supabase/session"
 export const metadata: Metadata = { robots: { index: false, follow: false } }
 
 async function ShellLoader({ children }: { children: React.ReactNode }) {
-  const { supabase, userId, email } = await getSession()
+  const { supabase, userId, email, isAdmin } = await getSession()
 
   // Independent reads: run them together.
   const [{ data: profile }, plan] = await Promise.all([
@@ -34,6 +34,8 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
 
   return (
     <AppShell
+      nav="app"
+      isAdmin={isAdmin}
       user={{ name, email }}
       theme={profile?.theme}
       plan={planNow}
