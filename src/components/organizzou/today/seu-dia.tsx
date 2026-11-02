@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import {
+  ArrowUpRightIcon,
   CalendarDaysIcon,
+  CalendarIcon,
   ChevronDownIcon,
   DumbbellIcon,
   FlagIcon,
@@ -139,7 +141,7 @@ function ItemBadges({ item, mark, nowMs, nextAtMs }: { item: DayItem; mark: Mark
   )
 }
 
-function DayRow({ item, actions, mark, nowMs, nextAtMs }: { item: DayItem; actions: RowActions; mark: Mark; nowMs: number; nextAtMs?: number }) {
+function DayRow({ item, actions, mark, nowMs, nextAtMs, timeColumn }: { item: DayItem; actions: RowActions; mark: Mark; nowMs: number; nextAtMs?: number; timeColumn: boolean }) {
   const Icon = KIND_ICON[item.kind]
   const done = actions.isDone(item)
   const [menu, setMenu] = useState(false)
@@ -176,19 +178,23 @@ function DayRow({ item, actions, mark, nowMs, nextAtMs }: { item: DayItem; actio
         setMenu(true)
       }}
       className={cn(
-        "relative flex min-h-16 items-center gap-3 py-3 pl-3 min-[431px]:min-h-14",
+        "relative flex min-h-16 items-center gap-3 py-3 min-[431px]:min-h-14",
+        // A section without times reserves no time column: the icon (or title, on phones) starts at the left edge, level with the group label.
+        timeColumn || mark ? "pl-3" : "pl-0",
         // The hairline starts under the title, not at the card edge.
-        "after:absolute after:right-0 after:bottom-0 after:left-[72px] after:h-px after:bg-border min-[431px]:after:left-[116px]",
+        timeColumn ? "after:absolute after:right-0 after:bottom-0 after:left-[72px] after:h-px after:bg-border min-[431px]:after:left-[116px]" : "after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border min-[431px]:after:left-6",
         // The next item gets a Lima bar (Tinta in light mode: `primary`), never a color of its own.
         mark === "next" && "before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary",
         mark === "now" && "before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary"
       )}
     >
-      <span className="flex w-12 shrink-0 flex-col min-[431px]:w-16">
-        {item.at ? <span className="tabular text-[14px] leading-5 font-semibold">{clock(item.at)}</span> : null}
-        {duration ? <span className="tabular text-[12px] leading-4 text-muted-foreground">{duration}</span> : null}
-      </span>
-      <Icon aria-hidden strokeWidth={1.75} className="hidden size-4 shrink-0 text-muted-foreground min-[431px]:block" />
+      {timeColumn ? (
+        <span className="flex w-12 shrink-0 flex-col min-[431px]:w-16">
+          {item.at ? <span className="tabular text-[14px] leading-5 font-semibold">{clock(item.at)}</span> : null}
+          {duration ? <span className="tabular text-[12px] leading-4 text-muted-foreground">{duration}</span> : null}
+        </span>
+      ) : null}
+      <Icon aria-hidden strokeWidth={1.75} className={cn("hidden size-4 shrink-0 text-muted-foreground min-[431px]:block", !timeColumn && "-mr-1")} />
 
       <Link href={item.href} className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
         <span className={cn("line-clamp-2 text-[15px] leading-5 font-medium break-words", done && "text-muted-foreground line-through")}>
@@ -305,7 +311,7 @@ function Group({ id, label, count, open, onToggle, summary, emphasis, children }
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-11 w-full items-center gap-2 rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] cursor-pointer items-center gap-2 rounded-xl px-2 text-left outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
       >
         <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", !open && "-rotate-90")} />
         {emphasis ? <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
@@ -456,6 +462,7 @@ export function SeuDia({ data }: { data: DayData }) {
   const nowPeriod = periodOfHour(hourOf(nowMs))
 
   const rows = (id: string, items: DayItem[], withNowLine: boolean) => {
+    const timeColumn = items.some((item) => item.at)
     const limit = expanded.has(id) ? items.length : MAX_ROWS
     const shownRows = items.slice(0, limit)
     const nodes: React.ReactNode[] = []
@@ -465,7 +472,7 @@ export function SeuDia({ data }: { data: DayData }) {
         nodes.push(<NowLine key="now" nowMs={nowMs} />)
         placed = true
       }
-      nodes.push(<DayRow key={item.id} item={item} actions={actions} mark={markOf(item)} nowMs={nowMs} nextAtMs={nextItem?.at ? new Date(nextItem.at).getTime() : undefined} />)
+      nodes.push(<DayRow key={item.id} item={item} timeColumn={timeColumn} actions={actions} mark={markOf(item)} nowMs={nowMs} nextAtMs={nextItem?.at ? new Date(nextItem.at).getTime() : undefined} />)
     })
     // Every item of the period is earlier than now (or there is none): the line goes at the end.
     if (!placed && shownRows.length === items.length) nodes.push(<NowLine key="now" nowMs={nowMs} />)
@@ -487,7 +494,7 @@ export function SeuDia({ data }: { data: DayData }) {
   return (
     <section aria-label="Seu dia" className={cn(bentoCardClass(), "flex min-w-0 flex-col gap-4 rounded-[24px] p-5")}>
       <header className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-col">
             <h2 className="text-[17px] leading-6 font-semibold">Seu dia</h2>
             {data.state === "ok" && !empty ? (
@@ -496,9 +503,13 @@ export function SeuDia({ data }: { data: DayData }) {
               </p>
             ) : null}
           </div>
-          <Link href="/dashboard/agenda" className="flex min-h-11 shrink-0 items-center rounded-md text-[13px] leading-5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-            Abrir agenda
-          </Link>
+          <Button asChild variant="outline" size="sm" className="h-11 shrink-0 gap-2 rounded-xl border-input px-3.5 text-[14px] hover:bg-accent md:h-9">
+            <Link href="/dashboard/agenda">
+              <CalendarIcon strokeWidth={1.75} className="size-4" />
+              Abrir agenda
+              <ArrowUpRightIcon strokeWidth={1.75} className="size-3.5 text-muted-foreground" />
+            </Link>
+          </Button>
         </div>
         {/* No bar when there is nothing to do: 0 of 0 is never 100%. */}
         {pct !== undefined ? <Progress value={pct} aria-label={`Dia: ${pct}% concluído`} className="h-1.5" /> : null}
@@ -530,7 +541,7 @@ export function SeuDia({ data }: { data: DayData }) {
                 onClick={() => setFilter(f.id)}
                 className={cn(
                   "inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-[15px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                  filter === f.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border text-muted-foreground hover:bg-accent"
+                  filter === f.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
                 {f.label}
@@ -539,7 +550,7 @@ export function SeuDia({ data }: { data: DayData }) {
             ))}
           </div>
 
-          <div ref={listRef} data-testid="seu-dia-list" className="no-scrollbar flex max-h-[min(36rem,70dvh)] flex-col gap-1 overflow-y-auto overscroll-contain">
+          <div ref={listRef} data-testid="seu-dia-list" className="flex flex-col gap-1">
             {shown.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada deste tipo hoje.</p> : null}
 
             {overdue.length > 0 ? (
