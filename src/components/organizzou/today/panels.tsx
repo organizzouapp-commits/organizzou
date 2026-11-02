@@ -5,7 +5,7 @@ import Link from "next/link"
 import { AnnoyedIcon, ArrowUpRightIcon, CheckIcon, ChevronDownIcon, EllipsisIcon, FrownIcon, GlassWaterIcon, LaughIcon, MehIcon, PinIcon, PlusIcon, SmileIcon, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { bentoCardClass, cardHover } from "@/components/organizzou/Bento"
+import { bentoCardClass, cardInteract, cardSurfaceHover } from "@/components/organizzou/Bento"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { panelMeta, type PanelId } from "@/features/today/catalog"
-import { isPanelOpen } from "@/features/today/prefs"
+import { firstSidePanel } from "@/features/today/prefs"
 import type { DietData, FinanceData, NotesData, StudyData, WidgetState, WorkoutData } from "@/features/today/types"
 import { MOOD_LABELS, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
@@ -36,23 +36,23 @@ const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] uppercas
 export function PanelCard({ id, summary, href, state, children }: { id: PanelId; summary: string; href: string; state: WidgetState; children: React.ReactNode }) {
   const meta = panelMeta(id)
   const { prefs, update } = useTodayPrefs()
-  const open = isPanelOpen(prefs, id)
+  // The first side panel opens on every load (the server render included), whatever was saved; folding it lasts only for this visit.
+  // Every other panel remembers its state in the preferences.
+  const isFirst = firstSidePanel(prefs) === id
+  const [visitOpen, setVisitOpen] = useState(true)
+  const open = isFirst ? visitOpen : prefs.expandedPanels.includes(id)
   const bodyId = useId()
   const Icon: LucideIcon | undefined = meta?.icon
-  const toggle = () =>
-    update(
-      (p) => ({
-        ...p,
-        expandedPanels: open ? p.expandedPanels.filter((x) => x !== id) : [...p.expandedPanels.filter((x) => x !== id), id],
-        closedPanels: open ? [...p.closedPanels.filter((x) => x !== id), id] : p.closedPanels.filter((x) => x !== id),
-      }),
-      { silent: true }
-    )
+  const toggle = () => {
+    if (isFirst) return setVisitOpen(!open)
+    update((p) => ({ ...p, expandedPanels: open ? p.expandedPanels.filter((x) => x !== id) : [...p.expandedPanels.filter((x) => x !== id), id] }), { silent: true })
+  }
   return (
     <section
       aria-label={meta?.title}
       data-open={open ? "" : undefined}
-      className={cn(bentoCardClass(), "flex flex-col rounded-[24px] p-4")}
+      // The whole card lifts on hover, open or folded, exactly like a Destaques card; its inner controls keep their own hover.
+      className={cn(bentoCardClass(), "flex flex-col rounded-[24px] p-4", cardSurfaceHover)}
     >
       <header className="flex items-center gap-2">
         <button
@@ -60,7 +60,7 @@ export function PanelCard({ id, summary, href, state, children }: { id: PanelId;
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={toggle}
-          className={cn("flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left", cardHover)}
+          className={cn("flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left", cardInteract)}
         >
           {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" /> : null}
           <span className="flex min-w-0 flex-1 flex-col">
@@ -70,7 +70,7 @@ export function PanelCard({ id, summary, href, state, children }: { id: PanelId;
           {state === "soon" ? <SoonBadge /> : null}
           <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-5 shrink-0 text-muted-foreground transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open && "rotate-180")} />
         </button>
-        <Link href={href} aria-label={`Abrir ${meta?.title}`} className={cn("flex size-11 shrink-0 items-center justify-center rounded-full border border-border", cardHover)}>
+        <Link href={href} aria-label={`Abrir ${meta?.title}`} className={cn("flex size-11 shrink-0 items-center justify-center rounded-full border border-border hover:bg-background", cardInteract)}>
           <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-4" />
         </Link>
       </header>

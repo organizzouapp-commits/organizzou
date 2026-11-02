@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { PANEL_IDS, STAT_IDS } from "./catalog"
-import { DEFAULT_PREFS, enabledHighlights, isPanelOpen, normalizePrefs, parsePrefsJson, prefsSchema } from "./prefs"
+import { DEFAULT_PREFS, enabledHighlights, firstSidePanel, normalizePrefs, parsePrefsJson, prefsSchema } from "./prefs"
 
 describe("today prefs v2", () => {
   it("a new person gets every catalog stat enabled, essentials first, and every panel visible but folded", () => {
@@ -12,7 +12,6 @@ describe("today prefs v2", () => {
     expect(DEFAULT_PREFS.panels.map((p) => p.id)).toEqual(PANEL_IDS)
     expect(DEFAULT_PREFS.panels.every((p) => p.visible)).toBe(true)
     expect(DEFAULT_PREFS.expandedPanels).toEqual([])
-    expect(DEFAULT_PREFS.closedPanels).toEqual([])
     expect(DEFAULT_PREFS.collapsedGroups).toEqual({})
   })
 
@@ -82,13 +81,10 @@ describe("today prefs v2", () => {
     expect(parsePrefsJson(null)).toBeNull()
   })
 
-  it("Notas starts open for someone who never chose; an explicit choice wins either way", () => {
-    expect(isPanelOpen(DEFAULT_PREFS, "notas")).toBe(true)
-    expect(isPanelOpen(DEFAULT_PREFS, "financas")).toBe(false)
-    expect(isPanelOpen(normalizePrefs({ closedPanels: ["notas"] }), "notas")).toBe(false)
-    expect(isPanelOpen(normalizePrefs({ expandedPanels: ["financas"] }), "financas")).toBe(true)
-    // An old v2 save (no closedPanels) with nothing chosen follows the default.
-    expect(isPanelOpen(normalizePrefs({ version: 2, expandedPanels: [] }), "notas")).toBe(true)
-    expect(normalizePrefs({ expandedPanels: ["notas"], closedPanels: ["notas"] }).closedPanels).toEqual([])
+  it("the first visible side panel is the one that always opens: Notas by default, the next one when it is hidden or moved", () => {
+    expect(firstSidePanel(DEFAULT_PREFS)).toBe("notas")
+    const hidden = { ...DEFAULT_PREFS, panels: DEFAULT_PREFS.panels.map((p) => (p.id === "notas" ? { ...p, visible: false } : p)) }
+    expect(firstSidePanel(hidden)).toBe("financas")
+    expect(firstSidePanel({ ...DEFAULT_PREFS, panels: [...DEFAULT_PREFS.panels].reverse() })).toBe("humor")
   })
 })

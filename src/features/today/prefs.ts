@@ -10,8 +10,7 @@ import { isPanelId, isStatId, PANEL_WIDGETS, STAT_IDS, type PanelId, type StatId
  *       panels:          every panel with its visibility and order ("seu-dia" can be hidden, never removed)
  *       collapsedGroups: the person's explicit choice per "Seu dia" group (true = folded, false = open). No entry = smart default.
  *       overdueSeen:     ids of the overdue items present when "Atrasados" was folded, so a NEW overdue item opens it again
- *       expandedPanels:  side panels the person opened on purpose
- *       closedPanels:    side panels the person closed on purpose (a panel in neither list follows `DEFAULT_OPEN_PANELS`)
+ *       expandedPanels:  side panels the person left open (they start folded). The FIRST visible side panel is never read from here: it opens on every load
  */
 export const PREFS_VERSION = 2
 
@@ -25,7 +24,6 @@ export const prefsSchema = z.object({
   collapsedGroups: z.record(z.string(), z.boolean()),
   overdueSeen: z.array(z.string()).max(100),
   expandedPanels: z.array(z.string()),
-  closedPanels: z.array(z.string()).default([]),
 })
 
 export type Highlight = { id: StatId; enabled: boolean }
@@ -37,15 +35,11 @@ export type TodayPrefs = {
   collapsedGroups: Partial<Record<GroupId, boolean>>
   overdueSeen: string[]
   expandedPanels: PanelId[]
-  closedPanels: PanelId[]
 }
 
 /** The order a new person sees: the daily essentials first, then the rest of the catalog. */
 const FIRST: StatId[] = ["tarefas-hoje", "habitos-hoje", "proximo-evento", "gasto-hoje", "agua", "calorias"]
 export const DEFAULT_ORDER: StatId[] = [...FIRST, ...STAT_IDS.filter((id) => !FIRST.includes(id))]
-
-/** Panels that start open for a person who never chose. */
-export const DEFAULT_OPEN_PANELS: PanelId[] = ["notas"]
 
 export const DEFAULT_PREFS: TodayPrefs = {
   version: PREFS_VERSION,
@@ -54,7 +48,6 @@ export const DEFAULT_PREFS: TodayPrefs = {
   collapsedGroups: {},
   overdueSeen: [],
   expandedPanels: [],
-  closedPanels: [],
 }
 
 /** localStorage key and cookie name that mirror the saved preferences (see `savePrefs`). */
@@ -67,7 +60,6 @@ const looseSchema = z.object({
   collapsedGroups: z.record(z.string(), z.unknown()).optional(),
   overdueSeen: z.array(z.unknown()).optional(),
   expandedPanels: z.array(z.unknown()).optional(),
-  closedPanels: z.array(z.unknown()).optional(),
 })
 
 /**
@@ -104,9 +96,8 @@ export function normalizePrefs(raw: unknown): TodayPrefs {
 
   const overdueSeen = (data.overdueSeen ?? []).filter((v): v is string => typeof v === "string").slice(0, 100)
   const expandedPanels = [...new Set((data.expandedPanels ?? []).filter(isPanelId))]
-  const closedPanels = [...new Set((data.closedPanels ?? []).filter(isPanelId))].filter((id) => !expandedPanels.includes(id))
 
-  return { version: PREFS_VERSION, highlights, panels, collapsedGroups, overdueSeen, expandedPanels, closedPanels }
+  return { version: PREFS_VERSION, highlights, panels, collapsedGroups, overdueSeen, expandedPanels }
 }
 
 /** Parses a JSON string (cookie / localStorage). Returns null when there is nothing usable, so callers can fall through to defaults. */
@@ -123,8 +114,8 @@ export function prefsEqual(a: TodayPrefs, b: TodayPrefs) {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** Open or folded: the person's own choice wins, otherwise the default. */
-export const isPanelOpen = (prefs: TodayPrefs, id: PanelId) => prefs.expandedPanels.includes(id) || (!prefs.closedPanels.includes(id) && DEFAULT_OPEN_PANELS.includes(id))
+/** The side panel that renders open on every load, whatever was saved: the first visible one that is not "Seu dia". */
+export const firstSidePanel = (prefs: TodayPrefs): PanelId | undefined => prefs.panels.find((p) => p.visible && p.id !== "seu-dia")?.id
 
 export const enabledHighlights = (prefs: TodayPrefs) => prefs.highlights.filter((h) => h.enabled).map((h) => h.id)
 export const visiblePanels = (prefs: TodayPrefs) => prefs.panels.filter((p) => p.visible).map((p) => p.id)
