@@ -272,11 +272,11 @@ test.describe("desktop (1440x900)", () => {
     await notes.getByRole("textbox", { name: "Nota rápida" }).press("Enter")
     await expect(notes.getByText("Comprar pilhas")).toBeVisible()
 
-    // Closing it is a choice: it is remembered, and the new default no longer applies to this person.
+    // Folding it lasts only for this visit: it is open again after a reload.
     await notes.locator("button[aria-controls]").click()
-    await waitSaved(context, (p) => p?.closedPanels?.includes("notas"))
+    await expect(notes.locator("button[aria-controls]")).toHaveAttribute("aria-expanded", "false")
     await page.reload()
-    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "false", { timeout: 60000 })
+    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
   })
 
   test("hide a panel in Personalizar; Restaurar padrão asks first", async ({ page, context, baseURL }) => {
@@ -331,6 +331,39 @@ async function contrastOf(page: Page, selector: string, surface: string) {
 }
 
 const lima = (page: Page) => page.locator('a[data-tone="highlight"]:visible')
+
+/**
+ * Contrast of text on a surface that may be translucent (the hover lift): the surface color is read from the rendered pixels
+ * (a screenshot of a spot inside the card's padding), then the text color is composited over it.
+ */
+async function contrastOnPixels(page: Page, textSelector: string, surfaceSelector: string) {
+  const box = (await page.locator(surfaceSelector).boundingBox())!
+  const png = await page.screenshot({ clip: { x: box.x + 8, y: box.y + box.height / 2, width: 2, height: 2 } })
+  return page.evaluate(
+    async ([base64, sel]) => {
+      const blob = await (await fetch("data:image/png;base64," + base64)).blob()
+      const bitmap = await createImageBitmap(blob)
+      const canvas = document.createElement("canvas")
+      canvas.width = canvas.height = 1
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+      ctx.drawImage(bitmap, 0, 0)
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+      const lum = ([x, y, z]: number[]) => {
+        const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * f(x) + 0.7152 * f(y) + 0.0722 * f(z)
+      }
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = getComputedStyle(document.querySelector(sel)!).color
+      ctx.fillRect(0, 0, 1, 1)
+      const [tr, tg, tb, ta] = ctx.getImageData(0, 0, 1, 1).data
+      const alpha = ta / 255
+      const text = [tr * alpha + r * (1 - alpha), tg * alpha + g * (1 - alpha), tb * alpha + b * (1 - alpha)]
+      const [hi, lo] = [lum(text), lum([r, g, b])].sort((p, q) => q - p)
+      return (hi + 0.05) / (lo + 0.05)
+    },
+    [png.toString("base64"), textSelector]
+  )
+}
 
 const bg = (locator: ReturnType<Page["locator"]>) => locator.evaluate((el) => getComputedStyle(el).backgroundColor)
 
@@ -446,16 +479,136 @@ test.describe("round 2: desktop (1440x900)", () => {
     await card.hover()
     await page.waitForTimeout(500)
     const onCard = await look(card)
+    // The whole panel card takes the Destaques look (surface, ease, easing); the header row itself keeps the hand cursor.
     const header = page.locator('[data-panel="financas"] button[aria-controls]')
+    const section = page.locator('[data-panel="financas"] section')
     await header.hover()
     await page.waitForTimeout(500)
-    const onHeader = await look(header)
-    expect(onHeader).toEqual(onCard)
+    expect(await look(section)).toEqual({ ...onCard, cursor: "auto" })
+    expect((await look(header)).cursor).toBe("pointer")
     // And the Seu dia group headers share it.
     const group = page.getByTestId("seu-dia-list").getByRole("button", { name: /^Atrasados/ })
     await group.hover()
     await page.waitForTimeout(500)
     expect(await look(group)).toEqual(onCard)
+  })
+
+  test("the first side panel opens on every load: collapsing it lasts only for the visit; the others remember", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!)
+    await open(page)
+    const notes = page.locator('[data-panel="notas"] button[aria-controls]')
+    const finance = page.locator('[data-panel="financas"] button[aria-controls]')
+    await expect(notes).toHaveAttribute("aria-expanded", "true")
+
+    // Collapse it, open Finanças, reload: Notas is open again, Finanças is still open.
+    await notes.click()
+    await expect(notes).toHaveAttribute("aria-expanded", "false")
+    await finance.click()
+    await waitSaved(context, (p) => p?.expandedPanels?.includes("financas"))
+    expect((await savedPrefs(context)).expandedPanels).not.toContain("notas")
+    await page.reload()
+    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
+    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
+
+    // Server-rendered open: the HTML already has it expanded (no flash, no jump).
+    const html = await (await page.request.get("/dashboard")).text()
+    expect(html).toMatch(/aria-expanded="true"[^>]*aria-controls|aria-controls[^>]*aria-expanded="true"/)
+
+    // Hide the first panel: the next one becomes the one that opens on load.
+    await customize(page)
+    await page.getByRole("switch", { name: "Esconder Notas e lembretes" }).click()
+    await page.getByRole("button", { name: "Pronto" }).click()
+    await expect(page.locator('[data-panel="notas"]')).toHaveCount(0)
+    await page.locator('[data-panel="financas"] button[aria-controls]').click()
+    await page.reload()
+    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
+    await expect(page.locator('[data-panel="dieta"] button[aria-controls]')).toHaveAttribute("aria-expanded", "false")
+  })
+
+  test("the WHOLE side panel lifts like a Destaques card: title, body and empty area, open and folded; contrast holds", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!)
+    await open(page)
+    const card = deskCards(page).nth(1)
+    await card.hover()
+    await page.waitForTimeout(500)
+    const reference = await bg(card)
+    const normal = await bg(page.locator('[data-panel="dieta"] section'))
+    expect(reference).not.toBe(normal)
+
+    const notes = page.locator('[data-panel="notas"] section')
+    const spots = [
+      page.getByRole("heading", { name: "Notas e lembretes" }),
+      notes.getByText("Notas fixadas", { exact: true }),
+      // Empty area: the right half of the bottom padding.
+      null,
+    ]
+    for (const spot of spots) {
+      if (spot) await spot.hover()
+      else {
+        // Empty area: inside the bottom padding, right of "Ver todas" (clear of the assistant button).
+        const box = (await notes.boundingBox())!
+        await page.mouse.move(box.x + box.width * 0.6, box.y + box.height - 8)
+      }
+      await page.waitForTimeout(500)
+      expect(await bg(notes)).toBe(reference)
+    }
+    // Folded panel too.
+    const diet = page.locator('[data-panel="dieta"] section')
+    await diet.locator("button[aria-controls]").hover()
+    await page.waitForTimeout(500)
+    expect(await bg(diet)).toBe(reference)
+    // Pointer leaves: back to the normal surface.
+    await page.mouse.move(5, 5)
+    await expect.poll(() => bg(diet)).toBe(normal)
+
+    // Inner controls keep their own hover and the card stays lifted under them.
+    const quick = notes.getByRole("textbox", { name: "Nota rápida" })
+    await quick.hover()
+    await page.waitForTimeout(500)
+    expect(await bg(notes)).toBe(reference)
+    expect(await quick.evaluate((el) => getComputedStyle(el).cursor)).toBe("text")
+
+    // Text on the hovered card stays readable, dark and light.
+    for (const scheme of ["dark", "light"] as const) {
+      await page.evaluate((s) => document.documentElement.classList.toggle("dark", s === "dark"), scheme)
+      await page.getByRole("heading", { name: "Notas e lembretes" }).hover()
+      await page.waitForTimeout(700)
+      const surface = '[data-panel="notas"] section'
+      expect(await contrastOnPixels(page, '[data-panel="notas"] h2', surface), `title ${scheme}`).toBeGreaterThanOrEqual(4.5)
+      expect(await contrastOnPixels(page, '[data-panel="notas"] button[aria-controls] span.truncate', surface), `summary ${scheme}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  test("Abrir agenda and both arrows are Lima buttons with a hand cursor; a disabled arrow is muted and not-allowed", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!)
+    await open(page)
+    const limaColor = await bg(lima(page).first())
+    const agenda = page.getByRole("link", { name: "Abrir agenda" })
+    const next = page.getByRole("button", { name: "Próximos destaques" })
+    const prev = page.getByRole("button", { name: "Destaques anteriores" })
+    await page.mouse.move(5, 5)
+    await expect.poll(() => bg(agenda)).toBe(limaColor)
+    await expect.poll(() => bg(next)).toBe(limaColor)
+    for (const control of [agenda, next]) expect(await control.evaluate((el) => getComputedStyle(el).cursor)).toBe("pointer")
+    // "Anterior" starts disabled: muted surface, reduced opacity, not-allowed.
+    await expect(prev).toBeDisabled()
+    expect(await bg(prev)).not.toBe(limaColor)
+    expect(await prev.evaluate((el) => getComputedStyle(el).cursor)).toBe("not-allowed")
+    expect(Number(await prev.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1)
+
+    for (const scheme of ["dark", "light"] as const) {
+      await page.evaluate((s) => document.documentElement.classList.toggle("dark", s === "dark"), scheme)
+      await page.mouse.move(5, 5)
+      await page.waitForTimeout(600)
+      await agenda.evaluate((el) => el.setAttribute("data-probe", "agenda"))
+      await next.evaluate((el) => el.setAttribute("data-probe", "next"))
+      expect(await contrastOf(page, '[data-probe="agenda"]', '[data-probe="agenda"]'), `agenda ${scheme}`).toBeGreaterThanOrEqual(4.5)
+      expect(await contrastOf(page, '[data-probe="next"] svg', '[data-probe="next"]'), `arrow ${scheme}`).toBeGreaterThanOrEqual(4.5)
+    }
+    // Hovering darkens/lightens the Lima slightly, never a new color: it stays a Lima mix.
+    await agenda.hover()
+    await page.waitForTimeout(500)
+    expect(await bg(agenda)).not.toBe("rgba(0, 0, 0, 0)")
   })
 
   test("Destaques sits close to the top of the page and the two columns align to the top", async ({ page, context, baseURL }) => {
@@ -593,6 +746,22 @@ test.describe("round 2: phone (390x844)", () => {
     await strip.evaluate((el) => el.scrollTo({ left: el.scrollWidth, behavior: "instant" }))
     await expect(strip.locator("[data-index='0'] a")).toHaveAttribute("data-tone", "default")
     await expect(strip.locator('a[data-tone="highlight"]')).toHaveCount(1)
+  })
+
+  test("Notas opens again after a reload even if it was folded; Abrir agenda is Lima with a 44 px target", async ({ page, context, baseURL }) => {
+    await setup(context, baseURL!)
+    await open(page)
+    const notes = page.locator('[data-panel="notas"] button[aria-controls]')
+    await expect(notes).toHaveAttribute("aria-expanded", "true")
+    await notes.click()
+    await expect(notes).toHaveAttribute("aria-expanded", "false")
+    await page.reload()
+    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
+    // Tapping the panel card lifts it like a Destaques card (touch has no hover, but the style exists for the tap).
+    const agenda = page.getByRole("link", { name: "Abrir agenda" })
+    await agenda.scrollIntoViewIfNeeded()
+    expect(await bg(agenda)).toBe(await bg(page.locator('a[data-tone="highlight"]').first()))
+    expect((await agenda.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   })
 
   test("no empty time column in Sem horário, and Abrir agenda keeps a 44 px target", async ({ page, context, baseURL }) => {
