@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea"
 import type { AssistantAction, AssistantReply, ChatMessage } from "@/features/assistant/types"
 import { assistantSuggestions, buildReply } from "@/mocks/assistant"
+import { isMock } from "@/mocks/config"
 import { mockId } from "@/mocks/time"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +33,9 @@ type AssistantSheetProps = {
 const GREETING: AssistantReply = {
   text: "Oi! Esta é uma prévia do assistente: eu mostro como vai funcionar, com respostas de exemplo. O que você quer testar?",
 }
+
+/** What a real account gets: no canned answers about example data. */
+const NOT_CONNECTED = { text: "O assistente com IA ainda não está ligado, então não consigo responder com os seus dados. Use a captura rápida (Novo) para guardar uma tarefa, um gasto ou uma nota." }
 
 const VOICE_SAMPLES = ["gastei 80 de gasolina", "adiciona tarefa ligar para o contador amanhã", "estudei 1 hora de estatística", "me lembra de levar o carro na revisão"]
 
@@ -88,7 +92,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile, nowIso }: Assista
     setThinking(true)
     timers.current.push(
       window.setTimeout(() => {
-        setMessages((current) => [...current, { id: mockId("msg"), role: "assistant", reply: buildReply(text, nowIso) }])
+        setMessages((current) => [...current, { id: mockId("msg"), role: "assistant", reply: isMock ? buildReply(text, nowIso) : NOT_CONNECTED }])
         setThinking(false)
       }, 700)
     )
@@ -121,13 +125,13 @@ export function AssistantSheet({ open, onOpenChange, isMobile, nowIso }: Assista
           <SparklesIcon aria-hidden strokeWidth={1.75} className="size-5" />
           <div className="flex flex-col">
             <SheetTitle className="text-[17px] leading-6">Assistente</SheetTitle>
-            <SheetDescription className="text-[13px] leading-5">Prévia · respostas de demonstração</SheetDescription>
+            <SheetDescription className="text-[13px] leading-5">{isMock ? "Prévia · respostas de demonstração" : "Em breve"}</SheetDescription>
           </div>
         </SheetHeader>
 
         <p className="flex items-start gap-2 border-b border-border px-4 py-3 text-[13px] leading-5 text-muted-foreground">
           <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
-          Esta é uma prévia: o assistente com IA ainda não está ligado. As respostas são exemplos e nada do que você pedir é salvo.
+          {isMock ? "Esta é uma prévia: o assistente com IA ainda não está ligado. As respostas são exemplos e nada do que você pedir é salvo." : "O assistente com IA ainda não está ligado. Por enquanto ele não responde com seus dados nem salva nada; use a captura rápida (Novo) para guardar tarefas, gastos e notas."}
         </p>
 
         <ScrollArea className="min-h-0 flex-1">

@@ -17,10 +17,18 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   const { supabase, userId, email, isAdmin } = await getSession()
 
   // Independent reads: run them together.
-  const [{ data: profile }, plan] = await Promise.all([
+  const [profileResult, plan, openTasks] = await Promise.all([
     supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle(),
     getUserPlan(supabase, userId),
+    bypassAuth ? 0 : supabase.from("tasks").select("id", { count: "exact", head: true }).is("completed_at", null).then((r) => r.count ?? 0),
   ])
+  let profile = profileResult.data
+  // An account that has no profile (created before provisioning existed) is repaired once, here: the database function only
+  // fills what is missing, for the signed-in person.
+  if (!bypassAuth && !profile) {
+    await supabase.rpc("provision_me")
+    profile = (await supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()).data
+  }
   // Development only (the same switch that skips login): flip the plan and the WhatsApp state by cookie to test every sidebar state.
   const jar = await cookies()
   const planNow = bypassAuth && jar.get("dev_plan") ? parsePlan(jar.get("dev_plan")?.value) : plan
@@ -41,6 +49,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
       plan={planNow}
       whatsappConnected={whatsappConnected}
       nowIso={new Date().toISOString()}
+      openTasks={openTasks}
       sidebarOpen={sidebarOpen}
       sidebarCookie={sidebarCookie}
     >

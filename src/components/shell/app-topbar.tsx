@@ -23,6 +23,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { greeting, inTz } from "@/lib/dates"
 import { cn } from "@/lib/utils"
+import { isMock } from "@/mocks/config"
 import { MOCK_TIMEZONE } from "@/mocks/time"
 
 import type { ShellUser } from "./app-sidebar"
@@ -56,7 +57,8 @@ type AppTopBarProps = {
 }
 
 // The unread flag is shared, so the phone's full header and its compact bar (both mounted) always show the same badge.
-let unreadNotifications = true
+// Real accounts have no notification feed yet (delivery is "Em breve"): no dot and an honest empty list. The examples are for the local prototype.
+let unreadNotifications = isMock
 const unreadListeners = new Set<() => void>()
 function markNotificationsRead() {
   unreadNotifications = false
@@ -69,7 +71,7 @@ function subscribeUnread(listener: () => void) {
 
 /** `bare`: no border or fill of its own, for use inside a pill group (the collapsed header). */
 export function Bell({ bare = false }: { bare?: boolean }) {
-  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => true)
+  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => isMock)
   return (
     <Popover onOpenChange={(open) => open && markNotificationsRead()}>
       <PopoverTrigger asChild>
@@ -80,7 +82,8 @@ export function Bell({ bare = false }: { bare?: boolean }) {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-2">
         <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
-        {NOTIFICATIONS.map((n) => (
+        {!isMock ? <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p> : null}
+        {(isMock ? NOTIFICATIONS : []).map((n) => (
           <Link key={n.id} href={n.href} className="flex flex-col rounded-xl px-3 py-2.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
             <span className="text-[15px] leading-5">{n.title}</span>
             <span className="text-[13px] leading-5 text-muted-foreground">{n.detail}</span>

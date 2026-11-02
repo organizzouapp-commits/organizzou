@@ -101,13 +101,15 @@ type AppShellProps = {
   whatsappConnected?: boolean
   /** Request time from the server, used by the prototype assistant to answer relative questions. */
   nowIso: string
+  /** Tasks not done yet, for the sidebar badge (real accounts). */
+  openTasks?: number
   /** Stored sidebar choice (per user cookie). Null when the user never toggled it. */
   sidebarOpen: boolean | null
   sidebarCookie: string
   children: React.ReactNode
 }
 
-export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, children }: AppShellProps) {
+export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, openTasks = 0, children }: AppShellProps) {
   const nav = NAVS[navId]
   const bottomItems = useMemo(() => bottomNavItems(nav), [nav])
   const navValue = useMemo(() => ({ nav, isAdmin }), [nav, isAdmin])
@@ -129,8 +131,12 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whats
   const activeId = bottomItems.find((item) => item.id !== MORE_ID && isActivePath(pathname, item.id))?.id ?? (isOtherPath(nav, pathname) ? MORE_ID : "")
   // Stable references, so the memoized sidebar and top bar skip re-renders caused by dialogs and sheets opening.
   const counts = useMemo<Partial<Record<string, number>>>(
-    () => (isMock && nav.id === "app" ? { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) } : {}),
-    [nowIso, nav]
+    () => {
+      if (nav.id !== "app") return {}
+      if (isMock) return { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) }
+      return openTasks > 0 ? { tarefas: openTasks } : {}
+    },
+    [nowIso, nav, openTasks]
   )
   const openSearch = useCallback(() => {
     setSearchQuery("")

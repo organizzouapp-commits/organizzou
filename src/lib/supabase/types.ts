@@ -500,6 +500,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      provision_me: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
       reorder_lists: {
         Args: { p_board_id: string; p_list_ids: string[] }
         Returns: undefined

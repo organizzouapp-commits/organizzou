@@ -18,7 +18,9 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { classifyCapture } from "@/mocks/assistant"
+import { captureQuick } from "@/features/assistant/actions"
+import { classifyCapture, parseExpense } from "@/mocks/assistant"
+import { isMock } from "@/mocks/config"
 
 type QuickCaptureProps = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -57,7 +59,10 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
   const { Header, Title, Description, Footer } = parts
   const router = useRouter()
   const [text, setText] = useState("")
-  const destination = classifyCapture(text)
+  const [saving, setSaving] = useState(false)
+  const guessed = classifyCapture(text)
+  // Where the text really ends up: only tasks and spendings have a home of their own for now; the rest is kept as a note.
+  const destination = isMock ? guessed : guessed === "tarefas" ? "tarefas" : guessed === "financas" && parseExpense(text) ? "financas" : text.trim() ? "notas" : null
   const Icon = destination ? modules[destination].icon : null
 
   return (
@@ -66,13 +71,29 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
       onSubmit={(e) => {
         e.preventDefault()
         if (!text.trim()) return
-        toast(destination ? `Prévia: isto iria para ${modules[destination].name}, mas ainda não é salvo.` : "Prévia: isto iria para Notas e lembretes, mas ainda não é salvo.")
-        onClose()
+        if (isMock) {
+          toast(destination ? `Prévia: isto iria para ${modules[destination].name}, mas ainda não é salvo.` : "Prévia: isto iria para Notas e lembretes, mas ainda não é salvo.")
+          onClose()
+          return
+        }
+        setSaving(true)
+        void captureQuick({ text }).then((result) => {
+          setSaving(false)
+          if (!result.ok) {
+            // Stay open with the text, so nothing the person wrote is lost.
+            toast.error(result.error)
+            return
+          }
+          const label = { tarefa: "Tarefa criada.", gasto: "Gasto registrado.", nota: "Guardado em Notas." }[result.saved]
+          toast.success(label, { action: { label: "Abrir", onClick: () => router.push(result.href) } })
+          onClose()
+          router.refresh()
+        })
       }}
     >
       <Header className="p-0">
         <Title>Captura rápida</Title>
-        <Description>Prévia: escreva do jeito que vier e veja onde o assistente guardaria. Ainda não salva nada.</Description>
+        <Description>{isMock ? "Prévia: escreva do jeito que vier e veja onde o assistente guardaria. Ainda não salva nada." : "Escreva do jeito que vier: vira tarefa, gasto ou nota, e fica salvo."}</Description>
       </Header>
       <div className="flex gap-2">
         <Textarea
@@ -119,7 +140,7 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!text.trim()}>
+        <Button type="submit" disabled={!text.trim() || saving}>
           Salvar
         </Button>
       </Footer>

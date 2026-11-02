@@ -16,7 +16,9 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import { buildSearchIndex } from "@/mocks/search"
+import { loadSearchIndex } from "@/features/search/actions"
+import { isMock } from "@/mocks/config"
+import { buildSearchIndex, type SearchHit } from "@/mocks/search"
 
 type CommandPaletteProps = {
   open: boolean
@@ -61,7 +63,19 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, nowIso, ini
     router.push(href)
   }
 
-  const hits = open ? buildSearchIndex(nowIso) : []
+  // Real accounts search their own rows (loaded each time the palette opens); the example index is for the local prototype only.
+  const [found, setFound] = useState<SearchHit[]>([])
+  useEffect(() => {
+    if (!open || isMock) return
+    let live = true
+    loadSearchIndex()
+      .then((list) => live && setFound(list))
+      .catch(() => live && setFound([]))
+    return () => {
+      live = false
+    }
+  }, [open])
+  const hits = open ? (isMock ? buildSearchIndex(nowIso) : found) : []
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} title="Busca" description="Busque em todos os módulos ou escolha uma ação.">
