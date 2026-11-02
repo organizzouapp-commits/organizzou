@@ -63,6 +63,15 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Exportar dados (JSON/CSV) | Não construído (botões desabilitados) | `src/components/settings/settings-extras.tsx` |
 | Notificações no sino | Simulado (exemplos fixos) | `src/components/shell/app-topbar.tsx` |
 
+## Área admin
+
+| Funcionalidade | Status | Onde está no código |
+|---|---|---|
+| Painel `/admin` (visão geral, usuários, atividade, assinaturas, lista de espera, planos, módulos, assistente, integrações, status, auditoria) | Real quando as migrations `20260201000001..3` forem aplicadas e o schema `admin` exposto; antes disso, cada página avisa que não carregou | `src/app/(admin)/admin/`, `supabase/migrations/20260201*`, `docs/ADMIN.md` |
+| Ações do admin (plano, suspender, sessões, e-mail de confirmação) com auditoria | Real; exige `SUPABASE_SECRET_KEY` no servidor | `src/features/admin/actions.ts` |
+| Suporte (caixa de relatos) | Não construído (não existe a tabela de relatos) | `src/app/(admin)/admin/suporte/` |
+| MRR, churn, faturas e falhas de pagamento | Não construído (sem provedor); interface tipada pronta | `src/lib/admin/billing.ts` |
+
 ## Regra de segurança
 
 O assistente e o WhatsApp **nunca** leem, escrevem nem recebem dados do Cofre. Hoje nenhum dos dois existe de verdade; quando

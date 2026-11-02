@@ -7,7 +7,7 @@ type PageShellProps = {
   actions?: ReactNode
   /**
    * Only for screens that are NOT already titled by the app shell (the shell shows the page title and subtitle from
-   * `src/components/shell/nav.ts`). When set, a heading block is rendered above the actions row.
+   * `src/components/shell/app-nav.ts` / `admin-nav.ts`). When set, a heading block is rendered above the actions row.
    */
   title?: string
   subtitle?: string

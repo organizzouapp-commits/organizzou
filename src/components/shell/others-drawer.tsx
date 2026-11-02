@@ -3,50 +3,38 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils"
 
-import { isActivePath } from "./app-sidebar"
-import { NAV_GROUPS } from "./nav"
+import { isActivePath, useNav, type NavConfig } from "./nav-config"
 
-/** Modules that already have a slot in the floating nav; the drawer lists all the others. */
-const IN_NAV: ModuleId[] = ["hoje", "tarefas", "agenda"]
-
-const [MAIN_GROUP, ...FOLDED_GROUPS] = NAV_GROUPS
-/** Finanças has no heading of its own (it is the only leftover of the main group), Vida and Organização keep theirs. */
-const SECTIONS: { label?: string; items: ModuleId[] }[] = [
-  { items: MAIN_GROUP.items.filter((id) => !IN_NAV.includes(id)) },
-  ...FOLDED_GROUPS,
-]
-
-/** True when the route belongs to a module that is only reachable from "Outros". */
-export function isOtherPath(pathname: string) {
-  return SECTIONS.some((section) => section.items.some((id) => isActivePath(pathname, modules[id].href)))
+/** True when the route belongs to a page that is only reachable from the "more" sheet ("Outros" in the app, "Mais" in the admin). */
+export function isOtherPath(nav: NavConfig, pathname: string) {
+  return nav.mobile.more.sections.some((section) => section.items.some((item) => isActivePath(pathname, item.href)))
 }
 
-/** Bottom sheet behind the "Outros" item of the floating nav: the remaining modules, grouped like the desktop sidebar. */
+/** Bottom sheet behind the last item of the floating nav: the pages that have no slot in it, grouped like the desktop sidebar. */
 export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const pathname = usePathname()
+  const { more } = useNav().mobile
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="rounded-t-[24px] data-[vaul-drawer-direction=bottom]:max-h-[85dvh]">
         <DrawerHeader className="pb-2">
-          <DrawerTitle>Outros módulos</DrawerTitle>
-          <DrawerDescription className="sr-only">Escolha um módulo para abrir.</DrawerDescription>
+          <DrawerTitle>{more.title}</DrawerTitle>
+          <DrawerDescription className="sr-only">Escolha uma página para abrir.</DrawerDescription>
         </DrawerHeader>
-        <nav aria-label="Outros módulos" className="no-scrollbar flex flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {SECTIONS.map((section, index) => (
+        <nav aria-label={more.title} className="no-scrollbar flex flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {more.sections.map((section, index) => (
             <div key={section.label ?? index} className="flex flex-col">
               {section.label ? <p className="px-3 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{section.label}</p> : null}
-              {section.items.map((id) => {
-                const m = modules[id]
-                const active = isActivePath(pathname, m.href)
+              {section.items.map((item) => {
+                const active = isActivePath(pathname, item.href)
                 return (
                   <Link
-                    key={id}
-                    href={m.href}
+                    key={item.id}
+                    href={item.href}
                     onClick={() => onOpenChange(false)}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -54,8 +42,8 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
                       active && "bg-highlight font-medium text-highlight-foreground"
                     )}
                   >
-                    <m.icon aria-hidden strokeWidth={1.75} className="size-5" />
-                    {m.name}
+                    <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
+                    {item.label}
                   </Link>
                 )
               })}

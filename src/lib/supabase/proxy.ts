@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
-import { NextResponse, type NextRequest } from "next/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
+import { isAdminClaims } from "@/lib/admin/claims"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
 
@@ -12,14 +14,26 @@ function isProtected(pathname: string) {
   return pathname === "/dashboard" || pathname.startsWith("/dashboard/")
 }
 
+function isAdminPath(pathname: string) {
+  return pathname === "/admin" || pathname.startsWith("/admin/")
+}
+
 /**
  * Local screenshots only: `PROTOTYPE_BYPASS_AUTH=1 npm run dev` skips the login redirect so every
  * prototype screen can be captured without an account. Ignored in production builds.
  */
 export const bypassAuth = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production"
 
-export async function updateSession(request: NextRequest) {
-  if (bypassAuth) return NextResponse.next({ request })
+/** While this cookie exists the person was already counted as "seen": last_seen_at is written at most once every 10 minutes. */
+const SEEN_COOKIE = "org_seen"
+const SEEN_TTL_SECONDS = 10 * 60
+
+export async function updateSession(request: NextRequest, event?: NextFetchEvent) {
+  if (bypassAuth) {
+    // Same 404 as below, driven by the dev_admin cookie (there is no session in this mode).
+    if (isAdminPath(request.nextUrl.pathname) && request.cookies.get("dev_admin")?.value !== "1") return NextResponse.rewrite(new URL("/not-found-admin", request.url), { status: 404 })
+    return NextResponse.next({ request })
+  }
   const { url, anonKey } = getSupabaseEnv()
   let response = NextResponse.next({ request })
 
@@ -43,6 +57,14 @@ export async function updateSession(request: NextRequest) {
   const isAuthenticated = Boolean(data?.claims)
   const { pathname } = request.nextUrl
 
+  // /admin/** answers 404 to everyone who is not an admin (signed out or not), so the area does not reveal itself. The admin layout
+  // checks again on the server, and every admin SQL function checks is_admin() a third time.
+  if (isAdminPath(pathname) && !isAdminClaims(data?.claims)) {
+    const notFound = NextResponse.rewrite(new URL("/not-found-admin", request.url), { status: 404 })
+    response.cookies.getAll().forEach((cookie) => notFound.cookies.set(cookie))
+    return notFound
+  }
+
   if (!isAuthenticated && isProtected(pathname)) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = "/login"
@@ -56,6 +78,17 @@ export async function updateSession(request: NextRequest) {
     appUrl.pathname = "/dashboard"
     appUrl.search = ""
     return NextResponse.redirect(appUrl)
+  }
+
+  // Activity tracking for the admin metrics (migration 20260201000002). Real page loads only (no prefetch, no RSC data fetch), and only while the throttle cookie
+  // has expired, so a busy session writes once per 10 minutes. The write runs after the response (waitUntil): it never slows a page.
+  const claims = data?.claims
+  const isPageLoad = request.method === "GET" && !request.headers.has("next-router-prefetch") && !request.headers.has("rsc")
+  if (claims?.sub && isPageLoad && (isProtected(pathname) || isAdminPath(pathname)) && !request.cookies.has(SEEN_COOKIE)) {
+    // touch_activity() sets profiles.last_seen_at and records the hour, scoped to auth.uid(). Errors (e.g. migration not applied yet) are ignored.
+    const write = (supabase as unknown as SupabaseClient).rpc("touch_activity")
+    event?.waitUntil(Promise.resolve(write).then(() => undefined, () => undefined))
+    response.cookies.set(SEEN_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: SEEN_TTL_SECONDS, path: "/" })
   }
 
   return response

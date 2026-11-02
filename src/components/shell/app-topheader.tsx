@@ -3,20 +3,17 @@
 import { memo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BadgeDollarSignIcon, ChevronDownIcon, FolderIcon, LockIcon, LogOutIcon, MessageCircleIcon, SettingsIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, LockIcon, LogOutIcon, MessageCircleIcon, SettingsIcon } from "lucide-react"
 
-import { modules } from "@/components/organizzou/modules"
 import { HeaderActions, headerGroup as group } from "@/components/organizzou/header-actions"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
-import { GROUP_ICONS, isActivePath, type ShellUser } from "./app-sidebar"
-import { NAV_GROUPS } from "./nav"
+import { APP_PLAN_ITEM } from "./app-nav"
+import type { ShellUser } from "./app-sidebar"
+import { groupHasActive, isActivePath, useNav, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
 import { useWhatsAppAccess } from "./whatsapp-cta"
-
-const [MAIN_GROUP, ...FOLDED_GROUPS] = NAV_GROUPS
 
 const ease = "transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -28,8 +25,6 @@ const pillActive = "bg-highlight font-medium text-highlight-foreground"
 const labelOnWide = "max-[1024px]:hidden"
 const iconOnNarrow = "size-[18px] shrink-0 min-[1024px]:hidden"
 
-const PLAN_HREF = "/dashboard/plano"
-const ACCOUNT_PATHS = [...ACCOUNT_ITEMS.map((item) => item.href), PLAN_HREF]
 const menuItem = "min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]"
 const menuActive = "bg-highlight font-medium text-highlight-foreground focus:bg-highlight focus:text-highlight-foreground"
 
@@ -44,16 +39,16 @@ type TopHeaderProps = {
  * action. No backdrop-filter. The expanded sidebar layout keeps AppTopBar.
  */
 /** "Configurações" pill of the collapsed header: same items as the sidebar group, plus Plano e cobrança, WhatsApp (Pro) and Sair. Icon-only below 1200 px. */
-function AccountPill({ active, pathname, tabIndex, onFocus }: { active: boolean; pathname: string; tabIndex: number; onFocus: () => void }) {
+function AccountPill({ account, active, pathname, tabIndex, onFocus }: { account: { label: string; items: NavItem[] }; active: boolean; pathname: string; tabIndex: number; onFocus: () => void }) {
   const requestSignOut = useRequestSignOut()
   const whatsapp = useWhatsAppAccess()
-  const items = [...ACCOUNT_ITEMS.map(({ id, label, href, icon }) => ({ id, label, href, icon })), { id: "plano", label: "Plano e cobrança", href: PLAN_HREF, icon: BadgeDollarSignIcon }]
+  const items = [...account.items, APP_PLAN_ITEM]
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" data-nav-item tabIndex={tabIndex} onFocus={onFocus} aria-label={ACCOUNT_GROUP_LABEL} title={ACCOUNT_GROUP_LABEL} className={cn(pill, ease, focus, active ? pillActive : pillIdle)}>
+        <button type="button" data-nav-item tabIndex={tabIndex} onFocus={onFocus} aria-label={account.label} title={account.label} className={cn(pill, ease, focus, active ? pillActive : pillIdle)}>
           <SettingsIcon aria-hidden strokeWidth={1.75} className="size-[18px] shrink-0 min-[1200px]:hidden" />
-          <span className="hidden min-[1200px]:inline">{ACCOUNT_GROUP_LABEL}</span>
+          <span className="hidden min-[1200px]:inline">{account.label}</span>
           <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 opacity-60 max-[1024px]:hidden" />
         </button>
       </DropdownMenuTrigger>
@@ -91,20 +86,19 @@ function AccountPill({ active, pathname, tabIndex, onFocus }: { active: boolean;
 
 export const AppTopHeader = memo(function AppTopHeader({ user, onSearch }: TopHeaderProps) {
   const pathname = usePathname()
+  const nav = useNav()
+  const [mainGroup, ...foldedGroups] = nav.groups
+  const accountPaths = nav.account ? [...nav.account.items.map((item) => item.href), APP_PLAN_ITEM.href] : []
   const [focusIndex, setFocusIndex] = useState<number | null>(null)
   const navRef = useRef<HTMLElement>(null)
 
   const entries = [
-    ...MAIN_GROUP.items.map((id) => ({ kind: "link" as const, id })),
-    ...FOLDED_GROUPS.map((g) => ({ kind: "group" as const, group: g })),
-    { kind: "account" as const },
+    ...mainGroup.items.map((item) => ({ kind: "link" as const, item })),
+    ...foldedGroups.map((g) => ({ kind: "group" as const, group: g })),
+    ...(nav.account ? [{ kind: "account" as const, account: nav.account }] : []),
   ]
   const activeIndex = entries.findIndex((e) =>
-    e.kind === "link"
-      ? isActivePath(pathname, modules[e.id].href)
-      : e.kind === "group"
-        ? e.group.items.some((id) => isActivePath(pathname, modules[id].href))
-        : ACCOUNT_PATHS.some((href) => isActivePath(pathname, href))
+    e.kind === "link" ? isActivePath(pathname, e.item.href) : e.kind === "group" ? groupHasActive(e.group, pathname) : accountPaths.some((href) => isActivePath(pathname, href))
   )
   const tabStop = focusIndex ?? Math.max(activeIndex, 0)
 
@@ -127,31 +121,31 @@ export const AppTopHeader = memo(function AppTopHeader({ user, onSearch }: TopHe
           const tabIndex = index === tabStop ? 0 : -1
           const onFocus = () => setFocusIndex(index)
           if (entry.kind === "link") {
-            const m = modules[entry.id]
+            const m = entry.item
             const active = isActivePath(pathname, m.href)
             return (
               <Link
-                key={entry.id}
+                key={m.id}
                 href={m.href}
                 data-nav-item
                 tabIndex={tabIndex}
                 onFocus={onFocus}
                 aria-current={active ? "page" : undefined}
-                aria-label={m.name}
-                title={m.name}
+                aria-label={m.label}
+                title={m.label}
                 className={cn(pill, ease, focus, active ? pillActive : pillIdle)}
               >
                 <m.icon aria-hidden strokeWidth={1.75} className={iconOnNarrow} />
-                <span className={labelOnWide}>{m.name}</span>
+                <span className={labelOnWide}>{m.label}</span>
               </Link>
             )
           }
           if (entry.kind === "account") {
-            return <AccountPill key="account" active={index === activeIndex} pathname={pathname} tabIndex={tabIndex} onFocus={onFocus} />
+            return <AccountPill key="account" account={entry.account} active={index === activeIndex} pathname={pathname} tabIndex={tabIndex} onFocus={onFocus} />
           }
           const { group: g } = entry
           const active = index === activeIndex
-          const GroupIcon = GROUP_ICONS[g.label] ?? FolderIcon
+          const GroupIcon = g.icon ?? FolderIcon
           return (
             <DropdownMenu key={g.label}>
               <DropdownMenuTrigger asChild>
@@ -162,17 +156,16 @@ export const AppTopHeader = memo(function AppTopHeader({ user, onSearch }: TopHe
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" sideOffset={12} className="w-auto min-w-56 rounded-2xl p-2">
-                {g.items.map((id) => {
-                  const m = modules[id]
+                {g.items.map((m) => {
                   const itemActive = isActivePath(pathname, m.href)
                   return (
                     <DropdownMenuItem
-                      key={id}
+                      key={m.id}
                       asChild
                       className={cn("min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]", itemActive && "bg-highlight font-medium text-highlight-foreground focus:bg-highlight focus:text-highlight-foreground")}
                     >
                       <Link href={m.href} aria-current={itemActive ? "page" : undefined}>
-                        <m.icon strokeWidth={1.75} className="size-[18px]" /> {m.name}
+                        <m.icon strokeWidth={1.75} className="size-[18px]" /> {m.label}
                       </Link>
                     </DropdownMenuItem>
                   )

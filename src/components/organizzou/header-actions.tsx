@@ -10,6 +10,8 @@ import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Bell, UserMenu } from "@/components/shell/app-topbar"
 import type { ShellUser } from "@/components/shell/app-sidebar"
+import { BackToAppButton } from "@/components/shell/nav-brand"
+import { useNav } from "@/components/shell/nav-config"
 import { usePrimaryActionValue } from "@/components/shell/primary-action"
 import { cn } from "@/lib/utils"
 
@@ -87,6 +89,23 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
   const [searchOpen, setSearchOpen] = useState(false)
   const primaryLabel = primary?.label ?? "Novo"
   const { pro } = usePlan()
+  const nav = useNav()
+
+  if (nav.id === "admin") {
+    // Admin: theme switch, global search, avatar menu and "Voltar ao app". No notifications, plan or quick capture.
+    return (
+      <div className="flex shrink-0 items-center gap-3">
+        <ThemeSwitch />
+        <div className={cn(headerGroup, "px-0.5")}>
+          <InlineSearch open={searchOpen} onOpenChange={setSearchOpen} onSearch={onSearch} />
+        </div>
+        <div className={cn(headerGroup, "p-[3px]")}>
+          <UserMenu user={user} header />
+        </div>
+        <BackToAppButton compactOnNarrow />
+      </div>
+    )
+  }
 
   return (
     <div className="flex shrink-0 items-center gap-3">

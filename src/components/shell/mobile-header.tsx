@@ -6,19 +6,16 @@ import { usePathname } from "next/navigation"
 import { ChevronDownIcon, SearchIcon } from "lucide-react"
 
 import { GlassSurface } from "@/components/organizzou/GlassSurface"
-import { Logo } from "@/components/organizzou/Logo"
-import { modules } from "@/components/organizzou/modules"
 import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-import { isActivePath, type ShellUser } from "./app-sidebar"
+import type { ShellUser } from "./app-sidebar"
 import { Bell, UserMenu } from "./app-topbar"
-import { NAV_GROUPS } from "./nav"
-
-const [MAIN_GROUP, ...FOLDED_GROUPS] = NAV_GROUPS
+import { NavBrand } from "./nav-brand"
+import { groupHasActive, isActivePath, useNav } from "./nav-config"
 
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
 const chip = "inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-4 text-[15px] transition-colors duration-[400ms] ease-organizzou motion-reduce:transition-none"
@@ -49,6 +46,8 @@ type MobileHeaderProps = {
  */
 export const MobileHeader = memo(function MobileHeader({ user, onSearch }: MobileHeaderProps) {
   const pathname = usePathname()
+  const nav = useNav()
+  const [mainGroup, ...foldedGroups] = nav.groups
   const chipsRef = useRef<HTMLElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [compact, setCompact] = useState(false)
@@ -80,9 +79,9 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
             <UserMenu user={user} compact />
           </div>
           <div className="flex justify-center">
-            <Logo className="h-8" />
+            <NavBrand />
           </div>
-          <Bell />
+          {nav.features.notifications ? <Bell /> : <span aria-hidden />}
         </div>
 
         <div className="flex items-center gap-3">
@@ -109,17 +108,16 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
         </div>
 
         <nav ref={chipsRef} aria-label="Módulos" className="no-scrollbar relative -mx-4 flex gap-2 overflow-x-auto px-4">
-          {MAIN_GROUP.items.map((id) => {
-            const m = modules[id]
-            const active = isActivePath(pathname, m.href)
+          {mainGroup.items.map((item) => {
+            const active = isActivePath(pathname, item.href)
             return (
-              <ChipLink key={id} href={m.href} active={active} data-active={active ? "" : undefined}>
-                {m.name}
+              <ChipLink key={item.id} href={item.href} active={active} data-active={active ? "" : undefined}>
+                {item.label}
               </ChipLink>
             )
           })}
-          {FOLDED_GROUPS.map((group) => {
-            const active = group.items.some((id) => isActivePath(pathname, modules[id].href))
+          {foldedGroups.map((group) => {
+            const active = groupHasActive(group, pathname)
             return (
               <DropdownMenu key={group.label}>
                 <DropdownMenuTrigger asChild>
@@ -129,17 +127,16 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
                   </ChipButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" sideOffset={8} className="w-auto min-w-56 rounded-2xl p-2">
-                  {group.items.map((id) => {
-                    const m = modules[id]
-                    const itemActive = isActivePath(pathname, m.href)
+                  {group.items.map((item) => {
+                    const itemActive = isActivePath(pathname, item.href)
                     return (
                       <DropdownMenuItem
-                        key={id}
+                        key={item.id}
                         asChild
                         className={cn("min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]", itemActive && "bg-highlight font-medium text-highlight-foreground focus:bg-highlight focus:text-highlight-foreground")}
                       >
-                        <Link href={m.href} aria-current={itemActive ? "page" : undefined}>
-                          <m.icon strokeWidth={1.75} className="size-[18px]" /> {m.name}
+                        <Link href={item.href} aria-current={itemActive ? "page" : undefined}>
+                          <item.icon strokeWidth={1.75} className="size-[18px]" /> {item.label}
                         </Link>
                       </DropdownMenuItem>
                     )
@@ -165,12 +162,12 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
         <div className="flex items-center [&_[data-slot=avatar-fallback]]:bg-muted/40 [&_[data-slot=avatar]]:size-9 [&_[data-slot=avatar]]:after:hidden">
           <UserMenu user={user} compact />
         </div>
-        <Logo className="h-7" />
+        <NavBrand logoClassName="h-7" />
         <div className="flex items-center justify-end">
           <Button variant="ghost" size="icon" className="size-10 rounded-full md:size-10" aria-label="Buscar" onClick={onSearch}>
             <SearchIcon strokeWidth={1.75} />
           </Button>
-          <Bell bare />
+          {nav.features.notifications ? <Bell bare /> : null}
         </div>
       </GlassSurface>
     </>
