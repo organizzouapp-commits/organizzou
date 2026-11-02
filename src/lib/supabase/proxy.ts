@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
-import { NextResponse, type NextRequest } from "next/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
 import { isAdminClaims } from "@/lib/admin/claims"
 import type { Database } from "./types"
@@ -23,7 +24,11 @@ function isAdminPath(pathname: string) {
  */
 export const bypassAuth = process.env.PROTOTYPE_BYPASS_AUTH === "1" && process.env.NODE_ENV !== "production"
 
-export async function updateSession(request: NextRequest) {
+/** While this cookie exists the person was already counted as "seen": last_seen_at is written at most once every 10 minutes. */
+const SEEN_COOKIE = "org_seen"
+const SEEN_TTL_SECONDS = 10 * 60
+
+export async function updateSession(request: NextRequest, event?: NextFetchEvent) {
   if (bypassAuth) {
     // Same 404 as below, driven by the dev_admin cookie (there is no session in this mode).
     if (isAdminPath(request.nextUrl.pathname) && request.cookies.get("dev_admin")?.value !== "1") return NextResponse.rewrite(new URL("/not-found-admin", request.url), { status: 404 })
@@ -73,6 +78,17 @@ export async function updateSession(request: NextRequest) {
     appUrl.pathname = "/dashboard"
     appUrl.search = ""
     return NextResponse.redirect(appUrl)
+  }
+
+  // Activity tracking for the admin metrics (migration 20260201000002). Real page loads only (no prefetch, no RSC data fetch), and only while the throttle cookie
+  // has expired, so a busy session writes once per 10 minutes. The write runs after the response (waitUntil): it never slows a page.
+  const claims = data?.claims
+  const isPageLoad = request.method === "GET" && !request.headers.has("next-router-prefetch") && !request.headers.has("rsc")
+  if (claims?.sub && isPageLoad && (isProtected(pathname) || isAdminPath(pathname)) && !request.cookies.has(SEEN_COOKIE)) {
+    // touch_activity() sets profiles.last_seen_at and records the hour, scoped to auth.uid(). Errors (e.g. migration not applied yet) are ignored.
+    const write = (supabase as unknown as SupabaseClient).rpc("touch_activity")
+    event?.waitUntil(Promise.resolve(write).then(() => undefined, () => undefined))
+    response.cookies.set(SEEN_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: SEEN_TTL_SECONDS, path: "/" })
   }
 
   return response
