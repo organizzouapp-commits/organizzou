@@ -34,8 +34,6 @@ import { saveHabitQty } from "@/features/today/actions"
 import { completeTask, updateTask } from "@/features/tasks/actions"
 import type { GroupId } from "@/features/today/prefs"
 import type { DayData, DayItem, DayItemKind } from "@/features/today/types"
-import { isMock } from "@/mocks/config"
-import { createMockBoardApi } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
 import { useTodayPrefs } from "./prefs-context"
@@ -363,7 +361,7 @@ export function SeuDia({ data }: { data: DayData }) {
     qtyOf,
     complete(item, done) {
       state.setDone(item.id, done)
-      if (item.kind === "habit" && !isMock) {
+      if (item.kind === "habit") {
         void saveHabitQty({ habitId: item.id, qty: done ? 1 : 0 }).then((result) => {
           if (result.ok) return
           state.setDone(item.id, !done)
@@ -372,7 +370,7 @@ export function SeuDia({ data }: { data: DayData }) {
       }
       void persistTask(
         item,
-        () => (isMock ? createMockBoardApi(data.nowIso).completeTask({ id: item.id, done }) : completeTask({ id: item.id, done })),
+        () => (completeTask({ id: item.id, done })),
         () => state.setDone(item.id, !done)
       )
       toast(done ? "Concluído." : "Reaberto.", done ? { action: { label: "Desfazer", onClick: () => actions.complete(item, false) } } : undefined)
@@ -382,13 +380,11 @@ export function SeuDia({ data }: { data: DayData }) {
       const next = Math.min(item.habit.target, Math.round((qtyOf(item) + stepFor(item.habit.unit, item.habit.target)) * 100) / 100)
       const before = qtyOf(item)
       state.setQty(item.id, next)
-      if (!isMock) {
-        void saveHabitQty({ habitId: item.id, qty: next }).then((result) => {
-          if (result.ok) return
-          state.setQty(item.id, before)
-          toast.error("Não foi possível salvar. Tente de novo.")
-        })
-      }
+      void saveHabitQty({ habitId: item.id, qty: next }).then((result) => {
+        if (result.ok) return
+        state.setQty(item.id, before)
+        toast.error("Não foi possível salvar. Tente de novo.")
+      })
       if (next >= item.habit.target) toast.success("Meta do dia atingida.")
     },
     postpone(item) {
@@ -397,7 +393,7 @@ export function SeuDia({ data }: { data: DayData }) {
       state.postpone(item.id, true)
       void persistTask(
         item,
-        () => (isMock ? createMockBoardApi(data.nowIso).updateTask({ id: item.id, patch: { dueAt: moved, dueHasTime: item.due!.hasTime } }) : updateTask({ id: item.id, patch: { dueAt: moved, dueHasTime: item.due!.hasTime } })),
+        () => (updateTask({ id: item.id, patch: { dueAt: moved, dueHasTime: item.due!.hasTime } })),
         () => state.postpone(item.id, false)
       )
       toast("Adiado para amanhã.", {
@@ -407,7 +403,7 @@ export function SeuDia({ data }: { data: DayData }) {
             state.postpone(item.id, false)
             void persistTask(
               item,
-              () => (isMock ? createMockBoardApi(data.nowIso).updateTask({ id: item.id, patch: { dueAt: item.due!.at, dueHasTime: item.due!.hasTime } }) : updateTask({ id: item.id, patch: { dueAt: item.due!.at, dueHasTime: item.due!.hasTime } })),
+              () => (updateTask({ id: item.id, patch: { dueAt: item.due!.at, dueHasTime: item.due!.hasTime } })),
               () => state.postpone(item.id, true)
             )
           },

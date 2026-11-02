@@ -19,18 +19,7 @@ import { getTodayData } from "@/features/tasks/today"
 import type { WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { dayDiff, isOverdue } from "@/lib/dates"
 import { formatBRL } from "@/lib/money"
-import { buildMockEvents } from "@/mocks/calendar"
-import { isMock } from "@/mocks/config"
-import { buildMockBills, buildMockTransactions, mockCategories } from "@/mocks/finance"
-import { buildMockHabitLogs, mockHabits } from "@/mocks/habits"
-import { buildMockMealItems, mockDietGoal, mockFoods, buildMockWeight } from "@/mocks/diet"
-import { buildMockJournal } from "@/mocks/journal"
-import { buildMockNotes, buildMockReminders } from "@/mocks/notes"
-import { mockStudySlots, mockWorkoutSlots, type ScheduleSlot } from "@/mocks/schedule"
-import { buildMockCards, buildMockDeadlines, buildMockSessions, mockSubjects } from "@/mocks/studies"
-import { getMockBoardsStore } from "@/mocks/tasks-api"
-import { at, dayOf, MOCK_TIMEZONE } from "@/mocks/time"
-import { buildMockWorkoutHistory } from "@/mocks/workouts"
+import { at, dayOf, SP_TIMEZONE } from "@/lib/sp-time"
 
 import type { StatId } from "./catalog"
 import type { DayData, DayItem, DietData, FinanceData, NotesData, StatData, StudyData, WorkoutData } from "./types"
@@ -38,13 +27,12 @@ import type { DayData, DayItem, DietData, FinanceData, NotesData, StatData, Stud
 /**
  * Data for the "Hoje" widgets. Each widget calls ONE function here and streams on its own (own Suspense boundary); all of them
  * read the same `source` of the request, so the page asks the database once.
- *  - Real accounts: the source is the person's own rows (src/features/persist/load.ts), and a module with nothing in it answers "empty".
- *  - Local no-login prototype (isMock): the same example data the rest of the app shows, read from `src/mocks/`.
+ * The source is the person's own rows (src/features/persist/load.ts), and a module with nothing in it answers "empty".
  * All "today" boundaries use the São Paulo day.
  */
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The source: one shape, filled from the database or from the examples.
+// The source: one shape, filled from the database.
 
 type SrcTask = { id: string; title: string; due_at: string | null; due_has_time: boolean; completed_at: string | null; priority: string; boardName: string; boardId: string }
 
@@ -79,36 +67,6 @@ type Source = {
 const DEFAULT_GOAL = { kcal: 2000, water_ml: 2500 }
 const weekdayOf = (day: string) => new Date(`${day}T12:00:00`).getDay()
 
-function mockSource(nowIso: string): Source {
-  const slotsOn = (slots: ScheduleSlot[], day: string): Planned[] => slots.filter((s) => dayOf(s.start) === day)
-  const workoutSlots = mockWorkoutSlots(nowIso)
-  const studySlots = mockStudySlots(nowIso)
-  return {
-    tasks: getMockBoardsStore(nowIso).boards.flatMap((b) => b.tasks.map((t) => ({ id: t.id, title: t.title, due_at: t.due_at, due_has_time: t.due_has_time, completed_at: t.completed_at, priority: t.priority, boardName: b.board.name, boardId: b.board.id }))),
-    events: buildMockEvents(nowIso),
-    habits: mockHabits,
-    logs: buildMockHabitLogs(nowIso),
-    transactions: buildMockTransactions(nowIso),
-    bills: buildMockBills(nowIso),
-    categories: mockCategories,
-    foods: mockFoods,
-    mealItems: buildMockMealItems(),
-    goal: mockDietGoal,
-    waterMl: 1250,
-    weights: buildMockWeight(nowIso),
-    workoutSessions: buildMockWorkoutHistory(nowIso).sessions,
-    workoutOn: (day) => slotsOn(workoutSlots, day),
-    studyOn: (day) => slotsOn(studySlots, day),
-    studySessions: buildMockSessions(nowIso),
-    subjects: mockSubjects,
-    deadlines: buildMockDeadlines(nowIso),
-    cards: buildMockCards(nowIso),
-    reminders: buildMockReminders(nowIso),
-    notes: buildMockNotes(nowIso),
-    journal: buildMockJournal(nowIso),
-  }
-}
-
 async function realSource(nowIso: string): Promise<Source> {
   const [data, db] = await Promise.all([getTodayData(), loadTodaySource(nowIso)])
   return {
@@ -138,7 +96,7 @@ async function realSource(nowIso: string): Promise<Source> {
   }
 }
 
-const getSource = cache(async (nowIso: string): Promise<Source> => (isMock ? mockSource(nowIso) : realSource(nowIso)))
+const getSource = cache((nowIso: string): Promise<Source> => realSource(nowIso))
 
 // ---------------------------------------------------------------------------------------------------------------------
 // One model per request and per `nowIso`, shared by every widget that asks for it.
@@ -147,7 +105,7 @@ const model = cache(async (nowIso: string) => {
   const src = await getSource(nowIso)
   const now = new Date(nowIso)
   const today = dayOf(nowIso)
-  const tz = MOCK_TIMEZONE
+  const tz = SP_TIMEZONE
 
   const allTasks = src.tasks
   const open = allTasks.filter((t) => !t.completed_at)
@@ -177,7 +135,7 @@ const hoursText = (minutes: number) => `${Math.floor(minutes / 60)} h ${String(m
 const kg = (n: number) => `${n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`
 const liters = (ml: number) => `${(ml / 1000).toLocaleString("pt-BR")} L`
 const clock = (iso: string) =>
-  new Intl.DateTimeFormat("pt-BR", { timeZone: MOCK_TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso))
+  new Intl.DateTimeFormat("pt-BR", { timeZone: SP_TIMEZONE, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso))
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Stats

@@ -5,12 +5,11 @@ import { ScreenSkeleton } from "@/components/mock/screen-skeleton"
 import { WithNow } from "@/components/mock/with-now"
 import { EstudosScreen } from "@/components/studies/estudos-screen"
 import { loadStudies } from "@/features/persist/load"
-import { isMock } from "@/mocks/config"
 
 export const metadata: Metadata = { title: "Estudos" }
 
 async function StudiesData({ nowIso }: { nowIso: string }) {
-  const initial = isMock ? { subjects: [], sessions: [], deadlines: [], decks: [], cards: [] } : await loadStudies(nowIso)
+  const initial = await loadStudies(nowIso)
   return <EstudosScreen nowIso={nowIso} initial={initial} />
 }
 

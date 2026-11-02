@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { isMock } from "@/mocks/config"
 
 import { persistRows, type PersistResult } from "./actions"
 import { columnsOf, TABLES, type TableName } from "./registry"
@@ -31,7 +30,6 @@ type Options = {
  *   - what changed (rows added, edited, removed) is sent to the server, validated and saved, in order;
  *   - if the save fails the change is undone and an honest toast says why;
  *   - on reload the rows come back from the database (the page passes them as `initial`).
- * In the local no-login prototype (example data, no session) it behaves as plain `useState`.
  */
 export function usePersistedRows<T extends { id: string }>(table: TableName, initial: T[] | (() => T[]), options: Options = {}) {
   const [rows, setState] = useState<T[]>(initial)
@@ -80,7 +78,6 @@ export function usePersistedRows<T extends { id: string }>(table: TableName, ini
       if (next === current.current) return
       current.current = next
       setState(next)
-      if (isMock) return
       if (debounceMs === 0) flush()
       else {
         clearTimeout(timer.current)
@@ -92,7 +89,6 @@ export function usePersistedRows<T extends { id: string }>(table: TableName, ini
 
   // Leaving the screen (or the tab) must not lose a change that is still waiting for its pause.
   useEffect(() => {
-    if (isMock) return
     const onHide = () => document.visibilityState === "hidden" && flush()
     document.addEventListener("visibilitychange", onHide)
     return () => {
@@ -118,7 +114,6 @@ export function usePersistedValue<T extends Record<string, unknown>>(table: Tabl
       if (next === previous) return
       current.current = next
       setState(next)
-      if (isMock) return
       const row = Object.fromEntries(Object.keys(TABLES[table].columns).map((c) => [c, next[c]]))
       void enqueue(() => persistRows({ table, upserts: [row], deletes: [] })).then((result) => {
         if (result.ok) return

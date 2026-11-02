@@ -23,20 +23,13 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { greeting, inTz } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { isMock } from "@/mocks/config"
-import { MOCK_TIMEZONE } from "@/mocks/time"
+import { SP_TIMEZONE } from "@/lib/sp-time"
 
 import type { ShellUser } from "./app-sidebar"
 import { BACK_TO_APP_HREF } from "./nav-brand"
 import { metaFor, useNavContext } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
 import { useWhatsAppAccess } from "./whatsapp-cta"
-
-const NOTIFICATIONS = [
-  { id: "bill", title: "Internet — Vivo Fibra venceu", detail: "R$ 119,90 · há 10 dias", href: "/dashboard/financas" },
-  { id: "cards", title: "6 flashcards para revisar", detail: "Direito Constitucional e inglês", href: "/dashboard/estudos" },
-  { id: "workout", title: "Treino A amanhã às 7h", detail: "Peito e tríceps", href: "/dashboard/treinos" },
-]
 
 function initials(name: string) {
   return name
@@ -57,8 +50,8 @@ type AppTopBarProps = {
 }
 
 // The unread flag is shared, so the phone's full header and its compact bar (both mounted) always show the same badge.
-// Real accounts have no notification feed yet (delivery is "Em breve"): no dot and an honest empty list. The examples are for the local prototype.
-let unreadNotifications = isMock
+// There is no notification feed yet (delivery is "Em breve"): no dot and an honest empty list.
+let unreadNotifications = false
 const unreadListeners = new Set<() => void>()
 function markNotificationsRead() {
   unreadNotifications = false
@@ -71,7 +64,7 @@ function subscribeUnread(listener: () => void) {
 
 /** `bare`: no border or fill of its own, for use inside a pill group (the collapsed header). */
 export function Bell({ bare = false }: { bare?: boolean }) {
-  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => isMock)
+  const unread = useSyncExternalStore(subscribeUnread, () => unreadNotifications, () => false)
   return (
     <Popover onOpenChange={(open) => open && markNotificationsRead()}>
       <PopoverTrigger asChild>
@@ -82,13 +75,7 @@ export function Bell({ bare = false }: { bare?: boolean }) {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-2">
         <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
-        {!isMock ? <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p> : null}
-        {(isMock ? NOTIFICATIONS : []).map((n) => (
-          <Link key={n.id} href={n.href} className="flex flex-col rounded-xl px-3 py-2.5 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
-            <span className="text-[15px] leading-5">{n.title}</span>
-            <span className="text-[13px] leading-5 text-muted-foreground">{n.detail}</span>
-          </Link>
-        ))}
+        <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p>
       </PopoverContent>
     </Popover>
   )
@@ -198,9 +185,9 @@ export function usePageHeading(user: ShellUser, nowIso: string) {
   const firstName = user.name.split(" ")[0]
   const meta = metaFor(nav, pathname)
   const isToday = nav.features.greeting && pathname === nav.home.href
-  const title = isToday ? `${greeting(now, MOCK_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
+  const title = isToday ? `${greeting(now, SP_TIMEZONE)}, ${firstName}` : (meta?.title ?? "Organizzou")
   const subtitle = isToday
-    ? format(inTz(now, MOCK_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
+    ? format(inTz(now, SP_TIMEZONE), "EEEE, d 'de' MMMM", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())
     : (meta?.subtitle ?? "")
   return { title, subtitle, isToday }
 }

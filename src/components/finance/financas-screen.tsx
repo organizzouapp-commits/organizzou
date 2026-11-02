@@ -58,8 +58,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { guessCategory } from "@/mocks/assistant"
-import { isMock } from "@/mocks/config"
+import { guessCategory } from "@/features/assistant/rules"
 import {
   accountBalance,
   billStatus,
@@ -73,14 +72,7 @@ import {
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { formatBRL, formatSignedBRL, parseBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
-import {
-  buildMockBills,
-  buildMockGoals,
-  buildMockTransactions,
-  mockAccounts,
-  mockCategories,
-} from "@/mocks/finance"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -155,8 +147,8 @@ function ProgressRing({ value, label }: { value: number; label: string }) {
 export type FinanceInitial = { accounts: AccountRow[]; categories: CategoryRow[]; transactions: TransactionRow[]; bills: RecurringBillRow[]; goals: FinancialGoalRow[] }
 
 export function FinancasScreen({ nowIso, initial }: { nowIso: string; initial: FinanceInitial }) {
-  const accounts = isMock ? mockAccounts : initial.accounts
-  const categoryRows = isMock ? mockCategories : initial.categories
+  const accounts = initial.accounts
+  const categoryRows = initial.categories
   const refs: Refs = {
     accounts,
     categories: categoryRows,
@@ -174,9 +166,9 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
   const refs = useRefs()
   const today = dayOf(nowIso)
   const month = monthOf(today)
-  const [transactions, setTransactions] = usePersistedRows<TransactionRow>("finance_transactions", () => (isMock ? buildMockTransactions(nowIso) : initial.transactions))
-  const [bills, setBills] = usePersistedRows<RecurringBillRow>("finance_bills", () => (isMock ? buildMockBills(nowIso) : initial.bills))
-  const [goals, setGoals] = usePersistedRows<FinancialGoalRow>("finance_goals", () => (isMock ? buildMockGoals(nowIso) : initial.goals))
+  const [transactions, setTransactions] = usePersistedRows<TransactionRow>("finance_transactions", initial.transactions)
+  const [bills, setBills] = usePersistedRows<RecurringBillRow>("finance_bills", initial.bills)
+  const [goals, setGoals] = usePersistedRows<FinancialGoalRow>("finance_goals", initial.goals)
   const [newTransaction, setNewTransaction] = useState(false)
   const [newBill, setNewBill] = useState(false)
   const [bankOpen, setBankOpen] = useState(false)
@@ -237,7 +229,7 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
     }
     const name = income ? "Salário" : guessCategory(description)
     addTransaction({
-      id: mockId("tx"),
+      id: newId(),
       user_id: USER,
       account_id: refs.accounts[0].id,
       category_id: refs.categories.find((c) => c.name === name)?.id ?? refs.categories[0]?.id ?? null,
@@ -268,7 +260,7 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
     }
     setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: month } : b)))
     addTransaction({
-      id: mockId("tx"),
+      id: newId(),
       user_id: USER,
       account_id: refs.accounts[0].id,
       category_id: bill.category_id,
@@ -795,7 +787,7 @@ function TransactionForm({
         if (!valid || !cents) return
         onCreate({
           ...(row ?? {}),
-          id: row?.id ?? mockId("tx"),
+          id: row?.id ?? newId(),
           user_id: USER,
           account_id: account,
           category_id: category,
@@ -925,7 +917,7 @@ function BillForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (bi
         e.preventDefault()
         if (!cents || !name.trim()) return
         onCreate({
-          id: mockId("bill"),
+          id: newId(),
           user_id: USER,
           name: name.trim(),
           amount_cents: cents,
@@ -1053,7 +1045,7 @@ function NewGoalDialog({ open, onOpenChange, onCreate, nowIso }: { open: boolean
           onSubmit={(e) => {
             e.preventDefault()
             if (!valid || !cents) return
-            onCreate({ id: mockId("goal"), user_id: USER, name: name.trim(), target_cents: cents, current_cents: 0, deadline: deadline || null, created_at: nowIso, updated_at: nowIso })
+            onCreate({ id: newId(), user_id: USER, name: name.trim(), target_cents: cents, current_cents: 0, deadline: deadline || null, created_at: nowIso, updated_at: nowIso })
             onOpenChange(false)
             setName("")
             setTarget("")

@@ -37,16 +37,8 @@ import { shiftDay } from "@/features/habits/stats"
 import { dayTotals, formatServings, itemMacros, mealTotals } from "@/features/diet/stats"
 import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import {
-  buildMockDailyKcal,
-  buildMockMealItems,
-  buildMockWeight,
-  mockDietGoal,
-  mockFoods,
-} from "@/mocks/diet"
 import { inTz } from "@/lib/dates"
-import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
+import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 const MEALS = Object.keys(MEAL_LABELS) as MealKind[]
 const GLASS_ML = 250
@@ -95,7 +87,7 @@ const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, car
 
 export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
   return (
-    <FoodsContext.Provider value={isMock ? mockFoods : initial.foods}>
+    <FoodsContext.Provider value={initial.foods}>
       <DietBody nowIso={nowIso} initial={initial} />
     </FoodsContext.Provider>
   )
@@ -104,46 +96,44 @@ export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: Diet
 function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
   const foods = useFoods()
   const today = dayOf(nowIso)
-  const goal = isMock ? mockDietGoal : (initial.goal ?? DEFAULT_GOAL)
+  const goal = initial.goal ?? DEFAULT_GOAL
   // Today's meals are what the screen edits; the earlier days only feed the calories chart.
-  const [allItems, setAllItems] = usePersistedRows<MealItemRow>("meal_items", () => (isMock ? buildMockMealItems() : initial.mealItems))
+  const [allItems, setAllItems] = usePersistedRows<MealItemRow>("meal_items", initial.mealItems)
   const items = allItems.filter((i) => !i.log_date || i.log_date === today)
   const setItems = (update: (current: MealItemRow[]) => MealItemRow[]) =>
     setAllItems((all) => {
       const others = all.filter((i) => i.log_date && i.log_date !== today)
       return [...others, ...update(all.filter((i) => !i.log_date || i.log_date === today))]
     })
-  const [waterRows, setWaterRows] = usePersistedRows<{ id: string; log_date: string; ml: number }>("water_logs", () => (isMock ? [{ id: "w1", log_date: dayOf(nowIso), ml: 1250 }] : initial.water))
+  const [waterRows, setWaterRows] = usePersistedRows<{ id: string; log_date: string; ml: number }>("water_logs", initial.water)
   const water = waterRows.filter((w) => w.log_date === today).reduce((sum, w) => sum + w.ml, 0)
   const setWater = (update: (current: number) => number) => {
     const next = update(water)
-    if (next > water) setWaterRows((rows) => [...rows, { id: mockId("water"), log_date: today, ml: next - water }])
+    if (next > water) setWaterRows((rows) => [...rows, { id: newId(), log_date: today, ml: next - water }])
     else if (next < water) {
       // Remove the most recent glass of today.
       const last = [...waterRows].reverse().find((w) => w.log_date === today)
       if (last) setWaterRows((rows) => rows.filter((w) => w.id !== last.id))
     }
   }
-  const [weights, setWeights] = usePersistedRows<WeightLogRow>("weight_logs", () => (isMock ? buildMockWeight(nowIso) : initial.weights))
+  const [weights, setWeights] = usePersistedRows<WeightLogRow>("weight_logs", initial.weights)
   const [adding, setAdding] = useState<MealKind | null>(null)
   const [editing, setEditing] = useState<MealItemRow | null>(null)
   const [weighing, setWeighing] = useState(false)
   const [period, setPeriod] = useState("90")
   // Earlier days: from the saved meals (days with no meals logged are not counted as zero), the example series in the prototype.
-  const history = isMock
-    ? buildMockDailyKcal(nowIso)
-    : [...new Set(allItems.map((i) => i.log_date).filter((d): d is string => Boolean(d) && d !== today))].sort().map((day) => ({ day, kcal: dayTotals(allItems.filter((i) => i.log_date === day), foods).kcal }))
+  const history = [...new Set(allItems.map((i) => i.log_date).filter((d): d is string => Boolean(d) && d !== today))].sort().map((day) => ({ day, kcal: dayTotals(allItems.filter((i) => i.log_date === day), foods).kcal }))
 
   const totals = dayTotals(items, foods)
 
   function addItem(meal: MealKind, foodId: string, servings: number) {
-    setItems((current) => [...current, { id: mockId("item"), log_date: today, meal, food_id: foodId, servings }])
+    setItems((current) => [...current, { id: newId(), log_date: today, meal, food_id: foodId, servings }])
     toast.success("Alimento adicionado.")
   }
 
   function copyMeal(from: MealKind, to: MealKind) {
     const source = items.filter((i) => i.meal === from)
-    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: mockId("item"), log_date: today, meal: to }))])
+    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: newId(), log_date: today, meal: to }))])
     toast.success(`${MEAL_LABELS[from]} copiado para ${MEAL_LABELS[to].toLowerCase()}.`)
   }
 
@@ -174,7 +164,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const weightDomain: [number, number] = hasWeights ? [Math.floor(Math.min(...weightValues)) - 1, Math.ceil(Math.max(...weightValues)) + 1] : [0, 100]
 
   // The "+ Novo" button adds a food to the meal that fits the time of day.
-  const hour = inTz(new Date(nowIso), MOCK_TIMEZONE).getHours()
+  const hour = inTz(new Date(nowIso), SP_TIMEZONE).getHours()
   const nextMeal: MealKind = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : hour < 18 ? "snack" : "dinner"
   usePrimaryAction("Adicionar alimento", () => setAdding(nextMeal))
 
@@ -389,7 +379,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           setWeights((current) => {
             const existing = current.find((w) => w.log_date === today)
             if (existing) return current.map((w) => (w === existing ? { ...w, weight_kg: kg } : w))
-            return [...current, { id: mockId("w"), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }]
+            return [...current, { id: newId(), user_id: "00000000-0000-4000-8000-000000000001", log_date: today, weight_kg: kg }]
           })
           toast.success("Peso registrado.")
         }}

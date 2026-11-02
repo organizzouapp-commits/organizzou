@@ -29,10 +29,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { average, moodInsights } from "@/features/journal/insights"
 import { MOOD_LABELS, type JournalDay, type Mood } from "@/features/journal/types"
 import { cn } from "@/lib/utils"
-import { buildMockJournal } from "@/mocks/journal"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const MOODS: { value: Mood; icon: LucideIcon }[] = [
   { value: 1, icon: FrownIcon },
@@ -53,7 +51,7 @@ function formatAvg(value: number | null) {
 
 export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: JournalDay[] }) {
   const today = dayOf(nowIso)
-  const [days, setDays] = usePersistedRows<JournalDay>("journal_entries", () => (isMock ? buildMockJournal(nowIso) : initial))
+  const [days, setDays] = usePersistedRows<JournalDay>("journal_entries", initial)
   const todayEntry = days.find((d) => d.entry_date === today)
   const [mood, setMood] = useState<Mood | null>(todayEntry?.mood ?? null)
   const [text, setText] = useState(todayEntry?.text ?? "")
@@ -65,7 +63,7 @@ export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: Jou
     setDays((current) => [
       ...current.filter((d) => d.entry_date !== today),
       {
-        id: todayEntry?.id ?? mockId("jr"),
+        id: todayEntry?.id ?? newId(),
         user_id: "00000000-0000-4000-8000-000000000001",
         entry_date: today,
         mood,

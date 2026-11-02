@@ -56,15 +56,11 @@ import { cn } from "@/lib/utils"
 import type { DeadlineRow } from "@/features/studies/types"
 import type { WorkoutPlanRow } from "@/features/workouts/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { buildMockEvents } from "@/mocks/calendar"
-import { mockStudySlots, mockWorkoutSlots } from "@/mocks/schedule"
-import { getMockBoardsStore } from "@/mocks/tasks-api"
-import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
+import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 type View = "mes" | "semana" | "dia" | "agenda"
 
-const TZ = MOCK_TIMEZONE
+const TZ = SP_TIMEZONE
 const HOUR_START = 6
 const HOUR_END = 23
 const ROW_HEIGHT = 56
@@ -129,7 +125,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   const isMobile = useIsMobile()
   const [view, setView] = useState<View>("semana")
   const [day, setDay] = useState(todayKey)
-  const [events, setEvents] = usePersistedRows<EventRow>("events", () => (isMock ? buildMockEvents(nowIso) : initial.events))
+  const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
   const [kinds, setKinds] = useState<Set<AgendaKind>>(new Set(["event", "task", "workout", "study"]))
   const [creating, setCreating] = useState<Draft | null>(null)
   const [editing, setEditing] = useState<EventRow | null>(null)
@@ -144,57 +140,25 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   function collect(from: Date, to: Date): AgendaItem[] {
     const items: AgendaItem[] = []
     if (kinds.has("event")) for (const event of events) items.push(...expandEvent(event, from, to, TZ))
-    if (kinds.has("task") && !isMock) {
+    if (kinds.has("task")) {
       for (const task of initial.tasks) {
         const start = new Date(task.due_at)
         if (start < from || start >= to) continue
         items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, editable: false })
       }
     }
-    if (kinds.has("task") && isMock) {
-      for (const board of getMockBoardsStore(nowIso).boards) {
-        for (const task of board.tasks) {
-          if (!task.due_at || task.completed_at) continue
-          const start = new Date(task.due_at)
-          if (start < from || start >= to) continue
-          items.push({
-            key: `task:${task.id}`,
-            kind: "task",
-            id: task.id,
-            title: task.title,
-            start,
-            end: new Date(start.getTime() + 30 * 60_000),
-            allDay: !task.due_has_time,
-            swatch: "neutro",
-            detail: board.board.name,
-            editable: false,
-          })
-        }
+    // Workout days come from the plans' weekdays and study dates from the exams and deliveries: all-day, because no hour was chosen.
+    for (let cursor = from; cursor < to; cursor = addDays(cursor, 1)) {
+      const key = dayKey(cursor, TZ)
+      const weekday = parseISO(key).getDay()
+      const start = new Date(`${key}T12:00:00-03:00`)
+      const end = new Date(start.getTime() + 60 * 60_000)
+      if (kinds.has("workout")) {
+        for (const plan of initial.plans.filter((p) => p.weekdays.includes(weekday))) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", editable: false })
       }
-    }
-    if (!isMock) {
-      // Workout days come from the plans' weekdays and study dates from the exams and deliveries: all-day, because no hour was chosen.
-      for (let cursor = from; cursor < to; cursor = addDays(cursor, 1)) {
-        const key = dayKey(cursor, TZ)
-        const weekday = parseISO(key).getDay()
-        const start = new Date(`${key}T12:00:00-03:00`)
-        const end = new Date(start.getTime() + 60 * 60_000)
-        if (kinds.has("workout")) {
-          for (const plan of initial.plans.filter((p) => p.weekdays.includes(weekday))) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", editable: false })
-        }
-        if (kinds.has("study")) {
-          for (const due of initial.deadlines.filter((d) => d.due_on === key)) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
-        }
+      if (kinds.has("study")) {
+        for (const due of initial.deadlines.filter((d) => d.due_on === key)) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
       }
-    }
-    const slots = isMock ? [
-      ...(kinds.has("workout") ? mockWorkoutSlots(nowIso).map((s) => ({ ...s, kind: "workout" as const })) : []),
-      ...(kinds.has("study") ? mockStudySlots(nowIso).map((s) => ({ ...s, kind: "study" as const })) : []),
-    ] : []
-    for (const slot of slots) {
-      const start = new Date(slot.start)
-      if (start < from || start >= to) continue
-      items.push({ key: slot.id, kind: slot.kind, id: slot.id, title: slot.title, start, end: new Date(slot.end), allDay: false, swatch: "neutro", detail: slot.detail, editable: false })
     }
     return items
   }
@@ -1056,7 +1020,7 @@ function EventForm({
         const minutes = REMINDER_OPTIONS.find((o) => o.value === reminder)?.minutes ?? null
         onSave(
           {
-            id: event?.id ?? mockId("evt"),
+            id: event?.id ?? newId(),
             user_id: event?.user_id ?? "00000000-0000-4000-8000-000000000001",
             title: title.trim(),
             starts_at: toDueIso(date, allDay ? "00:00" : start, TZ),

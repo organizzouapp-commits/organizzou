@@ -54,10 +54,8 @@ import { parseMarkdown, wordCount, type Inline } from "@/features/notes/markdown
 import type { NoteFolderRow, NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
 import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { buildMockNotes, buildMockReminders, mockFolders } from "@/mocks/notes"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { dayOf, MOCK_TIMEZONE, mockId } from "@/mocks/time"
+import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -122,9 +120,9 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const today = dayOf(nowIso)
   const now = new Date(nowIso)
   // Typing in a note is saved after a short pause; every other change is saved at once.
-  const [notes, setNotes] = usePersistedRows<NoteRow>("notes", () => (isMock ? buildMockNotes(nowIso) : initial.notes), { debounceMs: 800 })
-  const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", () => (isMock ? buildMockReminders(nowIso) : initial.reminders))
-  const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", () => (isMock ? mockFolders : initial.folders))
+  const [notes, setNotes] = usePersistedRows<NoteRow>("notes", initial.notes, { debounceMs: 800 })
+  const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
+  const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
   const [newFolder, setNewFolder] = useState("")
   const [folder, setFolder] = useState<string>("all")
   const [query, setQuery] = useState("")
@@ -157,7 +155,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   function createNote() {
     const stamp = new Date().toISOString()
     const created: NoteRow = {
-      id: mockId("note"),
+      id: newId(),
       user_id: USER,
       folder_id: folder !== "all" && folder !== "pinned" ? folder : null,
       title: "Nova nota",
@@ -190,7 +188,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const pending = reminders.filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at))
   const done = reminders.filter((r) => r.status === "done")
   const groupOf = (r: ReminderRow) => {
-    const diff = dayDiff(r.remind_at, now, MOCK_TIMEZONE)
+    const diff = dayDiff(r.remind_at, now, SP_TIMEZONE)
     return diff < 0 ? "Atrasados" : diff === 0 ? "Hoje" : diff === 1 ? "Amanhã" : "Mais tarde"
   }
   const groups = ["Atrasados", "Hoje", "Amanhã", "Mais tarde"]
@@ -240,7 +238,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
                   event.preventDefault()
                   const name = newFolder.trim()
                   if (!name) return
-                  setFolders((current) => [...current, { id: mockId("folder"), user_id: USER, name }])
+                  setFolders((current) => [...current, { id: newId(), user_id: USER, name }])
                   setNewFolder("")
                   toast.success("Pasta criada.")
                 }}
@@ -410,7 +408,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
                       <div className="flex min-w-0 flex-1 flex-col">
                         <span className="text-[15px] leading-6 break-words">{r.title}</span>
                         <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, MOCK_TIMEZONE)}
+                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, SP_TIMEZONE)}
                           {r.channels.includes("push") ? (
                             <span className="inline-flex items-center gap-1">
                               <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
@@ -519,10 +517,10 @@ function ReminderForm({ today, onCreate, onClose }: { today: string; onCreate: (
         e.preventDefault()
         if (!title.trim() || channels.length === 0) return
         onCreate({
-          id: mockId("rem"),
+          id: newId(),
           user_id: USER,
           title: title.trim(),
-          remind_at: toDueIso(date, time, MOCK_TIMEZONE),
+          remind_at: toDueIso(date, time, SP_TIMEZONE),
           channels: channels as ReminderChannel[],
           status: "pending",
           note_id: null,

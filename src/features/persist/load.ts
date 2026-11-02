@@ -11,7 +11,7 @@ import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from
 import type { HabitLogRow, HabitRow } from "@/features/habits/types"
 import type { JournalDay, JournalEntryRow } from "@/features/journal/types"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
-import { dayOf } from "@/mocks/time"
+import { dayOf } from "@/lib/sp-time"
 import { createClient } from "@/lib/supabase/server"
 
 /**

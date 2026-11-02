@@ -43,9 +43,7 @@ import { loadProgress, personalRecords, volume, weeklyVolume } from "@/features/
 import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { buildMockWorkoutHistory, mockExercises, mockPlanExercises, mockPlans } from "@/mocks/workouts"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
@@ -73,7 +71,7 @@ export type WorkoutsInitial = { exercises: ExerciseRow[]; plans: WorkoutPlanRow[
 
 export function TreinosScreen({ nowIso, initial }: { nowIso: string; initial: WorkoutsInitial }) {
   return (
-    <ExercisesContext.Provider value={isMock ? mockExercises : initial.exercises}>
+    <ExercisesContext.Provider value={initial.exercises}>
       <WorkoutsBody nowIso={nowIso} initial={initial} />
     </ExercisesContext.Provider>
   )
@@ -84,11 +82,10 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const exerciseName = (id: string) => exercises.find((e) => e.id === id)?.name ?? "Exercício"
   const today = dayOf(nowIso)
   const todayWeekday = parseISO(today).getDay()
-  const [plans, setPlans] = usePersistedRows<WorkoutPlanRow>("workout_plans", () => (isMock ? mockPlans : initial.plans))
-  const [planExercises, setPlanExercises] = usePersistedRows<PlanExerciseRow>("plan_exercises", () => (isMock ? mockPlanExercises : initial.planExercises))
-  const [mockHistory] = useState(() => (isMock ? buildMockWorkoutHistory(nowIso) : null))
-  const [sessions, setSessions] = usePersistedRows<WorkoutSessionRow>("workout_sessions", () => (mockHistory ? mockHistory.sessions : initial.sessions))
-  const [sets, setSets] = usePersistedRows<SetLogRow>("set_logs", () => (mockHistory ? mockHistory.sets : initial.setLogs))
+  const [plans, setPlans] = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
+  const [planExercises, setPlanExercises] = usePersistedRows<PlanExerciseRow>("plan_exercises", initial.planExercises)
+  const [sessions, setSessions] = usePersistedRows<WorkoutSessionRow>("workout_sessions", initial.sessions)
+  const [sets, setSets] = usePersistedRows<SetLogRow>("set_logs", initial.setLogs)
   const history = { sessions, sets }
   const scheduled = plans.find((p) => p.weekdays.includes(todayWeekday))
   const [chosenPlanId, setChosenPlanId] = useState<string | null>(null)
@@ -103,9 +100,9 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(plans[0] ? [plans[0].id] : []))
 
   function duplicatePlan(plan: WorkoutPlanRow) {
-    const copy: WorkoutPlanRow = { ...plan, id: mockId("plan"), name: `${plan.name} (cópia)` }
+    const copy: WorkoutPlanRow = { ...plan, id: newId(), name: `${plan.name} (cópia)` }
     setPlans((current) => [...current, copy])
-    setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: mockId("pex"), plan_id: copy.id }))])
+    setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: newId(), plan_id: copy.id }))])
     setExpanded((current) => new Set(current).add(copy.id))
     toast.success("Treino duplicado.")
   }
@@ -164,13 +161,13 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
 
   function finishWorkout() {
     if (!activePlan) return
-    const sessionId = mockId("ses")
+    const sessionId = newId()
     const newSets = items.flatMap((item) =>
       draftsFor(item)
         .map((d, index) => ({ d, index }))
         .filter(({ d }) => d.done)
         .map(({ d, index }) => ({
-          id: mockId("set"),
+          id: newId(),
           session_id: sessionId,
           exercise_id: item.exercise_id,
           set_index: index + 1,
@@ -609,7 +606,7 @@ function PlanForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (pl
       onSubmit={(e) => {
         e.preventDefault()
         if (!name.trim()) return
-        onCreate({ id: mockId("plan"), user_id: USER, name: name.trim(), weekdays: days.map(Number), created_at: nowIso, updated_at: nowIso })
+        onCreate({ id: newId(), user_id: USER, name: name.trim(), weekdays: days.map(Number), created_at: nowIso, updated_at: nowIso })
         onClose()
       }}
     >
@@ -684,7 +681,7 @@ function AddExerciseForm({
       onSubmit={(e) => {
         e.preventDefault()
         onAdd({
-          id: mockId("pex"),
+          id: newId(),
           plan_id: plan.id,
           exercise_id: exercise,
           position,

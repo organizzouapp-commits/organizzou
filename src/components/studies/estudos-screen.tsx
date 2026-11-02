@@ -22,6 +22,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
@@ -57,16 +58,7 @@ import {
 import type { SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { studyTemplates } from "@/mocks/schedule"
-import {
-  buildMockCards,
-  buildMockDeadlines,
-  buildMockSessions,
-  mockDecks,
-  mockSubjects,
-} from "@/mocks/studies"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 const TYPE_ICONS: Record<SubjectType, LucideIcon> = {
@@ -99,11 +91,11 @@ export type StudiesInitial = { subjects: SubjectRow[]; sessions: StudySessionRow
 export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: StudiesInitial }) {
   const today = dayOf(nowIso)
   const weekStart = format(startOfWeek(parseISO(today), { weekStartsOn: 1 }), "yyyy-MM-dd")
-  const [subjects, setSubjects] = usePersistedRows<SubjectRow>("subjects", () => (isMock ? mockSubjects : initial.subjects))
-  const [sessions, setSessions] = usePersistedRows<StudySessionRow>("study_sessions", () => (isMock ? buildMockSessions(nowIso) : initial.sessions))
-  const [deadlines, setDeadlines] = usePersistedRows<DeadlineRow>("study_deadlines", () => (isMock ? buildMockDeadlines(nowIso) : initial.deadlines))
-  const [decks, setDecks] = usePersistedRows<FlashcardDeckRow>("flashcard_decks", () => (isMock ? mockDecks : initial.decks))
-  const [cards, setCards] = usePersistedRows<FlashcardRow>("flashcards", () => (isMock ? buildMockCards(nowIso) : initial.cards))
+  const [subjects, setSubjects] = usePersistedRows<SubjectRow>("subjects", initial.subjects)
+  const [sessions, setSessions] = usePersistedRows<StudySessionRow>("study_sessions", initial.sessions)
+  const [deadlines, setDeadlines] = usePersistedRows<DeadlineRow>("study_deadlines", initial.deadlines)
+  const [decks, setDecks] = usePersistedRows<FlashcardDeckRow>("flashcard_decks", initial.decks)
+  const [cards, setCards] = usePersistedRows<FlashcardRow>("flashcards", initial.cards)
   const [creatingDeck, setCreatingDeck] = useState(false)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [creatingSubject, setCreatingSubject] = useState(false)
@@ -137,7 +129,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
     if (mode === "focus" && timerSubject) {
       setSessions((current) => [
         ...current,
-        { id: mockId("ses"), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: modeMinutes, mode: "pomodoro" },
+        { id: newId(), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: modeMinutes, mode: "pomodoro" },
       ])
       toast.success(`Sessão registrada: ${modeMinutes} min de ${subjects.find((s) => s.id === timerSubject)?.name}.`)
     } else {
@@ -172,7 +164,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
       toast("Cadastre uma matéria para registrar o estudo.")
       return
     }
-    setSessions((current) => [...current, { id: mockId("ses"), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: elapsedMin, mode: "free" }])
+    setSessions((current) => [...current, { id: newId(), user_id: USER, subject_id: timerSubject, studied_on: today, minutes: elapsedMin, mode: "free" }])
     setRunning(false)
     setRemaining(modeMinutes * 60)
     toast.success(`${elapsedMin} min registrados.`)
@@ -190,8 +182,8 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   const chartData = bySubject.map((r) => ({ name: r.subject.name.split(" — ")[0], hours: Math.round((r.minutes / 60) * 10) / 10 }))
   const upcoming = [...deadlines].sort((a, b) => a.due_on.localeCompare(b.due_on))
   const dueCards = cards.filter((c) => isDue(c, today))
-  // The weekly study blocks are example data: a real account has no such schedule (yet), so it shows none.
-  const todaysBlocks = isMock ? studyTemplates.filter((t) => t.weekdays.includes(parseISO(today).getDay())) : []
+  // Study blocks are not a saved thing (yet): there is no schedule to show, so "Hoje" lists only what the person registered.
+  const todaysBlocks: { weekdays: number[]; time: string; minutes: number; title: string; detail: string }[] = []
 
   usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
 
@@ -323,6 +315,18 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
 
         {/* -------------------------------------------------------- subjects */}
         <TabsContent value="materias" className="pt-5">
+          {subjects.length === 0 ? (
+            <EmptyState
+              icon={BookOpenIcon}
+              title="Nenhuma matéria ainda"
+              description="Cadastre o que você estuda (matéria, curso, livro ou concurso) com uma meta semanal. O cronômetro e os gráficos usam isso."
+              action={
+                <Button className="h-11 rounded-full px-5" onClick={() => setCreatingSubject(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Criar a primeira matéria
+                </Button>
+              }
+            />
+          ) : null}
           <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))" }}>
           {subjects.map((s) => {
             const Icon = TYPE_ICONS[s.type]
@@ -437,7 +441,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
               onSubmit={(e) => {
                 e.preventDefault()
                 if (!inlineTitle.trim()) return
-                setDeadlines((current) => [...current, { id: mockId("dl"), user_id: USER, subject_id: subjects[0]?.id ?? null, title: inlineTitle.trim(), due_on: inlineDate, kind: "exam" }])
+                setDeadlines((current) => [...current, { id: newId(), user_id: USER, subject_id: subjects[0]?.id ?? null, title: inlineTitle.trim(), due_on: inlineDate, kind: "exam" }])
                 setInlineTitle("")
                 toast.success("Prazo criado.")
               }}
@@ -537,7 +541,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           {creatingDeck ? (
             <DeckForm
               onCreate={(name) => {
-                setDecks((current) => [...current, { id: mockId("deck"), user_id: USER, subject_id: null, name }])
+                setDecks((current) => [...current, { id: newId(), user_id: USER, subject_id: null, name }])
                 toast.success("Baralho criado.")
               }}
               onClose={() => setCreatingDeck(false)}
@@ -606,7 +610,7 @@ function CardForm({ deck, today, onCreate, onClose }: { deck: FlashcardDeckRow; 
         e.preventDefault()
         if (!front.trim() || !back.trim()) return
         // A new card is due today, with the standard starting ease of the spaced-repetition scheduler.
-        onCreate({ id: mockId("card"), deck_id: deck.id, front: front.trim(), back: back.trim(), ease: 2.5, interval_days: 0, repetitions: 0, due_on: today })
+        onCreate({ id: newId(), deck_id: deck.id, front: front.trim(), back: back.trim(), ease: 2.5, interval_days: 0, repetitions: 0, due_on: today })
         onClose()
       }}
     >
@@ -668,7 +672,7 @@ function SubjectForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: 
         e.preventDefault()
         if (!name.trim()) return
         onCreate({
-          id: mockId("sub"),
+          id: newId(),
           user_id: USER,
           name: name.trim(),
           type,
@@ -785,7 +789,7 @@ function DeadlineForm({
       onSubmit={(e) => {
         e.preventDefault()
         if (!title.trim()) return
-        onCreate({ id: mockId("dl"), user_id: USER, subject_id: subjectId || null, title: title.trim(), due_on: date, kind })
+        onCreate({ id: newId(), user_id: USER, subject_id: subjectId || null, title: title.trim(), due_on: date, kind })
         onClose()
       }}
     >

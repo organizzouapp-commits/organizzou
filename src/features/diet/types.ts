@@ -23,7 +23,7 @@ export const MEAL_LABELS: Record<MealKind, string> = {
 
 export type MealItemRow = {
   id: string
-  /** "yyyy-MM-dd" in the user's timezone. Real rows always have it; the example data does not need it. */
+  /** "yyyy-MM-dd" in the user's timezone. Every saved row has it. */
   log_date?: string
   meal: MealKind
   food_id: string

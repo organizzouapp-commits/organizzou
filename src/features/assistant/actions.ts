@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
-import { classifyCapture, guessCategory, parseExpense } from "@/mocks/assistant"
+import { classifyCapture, guessCategory, parseExpense } from "./rules"
 import { getSession } from "@/lib/supabase/session"
 
 export type CaptureResult = { ok: true; saved: "tarefa" | "gasto" | "nota"; href: string } | { ok: false; error: string }

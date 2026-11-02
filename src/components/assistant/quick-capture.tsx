@@ -19,8 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { captureQuick } from "@/features/assistant/actions"
-import { classifyCapture, parseExpense } from "@/mocks/assistant"
-import { isMock } from "@/mocks/config"
+import { classifyCapture, parseExpense } from "@/features/assistant/rules"
 
 type QuickCaptureProps = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -62,7 +61,7 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
   const [saving, setSaving] = useState(false)
   const guessed = classifyCapture(text)
   // Where the text really ends up: only tasks and spendings have a home of their own for now; the rest is kept as a note.
-  const destination = isMock ? guessed : guessed === "tarefas" ? "tarefas" : guessed === "financas" && parseExpense(text) ? "financas" : text.trim() ? "notas" : null
+  const destination = guessed === "tarefas" ? "tarefas" : guessed === "financas" && parseExpense(text) ? "financas" : text.trim() ? "notas" : null
   const Icon = destination ? modules[destination].icon : null
 
   return (
@@ -71,11 +70,6 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
       onSubmit={(e) => {
         e.preventDefault()
         if (!text.trim()) return
-        if (isMock) {
-          toast(destination ? `Prévia: isto iria para ${modules[destination].name}, mas ainda não é salvo.` : "Prévia: isto iria para Notas e lembretes, mas ainda não é salvo.")
-          onClose()
-          return
-        }
         setSaving(true)
         void captureQuick({ text }).then((result) => {
           setSaving(false)
@@ -93,7 +87,7 @@ function QuickCaptureBody({ parts, onClose }: { parts: typeof dialogParts | type
     >
       <Header className="p-0">
         <Title>Captura rápida</Title>
-        <Description>{isMock ? "Prévia: escreva do jeito que vier e veja onde o assistente guardaria. Ainda não salva nada." : "Escreva do jeito que vier: vira tarefa, gasto ou nota, e fica salvo."}</Description>
+        <Description>Escreva do jeito que vier: vira tarefa, gasto ou nota, e fica salvo.</Description>
       </Header>
       <div className="flex gap-2">
         <Textarea

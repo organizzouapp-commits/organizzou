@@ -13,8 +13,6 @@ import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
-import { isMock } from "@/mocks/config"
-import { getMockBoardsStore } from "@/mocks/tasks-api"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
@@ -133,10 +131,9 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whats
   const counts = useMemo<Partial<Record<string, number>>>(
     () => {
       if (nav.id !== "app") return {}
-      if (isMock) return { tarefas: getMockBoardsStore(nowIso).boards.reduce((sum, b) => sum + b.tasks.filter((t) => !t.completed_at).length, 0) }
       return openTasks > 0 ? { tarefas: openTasks } : {}
     },
-    [nowIso, nav, openTasks]
+    [nav, openTasks]
   )
   const openSearch = useCallback(() => {
     setSearchQuery("")

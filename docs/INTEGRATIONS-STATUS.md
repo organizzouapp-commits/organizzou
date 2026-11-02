@@ -1,7 +1,7 @@
 # Status das integrações e funcionalidades
 
-Legenda: **Real** = funciona de ponta a ponta com backend; **Simulado** = a interface existe, mas usa dados de exemplo
-(`src/mocks/`, só no protótipo local sem login, `PROTOTYPE_BYPASS_AUTH=1`; `isMock` em `src/mocks/config.ts`) ou uma resposta local, sem efeito fora do navegador; **Não construído**
+Legenda: **Real** = funciona de ponta a ponta com backend; **Simulado** = a interface existe, mas é só local, sem efeito fora do navegador (não existe mais dado de exemplo no app: a demonstração
+vive no banco, só na conta de teste, ver `docs/DATA-AUDIT.md`); **Não construído**
 = nada além de um aviso de "Em breve".
 
 Auditoria completa por módulo, com as tabelas: `docs/DATA-AUDIT.md`.
@@ -38,9 +38,9 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 
 | Funcionalidade | Status | Onde está no código |
 |---|---|---|
-| Assistente de conversa (app) | Protótipo: respostas por regras sobre dados de exemplo. **Conta real: "Em breve"**, sem respostas inventadas | `src/mocks/assistant.ts`, `src/components/assistant/assistant-sheet.tsx` |
-| Captura rápida (Novo) | **Real** em conta real: vira tarefa, gasto ("gastei 45 no mercado") ou nota; no protótipo é só prévia | `src/components/assistant/quick-capture.tsx`, `src/features/assistant/actions.ts` |
-| Busca global (Ctrl K) | **Real** em conta real (títulos dos dados do próprio usuário); no protótipo, dados de exemplo | `src/features/search/actions.ts`, `src/components/shell/command-palette.tsx` |
+| Assistente de conversa (app) | **"Em breve"**: a janela explica que a IA ainda não está ligada; nenhuma resposta é inventada | `src/mocks/assistant.ts`, `src/components/assistant/assistant-sheet.tsx` |
+| Captura rápida (Novo) | **Real**: vira tarefa, gasto ("gastei 45 no mercado") ou nota | `src/components/assistant/quick-capture.tsx`, `src/features/assistant/actions.ts` |
+| Busca global (Ctrl K) | **Real** (títulos dos dados do próprio usuário) | `src/features/search/actions.ts`, `src/components/shell/command-palette.tsx` |
 | Flashcards gerados a partir de anotações | Simulado (sem IA); marcado como "Em breve" | `src/components/studies/estudos-screen.tsx` |
 | WhatsApp: conectar número, enviar código | Não construído (selo "Em breve"; nenhum código é enviado) | `src/components/settings/settings-extras.tsx` |
 | WhatsApp: texto e voz com o assistente | Não construído | — |
@@ -61,9 +61,9 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 |---|---|---|
 | Tarefas (quadros, lista, calendário, anexos) | **Real** | `src/features/tasks/` |
 | Hoje, Rotina, Agenda, Treinos, Dieta, Estudos, Notas, Metas, Diário | **Real**: gravam por usuário (RLS) e sobrevivem ao recarregar. Exigem as migrations `20261103000001..3` | `src/features/persist/`, `supabase/migrations/20261103*`, `docs/DATA-AUDIT.md` |
-| Cofre de senhas | **Em breve** em conta real (página honesta, nada é guardado); no protótipo, itens de exemplo na memória. Criptografia no navegador ainda não construída. O assistente e a busca global nunca leem o cofre (teste em `src/mocks/vault-guard.test.ts`) | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
+| Cofre de senhas | **Em breve** (página honesta, nada é guardado). Criptografia no navegador ainda não construída. O assistente e a busca global nunca leem o cofre (teste em `src/mocks/vault-guard.test.ts`) | `src/components/vault/cofre-screen.tsx`, `src/features/vault/passwords.ts` |
 | Exportar dados (JSON/CSV) | Não construído (botões desabilitados) | `src/components/settings/settings-extras.tsx` |
-| Notificações no sino | Protótipo: exemplos fixos. **Conta real: vazio e "em breve"** | `src/components/shell/app-topbar.tsx` |
+| Notificações no sino | **Vazio e "em breve"** (sem exemplos inventados) | `src/components/shell/app-topbar.tsx` |
 
 ## Área admin
 

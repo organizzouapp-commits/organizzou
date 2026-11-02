@@ -42,7 +42,7 @@ sessão do usuário (RLS decide; `user_id` é sempre o do usuário logado), e o 
 grava em ordem, desfaz e avisa com um toast se o banco recusar. As telas passaram de `useState(mock)` para
 `usePersistedRows(tabela, dados do servidor)`.
 
-Exemplos (`src/mocks`) só existem no protótipo local sem login (`PROTOTYPE_BYPASS_AUTH=1`, nunca em produção).
+**O app não tem mais nenhum dado de exemplo**: a pasta `src/mocks` foi apagada, e um teste (`src/lib/demo-seed.test.ts`) falha se alguém importar dados de exemplo de novo. Sem login (modo `PROTOTYPE_BYPASS_AUTH=1`, só para desenvolvimento local) as telas simplesmente aparecem vazias, como numa conta nova.
 
 | Módulo | Status agora | Tabelas | Observação |
 |---|---|---|---|
@@ -85,3 +85,18 @@ Exemplos (`src/mocks`) só existem no protótipo local sem login (`PROTOTYPE_BYP
   navegador (nada é enviado de qualquer jeito).
 - **WhatsApp, push, Open Finance, pagamentos, voz, IA**: seguem "Em breve". As tabelas `whatsapp_links`, `push_subscriptions`,
   `user_stats`, `achievements` existem para quando forem construídos.
+
+## Dados de demonstração: só em organizzouapp@gmail.com
+
+O conteúdo que o app mostrava antes (tarefas como "Enviar relatório semanal à Marina", hábitos, eventos, treinos, estudos, notas, metas,
+finanças, dieta, diário) virou **linhas reais** no banco, carregadas por `npm run seed:demo -- organizzouapp@gmail.com`
+(`scripts/seed-demo.ts`, conteúdo em `scripts/demo/content.ts`). Datas relativas a hoje em America/Sao_Paulo; 60 a 90 dias de histórico.
+
+- **Só a lista permitida**: o padrão é `organizzouapp@gmail.com` (`DEMO_SEED_ALLOWLIST` pode ampliar). `patrick.toledo.barros@gmail.com`
+  é recusado sempre. Em produção (`NODE_ENV`, `VERCEL_ENV` ou `APP_ENV` = production) exige `--i-know-this-is-production`.
+- **Sem duplicar**: os ids da demonstração são uuids versão 5 (o app só cria versão 4). Rodar de novo apaga tudo que a demonstração criou
+  antes e grava de novo com as datas de hoje. `npm run seed:demo:reset -- <e-mail>` apaga só essas linhas.
+- **Conta de teste**: o script marca `profiles.is_test = true`. Os números do admin deixam essas contas de fora por padrão, com a chave
+  "Incluir contas de teste" (por admin). Só contagens, nunca conteúdo.
+- **Todas as outras contas começam vazias**: o cadastro cria só padrões (perfil, quadro "Minhas tarefas" com 3 listas, 11 categorias
+  financeiras, "Conta principal", metas de dieta e água, preferências de aviso, layout padrão do Hoje).

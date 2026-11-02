@@ -5,12 +5,11 @@ import { FinancasScreen } from "@/components/finance/financas-screen"
 import { ScreenSkeleton } from "@/components/mock/screen-skeleton"
 import { WithNow } from "@/components/mock/with-now"
 import { loadFinance } from "@/features/persist/load"
-import { isMock } from "@/mocks/config"
 
 export const metadata: Metadata = { title: "Finanças" }
 
 async function FinanceData({ nowIso }: { nowIso: string }) {
-  const initial = isMock ? { accounts: [], categories: [], transactions: [], bills: [], goals: [] } : await loadFinance(nowIso)
+  const initial = await loadFinance(nowIso)
   return <FinancasScreen nowIso={nowIso} initial={initial} />
 }
 

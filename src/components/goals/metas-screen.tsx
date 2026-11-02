@@ -3,13 +3,14 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, EllipsisIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, EllipsisIcon, PlusIcon, TargetIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { ModuleIcon } from "@/components/organizzou/ModuleIcon"
 import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { Bento, bentoCardClass, KpiCard } from "@/components/organizzou/Bento"
+import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -35,9 +36,7 @@ import { goalProgress, linkRatio } from "@/features/goals/progress"
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
 import { daysUntil } from "@/features/studies/spaced-repetition"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { isMock } from "@/mocks/config"
-import { buildMockGoals } from "@/mocks/goals"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 
 const LINKABLE: ModuleId[] = ["tarefas", "rotina", "financas", "treinos", "dieta", "estudos"]
 const DEFAULT_LINKS: Record<string, { label: string; total: number; unit: string }> = {
@@ -60,7 +59,7 @@ const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_
 export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: GoalWithDetails[] }) {
   const today = dayOf(nowIso)
   // A goal is three tables (the goal, what feeds it, its milestones). The screen edits the nested shape; each table is saved on its own, parents first.
-  const start = isMock ? buildMockGoals(nowIso) : initial
+  const start = initial
   const [goalRows, setGoalRows] = usePersistedRows<LifeGoalRow>("life_goals", () => start.map(plain))
   const [linkRows, setLinkRows] = usePersistedRows<GoalLinkRow>("life_goal_links", () => start.flatMap((g) => g.links))
   const [milestoneRows, setMilestoneRows] = usePersistedRows<GoalMilestoneRow>("life_goal_milestones", () => start.flatMap((g) => g.milestones))
@@ -89,6 +88,20 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
   const done = goals.filter((g) => g.status === "done")
 
   function renderGoals(list: GoalWithDetails[]) {
+    if (list.length === 0 && goals.length === 0) {
+      return (
+        <EmptyState
+          icon={TargetIcon}
+          title="Nenhuma meta ainda"
+          description="Uma meta junta o que você já faz (tarefas, estudos, treinos, dinheiro) em um objetivo com prazo."
+          action={
+            <Button className="h-11 rounded-full px-5" onClick={() => setCreating(true)}>
+              <PlusIcon strokeWidth={1.75} /> Criar a primeira meta
+            </Button>
+          }
+        />
+      )
+    }
     if (list.length === 0) return <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nada por aqui ainda.</p>
     return (
       <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(360px, 100%), 1fr))" }}>
@@ -263,7 +276,7 @@ function GoalForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (go
       onSubmit={(e) => {
         e.preventDefault()
         if (!title.trim()) return
-        const goalId = mockId("goal")
+        const goalId = newId()
         onCreate({
           id: goalId,
           user_id: "00000000-0000-4000-8000-000000000001",
@@ -273,7 +286,7 @@ function GoalForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (go
           status: "active",
           created_at: nowIso,
           updated_at: nowIso,
-          links: linked.map((module) => ({ id: mockId("lk"), goal_id: goalId, module: module as ModuleId, done: 0, ...DEFAULT_LINKS[module] })),
+          links: linked.map((module) => ({ id: newId(), goal_id: goalId, module: module as ModuleId, done: 0, ...DEFAULT_LINKS[module] })),
           milestones: [],
         })
         onClose()

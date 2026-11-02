@@ -10,6 +10,7 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
+  RepeatIcon,
   Trash2Icon,
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
@@ -17,6 +18,7 @@ import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
@@ -53,9 +55,7 @@ import {
 } from "@/features/habits/stats"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import type { HabitLogRow, HabitRow, HabitType } from "@/features/habits/types"
-import { buildMockHabitLogs, mockHabits } from "@/mocks/habits"
-import { isMock } from "@/mocks/config"
-import { dayOf, mockId } from "@/mocks/time"
+import { dayOf, newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
 const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"]
@@ -109,8 +109,8 @@ function intensityClass(value: number | null) {
 
 export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[] }) {
   const today = dayOf(nowIso)
-  const [habits, setHabits] = usePersistedRows<HabitRow>("habits", () => (isMock ? mockHabits : initialHabits))
-  const [logs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", () => (isMock ? buildMockHabitLogs(nowIso) : initialLogs))
+  const [habits, setHabits] = usePersistedRows<HabitRow>("habits", initialHabits)
+  const [logs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", initialLogs)
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<HabitRow | null>(null)
   const [historyHabit, setHistoryHabit] = useState("all")
@@ -126,7 +126,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
       const stamp = new Date().toISOString()
       // The same day keeps the same row: one log per habit per day.
       if (existing) return current.map((l) => (l === existing ? { ...l, qty, updated_at: stamp } : l))
-      return [...current, { id: mockId("log"), user_id: habit.user_id, habit_id: habit.id, log_date: today, qty, created_at: stamp, updated_at: stamp }]
+      return [...current, { id: newId(), user_id: habit.user_id, habit_id: habit.id, log_date: today, qty, created_at: stamp, updated_at: stamp }]
     })
   }
 
@@ -215,6 +215,18 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
                 <div className="flex flex-col gap-2 pb-4">
                   <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
                 </div>
+                {habits.length === 0 ? (
+                  <EmptyState
+                    icon={RepeatIcon}
+                    title="Nenhum hábito ainda"
+                    description="Comece com um hábito pequeno, como beber água ou ler 10 páginas. Ele aparece aqui e em Hoje."
+                    action={
+                      <Button className="h-11 rounded-full px-5" onClick={() => setCreating(true)}>
+                        <PlusIcon strokeWidth={1.75} /> Criar o primeiro hábito
+                      </Button>
+                    }
+                  />
+                ) : null}
                 <div className="flex flex-col">
                   {habits.map((habit) => {
                     const scheduled = isScheduled(habit, today)
@@ -453,7 +465,7 @@ function NewHabitForm({ onCreate, onClose }: { onCreate: (habit: HabitRow) => vo
         if (!name.trim() || weekdays.length === 0) return
         const stamp = new Date().toISOString()
         onCreate({
-          id: mockId("habit"),
+          id: newId(),
           user_id: "00000000-0000-4000-8000-000000000001",
           name: name.trim(),
           type,
