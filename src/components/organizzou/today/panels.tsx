@@ -240,7 +240,7 @@ export function StudyPanel({ data }: { data: StudyData }) {
           </Badge>
         </div>
       ) : null}
-      <Button asChild variant="secondary" className="h-11 w-full rounded-xl">
+      <Button asChild variant="secondary" className="h-11 w-full rounded-full">
         <Link href="/dashboard/estudos">
           {data.dueCards} {data.dueCards === 1 ? "cartão para revisar" : "cartões para revisar"}
         </Link>
@@ -423,7 +423,7 @@ export function NotesPanel({ data }: { data: NotesData }) {
           Nota rápida
         </label>
         <Input id="quick-note" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Nota rápida" autoComplete="off" enterKeyHint="done" className="h-11 min-w-0 flex-1 rounded-xl bg-card px-4 text-[15px]" />
-        <Button type="submit" variant="outline" size="icon" className="size-11 shrink-0 rounded-xl" aria-label="Criar nota rápida" disabled={!draft.trim()}>
+        <Button type="submit" variant="outline" size="icon" className="size-11 shrink-0 rounded-full" aria-label="Criar nota rápida" disabled={!draft.trim()}>
           <PlusIcon strokeWidth={1.75} />
         </Button>
       </form>

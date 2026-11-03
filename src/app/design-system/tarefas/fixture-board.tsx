@@ -61,7 +61,7 @@ function build(nowMs: number, volume = 0): BoardData {
     task(0, "Pesquisar curso de fotografia", { tags: [2, 3, 0] }),
     task(0, "Enviar relatório semanal", { dueDay: -1, tags: [1] }),
     task(0, "Pagar o IPTU", { dueDay: -2, priority: "high" }),
-    task(0, "Ligar para o contador", { dueDay: 0, time: "17:00", priority: "high", commentCount: 2 }),
+    task(0, "Ligar para o contador", { dueDay: 0, time: "23:30", priority: "high", commentCount: 2 }),
     task(0, "Agendar dentista", { dueDay: 2 }),
     task(1, "Preparar apresentação de resultados do 3º trimestre", { dueDay: 3, time: "14:00", priority: "high", tags: [1], checklistTotal: 5, checklistDone: 3, commentCount: 1, attachmentCount: 2 }),
     task(1, "Organizar o guarda-roupa", { dueDay: 1, tags: [0] }),

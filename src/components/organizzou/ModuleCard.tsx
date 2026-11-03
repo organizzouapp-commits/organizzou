@@ -72,7 +72,7 @@ export function ModuleCard({
       data-needs={needs ? "true" : "false"}
       className={cn("flex min-w-0 flex-col rounded-[16px] border bg-card transition-colors duration-[400ms] motion-reduce:transition-none", EASE, open ? "border-foreground/22" : "border-foreground/6")}
     >
-      <button
+      <button data-pill-exempt
         type="button"
         aria-expanded={open}
         aria-controls={bodyId}

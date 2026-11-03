@@ -98,11 +98,11 @@ function SwipeActions({ enabled, onPostpone1h, onTomorrow, children }: { enabled
   return (
     <div ref={host} className="relative overflow-hidden md:overflow-visible">
       <div aria-hidden={!open} className="absolute inset-y-0 right-0 flex md:hidden" style={{ width: SWIPE_OPEN }}>
-        <button type="button" tabIndex={open ? 0 : -1} onClick={act(onPostpone1h)} className={cn(panel, "bg-foreground/10")}>
+        <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(onPostpone1h)} className={cn(panel, "bg-foreground/10")}>
           <ClockIcon aria-hidden strokeWidth={1.75} className="size-5" />
           Adiar 1 h
         </button>
-        <button type="button" tabIndex={open ? 0 : -1} onClick={act(onTomorrow)} className={cn(panel, "bg-foreground/[0.16]")}>
+        <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(onTomorrow)} className={cn(panel, "bg-foreground/[0.16]")}>
           <CalendarIcon aria-hidden strokeWidth={1.75} className="size-5" />
           Amanhã
         </button>

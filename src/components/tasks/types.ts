@@ -19,5 +19,6 @@ export type ViewProps = ListActions & {
   /** Multi-select mode (long press on a row): the views show selection checks. */
   selection: { active: boolean; ids: Set<string>; toggle: (id: string) => void }
   /** Opens the creation sheet (phones) for a list. */
-  onCreate: (listId?: string) => void
+  /** `day` (yyyy-MM-dd) pre-fills the due date (the calendar's "Adicionar tarefa"). */
+  onCreate: (listId?: string, day?: string) => void
 }

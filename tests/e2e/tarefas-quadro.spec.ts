@@ -122,9 +122,15 @@ test.describe("desktop", () => {
     await expect.poll(() => columnNames(page)).toEqual(["Concluído", "Em andamento", "A fazer"])
 
     await page.getByRole("button", { name: "Recolher Em andamento" }).click()
+    // Collapsed = header only: same width as a list, exactly the 56 px header, top aligned.
     const rail = page.locator("section[data-collapsed]")
     await expect(rail).toHaveCount(1)
-    expect(Math.round((await rail.boundingBox())!.width)).toBe(56)
+    await page.waitForTimeout(600)
+    const box = (await rail.boundingBox())!
+    const sibling = (await page.locator("section[data-column]:not([data-collapsed])").first().boundingBox())!
+    expect(Math.round(box.height)).toBe(56)
+    expect(Math.abs(box.width - sibling.width)).toBeLessThanOrEqual(2)
+    expect(Math.abs(box.y - sibling.y)).toBeLessThanOrEqual(1)
     await page.reload()
     await expect(page.locator("section[data-collapsed]")).toHaveCount(1, { timeout: 60000 })
     await page.getByRole("button", { name: /^Expandir Em andamento/ }).click()
@@ -311,7 +317,7 @@ test.describe("desktop", () => {
 
     await trigger.click()
     await picker().getByRole("button", { name: "Gerenciar" }).click()
-    await picker().getByRole("button", { name: "Renomear Crítica" }).click()
+    await picker().getByRole("button", { name: "Crítica", exact: true }).click()
     await picker().getByLabel("Nome: Crítica").fill("Máxima")
     await picker().getByLabel("Nome: Crítica").press("Enter")
     await expect(picker().locator('[data-picker-item]').last()).toContainText("Máxima")
@@ -353,7 +359,7 @@ test.describe("desktop", () => {
 
     await dialog.getByRole("button", { name: "Tags", exact: true }).click()
     await picker.getByRole("button", { name: "Gerenciar" }).click()
-    await picker.getByRole("button", { name: "Renomear Urgente hoje" }).click()
+    await picker.getByRole("button", { name: "Urgente hoje", exact: true }).click()
     await picker.getByLabel("Nome: Urgente hoje").fill("Agora")
     await picker.getByLabel("Nome: Urgente hoje").press("Enter")
     await expect(picker.getByText("Agora", { exact: true })).toBeVisible()
@@ -373,7 +379,7 @@ test.describe("desktop", () => {
     await expect(dialog.getByRole("button", { name: "Categoria", exact: true })).toContainText("Projeto")
     await dialog.getByRole("button", { name: "Categoria", exact: true }).click()
     await picker.getByRole("button", { name: "Gerenciar" }).click()
-    await picker.getByRole("button", { name: "Renomear Projeto" }).click()
+    await picker.getByRole("button", { name: "Projeto", exact: true }).click()
     await picker.getByLabel("Nome: Projeto").fill("Cliente")
     await picker.getByLabel("Nome: Projeto").press("Enter")
     await picker.getByRole("button", { name: "Concluir" }).click()
@@ -470,20 +476,6 @@ test.describe("phone", () => {
     await sheet.getByLabel("Nome da nova lista").fill("Ideias")
     await sheet.getByRole("button", { name: "Salvar" }).click()
     await expect(sheet.locator("[data-manage-list]")).toHaveCount(4)
-  })
-
-  test("Calendário on phones: week strip, the day list with checkboxes, collapsible month and Sem data", async ({ page }) => {
-    await open(page, "/design-system/tarefas?view=calendario")
-    const calendar = page.getByTestId("tasks-calendar")
-    await expect(calendar.getByRole("group", { name: "Dias da semana" })).toBeVisible()
-    await expect(calendar.getByRole("checkbox", { name: "Concluir Comprar planta para a sala" })).toBeVisible()
-    await calendar.getByRole("button", { name: /^Sem data/ }).click()
-    await expect(calendar.getByTestId("undated-tray")).toBeVisible()
-    await calendar.getByRole("button", { name: "Mês" }).click()
-    await expect(calendar.getByText("Novembro 2026")).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
-    await calendar.getByRole("button", { name: "Comprar planta para a sala" }).click()
-    await expect(page.getByRole("dialog")).toBeVisible()
   })
 
   test("the date picker sheet stays inside a 360 x 640 screen", async ({ page }) => {

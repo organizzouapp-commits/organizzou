@@ -638,7 +638,7 @@ export function DayStrip({
             aria-pressed={key === selectedKey}
             onClick={() => onSelectDay(key)}
             className={cn(
-              "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[13px] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "flex min-h-16 flex-col items-center justify-center gap-1 rounded-full text-[13px] leading-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               key === selectedKey ? "bg-highlight text-highlight-foreground" : "hover:bg-accent"
             )}
           >
@@ -821,7 +821,7 @@ export function TimeGrid({
                 type="button"
                 disabled={!onSelectDay}
                 onClick={() => onSelectDay?.(key)}
-                className="flex items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex items-center gap-2 rounded-full px-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{format(date, "EEE", { locale: ptBR }).slice(0, 3)}</span>
                 <span className={cn("tabular flex size-7 items-center justify-center rounded-full text-[15px] leading-5 font-semibold", key === todayKey && "bg-highlight text-highlight-foreground")}>

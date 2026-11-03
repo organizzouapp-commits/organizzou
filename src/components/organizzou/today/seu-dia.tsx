@@ -459,7 +459,7 @@ export function SeuDia({ data }: { data: DayData }) {
               >
                 {/* Phones: the bulk action lives inside the expanded group, as a full-width button, so it never crowds the header. */}
                 {overdue.some((item) => item.kind === "task") ? (
-                  <Button type="button" variant="secondary" className="mb-1 h-11 w-full gap-2 rounded-xl md:hidden" onClick={() => rescheduleOverdue(overdue)}>
+                  <Button type="button" variant="secondary" className="mb-1 h-11 w-full gap-2 rounded-full md:hidden" onClick={() => rescheduleOverdue(overdue)}>
                     <CalendarIcon strokeWidth={1.75} className="size-4" />
                     Reagendar tudo para amanhã
                   </Button>

@@ -145,7 +145,7 @@ export function Bell({ bare = false }: { bare?: boolean }) {
             })}
             </ul>
             {items.length > shown ? (
-              <Button type="button" variant="ghost" className="mt-1 h-11 w-full rounded-xl text-[15px]" onClick={() => setShown((n) => n + PAGE)}>
+              <Button type="button" variant="ghost" className="mt-1 h-11 w-full rounded-full text-[15px]" onClick={() => setShown((n) => n + PAGE)}>
                 Carregar mais
               </Button>
             ) : null}

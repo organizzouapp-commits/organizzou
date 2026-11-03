@@ -239,6 +239,7 @@ test.describe("desktop", () => {
     await page.reload()
     await expect(page.getByRole("button", { name: "Expandir A fazer" })).toBeVisible({ timeout: 60000 })
     await page.getByRole("button", { name: "Expandir A fazer" }).click()
+    await page.waitForTimeout(600)
     const group = page.locator('[data-group] >> nth=0')
     await group.getByRole("button", { name: "Adicionar tarefa", exact: true }).click()
     await page.getByLabel("Título da nova tarefa").fill("Revisar contrato")

@@ -41,6 +41,7 @@ import { ListView, type GroupBy } from "./list-view"
 import { MoveDialog } from "./move-dialog"
 import { NewTaskDialog, type NewTaskInput } from "./new-task-dialog"
 import type { TaskActions } from "./task-card"
+import { LabelColorsProvider, useLabelColorsStore } from "./label-colors-context"
 import { PrioritiesProvider } from "./priorities-context"
 import { TaskDetail, type Taxonomy } from "./task-detail"
 
@@ -80,18 +81,22 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [openId, setOpenId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   const [newTaskList, setNewTaskList] = useState<string | undefined>(undefined)
+  /** Pre-filled due date of the "Nova tarefa" form (the calendar's selected day, plus a free hour when it is today). */
+  const [newTaskDue, setNewTaskDue] = useState<{ day: string; time?: string } | undefined>(undefined)
+  const [calendarDay, setCalendarDay] = useState<string | null>(null)
   const [moveFor, setMoveFor] = useState<TaskView[] | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDelete, setBulkDelete] = useState(false)
   const [newBoardOpen, setNewBoardOpen] = useState(false)
-  const [renameOpen, setRenameOpen] = useState(false)
+  const [editingBoardName, setEditingBoardName] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<TaskView | null>(null)
   const [listToDelete, setListToDelete] = useState<ListRow | null>(null)
   const [doneToClear, setDoneToClear] = useState<ListRow | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const [manageListsOpen, setManageListsOpen] = useState(false)
+  const labels = useLabelColorsStore()
   const [prio, setPrio] = useState<PriorityState>(DEFAULT_PRIORITY_STATE)
   useEffect(() => {
     // The person's priorities live in the browser until the server adapter exists (see features/tasks/priorities.ts).
@@ -327,7 +332,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           if (!r.ok) toast.error(r.error)
         })
       },
-      create: (name) => commitPriorities({ ...prio, list: [...prio.list, { id: newPriorityId(), name }] }),
+      create: (name) => {
+        const id = newPriorityId()
+        commitPriorities({ ...prio, list: [...prio.list, { id, name }] })
+        return id
+      },
       rename: (id, name) => commitPriorities({ ...prio, list: prio.list.map((p) => (p.id === id ? { ...p, name } : p)) }),
       reorder: (ids) => commitPriorities({ ...prio, list: ids.map((id) => prio.list.find((p) => p.id === id)!).filter(Boolean) }),
       remove: (id) => {
@@ -362,6 +371,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     categories: {
       list: categories,
       rename: (from, to) => {
+        const color = labels.colorOf("category", from)
+        if (color) {
+          labels.setColor("category", to, color)
+          labels.setColor("category", from, null)
+        }
         for (const t of tasks.filter((x) => x.category === from)) {
           replaceTask({ ...t, category: to })
           void api.updateTask({ id: t.id, patch: { category: to } })
@@ -637,8 +651,18 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   // "Nova tarefa" from the app header: pre-filled with this quadro and, on phones in Kanban, the list being looked at.
   usePrimaryAction("Nova tarefa", () => {
     setNewTaskList(view === "kanban" && isMobile ? (mobileList ?? lists[0]?.id) : undefined)
+    setNewTaskDue(view === "calendario" && isMobile && calendarDay ? { day: calendarDay, time: calendarDay === dayKey(now, timeZone) ? nextFreeHour() : undefined } : undefined)
     setNewTaskOpen(true)
   })
+
+  /** The next whole hour of today that has no timed task yet (null when the day is full). */
+  function nextFreeHour() {
+    const hourIn = (date: Date | string) => Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone }).format(new Date(date))) % 24
+    const today = dayKey(now, timeZone)
+    const busy = new Set(tasks.filter((t) => t.due_at && t.due_has_time && dayKey(t.due_at, timeZone) === today).map((t) => hourIn(t.due_at!)))
+    for (let hour = hourIn(now) + 1; hour <= 23; hour += 1) if (!busy.has(hour)) return `${String(hour).padStart(2, "0")}:00`
+    return undefined
+  }
 
   async function confirmClearDone() {
     const list = doneToClear
@@ -727,8 +751,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     onQuickAdd: quickAdd,
     actionsFor,
     selection,
-    onCreate: (listId?: string) => {
+    onCreate: (listId?: string, day?: string) => {
       setNewTaskList(listId)
+      setNewTaskDue(day ? { day } : undefined)
       setNewTaskOpen(true)
     },
     onRenameList: renameList,
@@ -743,9 +768,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   }
 
   return (
+    <LabelColorsProvider value={labels}>
     <PrioritiesProvider value={prio}>
     <div className="flex flex-col gap-5 max-md:gap-3">
-      <div className={cn("max-md:sticky max-md:top-[4.5rem] max-md:z-20 max-md:-mx-4 max-md:bg-background max-md:px-4 max-md:pt-1 max-md:pb-2", !isMobile && bentoCardClass())}>
+      <div data-testid="board-header" className={cn("max-md:rounded-[20px] max-md:border max-md:border-border max-md:bg-card max-md:p-4", !isMobile && bentoCardClass())}>
       <BoardToolbar
         ref={searchRef}
         isMobile={isMobile}
@@ -753,7 +779,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         boardId={boardId}
         onSelectBoard={(id) => router.push(`${basePath}/${id}`)}
         onNewBoard={() => setNewBoardOpen(true)}
-        onRenameBoard={() => setRenameOpen(true)}
+        editingName={editingBoardName}
+        onEditingNameChange={setEditingBoardName}
+        onCommitBoardName={doRenameBoard}
         onArchiveBoard={() => setArchiveOpen(true)}
         view={view}
         onViewChange={changeView}
@@ -822,11 +850,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           onActiveListChange={setMobileList}
         />
       ) : view === "lista" ? (
-        <div className={bentoCardClass()}>
-          <ListView {...viewProps} groupBy={groupBy} />
+        <div className={cn(!isMobile && bentoCardClass())}>
+          <ListView {...viewProps} groupBy={groupBy} isMobile={isMobile} />
         </div>
       ) : (
-        <CalendarView {...viewProps} nowIso={nowIso} onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")} />
+        <CalendarView {...viewProps} nowIso={nowIso} onDayChange={setCalendarDay} onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")} />
       )}
       </div>
       </div>
@@ -868,7 +896,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           </Button>
         </DialogContent>
       </Dialog>
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} defaultListId={newTaskList} now={now} timeZone={timeZone} onCreate={createFromDialog} />
+      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} defaultListId={newTaskList} defaultDue={newTaskDue} now={now} timeZone={timeZone} onCreate={createFromDialog} />
       <MoveDialog
         open={Boolean(moveFor)}
         onOpenChange={(open) => !open && setMoveFor(null)}
@@ -922,7 +950,6 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         </div>
       ) : null}
       <PromptDialog open={newBoardOpen} onOpenChange={setNewBoardOpen} title="Novo quadro" label="Nome do quadro" submitLabel="Criar quadro" onSubmit={newBoard} />
-      <PromptDialog open={renameOpen} onOpenChange={setRenameOpen} title="Renomear quadro" label="Nome do quadro" initialValue={boardName} onSubmit={doRenameBoard} />
       <ConfirmDialog
         open={archiveOpen}
         onOpenChange={setArchiveOpen}
@@ -974,5 +1001,6 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       <DeleteListDialog list={listToDelete} taskCount={listTaskCount} others={lists.filter((l) => l.id !== listToDelete?.id)} onCancel={() => setListToDelete(null)} onConfirm={(destination) => void confirmDeleteList(destination)} />
     </div>
     </PrioritiesProvider>
+    </LabelColorsProvider>
   )
 }

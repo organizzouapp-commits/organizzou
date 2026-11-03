@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useState } from "react"
+import { forwardRef, useRef, useState } from "react"
 import {
   ArrowLeftIcon,
   ArrowUpDownIcon,
@@ -44,8 +44,10 @@ import type { ShortcutDef } from "@/features/tasks/shortcuts"
 import { PRIORITIES, PRIORITY_LABELS, type ListRow, type Priority, type TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
+import { InlineInput } from "./inline-input"
 import type { GroupBy } from "./list-view"
-import { SwatchDot } from "./task-meta"
+import { useLabelColors } from "./label-colors-context"
+import { ColorDot } from "./task-meta"
 
 export type ViewMode = "kanban" | "lista" | "calendario"
 
@@ -70,7 +72,10 @@ type BoardToolbarProps = {
   boardId: string
   onSelectBoard: (id: string) => void
   onNewBoard: () => void
-  onRenameBoard: () => void
+  /** The quadro name is an inline field: `editingName` switches it on, `onCommitBoardName` saves. */
+  editingName: boolean
+  onEditingNameChange: (editing: boolean) => void
+  onCommitBoardName: (name: string) => Promise<void>
   onArchiveBoard: () => void
   view: ViewMode
   onViewChange: (view: ViewMode) => void
@@ -119,6 +124,7 @@ function SortSelect({ sort, onSortChange, className }: { sort: SortKey; onSortCh
 
 function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort: boolean }) {
   const { filters, onFiltersChange } = props
+  const labelColors = useLabelColors()
   const active = countActiveFilters(filters)
   return (
     <div className="flex flex-col gap-5">
@@ -184,7 +190,7 @@ function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort:
           {props.tags.map((tag) => (
             <label key={tag.id} className="flex min-h-11 items-center gap-3 text-[15px] md:min-h-9">
               <Checkbox checked={filters.tagIds.includes(tag.id)} onCheckedChange={() => onFiltersChange({ ...filters, tagIds: toggle(filters.tagIds, tag.id) })} />
-              <SwatchDot swatch={tag.swatch} />
+              <ColorDot color={labelColors.colorOf("tag", tag.id)} />
               {tag.name}
             </label>
           ))}
@@ -255,37 +261,67 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   const [searchOpen, setSearchOpen] = useState(Boolean(filters.query))
   const currentBoard = props.boards.find((b) => b.id === props.boardId)
 
+  // Two controls: the NAME (click edits it in place, auto-commit) and a separate chevron circle that opens the quadro menu.
+  // "Renomear" in the menu starts the inline field; the menu must not hand focus back to the chevron afterwards.
+  const focusName = useRef(false)
   const boardSwitcher = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <div className="flex min-w-0 items-center gap-1">
+      {props.editingName ? (
+        <InlineInput
+          initialValue={currentBoard?.name ?? ""}
+          maxLength={60}
+          ariaLabel="Nome do quadro"
+          className="min-w-0 flex-1"
+          inputClassName="h-11 rounded-full text-[20px] leading-7 font-semibold md:h-10 md:text-[17px]"
+          onCommit={(name) => props.onCommitBoardName(name)}
+          onClose={() => props.onEditingNameChange(false)}
+        />
+      ) : (
         <button
           type="button"
+          data-board-name
           aria-label={`Quadro: ${currentBoard?.name ?? ""}`}
-          onDoubleClick={props.onRenameBoard}
-          className="flex min-h-11 max-w-full min-w-0 items-center gap-1.5 rounded-xl px-2 text-left text-[20px] leading-7 font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:-ml-2 md:min-h-10 md:text-[17px] md:leading-6"
+          title="Clique para renomear"
+          onClick={() => props.onEditingNameChange(true)}
+          className="min-h-11 max-w-full min-w-0 truncate rounded-full px-3 text-left text-[20px] leading-7 font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:-ml-3 md:min-h-10 md:text-[17px] md:leading-6"
         >
-          <span className="truncate">{currentBoard?.name ?? "Tarefas"}</span>
-          <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
+          {currentBoard?.name ?? "Tarefas"}
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-60 rounded-2xl p-2">
-        {props.boards.map((board) => (
-          <DropdownMenuItem key={board.id} className={cn("min-h-11 gap-3 rounded-xl px-3 text-[15px]", board.id === props.boardId && "bg-foreground/10 font-semibold")} onSelect={() => props.onSelectBoard(board.id)}>
-            {board.name}
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="Trocar de quadro" className="size-11 shrink-0 rounded-full md:size-10">
+            <ChevronDownIcon strokeWidth={1.75} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="min-w-60 rounded-2xl p-2"
+          onCloseAutoFocus={(event) => {
+            if (!focusName.current) return
+            focusName.current = false
+            event.preventDefault()
+            props.onEditingNameChange(true)
+          }}
+        >
+          {props.boards.map((board) => (
+            <DropdownMenuItem key={board.id} className={cn("min-h-11 gap-3 rounded-xl px-3 text-[15px]", board.id === props.boardId && "bg-foreground/10 font-semibold")} onSelect={() => props.onSelectBoard(board.id)}>
+              {board.name}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={props.onNewBoard}>
+            <PlusIcon strokeWidth={1.75} /> Novo quadro
           </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={props.onNewBoard}>
-          <PlusIcon strokeWidth={1.75} /> Novo quadro
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={props.onRenameBoard}>
-          <PencilIcon strokeWidth={1.75} /> Renomear quadro
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" disabled={props.boards.length <= 1} onSelect={props.onArchiveBoard}>
-          <Trash2Icon strokeWidth={1.75} /> Arquivar quadro
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => (focusName.current = true)}>
+            <PencilIcon strokeWidth={1.75} /> Renomear
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" disabled={props.boards.length <= 1} onSelect={props.onArchiveBoard}>
+            <Trash2Icon strokeWidth={1.75} /> Arquivar quadro
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 
   // Neutral segmented control: the ACTIVE view is foreground 14% with weight 600, never Lima.
@@ -375,10 +411,10 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   )
 
   if (isMobile) {
-    // Flat on the page (no card): 16px gutters come from the page, 8px between rows. Row 1: quadro + search + filters. NO "+" here: the
-    // app header's Lima "+" is "Nova tarefa" on this screen.
+    // The card itself (solid surface, border, radius 20, 16px padding) is drawn by the page and scrolls away with it. 12px between rows.
+    // Row 1: quadro + search + filters. NO "+" here: the app header's Lima "+" is "Nova tarefa" on this screen.
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {searchOpen ? (
           <div className="flex h-11 items-center gap-2">
             <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" aria-label="Fechar a busca" onClick={() => (onFiltersChange({ ...filters, query: "" }), setSearchOpen(false))}>
@@ -399,7 +435,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
           </div>
         )}
         {viewTabs}
-        {props.view === "kanban" ? props.listTabs : chips}
+        {props.view === "kanban" ? props.listTabs : props.view === "lista" ? chips : null}
         {sheet}
       </div>
     )

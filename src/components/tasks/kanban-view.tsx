@@ -37,7 +37,7 @@ type KanbanViewProps = ViewProps & {
   /** Phones show one list at a time (tabs above, swipe between them) and the page scrolls normally. */
   isMobile: boolean
   onMoveTasks: (listId: string, taskIds: string[]) => void
-  /** Phones: the list shown (the tabs live in the sticky header block). */
+  /** Phones: the list shown (the tabs live in the header card above). */
   activeListId: string | null
   onActiveListChange: (id: string) => void
 }
@@ -47,19 +47,26 @@ const LIST_PREFIX = "list:"
 const sortableId = (id: string) => `${LIST_PREFIX}${id}`
 const isListId = (id: unknown) => String(id).startsWith(LIST_PREFIX)
 
-/** Desktop board: as tall as the space under the toolbar (at least 420 px) so every list scrolls inside itself. */
+/**
+ * Desktop board: exactly as tall as the room left under the toolbar (100dvh, or the shell's scroll host, minus a 16 px bottom margin,
+ * at least 420 px) so the lists' bottom edge and composer are fully visible without page scroll.
+ */
 function useFillHeight(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || !enabled) return
+    const host = el.closest<HTMLElement>("[data-app-scroll]")
     const fit = () => {
-      const top = el.getBoundingClientRect().top + window.scrollY
-      el.style.height = `${Math.max(420, Math.round(window.innerHeight - top - 24))}px`
+      const rect = el.getBoundingClientRect()
+      const scrolled = host ? host.scrollTop : window.scrollY
+      const bottom = host ? host.getBoundingClientRect().bottom : window.innerHeight
+      el.style.height = `${Math.max(420, Math.round(bottom - (rect.top + scrolled) - 16))}px`
     }
     fit()
     window.addEventListener("resize", fit)
     const observer = new ResizeObserver(fit)
     observer.observe(document.body)
+    if (host) observer.observe(host)
     return () => {
       window.removeEventListener("resize", fit)
       observer.disconnect()
@@ -67,7 +74,7 @@ function useFillHeight(ref: React.RefObject<HTMLElement | null>, enabled: boolea
   }, [ref, enabled])
 }
 
-const SCROLL = "overflow-y-auto overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] scroll-py-2"
+const SCROLL = "snap-y snap-proximity overflow-y-auto overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] scroll-py-2"
 
 function Column({ list, index, total, ids, taskById, props }: { list: ListRow; index: number; total: number; ids: string[]; taskById: Map<string, TaskView>; props: KanbanViewProps }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId(list.id), data: { type: "list-sort" } })
@@ -77,27 +84,21 @@ function Column({ list, index, total, ids, taskById, props }: { list: ListRow; i
   const collapsed = props.collapsed(list)
   const style = { transform: CSS.Translate.toString(transform), transition }
 
-  if (collapsed) {
-    return (
-      <section ref={setNodeRef} style={style} data-column={list.id} data-collapsed aria-label={list.name} className={cn("flex h-full w-14 shrink-0 flex-col items-center rounded-[16px] border border-border bg-card py-3", isDragging && "opacity-60")}>
-        <button type="button" aria-expanded={false} aria-label={`Expandir ${list.name}, ${ids.length} ${ids.length === 1 ? "tarefa" : "tarefas"}`} onClick={() => props.onToggleCollapse(list)} className="flex min-h-11 flex-col items-center gap-3 rounded-xl px-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 -rotate-90 text-muted-foreground" />
-          <span className="tabular rounded-full bg-muted px-2 text-[13px] leading-5">{ids.length}</span>
-          <span className="text-[15px] leading-6 font-semibold [text-orientation:mixed] [writing-mode:vertical-rl]">{list.name}</span>
-        </button>
-      </section>
-    )
-  }
-
+  // Collapsed = header only: same width, 56 px high, top aligned, so collapsed lists sit side by side and the others never reflow.
   return (
     <section
       ref={setNodeRef}
       style={style}
       data-column={list.id}
+      data-collapsed={collapsed ? "" : undefined}
       aria-label={list.name}
-      className={cn("group/col flex h-full min-h-0 max-w-[520px] min-w-[300px] flex-1 basis-[300px] flex-col rounded-[16px] border border-border bg-card", isDragging && "z-10 opacity-60")}
+      className={cn(
+        "group/col flex max-w-[520px] min-w-[300px] flex-1 basis-[300px] flex-col self-start overflow-hidden rounded-[16px] border border-border bg-card transition-[height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+        collapsed ? "h-14" : "h-full min-h-0",
+        isDragging && "z-10 opacity-60"
+      )}
     >
-      <header {...listeners} className="flex h-14 shrink-0 cursor-grab items-center gap-1 px-3">
+      <header {...listeners} className="flex h-14 shrink-0 cursor-grab items-center gap-1 pr-3 pl-2">
         <button
           type="button"
           ref={setActivatorNodeRef}
@@ -111,22 +112,32 @@ function Column({ list, index, total, ids, taskById, props }: { list: ListRow; i
               props.onMoveList(list, e.key === "ArrowLeft" ? -1 : 1)
             }
           }}
-          className="-ml-1 flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none group-focus-within/col:opacity-100 group-hover/col:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="relative flex h-8 w-5 shrink-0 cursor-grab items-center justify-center rounded-full text-muted-foreground opacity-70 outline-none transition-opacity duration-150 group-hover/col:opacity-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:-inset-y-2"
         >
           <GripVerticalIcon aria-hidden strokeWidth={1.75} className="size-4" />
         </button>
-        <Button variant="ghost" size="icon" aria-expanded aria-label={`Recolher ${list.name}`} onClick={() => props.onToggleCollapse(list)} className="size-8 rounded-full">
-          <ChevronDownIcon strokeWidth={1.75} />
+        <Button variant="ghost" size="icon" aria-expanded={!collapsed} aria-label={`${collapsed ? "Expandir" : "Recolher"} ${list.name}`} onClick={() => props.onToggleCollapse(list)} className="size-8 rounded-full">
+          <ChevronDownIcon strokeWidth={1.75} className={cn("transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", collapsed && "-rotate-90")} />
         </Button>
         <ListName list={list} actions={props} editing={editing} onEditingChange={setEditing} />
         <span className="tabular rounded-full bg-muted px-2 text-[13px] leading-5">{ids.length}</span>
-        <Button variant="ghost" size="icon" aria-label={`Adicionar tarefa em ${list.name}`} className="size-9 rounded-full" onClick={() => setSignal((n) => n + 1)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Adicionar tarefa em ${list.name}`}
+          className="size-9 rounded-full"
+          onClick={() => {
+            if (collapsed) props.onToggleCollapse(list)
+            setSignal((n) => n + 1)
+          }}
+        >
           <PlusIcon strokeWidth={1.75} />
         </Button>
         <ListMenu list={list} index={index} total={total} count={ids.length} actions={props} onRename={() => setEditing(true)} />
       </header>
 
-      <div ref={setDropRef} data-list-scroll className={cn("flex min-h-16 flex-1 flex-col gap-2 px-2 pb-2", SCROLL, "transition-colors duration-200", isOver && "bg-muted")}>
+      {/* Three siblings: header (above), a scroll body that takes what is left, and the composer footer on its own solid surface. */}
+      <div ref={setDropRef} data-list-scroll inert={collapsed} className={cn("flex min-h-0 flex-1 flex-col gap-2 p-2", SCROLL, "transition-colors duration-200", isOver && "bg-muted")}>
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {ids.map((id) => {
             const task = taskById.get(id)
@@ -150,7 +161,7 @@ function Column({ list, index, total, ids, taskById, props }: { list: ListRow; i
         </SortableContext>
         {ids.length === 0 ? <p className="px-2 py-6 text-center text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
       </div>
-      <div className="shrink-0 border-t border-border p-2">
+      <div inert={collapsed} className="shrink-0 border-t border-border bg-card p-2">
         <QuickAdd onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} />
       </div>
     </section>
@@ -161,13 +172,13 @@ function Column({ list, index, total, ids, taskById, props }: { list: ListRow; i
 function NewListTile({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
   const [open, setOpen] = useState(false)
   return (
-    <div data-new-list className="h-14 max-w-[520px] min-w-[300px] flex-1 basis-[300px] self-start rounded-[16px] border border-dashed border-border">
+    <div data-new-list className="h-14 max-w-[520px] min-w-[300px] flex-1 basis-[300px] self-start">
       {open ? (
-        <div className="flex h-full items-center px-2">
+        <div className="flex h-full items-center rounded-full border-[1.5px] border-dashed border-foreground/35 bg-foreground/5 px-2">
           <InlineInput ariaLabel="Nome da nova lista" placeholder="Nome da lista" className="w-full items-center" onCommit={async (name) => void (await onAdd(name))} onClose={() => setOpen(false)} />
         </div>
       ) : (
-        <button type="button" onClick={() => setOpen(true)} className="flex h-full w-full items-center gap-2 rounded-[16px] px-4 text-[15px] text-muted-foreground outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50">
+        <button type="button" onClick={() => setOpen(true)} className="flex h-full w-full items-center gap-2 rounded-full border-[1.5px] border-dashed border-foreground/35 bg-foreground/5 px-4 text-[15px] font-medium text-foreground/90 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-foreground/60 hover:bg-foreground/8 focus-visible:border-foreground/60 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none">
           <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" /> Nova lista
         </button>
       )}
@@ -189,7 +200,7 @@ function MobileColumn({ list, index, total, ids, taskById, props }: { list: List
         </Button>
         <ListMenu list={list} index={index} total={total} count={ids.length} actions={props} onRename={() => setEditing(true)} />
       </header>
-      <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} className="h-11 rounded-[14px] border border-dashed border-border" />
+      <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} className="h-11 rounded-full border border-dashed border-border" />
       {ids.slice(0, showAll ? undefined : MOBILE_VISIBLE).map((id) => {
         const task = taskById.get(id)
         if (!task) return null
@@ -298,7 +309,7 @@ export function KanbanView(props: KanbanViewProps) {
   const activeTask = activeId && !isListId(activeId) ? taskById.get(activeId) : undefined
   const activeList = activeId && isListId(activeId) ? lists.find((l) => l.id === activeId.slice(LIST_PREFIX.length)) : undefined
 
-  // Phones: the tabs (in the sticky header) follow the swipe, and picking a tab scrolls to the list.
+  // Phones: the tabs (in the header card) follow the swipe, and picking a tab scrolls to the list.
   const programmaticUntil = useRef(0)
   function onScroll() {
     const el = scroller.current
@@ -352,7 +363,7 @@ export function KanbanView(props: KanbanViewProps) {
       ) : (
         <div className="flex flex-col gap-2">
           {!props.dragEnabled ? <p className="text-[13px] leading-5 text-muted-foreground">Para arrastar tarefas, volte à ordem manual e limpe os filtros.</p> : null}
-          <div ref={board} data-testid="kanban-board" className="flex gap-4 overflow-x-auto overflow-y-hidden pb-1 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+          <div ref={board} data-testid="kanban-board" className="flex items-start gap-4 overflow-x-auto overflow-y-hidden [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
             <SortableContext items={lists.map((l) => sortableId(l.id))} strategy={horizontalListSortingStrategy}>
               {lists.map((list, i) => (
                 <Column key={list.id} list={list} index={i} total={lists.length} ids={columns[list.id] ?? []} taskById={taskById} props={props} />

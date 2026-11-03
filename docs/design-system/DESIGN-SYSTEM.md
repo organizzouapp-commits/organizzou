@@ -13,6 +13,11 @@ Tokens prontos: `organizzou-tokens.css` (mesclar em `src/app/globals.css`).
 2. **Paleta fechada de 6 cores.** Nenhuma outra cor entra no sistema. Bordas, textos secundários e fundos suaves
    são as mesmas cores com transparência.
 3. **Lima é o único destaque.** Ação principal, item ativo, progresso e foco. No máximo ~5–10% da tela.
+   **Exceção: cores de rótulo escolhidas pela pessoa.** Prioridades, tags, categorias e a cor de uma tarefa podem ter a cor que a
+   pessoa escolher (swatches do sistema ou um `#RRGGBB` salvo por ela). Elas só aparecem como rótulo do dado (ponto de 8 px,
+   fundo da cor a 16% sobre a superfície com borda de 1 px a 30%, barra de 4 px à esquerda do cartão da tarefa, bandeira da
+   prioridade). **O texto do rótulo continua sempre no token neutro** (contraste nunca depende da cor escolhida) e o
+   significado nunca vai só na cor (nome, ícone ou rótulo acessível junto). O chrome do app continua só com a paleta e o Lima.
 4. **Escuro primeiro.** O modo escuro é o padrão; o claro é completo, com o mesmo cuidado.
 5. **Ícone identifica o módulo, não a cor.** Todos os módulos usam a mesma paleta.
 6. **Mobile-first.** Projetar em 375 px, depois 768 e 1280.
@@ -342,7 +347,7 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 
 | Componente (shadcn) | Regra Organizzou |
 |---|---|
-| `button` | `default` (primário), `secondary`, `outline`, `ghost`, `link`, `destructive` (Papel/Tinta). 44 px no mobile, raio 12 px (`rounded-lg`). Um primário por tela. |
+| `button` | `default` (primário), `secondary`, `outline`, `ghost`, `link`, `destructive` (Papel/Tinta). 44 px no mobile. **Botões: raio 9999 px (`rounded-full`) em todas as variantes e tamanhos; botões só com ícone são círculos perfeitos** (largura = altura, área de toque de 44 px no mobile). Vale também para botões próprios (rodapés de diálogo, chips, segmentos, abas, toasts, ações vazias). Não são botões e mantêm o raio: campos, áreas de texto, seletores com cara de campo dentro do diálogo da tarefa, cartões, diálogos, folhas e popovers. Um primário por tela. Teste: `tests/e2e/botoes-pilula.spec.ts`. |
 | `card` | Só quando agrupar de verdade. raio 16 px (`rounded-xl`), borda 1 px, sem sombra. |
 | `badge` | `rounded-full`; `secondary` padrão; `highlight` (Lima/Tinta) só para "hoje"/"novo". |
 | `input`, `textarea`, `select`, `form`, `label` | 44 px, raio 12 px (`rounded-lg`), borda `input`, foco `ring`. |

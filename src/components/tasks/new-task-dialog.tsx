@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { addDays, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,14 +24,16 @@ type NewTaskDialogProps = {
   lists: ListRow[]
   /** Pre-selected list (the "+" of a column). */
   defaultListId?: string
+  /** Pre-filled due date (the calendar's selected day, optionally with a time). */
+  defaultDue?: { day: string; time?: string }
   now: Date
   timeZone: string
   onCreate: (input: NewTaskInput) => Promise<boolean>
 }
 
-type DuePreset = "hoje" | "amanha" | "semana" | "sem-data" | "auto"
+type DuePreset = "hoje" | "amanha" | "semana" | "sem-data" | "auto" | "dia"
 
-const PRESETS: { id: Exclude<DuePreset, "auto">; label: string }[] = [
+const PRESETS: { id: Exclude<DuePreset, "auto" | "dia">; label: string }[] = [
   { id: "hoje", label: "Hoje" },
   { id: "amanha", label: "Amanhã" },
   { id: "semana", label: "Próxima semana" },
@@ -67,11 +70,11 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
   )
 }
 
-function NewTaskForm({ lists, defaultListId, now, timeZone, onCreate, onClose }: NewTaskDialogProps & { onClose: () => void }) {
+function NewTaskForm({ lists, defaultListId, defaultDue, now, timeZone, onCreate, onClose }: NewTaskDialogProps & { onClose: () => void }) {
   const [title, setTitle] = useState("")
   const [listId, setListId] = useState(defaultListId ?? lists.find((l) => !l.is_done_list)?.id ?? lists[0]?.id ?? "")
   const [priority, setPriority] = useState<Priority>("none")
-  const [due, setDue] = useState<DuePreset>("auto")
+  const [due, setDue] = useState<DuePreset>(defaultDue ? "dia" : "auto")
   const [busy, setBusy] = useState(false)
 
   // The text is read with the real quick-capture parser ("amanhã 10h", "alta"): what it finds only fills what the chips left open.
@@ -79,6 +82,7 @@ function NewTaskForm({ lists, defaultListId, now, timeZone, onCreate, onClose }:
   const today = dayKey(now, timeZone)
 
   function resolveDue(): { day: string | null; time: string | null } {
+    if (due === "dia" && defaultDue) return { day: defaultDue.day, time: defaultDue.time ?? null }
     if (due === "hoje") return { day: today, time: null }
     if (due === "amanha") return { day: format(addDays(new Date(`${today}T12:00:00`), 1), "yyyy-MM-dd"), time: null }
     if (due === "semana") return { day: format(addDays(new Date(`${today}T12:00:00`), 7), "yyyy-MM-dd"), time: null }
@@ -114,6 +118,17 @@ function NewTaskForm({ lists, defaultListId, now, timeZone, onCreate, onClose }:
       <div className="flex flex-col gap-2">
         <span className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Prazo</span>
         <div role="group" aria-label="Prazo" className="flex flex-wrap gap-2">
+          {defaultDue ? (
+            <button
+              type="button"
+              aria-pressed={due === "dia"}
+              onClick={() => setDue(due === "dia" ? "auto" : "dia")}
+              className={cn("inline-flex h-11 items-center rounded-full border px-4 text-[14px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", due === "dia" ? "border-transparent bg-foreground/14 font-semibold" : "border-border")}
+            >
+              {format(new Date(`${defaultDue.day}T12:00:00`), "EEE, d MMM", { locale: ptBR })}
+              {defaultDue.time ? ` · ${defaultDue.time}` : ""}
+            </button>
+          ) : null}
           {PRESETS.map((p) => (
             <button
               key={p.id}
@@ -129,7 +144,7 @@ function NewTaskForm({ lists, defaultListId, now, timeZone, onCreate, onClose }:
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="new-task-list">Status</Label>
+          <Label htmlFor="new-task-list">Lista</Label>
           <Select value={listId} onValueChange={setListId}>
             <SelectTrigger id="new-task-list" className="h-11 w-full rounded-xl">
               <SelectValue />

@@ -45,10 +45,13 @@ import { MAX_ATTACHMENT_BYTES } from "@/features/tasks/schemas"
 import { priorityOf, type PriorityState } from "@/features/tasks/priorities"
 import type { AttachmentRow, ChecklistItemRow, CommentRow, ListRow, TagRow, TaskView } from "@/features/tasks/types"
 import { dayKey, splitDue, toDueIso } from "@/lib/dates"
-import { SWATCH_IDS, getSwatch, type SwatchId } from "@/lib/swatches"
+import type { SwatchId } from "@/lib/swatches"
+import { ColorPicker } from "@/components/organizzou/ColorPicker"
+import { colorLabel, columnSwatchFor, resolveHex, taskColorOf, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 
-import { NeutralDot } from "./task-meta"
+import { useLabelColors } from "./label-colors-context"
+import { ColorDot, LabelBadge, TagChip } from "./task-meta"
 
 /** Everything the pickers manage: priorities (the person's own list), tags and categories. Implemented by the board. */
 export type Taxonomy = {
@@ -244,7 +247,7 @@ function Property({
         <span className={overline}>{label}</span>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button type="button" aria-label={label} className="flex h-10 w-full min-w-0 items-center gap-2 rounded-xl bg-foreground/4 px-3 text-left text-[15px] outline-none hover:bg-foreground/8 focus-visible:ring-3 focus-visible:ring-ring/50">
+            <button type="button" data-pill-exempt aria-label={label} className="flex h-10 w-full min-w-0 items-center gap-2 rounded-xl bg-foreground/4 px-3 text-left text-[15px] outline-none hover:bg-foreground/8 focus-visible:ring-3 focus-visible:ring-ring/50">
               <span className="min-w-0 flex-1 truncate">{value}</span>
               <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
             </button>
@@ -258,7 +261,7 @@ function Property({
   }
   return (
     <>
-      <button type="button" aria-label={label} onClick={() => setOpen(true)} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset">
+      <button type="button" data-pill-exempt aria-label={label} onClick={() => setOpen(true)} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset">
         <Icon aria-hidden strokeWidth={1.75} className="size-[18px] shrink-0 text-muted-foreground" />
         <span className="text-[15px] text-muted-foreground">{label}</span>
         <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[15px] font-medium">
@@ -476,6 +479,13 @@ function DetailBody({
     const ok = await save.track(async () => (await api.setTaskTags({ taskId: task.id, tagIds: next })).ok)
     if (!ok) onTaskChange({ ...taskRef.current, tagIds: before })
   }
+  const labels = useLabelColors()
+  const taskColor = taskColorOf(labels.state, task)
+  /** Palette swatches go to the `tasks.swatch` column; "Cinza" and custom colors stay on this device (see colors.ts). */
+  function setTaskColor(value: ColorValue) {
+    labels.setColor("task", task.id, value && columnSwatchFor(value) === value ? null : value)
+    void patch({ swatch: columnSwatchFor(value) as SwatchId })
+  }
   async function makeTag(name: string) {
     const result = await api.createTag({ name })
     if (!result.ok) {
@@ -484,7 +494,7 @@ function DetailBody({
     }
     onTagCreated(result.data)
     await toggleTag(result.data)
-    return true
+    return result.data.id
   }
 
   // ----- checklist -----
@@ -657,6 +667,7 @@ function DetailBody({
   const tagsContent = (
     <ManageablePicker
       noun="tag"
+      kind="tag"
       multiple
       items={tags.map((t) => ({ id: t.id, label: t.name }))}
       selected={task.tagIds}
@@ -704,6 +715,8 @@ function DetailBody({
         {(close) => (
           <ManageablePicker
             noun="prioridade"
+            kind="priority"
+            deleteNote="As tarefas voltam para “Sem prioridade”."
             fixed={{ id: "none", label: "Sem prioridade" }}
             items={taxonomy.priorities.state.list.map((p) => ({ id: p.id, label: p.name }))}
             selected={priorityValue ? [priorityValue.id] : []}
@@ -731,10 +744,7 @@ function DetailBody({
           ) : (
             <span className="flex min-w-0 items-center gap-2">
               {selectedTags.slice(0, 2).map((t) => (
-                <span key={t.id} className="inline-flex min-w-0 items-center gap-1.5">
-                  <NeutralDot />
-                  <span className="truncate">{t.name}</span>
-                </span>
+                <LabelBadge key={t.id} name={t.name} color={labels.colorOf("tag", t.id)} />
               ))}
               {selectedTags.length > 2 ? <span className="tabular">+{selectedTags.length - 2}</span> : null}
             </span>
@@ -747,8 +757,8 @@ function DetailBody({
       {selectedTags.length > 0 ? (
         <ul className={cn("flex flex-wrap gap-1.5", !desktop && "px-4 py-2")} aria-label="Tags da tarefa">
           {selectedTags.map((tag) => (
-            <li key={tag.id} className="inline-flex h-8 max-w-full items-center gap-1 rounded-full bg-foreground/8 pr-1 pl-3 text-[13px]">
-              <span className="truncate">{tag.name}</span>
+            <li key={tag.id} className="inline-flex h-8 max-w-full items-center gap-1 rounded-full bg-foreground/8 pr-1 pl-1 text-[13px]">
+              <TagChip tag={tag} className="h-8 bg-transparent text-[13px]" />
               <button type="button" aria-label={`Remover tag ${tag.name}`} onClick={() => void toggleTag(tag)} className="relative flex size-6 items-center justify-center rounded-full outline-none after:absolute after:-inset-2 hover:bg-foreground/10 focus-visible:ring-3 focus-visible:ring-ring/50">
                 <XIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
               </button>
@@ -757,7 +767,7 @@ function DetailBody({
         </ul>
       ) : null}
       <div className={desktop ? "" : "px-4 py-1"}>
-        <button type="button" aria-expanded={moreOptions} onClick={() => setMoreOptions((v) => !v)} className="flex min-h-11 w-full items-center gap-2 rounded-md text-left text-[15px] text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <button type="button" aria-expanded={moreOptions} onClick={() => setMoreOptions((v) => !v)} className="flex min-h-11 w-full items-center gap-2 rounded-full px-3 text-left text-[15px] text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, !moreOptions && "-rotate-90")} />
           Mais opções
         </button>
@@ -767,6 +777,7 @@ function DetailBody({
               {(close) => (
                 <ManageablePicker
                   noun="categoria"
+                  kind="category"
                   fixed={{ id: "none", label: "Sem categoria" }}
                   items={categoriesWithCurrent.map((c) => ({ id: c, label: c }))}
                   selected={category.trim() ? [category.trim()] : []}
@@ -780,6 +791,7 @@ function DetailBody({
                     setCategory(name)
                     void patch({ category: name })
                     close()
+                    return name
                   }}
                   onRename={(from, to) => {
                     if (category.trim() === from) setCategory(to)
@@ -794,23 +806,12 @@ function DetailBody({
               )}
             </Property>
             <div className="flex flex-col gap-1.5">
-              <span className={overline}>Cor (agenda e calendário)</span>
-              <div role="radiogroup" aria-label="Cor da tarefa" className="flex flex-wrap items-center gap-2">
-                {SWATCH_IDS.map((id: SwatchId) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="radio"
-                    aria-checked={task.swatch === id}
-                    aria-label={getSwatch(id).label}
-                    title={getSwatch(id).label}
-                    onClick={() => void patch({ swatch: id })}
-                    className={cn("relative flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 after:absolute after:-inset-1", task.swatch === id && "ring-2 ring-foreground")}
-                  >
-                    <span aria-hidden className={cn("size-6 rounded-full", getSwatch(id).fill)} />
-                  </button>
-                ))}
-              </div>
+              <span className={cn(overline, "flex items-center gap-2")}>
+                Cor da tarefa
+                {resolveHex(taskColor) ? <ColorDot color={taskColor} /> : null}
+              </span>
+              <ColorPicker label="Cor da tarefa" value={taskColor} onChange={setTaskColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
+              <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão, na Agenda e no Calendário. {colorLabel(taskColor)}.</p>
             </div>
           </div>
         ) : null}

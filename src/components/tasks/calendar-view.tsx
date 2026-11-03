@@ -1,12 +1,12 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { addDays, addMonths, addWeeks, eachDayOfInterval, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CalendarPlusIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { CalendarPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 import { BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
-import { DayStrip, formatTime, MiniMonth, MonthGrid, TimeGrid } from "@/components/calendar/agenda-screen"
+import { formatTime, MiniMonth, MonthGrid, TimeGrid } from "@/components/calendar/agenda-screen"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -18,6 +18,7 @@ import type { SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 import type { TaskView } from "@/features/tasks/types"
 
+import { MobileCalendar } from "./calendar-mobile"
 import type { ViewProps } from "./types"
 
 type View = "mes" | "semana" | "dia"
@@ -26,6 +27,8 @@ type CalendarViewProps = ViewProps & {
   nowIso: string
   /** Moves a task to a day (all day) or to a date and time. */
   onSchedule: (task: TaskView, dueIso: string, hasTime: boolean) => void
+  /** The selected day is reported up, so the app header's "+" can pre-fill it. */
+  onDayChange?: (day: string) => void
 }
 
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
@@ -45,7 +48,7 @@ function DayTasks({ items, tasks, onToggle, onOpen }: { items: AgendaItem[]; tas
             <span className="flex size-11 shrink-0 items-center justify-center md:size-7">
               <Checkbox checked={done} onCheckedChange={() => onToggle(task)} aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`} className="size-5 after:-inset-3" />
             </span>
-            <button type="button" onClick={() => onOpen(task.id)} className={cn("min-h-11 min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", done && "text-muted-foreground line-through")}>
+            <button type="button" onClick={() => onOpen(task.id)} className={cn("min-h-11 min-w-0 flex-1 truncate rounded-full px-2 py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", done && "text-muted-foreground line-through")}>
               {task.title}
             </button>
           </li>
@@ -63,7 +66,7 @@ function UndatedTray({ tasks, day, todayKey, onSchedule, onOpen }: { tasks: Task
     <ul className="flex flex-col" data-testid="undated-tray">
       {tasks.map((task) => (
         <li key={task.id} className="flex min-h-12 items-center gap-2 border-b border-border last:border-b-0">
-          <button type="button" onClick={() => onOpen(task.id)} className="min-h-11 min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <button type="button" onClick={() => onOpen(task.id)} className="min-h-11 min-w-0 flex-1 truncate rounded-full px-2 py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             {task.title}
           </button>
           <DropdownMenu>
@@ -99,14 +102,13 @@ function UndatedTray({ tasks, day, todayKey, onSchedule, onOpen }: { tasks: Task
  * applied). Desktop: Mês/Semana/Dia + a 320 px rail with the mini month, the selected day and the "Sem data" tray. Phones: a swipeable
  * week strip with the day's list, a collapsible month and a collapsible "Sem data".
  */
-export function CalendarView({ tasks, now, nowIso, timeZone, onOpenTask, onToggleComplete, onCreate, onSchedule }: CalendarViewProps) {
+export function CalendarView(props: CalendarViewProps) {
+  const { tasks, now, nowIso, timeZone, onOpenTask, onToggleComplete, onCreate, onSchedule, onDayChange } = props
   const isMobile = useIsMobile()
   const todayKey = dayKey(now, timeZone)
   const [view, setView] = useState<View>("semana")
   const [day, setDay] = useState(todayKey)
-  const [monthOpen, setMonthOpen] = useState(false)
-  const [undatedOpen, setUndatedOpen] = useState(false)
-  const swipe = useRef<number | null>(null)
+  useEffect(() => onDayChange?.(day), [day, onDayChange])
 
   const byId = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
   const items = useMemo(
@@ -169,41 +171,7 @@ export function CalendarView({ tasks, now, nowIso, timeZone, onOpenTask, onToggl
 
   const month = <MiniMonth month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(parseISO(day), n), "yyyy-MM-dd"))} />
 
-  if (isMobile) {
-    return (
-      <div className="flex flex-col gap-4" data-testid="tasks-calendar">
-        {controls}
-        <div
-          className="touch-pan-y"
-          onPointerDown={(e) => (swipe.current = e.clientX)}
-          onPointerUp={(e) => {
-            if (swipe.current !== null && Math.abs(e.clientX - swipe.current) > 50) shift(e.clientX < swipe.current ? 1 : -1)
-            swipe.current = null
-          }}
-          onPointerCancel={() => (swipe.current = null)}
-        >
-          <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} />
-        </div>
-        <section aria-label={selectedTitle} className="flex flex-col gap-1">
-          <h3 className="text-[15px] leading-6 font-semibold">{selectedTitle}</h3>
-          <DayTasks items={itemsOn(day)} tasks={byId} onToggle={toggle} onOpen={onOpenTask} />
-        </section>
-        <section className="flex flex-col">
-          <button type="button" aria-expanded={monthOpen} onClick={() => setMonthOpen((v) => !v)} className="flex min-h-11 items-center gap-2 rounded-xl text-left text-[15px] font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-            <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", !monthOpen && "-rotate-90")} /> Mês
-          </button>
-          {monthOpen ? month : null}
-        </section>
-        <section className="flex flex-col">
-          <button type="button" aria-expanded={undatedOpen} onClick={() => setUndatedOpen((v) => !v)} className="flex min-h-11 items-center gap-2 rounded-xl text-left text-[15px] font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-            <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", !undatedOpen && "-rotate-90")} /> Sem data
-            <span className="tabular rounded-full bg-muted px-2 text-[12px] leading-5 font-medium">{undated.length}</span>
-          </button>
-          {undatedOpen ? <UndatedTray tasks={undated} day={day} todayKey={todayKey} onSchedule={schedule} onOpen={onOpenTask} /> : null}
-        </section>
-      </div>
-    )
-  }
+  if (isMobile) return <MobileCalendar {...props} day={day} onDayChange={setDay} />
 
   return (
     <div className="@container" data-testid="tasks-calendar">

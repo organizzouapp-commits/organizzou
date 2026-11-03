@@ -19,7 +19,7 @@ export default function TarefasFixturePage({ searchParams }: { searchParams: Pro
   if (process.env.NODE_ENV === "production") notFound()
   return (
     <TooltipProvider>
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 max-md:pt-44 md:px-6">
+      <main className="mx-auto w-full max-w-[1400px] px-4 pt-6 pb-6 md:px-6 md:pb-0">
         <Suspense>
           <Fixture searchParams={searchParams} />
         </Suspense>

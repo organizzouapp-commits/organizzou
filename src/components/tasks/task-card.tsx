@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowRightIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
+import { ArrowRightIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { colorLabel, resolveHex, taskColorOf } from "@/features/tasks/colors"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 
 import { InlineInput } from "./inline-input"
+import { useLabelColors } from "./label-colors-context"
 import { DueLabel, PriorityFlag, TagDots, TaskCounters } from "./task-meta"
 
 /** What a task can do from its card, row, swipe panel or menu. */
@@ -26,6 +28,8 @@ export type TaskActions = {
   /** Enters multi-select mode with this task selected. */
   select: () => void
   duplicate: () => void
+  /** Opens the date sheet ("Agendar…"). Only where scheduling is the point (the calendar): it replaces "Mover" in the swipe panel. */
+  schedule?: () => void
   /** Renames in place (auto-commit); resolves false when the save failed. */
   rename: (title: string) => Promise<boolean>
 }
@@ -87,6 +91,11 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
               <CalendarIcon strokeWidth={1.75} /> Amanhã
             </DropdownMenuItem>
           </>
+        ) : null}
+        {actions.schedule ? (
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.schedule}>
+            <CalendarClockIcon strokeWidth={1.75} /> Agendar…
+          </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.move}>
           <ArrowRightIcon strokeWidth={1.75} /> Mover para…
@@ -150,14 +159,14 @@ function SwipeShell({ task, actions, onLongPress, children, className }: { task:
         <CheckIcon strokeWidth={1.75} className="mr-2 size-5" /> {done ? "Reabrir" : "Concluir"}
       </div>
       <div aria-hidden={!open} className="absolute inset-y-0 right-0 flex md:hidden" style={{ width: SWIPE_LEFT_OPEN }}>
-        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.postpone1h)} className={cn(panel, "w-[68px] bg-foreground/10")}>
+        <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.postpone1h)} className={cn(panel, "w-[68px] bg-foreground/10")}>
           <ClockIcon aria-hidden strokeWidth={1.75} className="size-5" /> Adiar 1 h
         </button>
-        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.tomorrow)} className={cn(panel, "w-[68px] bg-foreground/[0.16]")}>
+        <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.tomorrow)} className={cn(panel, "w-[68px] bg-foreground/[0.16]")}>
           <CalendarIcon aria-hidden strokeWidth={1.75} className="size-5" /> Amanhã
         </button>
-        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.move)} className={cn(panel, "w-[68px] bg-foreground/22")}>
-          <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-5" /> Mover
+        <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.schedule ?? actions.move)} className={cn(panel, "w-[68px] bg-foreground/22")}>
+          {actions.schedule ? <CalendarClockIcon aria-hidden strokeWidth={1.75} className="size-5" /> : <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-5" />} {actions.schedule ? "Data…" : "Mover"}
         </button>
       </div>
       <div
@@ -206,6 +215,9 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
   const openTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(openTimer.current), [])
   const isMobile = useIsMobile()
+  const labels = useLabelColors()
+  const taskColor = taskColorOf(labels.state, task)
+  const colorHex = resolveHex(taskColor)
   const done = Boolean(task.completed_at)
   const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
 
@@ -223,11 +235,13 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       className={cn(
         "group/card relative flex items-start gap-3 text-card-foreground transition-colors duration-[400ms] motion-reduce:transition-none",
         EASE,
-        density === "card" ? "min-h-[72px] rounded-[14px] border border-border bg-card px-3 py-2.5 hover:bg-accent/40 md:min-h-[84px] md:py-3" : "min-h-[64px] border-b border-border px-1 py-2 last:border-b-0 md:px-3",
+        density === "card" ? "min-h-[72px] rounded-[14px] border border-border bg-card py-2.5 pr-3 pl-4 hover:bg-accent/40 md:min-h-[84px] md:py-3" : "min-h-[64px] border-b border-border py-2 pr-1 pl-4 last:border-b-0 md:pr-3 md:pl-5",
         selected && "border-foreground/40",
         className
       )}
     >
+      {/* The task color: a 4 px bar inset on the left (the left padding is constant, so cards with and without color line up). */}
+      {colorHex ? <span aria-hidden data-task-color={colorHex} className="pointer-events-none absolute top-3 bottom-3 left-2 w-1 rounded-full" style={{ backgroundColor: colorHex, opacity: done ? 0.5 : 1 }} /> : null}
       {inert ? null : (
         <span className="-my-2 -ml-1.5 flex size-11 shrink-0 items-center justify-center md:my-0 md:ml-0 md:size-7">
           {selecting ? (
@@ -250,7 +264,8 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       ) : (
       <button
         type="button"
-        data-task-open
+        data-task-open data-pill-exempt
+        aria-describedby={colorHex ? `task-color-${task.id}` : undefined}
         onClick={(e) => {
           if (selecting) return onSelect?.()
           // Desktop: a double click renames, so the single click waits a beat; phones open at once.
@@ -268,15 +283,16 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       >
         {/* Completed: struck through and muted (an opacity of 60% would drop the meta line under 4.5:1). */}
         <span className={cn("text-[15px] leading-5 font-semibold [overflow-wrap:anywhere]", done && "text-muted-foreground line-through")}>
-          <span className="line-clamp-2">{task.title}</span>
+          <span>{task.title}</span>
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
           <DueLabel task={task} now={now} timeZone={timeZone} />
-          <TagDots tags={taskTags} />
+          <TagDots tags={taskTags} category={task.category} />
           <TaskCounters task={task} className="ml-auto" />
         </span>
       </button>
       )}
+      {colorHex ? <span id={`task-color-${task.id}`} className="sr-only">Cor da tarefa: {colorLabel(taskColor)}</span> : null}
       {/* The flag comes right after the title, high priority only. */}
       <PriorityFlag task={task} className="mt-1 -ml-1 self-start" />
       {inert ? null : (
@@ -309,7 +325,7 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("touch-manipulation cursor-grab outline-none", isDragging && "opacity-40")}>
+    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("snap-start touch-manipulation cursor-grab outline-none", isDragging && "opacity-40")}>
       <TaskCardBody {...body} />
     </div>
   )
