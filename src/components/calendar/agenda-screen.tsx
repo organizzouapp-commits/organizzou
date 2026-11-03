@@ -90,7 +90,7 @@ function minutesOfDay(date: Date) {
   return local.getHours() * 60 + local.getMinutes()
 }
 
-function formatTime(date: Date) {
+export function formatTime(date: Date) {
   const local = inTz(date, TZ)
   return `${String(local.getHours()).padStart(2, "0")}:${String(local.getMinutes()).padStart(2, "0")}`
 }
@@ -114,7 +114,7 @@ function itemTone(item: AgendaItem) {
 }
 
 /** What the "new event" dialog starts with: a day, and optionally the time range picked on the grid. */
-type Draft = { day: string; start?: string; end?: string }
+export type Draft = { day: string; start?: string; end?: string }
 
 /** What the other modules put on the calendar (real accounts). Events are the Agenda's own rows. */
 export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_name: string }
@@ -447,7 +447,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
 
 // ------------------------------------------------------------------ month
 
-function MonthGrid({
+export function MonthGrid({
   month,
   todayKey,
   selectedKey,
@@ -549,7 +549,7 @@ function MonthGrid({
   )
 }
 
-function MiniMonth({
+export function MiniMonth({
   month,
   todayKey,
   selectedKey,
@@ -613,7 +613,7 @@ function MiniMonth({
 
 // ----------------------------------------------------------- mobile helpers
 
-function DayStrip({
+export function DayStrip({
   days,
   todayKey,
   selectedKey,
@@ -713,7 +713,7 @@ type DragState =
   | { mode: "move"; item: AgendaItem; startKey: string; offsetMin: number; durationMin: number; key: string; top: number; moved: boolean }
   | { mode: "resize"; item: AgendaItem; key: string; startMin: number; endMin: number }
 
-function TimeGrid({
+export function TimeGrid({
   days,
   todayKey,
   itemsOn,

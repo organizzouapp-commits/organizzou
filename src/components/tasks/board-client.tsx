@@ -723,9 +723,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           <ListView {...viewProps} groupBy={groupBy} />
         </div>
       ) : (
-        <div className={bentoCardClass()}>
-          <CalendarView {...viewProps} />
-        </div>
+        <CalendarView {...viewProps} nowIso={nowIso} onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")} />
       )}
       </div>
       </div>

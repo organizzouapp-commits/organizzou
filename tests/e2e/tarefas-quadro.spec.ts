@@ -266,6 +266,36 @@ test.describe("desktop", () => {
     await expect(page.getByTestId("checklist-row").filter({ has: page.getByLabel("Item: Item sem Enter") })).toHaveCount(1)
   })
 
+  test("Calendário: week grid with a side rail (mini month, day list, Sem data), drag reschedules, same dialog opens", async ({ page }) => {
+    await open(page, "/design-system/tarefas?view=calendario")
+    const calendar = page.getByTestId("tasks-calendar")
+    await expect(calendar.getByRole("grid").first()).toBeVisible()
+    const rail = calendar.getByRole("complementary", { name: "Painel do calendário" })
+    await expect(rail.getByRole("grid", { name: /Novembro/i }).or(rail.getByText("Novembro 2026"))).toBeVisible()
+    await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toBeVisible()
+    const railBox = (await rail.boundingBox())!
+    expect(Math.round(railBox.width)).toBe(320)
+
+    // Drag the timed task (Preparar apresentação) to another day and hour: 15-minute snap, undo offered by the toast.
+    const chip = page.getByRole("button", { name: /Preparar apresentação/ }).first()
+    const from = (await chip.boundingBox())!
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(from.x + from.width / 2 - 140, from.y + from.height / 2 + 112, { steps: 10 })
+    await page.mouse.up()
+    await expect(page.getByText("Tarefa reagendada.")).toBeVisible()
+
+    // Schedule an undated task from the tray.
+    await rail.getByRole("button", { name: /^Agendar Pesquisar curso/ }).click()
+    await page.getByRole("menuitem", { name: /^No dia/ }).click()
+    await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toHaveCount(0)
+
+    // The rail list opens the same task dialog.
+    await rail.getByRole("button", { name: "Comprar planta para a sala" }).click()
+    await expect(page.getByRole("dialog")).toBeVisible()
+    await expect(page).toHaveURL(/tarefa=/)
+  })
+
   test("moving a task to another quadro offers Desfazer", async ({ page }) => {
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
     await page.getByRole("button", { name: "Quadro", exact: true }).click()
@@ -332,6 +362,20 @@ test.describe("phone", () => {
     await sheet.getByLabel("Nome da nova lista").fill("Ideias")
     await sheet.getByRole("button", { name: "Salvar" }).click()
     await expect(sheet.locator("[data-manage-list]")).toHaveCount(4)
+  })
+
+  test("Calendário on phones: week strip, the day list with checkboxes, collapsible month and Sem data", async ({ page }) => {
+    await open(page, "/design-system/tarefas?view=calendario")
+    const calendar = page.getByTestId("tasks-calendar")
+    await expect(calendar.getByRole("group", { name: "Dias da semana" })).toBeVisible()
+    await expect(calendar.getByRole("checkbox", { name: "Concluir Comprar planta para a sala" })).toBeVisible()
+    await calendar.getByRole("button", { name: /^Sem data/ }).click()
+    await expect(calendar.getByTestId("undated-tray")).toBeVisible()
+    await calendar.getByRole("button", { name: "Mês" }).click()
+    await expect(calendar.getByText("Novembro 2026")).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+    await calendar.getByRole("button", { name: "Comprar planta para a sala" }).click()
+    await expect(page.getByRole("dialog")).toBeVisible()
   })
 
   test("the date picker sheet stays inside a 360 x 640 screen", async ({ page }) => {
