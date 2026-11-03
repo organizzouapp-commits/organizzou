@@ -1,9 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { classifyCapture } from "./rules"
+vi.mock("server-only", () => ({}))
+
+import { parseCapture } from "@/server/assistant/parse"
+import { TOOLS } from "@/server/assistant/tools"
 
 /**
  * The assistant (app and, later, WhatsApp), quick capture and the global search must never read, write or receive Vault data.
@@ -11,7 +14,7 @@ import { classifyCapture } from "./rules"
  * and a line about passwords is never routed anywhere.
  */
 const ROOT = join(__dirname, "..", "..")
-const GUARDED = ["features/assistant", "features/search", "components/assistant", "components/shell/command-palette.tsx"]
+const GUARDED = ["features/assistant", "features/search", "components/assistant", "components/shell/command-palette.tsx", "server/assistant", "app/api/assistant"]
 
 function files(path: string): string[] {
   const full = join(ROOT, path)
@@ -30,8 +33,22 @@ describe("vault guard", () => {
 
   it("a line about passwords or the vault is not captured into any module", () => {
     for (const text of ["qual é minha senha do Gmail?", "mostre meu cofre", "me passa a senha do banco"]) {
-      // Captured text may fall back to a note, but it is never classified into the (non-existent) vault module.
-      expect(classifyCapture(text)).not.toBe("cofre")
+      // Captured text may fall back to a note, but it is never read as anything vault-related.
+      for (const item of parseCapture(text)) expect(item.type).not.toBe("cofre")
+    }
+  })
+
+  it("the assistant has no vault tool, and every tool is a plain module action", () => {
+    for (const tool of TOOLS) {
+      expect(tool.name, tool.name).not.toMatch(/vault|cofre|senha|password|secret/i)
+      expect(tool.description, tool.name).not.toMatch(/vault|cofre|senha de/i)
+    }
+  })
+
+  it("the assistant never uses the service role or the secret key", () => {
+    for (const file of ["server/assistant", "app/api/assistant", "features/assistant"].flatMap(files)) {
+      const source = readFileSync(file, "utf8")
+      expect(source, file).not.toMatch(/SUPABASE_SECRET_KEY|SERVICE_ROLE|getSecretKey|createAdminClient/i)
     }
   })
 

@@ -84,7 +84,7 @@ export async function runChecks(): Promise<Check[]> {
     label: "Chave da Claude API",
     state: hasClaudeKey ? "ok" : "unknown",
     text: hasClaudeKey ? "Configurada" : "Não configurada",
-    detail: hasClaudeKey ? "Chave presente no servidor (não testada)." : "ANTHROPIC_API_KEY não está definida. O assistente atual é simulado e não precisa dela.",
+    detail: hasClaudeKey ? "Chave presente no servidor (não testada)." : "ANTHROPIC_API_KEY não está definida: o chat fica como Assistente indisponível e a captura rápida segue só com regras.",
   })
 
   const commit = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA
