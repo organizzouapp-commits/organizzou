@@ -45,7 +45,7 @@ function DayTasks({ items, tasks, onToggle, onOpen }: { items: AgendaItem[]; tas
             <span className="flex size-11 shrink-0 items-center justify-center md:size-7">
               <Checkbox checked={done} onCheckedChange={() => onToggle(task)} aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`} className="size-5 after:-inset-3" />
             </span>
-            <button type="button" onClick={() => onOpen(task.id)} className={cn("min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", done && "text-muted-foreground line-through")}>
+            <button type="button" onClick={() => onOpen(task.id)} className={cn("min-h-11 min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", done && "text-muted-foreground line-through")}>
               {task.title}
             </button>
           </li>
@@ -63,7 +63,7 @@ function UndatedTray({ tasks, day, todayKey, onSchedule, onOpen }: { tasks: Task
     <ul className="flex flex-col" data-testid="undated-tray">
       {tasks.map((task) => (
         <li key={task.id} className="flex min-h-12 items-center gap-2 border-b border-border last:border-b-0">
-          <button type="button" onClick={() => onOpen(task.id)} className="min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <button type="button" onClick={() => onOpen(task.id)} className="min-h-11 min-w-0 flex-1 truncate rounded-md py-2 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             {task.title}
           </button>
           <DropdownMenu>

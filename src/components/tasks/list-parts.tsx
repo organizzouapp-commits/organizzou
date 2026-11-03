@@ -109,7 +109,7 @@ export function ListName({ list, actions, editing, onEditingChange, className }:
   }
   return (
     <h3 className={cn("min-w-0 flex-1", className)}>
-      <button type="button" onClick={() => onEditingChange(true)} title="Clique para renomear" className="max-w-full truncate rounded-md text-left text-[15px] leading-6 font-semibold outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+      <button type="button" onClick={() => onEditingChange(true)} title="Clique para renomear" className="max-w-full truncate rounded-md text-left text-[15px] leading-6 font-semibold outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11">
         {list.name}
       </button>
     </h3>

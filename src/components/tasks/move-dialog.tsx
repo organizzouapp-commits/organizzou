@@ -1,71 +1,111 @@
 "use client"
 
-import { CheckIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowLeftIcon, CheckIcon, ChevronRightIcon } from "lucide-react"
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ListRow } from "@/features/tasks/types"
+
+import { ResponsiveSheet } from "./responsive-sheet"
 
 type MoveDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The lists of the quadro on screen. */
   lists: ListRow[]
+  boards: { id: string; name: string }[]
+  currentBoardId: string
   /** The list the task(s) are in now (marked); null for a mixed selection. */
   currentListId: string | null
   title?: string
+  /** A list of the current quadro. */
   onPick: (listId: string) => void
+  /** Another quadro: the lists are fetched when it is chosen. */
+  loadLists: (boardId: string) => Promise<ListRow[]>
+  onPickInBoard: (boardId: string, listId: string) => void
 }
 
-/** "Mover para…": the non-drag way to change a task's status. A bottom sheet on phones, a dialog on desktop. */
-export function MoveDialog({ open, onOpenChange, lists, currentListId, title = "Mover para…", onPick }: MoveDialogProps) {
-  const isMobile = useIsMobile()
-  const options = (
-    <ul className="flex flex-col">
-      {lists.map((list) => {
-        const current = list.id === currentListId
-        return (
-          <li key={list.id}>
-            <button
-              type="button"
-              disabled={current}
-              onClick={() => {
-                onPick(list.id)
-                onOpenChange(false)
-              }}
-              className={cn("flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50", current && "text-muted-foreground")}
-            >
-              <span className="flex-1">{list.name}</span>
-              {current ? <CheckIcon aria-label="Status atual" strokeWidth={1.75} className="size-4" /> : null}
+const row = "flex min-h-[52px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+
+/** "Mover para…": two steps, Quadro then Lista (one step when there is a single quadro). A bottom sheet on phones, a dialog on desktop. */
+export function MoveDialog(props: MoveDialogProps) {
+  const { open, onOpenChange, title = "Mover para…" } = props
+  return (
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={title} description="Escolha o quadro e a lista.">
+      {open ? <Steps {...props} /> : null}
+    </ResponsiveSheet>
+  )
+}
+
+function Steps({ lists, boards, currentBoardId, currentListId, onPick, loadLists, onPickInBoard, onOpenChange }: MoveDialogProps) {
+  const [boardId, setBoardId] = useState<string | null>(boards.length > 1 ? null : currentBoardId)
+  const [fetched, setFetched] = useState<ListRow[] | null>(null)
+
+  useEffect(() => {
+    if (!boardId || boardId === currentBoardId) return
+    let cancelled = false
+    void loadLists(boardId).then((result) => {
+      if (!cancelled) setFetched(result)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [boardId, currentBoardId, loadLists])
+
+  if (!boardId) {
+    return (
+      <ul className="flex flex-col" aria-label="Quadros">
+        {boards.map((board) => (
+          <li key={board.id}>
+            <button type="button" onClick={() => (setFetched(null), setBoardId(board.id))} className={row}>
+              <span className="flex-1">{board.name}</span>
+              {board.id === currentBoardId ? <span className="text-[13px] text-muted-foreground">Este quadro</span> : null}
+              <ChevronRightIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" />
             </button>
           </li>
-        )
-      })}
-    </ul>
-  )
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[80dvh]">
-          <DrawerHeader className="text-left">
-            <DrawerTitle>{title}</DrawerTitle>
-            <DrawerDescription className="sr-only">Escolha o status.</DrawerDescription>
-          </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{options}</div>
-        </DrawerContent>
-      </Drawer>
+        ))}
+      </ul>
     )
   }
+
+  const own = boardId === currentBoardId
+  const options = own ? lists : fetched
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-[20px]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">Escolha o status.</DialogDescription>
-        </DialogHeader>
-        {options}
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-col gap-1">
+      {boards.length > 1 ? (
+        <Button type="button" variant="ghost" className="h-11 justify-start rounded-full" onClick={() => setBoardId(null)}>
+          <ArrowLeftIcon strokeWidth={1.75} /> {boards.find((b) => b.id === boardId)?.name}
+        </Button>
+      ) : null}
+      {options === null ? (
+        <p className="px-3 py-4 text-[15px] text-muted-foreground">Carregando as listas…</p>
+      ) : options.length === 0 ? (
+        <p className="px-3 py-4 text-[15px] text-muted-foreground">Esse quadro ainda não tem listas.</p>
+      ) : (
+        <ul className="flex flex-col" aria-label="Listas">
+          {options.map((list) => {
+            const current = own && list.id === currentListId
+            return (
+              <li key={list.id}>
+                <button
+                  type="button"
+                  disabled={current}
+                  onClick={() => {
+                    if (own) onPick(list.id)
+                    else onPickInBoard(boardId, list.id)
+                    onOpenChange(false)
+                  }}
+                  className={cn(row, current && "text-muted-foreground")}
+                >
+                  <span className="flex-1">{list.name}</span>
+                  {current ? <CheckIcon aria-label="Lista atual" strokeWidth={1.75} className="size-4" /> : null}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }

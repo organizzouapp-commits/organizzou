@@ -278,7 +278,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       </button>
       )}
       {/* The flag comes right after the title, high priority only. */}
-      <PriorityFlag priority={task.priority} className="mt-1 -ml-1 self-start" />
+      <PriorityFlag task={task} className="mt-1 -ml-1 self-start" />
       {inert ? null : (
         <div className="-mr-1 flex w-8 shrink-0 items-start justify-center" onPointerDown={(e) => e.stopPropagation()}>
           <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} onRename={() => setRenaming(true)} />

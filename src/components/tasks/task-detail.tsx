@@ -30,7 +30,6 @@ import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -41,16 +40,34 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import type { BoardApi } from "@/features/tasks/board-api"
+import { ManageablePicker } from "./manageable-picker"
 import { MAX_ATTACHMENT_BYTES } from "@/features/tasks/schemas"
-import { PRIORITIES, PRIORITY_LABELS, asPriority, type AttachmentRow, type ChecklistItemRow, type CommentRow, type ListRow, type Priority, type TagRow, type TaskView } from "@/features/tasks/types"
+import { priorityOf, type PriorityState } from "@/features/tasks/priorities"
+import type { AttachmentRow, ChecklistItemRow, CommentRow, ListRow, TagRow, TaskView } from "@/features/tasks/types"
 import { dayKey, splitDue, toDueIso } from "@/lib/dates"
 import { SWATCH_IDS, getSwatch, type SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 
 import { NeutralDot } from "./task-meta"
 
+/** Everything the pickers manage: priorities (the person's own list), tags and categories. Implemented by the board. */
+export type Taxonomy = {
+  priorities: {
+    state: PriorityState
+    pick: (task: TaskView, id: string | null) => void
+    create: (name: string) => void
+    rename: (id: string, name: string) => void
+    remove: (id: string) => void
+    reorder: (ids: string[]) => void
+    usage: (id: string) => number
+  }
+  tags: { rename: (id: string, name: string) => Promise<boolean>; remove: (id: string) => void; usage: (id: string) => number }
+  categories: { list: string[]; rename: (from: string, to: string) => void; remove: (name: string) => void; usage: (name: string) => number }
+}
+
 type TaskDetailProps = {
   api: BoardApi
+  taxonomy: Taxonomy
   /** The open task, or null (closed). */
   task: TaskView | null
   boardName: string
@@ -304,6 +321,7 @@ export function TaskDetail(props: TaskDetailProps) {
 
 function DetailBody({
   api,
+  taxonomy,
   task,
   boardName,
   boardId,
@@ -358,7 +376,6 @@ function DetailBody({
   const [removeFile, setRemoveFile] = useState<AttachmentRow | null>(null)
   const [moreOptions, setMoreOptions] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [tagQuery, setTagQuery] = useState("")
   const taskRef = useRef(task)
   useEffect(() => {
     taskRef.current = task
@@ -459,14 +476,15 @@ function DetailBody({
     const ok = await save.track(async () => (await api.setTaskTags({ taskId: task.id, tagIds: next })).ok)
     if (!ok) onTaskChange({ ...taskRef.current, tagIds: before })
   }
-  async function makeTag() {
-    const name = tagQuery.trim()
-    if (!name) return
+  async function makeTag(name: string) {
     const result = await api.createTag({ name })
-    if (!result.ok) return void toast.error(result.error)
+    if (!result.ok) {
+      toast.error(result.error)
+      return false
+    }
     onTagCreated(result.data)
-    setTagQuery("")
     await toggleTag(result.data)
+    return true
   }
 
   // ----- checklist -----
@@ -637,27 +655,24 @@ function DetailBody({
   )
 
   const tagsContent = (
-    <Command>
-      <CommandInput placeholder="Buscar ou criar tag" value={tagQuery} onValueChange={setTagQuery} />
-      <CommandList>
-        <CommandEmpty>Nenhuma tag.</CommandEmpty>
-        <CommandGroup>
-          {tags.map((tag) => (
-            <CommandItem key={tag.id} value={tag.name} onSelect={() => void toggleTag(tag)} className="min-h-11">
-              <NeutralDot />
-              {tag.name}
-              {task.tagIds.includes(tag.id) ? <CheckIcon strokeWidth={1.75} className="ml-auto" /> : null}
-            </CommandItem>
-          ))}
-          {tagQuery.trim() && !tags.some((t) => t.name.toLowerCase() === tagQuery.trim().toLowerCase()) ? (
-            <CommandItem value={`criar-${tagQuery}`} onSelect={() => void makeTag()} className="min-h-11">
-              <PlusIcon strokeWidth={1.75} /> Criar “{tagQuery.trim()}”
-            </CommandItem>
-          ) : null}
-        </CommandGroup>
-      </CommandList>
-    </Command>
+    <ManageablePicker
+      noun="tag"
+      multiple
+      items={tags.map((t) => ({ id: t.id, label: t.name }))}
+      selected={task.tagIds}
+      onSelect={(id) => {
+        const tag = tags.find((t) => t.id === id)
+        if (tag) void toggleTag(tag)
+      }}
+      onCreate={makeTag}
+      onRename={(id, name) => taxonomy.tags.rename(id, name)}
+      onDelete={taxonomy.tags.remove}
+      usage={taxonomy.tags.usage}
+    />
   )
+
+  const priorityValue = priorityOf(taxonomy.priorities.state, task)
+  const categoriesWithCurrent = [...new Set([...taxonomy.categories.list, ...(category.trim() ? [category.trim()] : [])])]
 
   const properties = (
     <div className={cn(desktop ? "flex flex-col gap-4" : "divide-y divide-border overflow-hidden rounded-[14px] bg-foreground/4")} data-testid="properties">
@@ -685,15 +700,22 @@ function DetailBody({
           />
         )}
       </Property>
-      <Property label="Prioridade" icon={FlagIcon} value={PRIORITY_LABELS[asPriority(task.priority)]} desktop={desktop}>
+      <Property label="Prioridade" icon={FlagIcon} value={priorityValue?.name ?? "Sem prioridade"} desktop={desktop}>
         {(close) => (
-          <OptionList
-            options={PRIORITIES.map((p) => ({ id: p, label: PRIORITY_LABELS[p] }))}
-            value={asPriority(task.priority)}
-            onPick={(p: Priority) => {
-              void patch({ priority: p })
+          <ManageablePicker
+            noun="prioridade"
+            fixed={{ id: "none", label: "Sem prioridade" }}
+            items={taxonomy.priorities.state.list.map((p) => ({ id: p.id, label: p.name }))}
+            selected={priorityValue ? [priorityValue.id] : []}
+            onSelect={(id) => {
+              taxonomy.priorities.pick(task, id === "none" ? null : id)
               close()
             }}
+            onCreate={(name) => taxonomy.priorities.create(name)}
+            onRename={(id, name) => taxonomy.priorities.rename(id, name)}
+            onDelete={taxonomy.priorities.remove}
+            onReorder={taxonomy.priorities.reorder}
+            usage={taxonomy.priorities.usage}
           />
         )}
       </Property>
@@ -722,6 +744,18 @@ function DetailBody({
       >
         {() => tagsContent}
       </Property>
+      {selectedTags.length > 0 ? (
+        <ul className={cn("flex flex-wrap gap-1.5", !desktop && "px-4 py-2")} aria-label="Tags da tarefa">
+          {selectedTags.map((tag) => (
+            <li key={tag.id} className="inline-flex h-8 max-w-full items-center gap-1 rounded-full bg-foreground/8 pr-1 pl-3 text-[13px]">
+              <span className="truncate">{tag.name}</span>
+              <button type="button" aria-label={`Remover tag ${tag.name}`} onClick={() => void toggleTag(tag)} className="relative flex size-6 items-center justify-center rounded-full outline-none after:absolute after:-inset-2 hover:bg-foreground/10 focus-visible:ring-3 focus-visible:ring-ring/50">
+                <XIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className={desktop ? "" : "px-4 py-1"}>
         <button type="button" aria-expanded={moreOptions} onClick={() => setMoreOptions((v) => !v)} className="flex min-h-11 w-full items-center gap-2 rounded-md text-left text-[15px] text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, !moreOptions && "-rotate-90")} />
@@ -729,21 +763,36 @@ function DetailBody({
         </button>
         {moreOptions ? (
           <div className="flex flex-col gap-3 pb-3">
-            <label className="flex flex-col gap-1.5">
-              <span className={overline}>Categoria</span>
-              <Input
-                value={category}
-                maxLength={60}
-                placeholder="Ex.: Trabalho"
-                onChange={(e) => {
-                  setCategory(e.target.value)
-                  later("category", () => {
-                    if (e.target.value.trim() !== (taskRef.current.category ?? "")) void patch({ category: e.target.value.trim() || null })
-                  })
-                }}
-                className="h-10 rounded-xl"
-              />
-            </label>
+            <Property label="Categoria" icon={TagIcon} value={category.trim() || <span className="text-muted-foreground">Sem categoria</span>} desktop={desktop}>
+              {(close) => (
+                <ManageablePicker
+                  noun="categoria"
+                  fixed={{ id: "none", label: "Sem categoria" }}
+                  items={categoriesWithCurrent.map((c) => ({ id: c, label: c }))}
+                  selected={category.trim() ? [category.trim()] : []}
+                  onSelect={(id) => {
+                    const next = id === "none" ? "" : id
+                    setCategory(next)
+                    void patch({ category: next || null })
+                    close()
+                  }}
+                  onCreate={(name) => {
+                    setCategory(name)
+                    void patch({ category: name })
+                    close()
+                  }}
+                  onRename={(from, to) => {
+                    if (category.trim() === from) setCategory(to)
+                    taxonomy.categories.rename(from, to)
+                  }}
+                  onDelete={(name) => {
+                    if (category.trim() === name) setCategory("")
+                    taxonomy.categories.remove(name)
+                  }}
+                  usage={taxonomy.categories.usage}
+                />
+              )}
+            </Property>
             <div className="flex flex-col gap-1.5">
               <span className={overline}>Cor (agenda e calendário)</span>
               <div role="radiogroup" aria-label="Cor da tarefa" className="flex flex-wrap items-center gap-2">

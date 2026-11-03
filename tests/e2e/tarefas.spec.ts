@@ -95,6 +95,8 @@ test.describe("desktop", () => {
     // exact: the sortable wrapper (role=button) would also match the name through its content.
     await page.getByRole("button", { name: "Mais ações: Comprar planta para a sala", exact: true }).click()
     await page.getByRole("menuitem", { name: "Mover para…" }).click()
+    // Two steps now: quadro first (this fixture has two), then the list.
+    await page.getByRole("dialog").getByRole("button", { name: /^Minhas tarefas/ }).click()
     await page.getByRole("dialog").getByRole("button", { name: "Em andamento" }).click()
     await expect(page.locator("[data-column]", { has: page.getByRole("heading", { name: "Em andamento", exact: true }) }).getByText("Comprar planta para a sala")).toBeVisible()
   })
@@ -316,7 +318,7 @@ test.describe("phone", () => {
     const box = (await sheet.boundingBox())!
     expect(box.height).toBeGreaterThanOrEqual(844 * 0.9)
     expect(box.height).toBeLessThanOrEqual(844 * 0.93)
-    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(6)
+    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(7) // Lista, Quadro, Prioridade, Prazo, Tags, the tag chip ×, Mais opções
     for (const row of await sheet.getByTestId("properties").getByRole("button", { name: /^(Lista|Quadro|Prioridade|Prazo|Tags)$/ }).all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(51)
     await sheet.getByRole("button", { name: "Prioridade", exact: true }).click()
     await page.getByRole("dialog").last().getByRole("button", { name: "Média" }).click()

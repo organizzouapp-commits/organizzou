@@ -2,9 +2,9 @@ import { CalendarIcon, FlagIcon, MessageSquareIcon, PaperclipIcon, SquareCheckIc
 
 import { dayDiff, formatDue, isOverdue } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { asPriority, PRIORITY_LABELS } from "@/features/tasks/types"
+import { isTopHalf, priorityOf } from "@/features/tasks/priorities"
 import type { TagRow, TaskView } from "@/features/tasks/types"
-import { showsFlag } from "@/features/tasks/view"
+import { usePriorities } from "./priorities-context"
 
 /** A neutral dot (foreground ~55%): the NAME carries the meaning of a list or tag, never the hue. */
 export function NeutralDot({ className }: { className?: string }) {
@@ -16,10 +16,15 @@ export function SwatchDot({ className }: { swatch?: string; className?: string }
   return <NeutralDot className={className} />
 }
 
-/** The priority flag: ONLY for high priority, with an accessible name. */
-export function PriorityFlag({ priority, className }: { priority: string; className?: string }) {
-  if (!showsFlag(priority)) return null
-  return <FlagIcon role="img" aria-label={`Prioridade ${PRIORITY_LABELS[asPriority(priority)].toLowerCase()}`} strokeWidth={1.75} className={cn("size-3.5 shrink-0 text-muted-foreground", className)} />
+/**
+ * The priority flag for ANY priority of the person's list (nothing for "Sem prioridade"): filled for the heavier half, outline for
+ * the lighter half, and the name in the accessible label, so the meaning never rides on the fill alone.
+ */
+export function PriorityFlag({ task, className }: { task: Pick<TaskView, "id" | "priority">; className?: string }) {
+  const state = usePriorities()
+  const def = priorityOf(state, task)
+  if (!def) return null
+  return <FlagIcon role="img" aria-label={`Prioridade ${def.name.toLowerCase()}`} strokeWidth={1.75} className={cn("size-3.5 shrink-0 text-muted-foreground", isTopHalf(state.list, def.id) && "fill-current", className)} />
 }
 
 /** @deprecated kept for older imports; use PriorityFlag. */

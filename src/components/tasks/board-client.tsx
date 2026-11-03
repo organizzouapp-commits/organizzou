@@ -22,6 +22,7 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
+import { DEFAULT_PRIORITY_STATE, enumFor, localPriorityRepo, newPriorityId, priorityOf, usageOf, type PriorityState } from "@/features/tasks/priorities"
 import { countForShortcut, criteriaToFilters, DEFAULT_SHORTCUTS, filtersToCriteria, isActiveShortcut, loadShortcuts, saveShortcuts, type ShortcutCriteria, type ShortcutDef } from "@/features/tasks/shortcuts"
 import { dueOfShortcut } from "@/features/tasks/view"
 import { asPriority, type BoardData, type ListRow, type Priority, type TagRow, type TaskView } from "@/features/tasks/types"
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils"
 
 import { BoardToolbar, type ViewMode } from "./board-toolbar"
 import { CalendarView } from "./calendar-view"
+import { DeleteListDialog } from "./delete-list-dialog"
 import { KanbanTabs } from "./kanban-tabs"
 import { KanbanView } from "./kanban-view"
 import { ManageListsSheet } from "./manage-lists-sheet"
@@ -39,7 +41,8 @@ import { ListView, type GroupBy } from "./list-view"
 import { MoveDialog } from "./move-dialog"
 import { NewTaskDialog, type NewTaskInput } from "./new-task-dialog"
 import type { TaskActions } from "./task-card"
-import { TaskDetail } from "./task-detail"
+import { PrioritiesProvider } from "./priorities-context"
+import { TaskDetail, type Taxonomy } from "./task-detail"
 
 type BoardClientProps = {
   initial: BoardData
@@ -89,6 +92,12 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [doneToClear, setDoneToClear] = useState<ListRow | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const [manageListsOpen, setManageListsOpen] = useState(false)
+  const [prio, setPrio] = useState<PriorityState>(DEFAULT_PRIORITY_STATE)
+  useEffect(() => {
+    // The person's priorities live in the browser until the server adapter exists (see features/tasks/priorities.ts).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrio(localPriorityRepo.load())
+  }, [])
   const [shortcuts, setShortcuts] = useState<ShortcutDef[]>(DEFAULT_SHORTCUTS)
   const [editorOpen, setEditorOpen] = useState(false)
   const [shortcutDraft, setShortcutDraft] = useState<ShortcutCriteria | null>(null)
@@ -283,6 +292,89 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         },
       },
     })
+  }
+
+  // ------------------------------------------------------- priorities, tags, categories (the pickers' data)
+
+  /** Keeps the stored enum of every task in step with the weight of its priority (filters and sorting read the enum). */
+  async function syncPriorityEnums(next: PriorityState) {
+    for (const t of tasksRef.current) {
+      const want = enumFor(next.list, priorityOf(next, t)?.id ?? null)
+      if (want === t.priority) continue
+      replaceTask({ ...t, priority: want })
+      await api.updateTask({ id: t.id, patch: { priority: want } })
+    }
+  }
+  function commitPriorities(next: PriorityState) {
+    setPrio(next)
+    localPriorityRepo.save(next)
+    void syncPriorityEnums(next)
+  }
+
+  const taxonomy: Taxonomy = {
+    priorities: {
+      state: prio,
+      pick: (task, id) => {
+        const assigned = { ...prio.assigned }
+        if (id) assigned[task.id] = id
+        else delete assigned[task.id]
+        const next = { ...prio, assigned }
+        setPrio(next)
+        localPriorityRepo.save(next)
+        const want = enumFor(next.list, id)
+        replaceTask({ ...task, priority: want })
+        void api.updateTask({ id: task.id, patch: { priority: want } }).then((r) => {
+          if (!r.ok) toast.error(r.error)
+        })
+      },
+      create: (name) => commitPriorities({ ...prio, list: [...prio.list, { id: newPriorityId(), name }] }),
+      rename: (id, name) => commitPriorities({ ...prio, list: prio.list.map((p) => (p.id === id ? { ...p, name } : p)) }),
+      reorder: (ids) => commitPriorities({ ...prio, list: ids.map((id) => prio.list.find((p) => p.id === id)!).filter(Boolean) }),
+      remove: (id) => {
+        // Affected tasks fall back to "Sem prioridade".
+        for (const t of tasks.filter((x) => priorityOf(prio, x)?.id === id)) {
+          replaceTask({ ...t, priority: "none" })
+          void api.updateTask({ id: t.id, patch: { priority: "none" } })
+        }
+        commitPriorities({ list: prio.list.filter((p) => p.id !== id), assigned: Object.fromEntries(Object.entries(prio.assigned).filter(([, v]) => v !== id)) })
+      },
+      usage: (id) => usageOf(prio, tasks, id),
+    },
+    tags: {
+      rename: async (id, name) => {
+        const result = await api.renameTag({ id, name })
+        if (!result.ok) {
+          toast.error(result.error)
+          return false
+        }
+        setTags((current) => current.map((t) => (t.id === id ? { ...t, name } : t)))
+        return true
+      },
+      remove: (id) => {
+        void api.deleteTag(id).then((result) => {
+          if (!result.ok) return void toast.error(result.error)
+          setTags((current) => current.filter((t) => t.id !== id))
+          setTasks((current) => current.map((t) => ({ ...t, tagIds: t.tagIds.filter((x) => x !== id) })))
+        })
+      },
+      usage: (id) => tasks.filter((t) => t.tagIds.includes(id)).length,
+    },
+    categories: {
+      list: categories,
+      rename: (from, to) => {
+        for (const t of tasks.filter((x) => x.category === from)) {
+          replaceTask({ ...t, category: to })
+          void api.updateTask({ id: t.id, patch: { category: to } })
+        }
+      },
+      remove: (name) => {
+        for (const t of tasks.filter((x) => x.category === name)) {
+          replaceTask({ ...t, category: null })
+          void api.updateTask({ id: t.id, patch: { category: null } })
+        }
+      },
+      usage: (name) => tasks.filter((t) => t.category === name).length,
+    },
   }
 
   /** Detail pop-up / "Mover para…": another quadro. The task leaves this board, the toast offers to put it back. */
@@ -486,10 +578,20 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     }
   }
 
-  async function confirmDeleteList() {
+  async function confirmDeleteList(destinationListId: string | null) {
     const list = listToDelete
     setListToDelete(null)
     if (!list) return
+    // Tasks that have somewhere to go are moved first; otherwise they go with the list.
+    if (destinationListId) {
+      const keep = tasks.filter((t) => t.list_id === destinationListId).sort((a, b) => a.position - b.position).map((t) => t.id)
+      const moving = tasks.filter((t) => t.list_id === list.id).sort((a, b) => a.position - b.position).map((t) => t.id)
+      if (moving.length > 0) {
+        await moveToList(destinationListId, [...keep, ...moving])
+        // moveToList rolls back and reports on failure: stop if the tasks did not leave.
+        if (tasksRef.current.some((t) => t.list_id === list.id && moving.includes(t.id))) return
+      }
+    }
     const result = await api.deleteList(list.id)
     if (!result.ok) {
       toast.error(result.error)
@@ -641,6 +743,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   }
 
   return (
+    <PrioritiesProvider value={prio}>
     <div className="flex flex-col gap-5 max-md:gap-3">
       <div className={cn("max-md:sticky max-md:top-[4.5rem] max-md:z-20 max-md:-mx-4 max-md:bg-background max-md:px-4 max-md:pt-1 max-md:pb-2", !isMobile && bentoCardClass())}>
       <BoardToolbar
@@ -732,6 +835,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       <ManageListsSheet open={manageListsOpen} onOpenChange={setManageListsOpen} lists={lists} actions={viewProps} />
       <TaskDetail
         api={api}
+        taxonomy={taxonomy}
         task={openTask}
         boardName={boardName}
         boardId={boardId}
@@ -769,6 +873,20 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         open={Boolean(moveFor)}
         onOpenChange={(open) => !open && setMoveFor(null)}
         lists={lists}
+        boards={boards.map((b) => (b.id === boardId ? { ...b, name: boardName } : b))}
+        currentBoardId={boardId}
+        loadLists={async (id) => {
+          const result = await api.getBoardLists(id)
+          if (!result.ok) {
+            toast.error(result.error)
+            return []
+          }
+          return result.data
+        }}
+        onPickInBoard={(targetBoard, listId) => {
+          for (const task of moveFor ?? []) void moveToBoard(task, targetBoard, listId)
+          if ((moveFor?.length ?? 0) > 1) stopSelecting()
+        }}
         currentListId={moveFor && moveFor.length === 1 ? moveFor[0].list_id : null}
         title={moveFor && moveFor.length > 1 ? `Mover ${moveFor.length} tarefas para…` : "Mover para…"}
         onPick={(listId) => {
@@ -853,20 +971,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           </dl>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog
-        open={Boolean(listToDelete)}
-        onOpenChange={(open) => !open && setListToDelete(null)}
-        title="Excluir esta lista?"
-        description={
-          listToDelete
-            ? listTaskCount > 0
-              ? `A lista “${listToDelete.name}” e as ${listTaskCount} tarefas dela serão apagadas. Essa ação não pode ser desfeita.`
-              : `A lista “${listToDelete.name}” será apagada.`
-            : ""
-        }
-        confirmLabel="Excluir lista"
-        onConfirm={() => void confirmDeleteList()}
-      />
+      <DeleteListDialog list={listToDelete} taskCount={listTaskCount} others={lists.filter((l) => l.id !== listToDelete?.id)} onCancel={() => setListToDelete(null)} onConfirm={(destination) => void confirmDeleteList(destination)} />
     </div>
+    </PrioritiesProvider>
   )
 }
