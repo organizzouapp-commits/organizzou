@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -10,14 +10,21 @@ type QuickAddProps = {
   label?: string
   onAdd: (title: string) => Promise<boolean>
   className?: string
+  /** Changing this number opens the composer (the column header's "+"). */
+  openSignal?: number
 }
 
 /**
  * "Adicionar tarefa" row that turns into an input. Enter saves and keeps the field open for the next one, Shift+Enter inserts a
  * new line, Esc closes, and pasting several lines creates one task per line.
  */
-export function QuickAdd({ label = "Adicionar tarefa", onAdd, className }: QuickAddProps) {
+export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSignal = 0 }: QuickAddProps) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    // The signal is an event from the parent (a button press), so it has to be mirrored into state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (openSignal > 0) setOpen(true)
+  }, [openSignal])
   const [title, setTitle] = useState("")
   const [busy, setBusy] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)

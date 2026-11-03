@@ -17,22 +17,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 type Props = {
   params: Promise<{ boardId: string }>
-  searchParams: Promise<{ visao?: string }>
+  searchParams: Promise<{ view?: string; visao?: string }>
 }
 
-function parseView(value: string | undefined): ViewMode {
-  return value === "lista" || value === "calendario" ? value : "kanban"
+/** The view named in the URL; null lets the screen pick (the device's last view, else Lista on phones and Kanban on desktop). */
+function parseView(value: string | undefined): ViewMode | null {
+  return value === "kanban" || value === "lista" || value === "calendario" ? value : null
 }
 
 async function BoardContent({ params, searchParams }: Props) {
-  const [{ boardId }, { visao }] = await Promise.all([params, searchParams])
+  const [{ boardId }, { view, visao }] = await Promise.all([params, searchParams])
   if (!/^[0-9a-f-]{36}$/i.test(boardId)) notFound()
 
   const [{ userId }, data] = await Promise.all([getSession(), getBoardData(boardId)])
   if (!data) notFound()
 
   return (
-    <ServerBoard key={boardId} initial={data} userId={userId} initialView={parseView(visao)} nowIso={new Date().toISOString()} />
+    <ServerBoard key={boardId} initial={data} userId={userId} initialView={parseView(view ?? visao)} nowIso={new Date().toISOString()} />
   )
 }
 

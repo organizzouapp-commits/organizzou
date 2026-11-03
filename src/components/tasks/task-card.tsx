@@ -1,86 +1,282 @@
 "use client"
 
-import type { CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { ArrowRightIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, GripVerticalIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getSwatch } from "@/lib/swatches"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 
-import { DueLabel, PriorityIcon, TagChip, TaskCounters } from "./task-meta"
+import { DueLabel, PriorityFlag, TagDots, TaskCounters } from "./task-meta"
+
+/** What a task can do from its card, row, swipe panel or menu. */
+export type TaskActions = {
+  open: () => void
+  toggle: () => void
+  postpone1h: () => void
+  tomorrow: () => void
+  move: () => void
+  remove: () => void
+  /** Enters multi-select mode with this task selected. */
+  select: () => void
+}
+
+type Density = "card" | "row"
 
 type TaskCardBodyProps = {
-  /** Hover/focus actions (edit, move, delete). */
-  menu?: React.ReactNode
   task: TaskView
   tags: TagRow[]
   now: Date
   timeZone: string
-  onOpen: () => void
-  onToggleComplete: () => void
+  actions: TaskActions
+  density?: Density
   className?: string
+  /** Drag overlay and previews: no controls. */
+  inert?: boolean
+  /** Multi-select mode: a selection check replaces the open behaviour. */
+  selecting?: boolean
+  selected?: boolean
+  onSelect?: () => void
+  /** Marks the root as the task's anchor (the Kanban wrapper does it itself; Lista rows set this). */
+  anchor?: boolean
 }
 
-/** The visual card, shared by the sortable item and the drag overlay. */
-export function TaskCardBody({ task, tags, now, timeZone, onOpen, onToggleComplete, menu, className }: TaskCardBodyProps) {
-  const swatch = getSwatch(task.swatch)
-  const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
-  // The flag only shows above normal priority.
-  const flagged = task.priority === "high" || task.priority === "medium"
-  const hasMeta = Boolean(task.due_at) || flagged || task.checklistTotal + task.commentCount + task.attachmentCount > 0
+const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+
+/** The ⋯ menu. On phones the trigger is visually hidden (keyboard and screen readers still reach it) and a long press opens it. */
+function ActionsMenu({ task, actions, open, onOpenChange }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const done = Boolean(task.completed_at)
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={`Mais ações: ${task.title}`} className="size-8 rounded-full max-md:sr-only max-md:focus-visible:not-sr-only max-md:focus-visible:absolute max-md:focus-visible:top-1 max-md:focus-visible:right-1">
+          <EllipsisIcon strokeWidth={1.75} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52 rounded-2xl p-2">
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.toggle}>
+          {done ? <RotateCcwIcon strokeWidth={1.75} /> : <CheckIcon strokeWidth={1.75} />} {done ? "Reabrir" : "Concluir"}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.open}>
+          <PencilIcon strokeWidth={1.75} /> Abrir detalhes
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.select}>
+          <ListChecksIcon strokeWidth={1.75} /> Selecionar
+        </DropdownMenuItem>
+        {!done ? (
+          <>
+            <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.postpone1h}>
+              <ClockIcon strokeWidth={1.75} /> Adiar 1 h
+            </DropdownMenuItem>
+            <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.tomorrow}>
+              <CalendarIcon strokeWidth={1.75} /> Amanhã
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.move}>
+          <ArrowRightIcon strokeWidth={1.75} /> Mover para…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.remove}>
+          <Trash2Icon strokeWidth={1.75} /> Excluir tarefa
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+const SWIPE_RIGHT = 72
+const PANEL = 68
+const SWIPE_LEFT_OPEN = PANEL * 3
+
+/**
+ * Touch only: swipe right completes, swipe left reveals three 68 px actions (Adiar 1 h, Amanhã, Mover); a long press opens the
+ * menu. Mouse and keyboard users have the hover actions and the ⋯ menu.
+ */
+function SwipeShell({ task, actions, onLongPress, children, className }: { task: TaskView; actions: TaskActions; onLongPress: () => void; children: React.ReactNode; className?: string }) {
+  const [open, setOpen] = useState(false)
+  const [dx, setDx] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const start = useRef<{ x: number; y: number; locked: boolean | null } | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const host = useRef<HTMLDivElement>(null)
+  const done = Boolean(task.completed_at)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => {
+      if (!host.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener("pointerdown", close)
+    return () => document.removeEventListener("pointerdown", close)
+  }, [open])
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const offset = dragging ? Math.max(-SWIPE_LEFT_OPEN, Math.min(SWIPE_RIGHT + 24, (open ? -SWIPE_LEFT_OPEN : 0) + dx)) : open ? -SWIPE_LEFT_OPEN : 0
+  const finish = () => {
+    window.clearTimeout(timer.current)
+    const moved = dx
+    start.current = null
+    setDragging(false)
+    setDx(0)
+    if (moved >= SWIPE_RIGHT && !open) actions.toggle()
+    else if (moved <= -44 && !done) setOpen(true)
+    else if (moved >= 22 && open) setOpen(false)
+  }
+  const act = (run: () => void) => () => {
+    setOpen(false)
+    run()
+  }
+  const panel = "flex flex-col items-center justify-center gap-1 text-[12px] leading-4 font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
 
   return (
+    <div ref={host} className={cn("relative overflow-hidden md:overflow-visible", className)}>
+      <div aria-hidden className="absolute inset-y-0 left-0 flex items-center bg-foreground/10 px-5 text-[13px] font-medium md:hidden" style={{ width: SWIPE_RIGHT + 24 }}>
+        <CheckIcon strokeWidth={1.75} className="mr-2 size-5" /> {done ? "Reabrir" : "Concluir"}
+      </div>
+      <div aria-hidden={!open} className="absolute inset-y-0 right-0 flex md:hidden" style={{ width: SWIPE_LEFT_OPEN }}>
+        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.postpone1h)} className={cn(panel, "w-[68px] bg-foreground/10")}>
+          <ClockIcon aria-hidden strokeWidth={1.75} className="size-5" /> Adiar 1 h
+        </button>
+        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.tomorrow)} className={cn(panel, "w-[68px] bg-foreground/[0.16]")}>
+          <CalendarIcon aria-hidden strokeWidth={1.75} className="size-5" /> Amanhã
+        </button>
+        <button type="button" tabIndex={open ? 0 : -1} onClick={act(actions.move)} className={cn(panel, "w-[68px] bg-foreground/22")}>
+          <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-5" /> Mover
+        </button>
+      </div>
+      <div
+        onPointerDown={(e) => {
+          if (e.pointerType !== "touch") return
+          start.current = { x: e.clientX, y: e.clientY, locked: null }
+          window.clearTimeout(timer.current)
+          timer.current = window.setTimeout(() => {
+            if (start.current && start.current.locked === null) {
+              start.current = null
+              onLongPress()
+            }
+          }, 520)
+        }}
+        onPointerMove={(e) => {
+          const s = start.current
+          if (!s) return
+          const ax = e.clientX - s.x
+          const ay = e.clientY - s.y
+          if (Math.abs(ax) > 8 || Math.abs(ay) > 8) window.clearTimeout(timer.current)
+          if (s.locked === null && (Math.abs(ax) > 8 || Math.abs(ay) > 8)) s.locked = Math.abs(ax) > Math.abs(ay) * 1.5
+          if (!s.locked) return
+          setDragging(true)
+          setDx(ax)
+        }}
+        onPointerUp={finish}
+        onPointerCancel={finish}
+        style={{ transform: `translateX(${offset}px)` }}
+        className={cn("relative touch-pan-y bg-card md:!transform-none", !dragging && cn("transition-transform duration-[400ms] motion-reduce:transition-none", EASE))}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * ONE task component with two densities. Anatomy, left to right: checkbox (22 px visual, 44 px hit area on phones), then the title
+ * (15 px 600, at most 2 lines) with the priority flag AFTER it (high only), then ONE meta line: due date first, list/tag as a
+ * neutral dot + name, counters on the right. No stripe, no signal bars, no chip borders. Desktop: hover and focus reveal the quick
+ * actions. Phones: swipe and long press.
+ */
+export function TaskCardBody({ task, tags, now, timeZone, actions, density = "card", className, inert, selecting, selected, onSelect, anchor }: TaskCardBodyProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const isMobile = useIsMobile()
+  const done = Boolean(task.completed_at)
+  const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
+
+  const body = (
     <div
+      data-density={density}
+      data-task-id={anchor ? task.id : undefined}
+      data-selected={selected ? "" : undefined}
       className={cn(
-        "group/card relative flex gap-3 overflow-hidden rounded-xl border border-border bg-card p-3 text-card-foreground transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent/40 motion-reduce:transition-none",
-        task.completed_at && "opacity-70",
+        "group/card relative flex items-start gap-3 text-card-foreground transition-colors duration-[400ms] motion-reduce:transition-none",
+        EASE,
+        density === "card" ? "min-h-[72px] rounded-[14px] border border-border bg-card px-3 py-2.5 hover:bg-accent/40 md:min-h-[84px] md:py-3" : "min-h-[64px] border-b border-border px-1 py-2 last:border-b-0 md:px-3",
+        selected && "border-foreground/40",
         className
       )}
     >
-      {task.swatch !== "neutro" ? (
-        <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", swatch.fill)} />
-      ) : null}
-      <Checkbox
-        checked={Boolean(task.completed_at)}
-        onCheckedChange={() => onToggleComplete()}
-        aria-label={task.completed_at ? `Reabrir ${task.title}` : `Concluir ${task.title}`}
-        className="mt-0.5"
-        onPointerDown={(e) => e.stopPropagation()}
-      />
+      {inert ? null : (
+        <span className="-my-2 -ml-1.5 flex size-11 shrink-0 items-center justify-center md:my-0 md:ml-0 md:size-7">
+          {selecting ? (
+            <Checkbox checked={selected} onCheckedChange={() => onSelect?.()} aria-label={`Selecionar ${task.title}`} onPointerDown={(e) => e.stopPropagation()} className="size-[22px] after:-inset-x-3 after:-inset-y-3 md:size-7" />
+          ) : (
+            <Checkbox
+              checked={done}
+              onCheckedChange={() => actions.toggle()}
+              aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="size-[22px] after:-inset-x-3 after:-inset-y-3 md:size-7"
+            />
+          )}
+        </span>
+      )}
       <button
         type="button"
-        onClick={onOpen}
-        className="flex min-w-0 flex-1 flex-col gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        data-task-open
+        onClick={selecting ? onSelect : actions.open}
+        className="flex min-w-0 flex-1 flex-col justify-center gap-1 self-stretch rounded-md py-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
       >
-        <span className={cn("text-[15px] leading-5 font-medium break-words", task.completed_at && "line-through")}>
-          {task.title}
+        {/* Completed: struck through and muted (an opacity of 60% would drop the meta line under 4.5:1). */}
+        <span className={cn("text-[15px] leading-5 font-semibold [overflow-wrap:anywhere]", done && "text-muted-foreground line-through")}>
+          <span className="line-clamp-2">{task.title}</span>
         </span>
-        {taskTags.length > 0 ? (
-          <span className="flex flex-wrap gap-1.5">
-            {taskTags.slice(0, 3).map((tag) => (
-              <TagChip key={tag.id} tag={tag} />
-            ))}
-            {taskTags.length > 3 ? (
-              <span className="text-xs leading-6 text-muted-foreground">+{taskTags.length - 3}</span>
-            ) : null}
-          </span>
-        ) : null}
-        {hasMeta ? (
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <DueLabel task={task} now={now} timeZone={timeZone} />
-            {flagged ? <PriorityIcon priority={task.priority} className="text-muted-foreground" /> : null}
-            <TaskCounters task={task} />
-          </span>
-        ) : null}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+          <DueLabel task={task} now={now} timeZone={timeZone} />
+          <TagDots tags={taskTags} />
+          <TaskCounters task={task} className="ml-auto" />
+        </span>
       </button>
-      {menu ? (
-        <div className="absolute top-1.5 right-1.5 opacity-0 transition-opacity duration-150 group-focus-within/card:opacity-100 group-hover/card:opacity-100 max-md:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
-          {menu}
-        </div>
-      ) : null}
+      {/* The flag comes right after the title, high priority only. */}
+      <PriorityFlag priority={task.priority} className="mt-1 -ml-1 self-start" />
+      {inert ? null : isMobile ? (
+        <span className="absolute top-1 right-1">
+          <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />
+        </span>
+      ) : (
+        <>
+          <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within/card:opacity-100 group-hover/card:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
+            <span className="flex items-center gap-0.5 rounded-full bg-card/95 p-0.5 ring-1 ring-border">
+              <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Concluir ${task.title}`} title="Concluir" onClick={actions.toggle}>
+                <CheckIcon strokeWidth={1.75} />
+              </Button>
+              {!done ? (
+                <>
+                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Adiar 1 h: ${task.title}`} title="Adiar 1 h" onClick={actions.postpone1h}>
+                    <ClockIcon strokeWidth={1.75} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Amanhã: ${task.title}`} title="Amanhã" onClick={actions.tomorrow}>
+                    <CalendarIcon strokeWidth={1.75} />
+                  </Button>
+                </>
+              ) : null}
+              <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />
+              <GripVerticalIcon aria-hidden strokeWidth={1.75} className="mr-1 size-4 cursor-grab text-muted-foreground" />
+            </span>
+          </div>
+        </>
+      )}
     </div>
+  )
+
+  if (inert || selecting) return body
+  return (
+    <SwipeShell task={task} actions={actions} onLongPress={() => setMenuOpen(true)} className={density === "card" ? "rounded-[14px]" : undefined}>
+      {body}
+    </SwipeShell>
   )
 }
 
@@ -98,14 +294,7 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      data-task-id={body.task.id}
-      {...attributes}
-      {...listeners}
-      className={cn("touch-manipulation outline-none", isDragging && "opacity-40")}
-    >
+    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("touch-manipulation outline-none", isDragging && "opacity-40")}>
       <TaskCardBody {...body} />
     </div>
   )

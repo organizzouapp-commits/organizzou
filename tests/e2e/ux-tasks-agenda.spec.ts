@@ -3,19 +3,13 @@
  *   PROTOTYPE_BYPASS_AUTH=1 NEXT_DIST_DIR=.next-preview npx next dev -p 3100
  *   npx playwright test ux-tasks-agenda
  */
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 
 const CONSENT = encodeURIComponent(JSON.stringify({ version: 1, necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }))
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
 })
-
-async function openBoard(page: Page, width = 1440) {
-  await page.setViewportSize({ width, height: 900 })
-  await page.goto("/dashboard/tarefas")
-  await expect(page.getByRole("region", { name: "A fazer" })).toBeVisible({ timeout: 30000 })
-}
 
 test("Hoje: stat row, timeline with the 'agora' marker and the side column", async ({ page }) => {
   test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
@@ -28,90 +22,6 @@ test("Hoje: stat row, timeline with the 'agora' marker and the side column", asy
   const f = (await finance.boundingBox())!
   const d = (await day.boundingBox())!
   expect(f.x).toBeGreaterThan(d.x + d.width - 5) // side column sits to the right of the timeline
-})
-
-test("Tarefas: quick add keeps the field open and a multi-line paste creates several cards", async ({ page }) => {
-  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-  await openBoard(page)
-  const column = page.getByRole("region", { name: "A fazer" })
-  const before = await column.locator("[data-task-id]").count()
-  await column.getByRole("button", { name: "Adicionar tarefa" }).click()
-  const field = column.getByLabel("Título da nova tarefa")
-  await field.fill("Primeira tarefa rápida")
-  await field.press("Enter")
-  await expect(column.locator("[data-task-id]")).toHaveCount(before + 1)
-  await expect(field).toBeFocused()
-  await field.fill("")
-  await field.evaluate((el) => {
-    const data = new DataTransfer()
-    data.setData("text", "Linha um\nLinha dois\nLinha três")
-    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }))
-  })
-  await expect(column.locator("[data-task-id]")).toHaveCount(before + 4)
-  await field.press("Escape")
-  await expect(column.getByLabel("Título da nova tarefa")).toHaveCount(0)
-})
-
-test("Tarefas: completing moves the card to Concluído and unchecking restores it", async ({ page }) => {
-  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-  await openBoard(page)
-  const todo = page.getByRole("region", { name: "A fazer" })
-  const card = todo.locator("[data-task-id]").first()
-  await expect(card).toBeVisible()
-  const title = (await card.locator("button.flex-1 span").first().innerText()).trim()
-  const count = await todo.locator("[data-task-id]").count()
-  await card.getByRole("checkbox").click()
-  await expect(todo.locator("[data-task-id]")).toHaveCount(count - 1)
-  const done = page.getByRole("region", { name: "Concluído" })
-  await done.getByRole("button", { name: /Mostrar/ }).click()
-  const doneCard = done.locator("[data-task-id]", { hasText: title })
-  await expect(doneCard).toBeVisible()
-  await doneCard.getByRole("checkbox").click()
-  await expect(todo.locator("[data-task-id]", { hasText: title })).toBeVisible()
-})
-
-test("Tarefas: smart chips filter and toggle off", async ({ page }) => {
-  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-  await openBoard(page)
-  const all = await page.locator("[data-task-id]").count()
-  await page.getByRole("button", { name: "Sem data" }).click()
-  const filtered = await page.locator("[data-task-id]").count()
-  expect(filtered).toBeLessThan(all)
-  await page.getByRole("button", { name: "Sem data" }).click()
-  await expect(page.locator("[data-task-id]")).toHaveCount(all)
-})
-
-test("Tarefas: details open as a side panel, autosave shows 'Salvo', E and N shortcuts work", async ({ page }) => {
-  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-  await openBoard(page)
-  const card = page.getByRole("region", { name: "A fazer" }).locator("[data-task-id]").first()
-  await card.locator("button.flex-1").click()
-  const panel = page.getByRole("complementary", { name: "Detalhes da tarefa" })
-  await expect(panel).toBeVisible()
-  // The board is still there and usable next to the panel.
-  await expect(page.getByRole("region", { name: "A fazer" })).toBeVisible()
-  await panel.getByLabel("Descrição").fill("Texto novo")
-  await panel.getByLabel("Descrição").blur()
-  await expect(panel.getByText("Salvo")).toBeVisible()
-  await expect(panel.getByText("Os avisos chegam pelo app")).toBeVisible()
-  await panel.getByRole("button", { name: "Fechar detalhes" }).click()
-  await expect(panel).toHaveCount(0)
-  await card.hover()
-  await page.keyboard.press("e")
-  await expect(panel).toBeVisible()
-  await page.keyboard.press("Escape")
-  await page.locator("body").click({ position: { x: 5, y: 5 } })
-  await page.keyboard.press("n")
-  await expect(page.getByRole("dialog")).toBeVisible()
-})
-
-test("Tarefas (mobile): defaults to the list view and filters live in a drawer", async ({ page }) => {
-  test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto("/dashboard/tarefas")
-  await expect(page.getByRole("tab", { name: "Lista" })).toHaveAttribute("data-state", "active", { timeout: 30000 })
-  await page.getByRole("button", { name: "Filtros" }).click()
-  await expect(page.getByRole("heading", { name: "Filtros" })).toBeVisible()
 })
 
 test("Agenda: drag on an empty slot creates an event, drag moves it, the edit dialog changes it", async ({ page }) => {

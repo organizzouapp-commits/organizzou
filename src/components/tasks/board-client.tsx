@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { SearchXIcon } from "lucide-react"
+import { ArrowRightIcon, CalendarIcon, CheckIcon, SearchXIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { bentoCardClass } from "@/components/organizzou/Bento"
@@ -11,7 +11,6 @@ import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useMediaQuery } from "@/hooks/use-media-query"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { BoardApi } from "@/features/tasks/board-api"
@@ -23,20 +22,25 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
-import type { BoardData, ListRow, Priority, TagRow, TaskView } from "@/features/tasks/types"
+import { dueOfShortcut, shortcutCounts, type Shortcut } from "@/features/tasks/view"
+import { asPriority, type BoardData, type ListRow, type Priority, type TagRow, type TaskView } from "@/features/tasks/types"
+import { dayKey, toDueIso } from "@/lib/dates"
 
 import { BoardToolbar, type ViewMode } from "./board-toolbar"
 import { CalendarView } from "./calendar-view"
 import { KanbanView } from "./kanban-view"
 import { ListView } from "./list-view"
-import { NewTaskDialog } from "./new-task-dialog"
-import { TaskSheet } from "./task-sheet"
+import { MoveDialog } from "./move-dialog"
+import { NewTaskDialog, type NewTaskInput } from "./new-task-dialog"
+import type { TaskActions } from "./task-card"
+import { TaskDetail } from "./task-detail"
 
 type BoardClientProps = {
   initial: BoardData
   /** Backend adapter: server actions in production, in-memory mock in the prototype. */
   api: BoardApi
-  initialView: ViewMode
+  /** The view named in the URL (?view=), or null: then the device's last view, or the default for its size. */
+  initialView: ViewMode | null
   /** Server time, so the server render and hydration agree on "today". */
   nowIso: string
   /** Where board links point, e.g. "/dashboard/tarefas". */
@@ -51,12 +55,21 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [boards, setBoards] = useState(initial.boards)
   const [lists, setLists] = useState<ListRow[]>(initial.lists)
   const [tasks, setTasks] = useState<TaskView[]>(initial.tasks)
+  const tasksRef = useRef(tasks)
+  useEffect(() => {
+    tasksRef.current = tasks
+  }, [tasks])
   const [tags, setTags] = useState<TagRow[]>(initial.tags)
-  const [view, setView] = useState<ViewMode>(initialView)
+  const [view, setView] = useState<ViewMode>(initialView ?? "kanban")
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS)
   const [sort, setSort] = useState<SortKey>("manual")
   const [openId, setOpenId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
+  const [newTaskList, setNewTaskList] = useState<string | undefined>(undefined)
+  const [moveFor, setMoveFor] = useState<TaskView[] | null>(null)
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDelete, setBulkDelete] = useState(false)
   const [newBoardOpen, setNewBoardOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -66,14 +79,26 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [helpOpen, setHelpOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const hoveredTask = useRef<string | null>(null)
-  // ≥1024 px the details open as a side panel next to the board; below that, as a full-screen drawer.
-  const panelMode = useMediaQuery("(min-width: 1024px)")
 
-  // Phones start on the list view unless the URL says otherwise.
-  const [mobileChecked, setMobileChecked] = useState(false)
-  if (isMobile && !mobileChecked) {
-    setMobileChecked(true)
-    if (!new URL(window.location.href).searchParams.has("visao") && view === "kanban") setView("lista")
+  // The view: the URL (?view=) wins, then this device class's last choice (localStorage), then Lista on phones and Kanban on desktop.
+  // The shortcut chip (?atalho=) is read once as well.
+  const [viewChecked, setViewChecked] = useState(false)
+  if (!viewChecked && typeof window !== "undefined") {
+    setViewChecked(true)
+    const params = new URL(window.location.href).searchParams
+    const fromUrl = params.get("view") ?? params.get("visao")
+    const phone = window.matchMedia("(max-width: 767px)").matches
+    const device = phone ? "mobile" : "desktop"
+    let stored: string | null = null
+    try {
+      stored = window.localStorage.getItem(`organizzou:tarefas-view:${device}`)
+    } catch {
+      stored = null
+    }
+    const pick = (value: string | null): ViewMode | null => (value === "kanban" || value === "lista" || value === "calendario" ? value : null)
+    setView(pick(fromUrl) ?? pick(stored) ?? (phone ? "lista" : "kanban"))
+    const atalho = params.get("atalho")
+    if (atalho) setFilters((f) => ({ ...f, due: dueOfShortcut(atalho) }))
   }
 
   const timeZone = initial.timezone
@@ -85,10 +110,49 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   )
   const openTask = tasks.find((t) => t.id === openId) ?? null
 
+  // The open task lives in the URL (?tarefa=<id>): opening pushes a history entry so Back closes it, a reload or a shared link opens
+  // the same task over the same board, and the board behind never moves.
+  function openTaskById(id: string | null) {
+    setOpenId(id)
+    const url = new URL(window.location.href)
+    if (id) {
+      if (url.searchParams.get("tarefa") === id) return
+      url.searchParams.set("tarefa", id)
+      window.history.pushState({ tarefa: id }, "", url)
+    } else if (url.searchParams.has("tarefa")) {
+      url.searchParams.delete("tarefa")
+      window.history.pushState({}, "", url)
+    }
+  }
+  useEffect(() => {
+    const fromUrl = new URL(window.location.href).searchParams.get("tarefa")
+    // The URL is only readable in the browser: a direct load or a reload opens that task.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (fromUrl && /^[0-9a-f-]{36}$/i.test(fromUrl)) setOpenId(fromUrl)
+    const onPop = () => setOpenId(new URL(window.location.href).searchParams.get("tarefa"))
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [])
+  const counts = useMemo(() => shortcutCounts(tasks, { now, timeZone }), [tasks, now, timeZone])
+
   function changeView(next: ViewMode) {
     setView(next)
     const url = new URL(window.location.href)
-    url.searchParams.set("visao", next)
+    url.searchParams.set("view", next)
+    url.searchParams.delete("visao")
+    window.history.replaceState(null, "", url)
+    try {
+      window.localStorage.setItem(`organizzou:tarefas-view:${window.matchMedia("(max-width: 767px)").matches ? "mobile" : "desktop"}`, next)
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
+
+  function changeShortcut(shortcut: Shortcut) {
+    setFilters((f) => ({ ...f, due: dueOfShortcut(shortcut) }))
+    const url = new URL(window.location.href)
+    if (shortcut === "todas") url.searchParams.delete("atalho")
+    else url.searchParams.set("atalho", shortcut)
     window.history.replaceState(null, "", url)
   }
 
@@ -108,8 +172,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     return true
   }
 
-  async function createFromDialog(input: { listId: string; title: string; priority: Priority }) {
-    const result = await api.createTask({ boardId, ...input })
+  async function createFromDialog(input: NewTaskInput) {
+    const dueAt = input.dueDay ? toDueIso(input.dueDay, input.dueTime, timeZone) : null
+    const result = await api.createTask({ boardId, listId: input.listId, title: input.title, priority: input.priority as Priority, dueAt, dueHasTime: Boolean(input.dueTime) })
     if (!result.ok) {
       toast.error(result.error)
       return false
@@ -172,7 +237,15 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       toast.error(result.error)
       return
     }
-    toast(done ? "Tarefa concluída." : "Tarefa reaberta.")
+    toast(done ? "Tarefa concluída." : "Tarefa reaberta.", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          const current = tasksRef.current.find((t) => t.id === task.id)
+          if (current) void toggleComplete(current)
+        },
+      },
+    })
   }
 
   async function confirmDeleteTask() {
@@ -180,7 +253,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     setTaskToDelete(null)
     if (!task) return
     const snapshot = tasks
-    setOpenId(null)
+    openTaskById(null)
     setTasks((current) => current.filter((t) => t.id !== task.id))
     const result = await api.deleteTask(task.id)
     if (!result.ok) {
@@ -189,6 +262,103 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       return
     }
     toast("Tarefa excluída.")
+  }
+
+  async function duplicateTask(task: TaskView) {
+    const result = await api.createTask({ boardId, listId: task.list_id, title: `${task.title} (cópia)`.slice(0, 200), description: task.description, priority: asPriority(task.priority), dueAt: task.due_at, dueHasTime: task.due_has_time })
+    if (!result.ok) return void toast.error(result.error)
+    setTasks((current) => [...current, result.data])
+    toast.success("Tarefa duplicada.")
+  }
+
+  /** Moves a task's due date (optimistic, rolled back if the save fails). */
+  async function reschedule(task: TaskView, dueAt: string, hasTime: boolean, message: string) {
+    const snapshot = task
+    replaceTask({ ...task, due_at: dueAt, due_has_time: hasTime })
+    const result = await api.updateTask({ id: task.id, patch: { dueAt, dueHasTime: hasTime } })
+    if (!result.ok) {
+      replaceTask(snapshot)
+      toast.error(result.error)
+      return
+    }
+    toast(message, {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          replaceTask(snapshot)
+          void api.updateTask({ id: task.id, patch: { dueAt: snapshot.due_at, dueHasTime: snapshot.due_has_time } })
+        },
+      },
+    })
+  }
+
+  function postpone1h(task: TaskView) {
+    const base = Math.max(now.getTime(), task.due_at ? new Date(task.due_at).getTime() : now.getTime())
+    void reschedule(task, new Date(base + 3_600_000).toISOString(), true, "Adiado em 1 hora.")
+  }
+
+  function postponeTomorrow(task: TaskView) {
+    const tomorrow = new Date(now.getTime() + 86_400_000)
+    const time = task.due_has_time && task.due_at ? new Intl.DateTimeFormat("sv-SE", { timeZone, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(task.due_at)) : null
+    void reschedule(task, toDueIso(dayKey(tomorrow, timeZone), time, timeZone), Boolean(time), "Adiado para amanhã.")
+  }
+
+  function actionsFor(task: TaskView): TaskActions {
+    return {
+      open: () => openTaskById(task.id),
+      toggle: () => void toggleComplete(task),
+      postpone1h: () => postpone1h(task),
+      tomorrow: () => postponeTomorrow(task),
+      move: () => setMoveFor([task]),
+      remove: () => setTaskToDelete(task),
+      select: () => {
+        setSelecting(true)
+        setSelected(new Set([task.id]))
+      },
+    }
+  }
+
+  const selection = {
+    active: selecting,
+    ids: selected,
+    toggle: (id: string) =>
+      setSelected((current) => {
+        const next = new Set(current)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      }),
+  }
+  function stopSelecting() {
+    setSelecting(false)
+    setSelected(new Set())
+  }
+  const selectedTasks = tasks.filter((t) => selected.has(t.id))
+
+  async function bulkComplete() {
+    for (const task of selectedTasks.filter((t) => !t.completed_at)) await toggleComplete(task)
+    stopSelecting()
+  }
+  function bulkTomorrow() {
+    for (const task of selectedTasks.filter((t) => !t.completed_at)) postponeTomorrow(task)
+    stopSelecting()
+  }
+  async function confirmBulkDelete() {
+    setBulkDelete(false)
+    const doomed = selectedTasks
+    const snapshot = tasks
+    setTasks((current) => current.filter((t) => !selected.has(t.id)))
+    for (const task of doomed) {
+      const result = await api.deleteTask(task.id)
+      if (!result.ok) {
+        setTasks(snapshot)
+        toast.error(result.error)
+        stopSelecting()
+        return
+      }
+    }
+    toast(`${doomed.length} ${doomed.length === 1 ? "tarefa excluída" : "tarefas excluídas"}.`)
+    stopSelecting()
   }
 
   // ------------------------------------------------------------ lists
@@ -316,7 +486,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       const el = event.target as HTMLElement | null
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (el && (el.closest("input, textarea, select, [contenteditable=true]") || el.closest("[role=dialog], [role=menu], [role=listbox]"))) {
-        if (event.key === "Escape" && openId && el.closest("aside[aria-label='Detalhes da tarefa']")) setOpenId(null)
+        if (event.key === "Escape" && openId && el.closest("aside[aria-label='Detalhes da tarefa']")) openTaskById(null)
         return
       }
       const focusedCard = el?.closest<HTMLElement>("[data-task-id]")?.dataset.taskId ?? hoveredTask.current
@@ -335,7 +505,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         case "E":
           if (current) {
             event.preventDefault()
-            setOpenId(current.id)
+            openTaskById(current.id)
           }
           break
         case " ":
@@ -349,7 +519,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           setHelpOpen(true)
           break
         case "Escape":
-          if (openId) setOpenId(null)
+          if (openId) openTaskById(null)
           break
       }
     }
@@ -367,10 +537,16 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     tags,
     now,
     timeZone,
-    onOpenTask: setOpenId,
+    onOpenTask: openTaskById,
     onToggleComplete: (task: TaskView) => void toggleComplete(task),
     onDeleteRequest: setTaskToDelete,
     onQuickAdd: quickAdd,
+    actionsFor,
+    selection,
+    onCreate: (listId?: string) => {
+      setNewTaskList(listId)
+      setNewTaskOpen(true)
+    },
   }
 
   return (
@@ -385,7 +561,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         onNewBoard={() => setNewBoardOpen(true)}
         onRenameBoard={() => setRenameOpen(true)}
         onArchiveBoard={() => setArchiveOpen(true)}
-        onNewTask={() => setNewTaskOpen(true)}
+        onNewTask={() => {
+          setNewTaskList(undefined)
+          setNewTaskOpen(true)
+        }}
         view={view}
         onViewChange={changeView}
         filters={filters}
@@ -394,7 +573,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         onSortChange={setSort}
         lists={lists}
         tags={tags}
-        visibleCount={visible.length}
+        counts={counts}
+        onShortcut={changeShortcut}
       />
       </div>
 
@@ -411,7 +591,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       {view !== "kanban" && filtering && visible.length === 0 ? (
         <EmptyState
           icon={SearchXIcon}
-          title="Nenhuma tarefa encontrada"
+          title="Nenhuma tarefa com esses filtros"
           description="Ajuste a busca ou limpe os filtros."
           action={
             <Button variant="outline" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -430,7 +610,6 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           onMoveList={(list, direction) => void moveList(list, direction)}
           onDeleteList={setListToDelete}
           isMobile={isMobile}
-          onMoveTaskToList={moveTaskToList}
           onClearDone={setDoneToClear}
         />
       ) : view === "lista" ? (
@@ -443,41 +622,78 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         </div>
       )}
       </div>
-      {panelMode ? (
-        <TaskSheet
-          panel
-          api={api}
-          task={openTask}
-          lists={lists}
-          tags={tags}
-          timeZone={timeZone}
-          isMobile={isMobile}
-          onClose={() => setOpenId(null)}
-          onTaskChange={replaceTask}
-          onMoveToList={moveTaskToList}
-          onTagCreated={(tag) => setTags((current) => [...current, tag].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))}
-          onDelete={setTaskToDelete}
-        />
-      ) : null}
       </div>
 
-      {panelMode ? null : (
-      <TaskSheet
+      <TaskDetail
         api={api}
         task={openTask}
+        boardName={boardName}
         lists={lists}
         tags={tags}
         timeZone={timeZone}
-        isMobile={isMobile}
-        onClose={() => setOpenId(null)}
+        now={now}
+        siblings={visible.map((t) => t.id)}
+        onNavigate={(id) => openTaskById(id)}
+        onClose={() => openTaskById(null)}
         onTaskChange={replaceTask}
+        onToggleComplete={(task) => void toggleComplete(task)}
+        onMove={(task) => setMoveFor([task])}
         onMoveToList={moveTaskToList}
+        onDuplicate={(task) => void duplicateTask(task)}
         onTagCreated={(tag) => setTags((current) => [...current, tag].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))}
         onDelete={setTaskToDelete}
       />
-      )}
 
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} onCreate={createFromDialog} />
+      <Dialog open={Boolean(openId && !openTask)} onOpenChange={(open) => !open && openTaskById(null)}>
+        <DialogContent className="max-w-sm rounded-[20px]">
+          <DialogHeader>
+            <DialogTitle>Tarefa não encontrada</DialogTitle>
+            <DialogDescription>Ela pode ter sido excluída ou o link está incompleto.</DialogDescription>
+          </DialogHeader>
+          <Button type="button" className="h-11 rounded-full" onClick={() => openTaskById(null)}>
+            Voltar para as tarefas
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} defaultListId={newTaskList} now={now} timeZone={timeZone} onCreate={createFromDialog} />
+      <MoveDialog
+        open={Boolean(moveFor)}
+        onOpenChange={(open) => !open && setMoveFor(null)}
+        lists={lists}
+        currentListId={moveFor && moveFor.length === 1 ? moveFor[0].list_id : null}
+        title={moveFor && moveFor.length > 1 ? `Mover ${moveFor.length} tarefas para…` : "Mover para…"}
+        onPick={(listId) => {
+          for (const task of moveFor ?? []) moveTaskToList(task, listId)
+          if ((moveFor?.length ?? 0) > 1) stopSelecting()
+        }}
+      />
+      <ConfirmDialog
+        open={bulkDelete}
+        onOpenChange={setBulkDelete}
+        title={`Excluir ${selectedTasks.length} ${selectedTasks.length === 1 ? "tarefa" : "tarefas"}?`}
+        description="As tarefas selecionadas serão apagadas. Essa ação não pode ser desfeita."
+        onConfirm={() => void confirmBulkDelete()}
+      />
+      {selecting ? (
+        <div role="toolbar" aria-label="Ações da seleção" data-testid="selection-bar" className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 border-t border-border bg-card px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] md:inset-x-auto md:right-8 md:bottom-6 md:left-auto md:rounded-[20px] md:border">
+          <span className="tabular mr-auto text-[15px] font-semibold">{selected.size} {selected.size === 1 ? "selecionada" : "selecionadas"}</span>
+          <Button variant="outline" className="h-11 rounded-full" disabled={selected.size === 0} onClick={() => void bulkComplete()}>
+            <CheckIcon strokeWidth={1.75} /> Concluir
+          </Button>
+          <Button variant="outline" className="h-11 rounded-full" disabled={selected.size === 0} onClick={() => setMoveFor(selectedTasks)}>
+            <ArrowRightIcon strokeWidth={1.75} /> Mover
+          </Button>
+          <Button variant="outline" className="h-11 rounded-full" disabled={selected.size === 0} onClick={bulkTomorrow}>
+            <CalendarIcon strokeWidth={1.75} /> Adiar
+          </Button>
+          <Button variant="outline" className="h-11 rounded-full" disabled={selected.size === 0} onClick={() => setBulkDelete(true)}>
+            <Trash2Icon strokeWidth={1.75} /> Excluir
+          </Button>
+          <Button variant="ghost" size="icon" className="size-11 rounded-full" aria-label="Sair da seleção" onClick={stopSelecting}>
+            <XIcon strokeWidth={1.75} />
+          </Button>
+        </div>
+      ) : null}
       <PromptDialog open={newBoardOpen} onOpenChange={setNewBoardOpen} title="Novo quadro" label="Nome do quadro" submitLabel="Criar quadro" onSubmit={newBoard} />
       <PromptDialog open={renameOpen} onOpenChange={setRenameOpen} title="Renomear quadro" label="Nome do quadro" initialValue={boardName} onSubmit={doRenameBoard} />
       <ConfirmDialog

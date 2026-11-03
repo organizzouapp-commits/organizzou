@@ -398,3 +398,9 @@ html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) {
 @media (prefers-reduced-transparency: reduce) {
   :root, .dark { --auth-glass-bg: var(--background); --auth-glass-scrim: transparent; }
 }
+
+/* The phone assistant button gets out of the way of any open dialog, sheet or drawer (task details, pickers, creation sheets). */
+body:has([role="dialog"][data-state="open"]) [data-testid="assistant-fab"],
+body:has([data-vaul-drawer][data-state="open"]) [data-testid="assistant-fab"] {
+  display: none;
+}

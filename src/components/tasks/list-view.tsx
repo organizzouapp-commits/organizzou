@@ -1,85 +1,105 @@
 "use client"
 
-import { Checkbox } from "@/components/ui/checkbox"
-import { SwipeRow } from "@/components/organizzou/SwipeRow"
-import { groupByList } from "@/features/tasks/filters"
-import { getSwatch } from "@/lib/swatches"
-import { cn } from "@/lib/utils"
-import type { TagRow, TaskView } from "@/features/tasks/types"
+import { useEffect, useState } from "react"
+import { ChevronDownIcon, PlusIcon, SquareCheckIcon } from "lucide-react"
 
-import { QuickAdd } from "./quick-add"
-import { DueLabel, PriorityIcon, TagChip, TaskCounters } from "./task-meta"
+import { cardHover } from "@/components/organizzou/Bento"
+import { EmptyState } from "@/components/organizzou/EmptyState"
+import { Button } from "@/components/ui/button"
+import { groupByDue, type DueGroupId } from "@/features/tasks/view"
+import { cn } from "@/lib/utils"
+
+import { TaskCardBody } from "./task-card"
 import type { ViewProps } from "./types"
 
-function TaskRowItem({
-  task,
-  tags,
-  props,
-}: {
-  task: TaskView
-  tags: TagRow[]
-  props: ViewProps
-}) {
-  const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
-  const done = Boolean(task.completed_at)
+const STORAGE_KEY = "organizzou:tarefas-groups"
+/** Folded by default: the person has finished these. */
+const DEFAULT_FOLDED: Partial<Record<DueGroupId, boolean>> = { concluidas: true }
 
-  return (
-    <SwipeRow
-      onSwipeRight={() => props.onToggleComplete(task)}
-      rightLabel={done ? "Reabrir" : "Concluir"}
-      onSwipeLeft={() => props.onDeleteRequest(task)}
-    >
-      <div data-task-id={task.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3">
-        <Checkbox
-          checked={done}
-          onCheckedChange={() => props.onToggleComplete(task)}
-          aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`}
-        />
-        <button
-          type="button"
-          onClick={() => props.onOpenTask(task.id)}
-          className="flex min-w-0 flex-1 flex-col gap-1 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <span className="flex items-center gap-2">
-            {task.swatch !== "neutro" ? (
-              <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", getSwatch(task.swatch).fill)} />
-            ) : null}
-            <span className={cn("truncate text-[15px] leading-6", done && "text-muted-foreground line-through")}>
-              {task.title}
-            </span>
-          </span>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <DueLabel task={task} now={props.now} timeZone={props.timeZone} />
-            <TaskCounters task={task} />
-            {taskTags.slice(0, 2).map((tag) => (
-              <TagChip key={tag.id} tag={tag} />
-            ))}
-          </span>
-        </button>
-        <PriorityIcon priority={task.priority} className="shrink-0 text-muted-foreground" />
-      </div>
-    </SwipeRow>
-  )
+function readFolded(): Partial<Record<DueGroupId, boolean>> {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Partial<Record<DueGroupId, boolean>>) : {}
+  } catch {
+    return {}
+  }
 }
 
+/**
+ * Lista: grouped by due date (Atrasadas, Hoje, Amanhã, Esta semana, Mais tarde, Sem data, Concluídas). Headers look like "Seu dia":
+ * overline, chevron on the left, ONE count, nothing else when folded; the choice is remembered. Each group is one card with
+ * hairline dividers.
+ */
 export function ListView(props: ViewProps) {
-  const groups = groupByList(props.tasks, props.lists)
+  const [folded, setFolded] = useState<Partial<Record<DueGroupId, boolean>>>({})
+  useEffect(() => {
+    // localStorage only exists in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFolded(readFolded())
+  }, [])
+  const isFolded = (id: DueGroupId) => folded[id] ?? DEFAULT_FOLDED[id] ?? false
+  function toggle(id: DueGroupId) {
+    const next = { ...folded, [id]: !isFolded(id) }
+    setFolded(next)
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
+
+  const context = { now: props.now, timeZone: props.timeZone }
+  const groups = groupByDue(props.tasks, context)
 
   return (
-    <div className="flex flex-col gap-10">
-      {props.lists.map((list) => {
-        const rows = groups.get(list.id) ?? []
+    <div className="flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => props.onCreate()}
+        className="flex min-h-11 items-center gap-2 rounded-[14px] border border-dashed border-border bg-card px-4 text-[15px] text-muted-foreground outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" /> Adicionar tarefa…
+      </button>
+      {groups.length === 0 ? (
+        <EmptyState
+          icon={SquareCheckIcon}
+          title="Nenhuma tarefa por aqui"
+          description="Adicione a primeira tarefa desta lista."
+          action={
+            <Button type="button" className="h-11 rounded-full px-5" onClick={() => props.onCreate()}>
+              <PlusIcon strokeWidth={1.75} /> Adicionar tarefa
+            </Button>
+          }
+        />
+      ) : null}
+      {groups.map((group) => {
+        const open = !isFolded(group.id)
         return (
-          <section key={list.id} aria-label={list.name} className="flex flex-col">
-            <h3 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              {list.name} <span className="tabular">· {rows.length}</span>
-            </h3>
-            {rows.map((task) => (
-              <TaskRowItem key={task.id} task={task} tags={props.tags} props={props} />
-            ))}
-            <div className="pt-2">
-              <QuickAdd onAdd={(title) => props.onQuickAdd(list.id, title)} />
-            </div>
+          <section key={group.id} data-group={group.id} aria-label={group.label} className="flex flex-col gap-1">
+            <button type="button" aria-expanded={open} onClick={() => toggle(group.id)} className={cn("-ml-2 flex min-h-11 w-full items-center gap-2 rounded-xl px-2 text-left", cardHover)}>
+              <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
+              <h3 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{group.label}</h3>
+              <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{group.tasks.length}</span>
+            </button>
+            {open ? (
+              <div className="overflow-hidden rounded-[16px] border border-border bg-card">
+                {group.tasks.map((task) => (
+                  <TaskCardBody
+                    key={task.id}
+                    density="row"
+                    anchor
+                    task={task}
+                    tags={props.tags}
+                    now={props.now}
+                    timeZone={props.timeZone}
+                    actions={props.actionsFor(task)}
+                    selecting={props.selection.active}
+                    selected={props.selection.ids.has(task.id)}
+                    onSelect={() => props.selection.toggle(task.id)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </section>
         )
       })}

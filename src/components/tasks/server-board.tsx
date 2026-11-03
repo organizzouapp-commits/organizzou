@@ -8,7 +8,7 @@ import type { BoardData } from "@/features/tasks/types"
 import { BoardClient } from "./board-client"
 import type { ViewMode } from "./board-toolbar"
 
-type ServerBoardProps = { initial: BoardData; userId: string; initialView: ViewMode; nowIso: string }
+type ServerBoardProps = { initial: BoardData; userId: string; initialView: ViewMode | null; nowIso: string }
 
 /** Real backend wrapper (Supabase server actions + Storage). */
 export function ServerBoard({ initial, userId, initialView, nowIso }: ServerBoardProps) {
