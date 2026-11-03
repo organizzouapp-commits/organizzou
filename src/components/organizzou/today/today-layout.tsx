@@ -117,7 +117,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   const customize = (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button type="button" variant="outline" className="h-11 rounded-full px-3 md:px-5" aria-label="Personalizar" onClick={() => setOpen(true)}>
+        <Button type="button" variant="outline" className="h-11 min-w-11 rounded-full px-3 md:px-5" aria-label="Personalizar" onClick={() => setOpen(true)}>
           <SlidersHorizontalIcon strokeWidth={1.75} />
           <span className="max-md:hidden">Personalizar</span>
         </Button>

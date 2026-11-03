@@ -33,7 +33,7 @@ export function AssistantCard({ onNavigate, className }: { onNavigate?: () => vo
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="text-[15px] leading-5 font-semibold">Assistente virtual</span>
-        <span className="text-[13px] leading-5 text-muted-foreground">Pergunte ou peça qualquer coisa</span>
+        <span className="text-[13px] leading-5 text-muted-foreground">Pergunte ou peça algo</span>
       </span>
     </button>
   )

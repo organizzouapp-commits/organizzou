@@ -470,7 +470,7 @@ export function SeuDia({ data }: { data: DayData }) {
               <TimelineGroup id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")} preview={preview(rest.map((item) => item.title))}>
                 {earlier.length > 0 ? (
                   <div className="flex flex-col">
-                    <button type="button" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)} className={cn("-mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2 text-left opacity-70", cardHover)}>
+                    <button type="button" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)} className={cn("-mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2 text-left", cardHover)}>
                       <ChevronRightIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, showEarlier && "rotate-90")} />
                       <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">
                         Mais cedo · {plural(earlier.length, "evento", "eventos")} · {earlier.map((item) => item.title).join(", ")}

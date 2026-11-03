@@ -76,17 +76,16 @@ test.describe("phone (390x844)", () => {
     await expect(strip.getByRole("group", { name: "16 de 16" })).toBeAttached()
   })
 
-  test("the panels are folded cards with a summary; unfolding one is remembered", async ({ page, context, baseURL }) => {
+  test("the panels are folded cards with a summary; one card is open at a time (accordion)", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
     const finance = page.locator('[data-panel="financas"]')
     const toggle = finance.getByRole("button", { expanded: false })
-    await expect(toggle).toContainText("Sobra do mês")
+    await expect(toggle).toContainText(/Sobra do mês|Faltam no mês/)
     await toggle.click()
     await expect(finance.getByRole("button", { expanded: true })).toBeVisible()
-    await waitSaved(context, (p) => p?.expandedPanels?.includes("financas"))
-    await page.reload()
-    await expect(page.locator('[data-panel="financas"]').getByRole("button", { expanded: true })).toBeVisible({ timeout: 60000 })
+    await page.locator('[data-panel="dieta"]').getByRole("button", { expanded: false }).click()
+    await expect(finance.getByRole("button", { expanded: false })).toBeVisible()
   })
 
   test("rows keep a 64 px height and the page never scrolls sideways", async ({ page, context, baseURL }) => {
@@ -399,37 +398,6 @@ test.describe("round 2: desktop (1440x900)", () => {
     expect(await cursor(page.getByRole("button", { name: "Destaques anteriores" }))).toBe("not-allowed")
   })
 
-  test("clicking the TITLE of a side panel toggles it; the arrow beside it only opens the module", async ({ page, context, baseURL }) => {
-    await setup(context, baseURL!)
-    await open(page)
-    const finance = page.locator('[data-panel="financas"]')
-    const toggle = finance.locator("button[aria-controls]")
-    await expect(toggle).toHaveAttribute("aria-expanded", "false")
-    await finance.getByRole("heading", { name: "Finanças" }).click()
-    await expect(toggle).toHaveAttribute("aria-expanded", "true")
-    await expect(finance.getByText("Orçamento", { exact: true }).first()).toBeVisible()
-    // Clicking the summary line (also inside the header row) folds it again.
-    await finance.locator("button[aria-controls] span.truncate").click()
-    await expect(toggle).toHaveAttribute("aria-expanded", "false")
-    // The header button spans the row except for the module arrow, which is a link, not inside the button.
-    const t = (await toggle.boundingBox())!
-    const arrow = finance.getByRole("link", { name: "Abrir Finanças" })
-    expect(t.x + t.width).toBeLessThanOrEqual((await arrow.boundingBox())!.x + 1)
-    await expect(arrow.locator("xpath=ancestor::button")).toHaveCount(0)
-  })
-
-  test("a new person: Notas e lembretes is open on the normal surface, the other panels are folded", async ({ page, context, baseURL }) => {
-    await setup(context, baseURL!)
-    await open(page)
-    const notes = page.locator('[data-panel="notas"] section')
-    const finance = page.locator('[data-panel="financas"] section')
-    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
-    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "false")
-    // Same surface as every other card, and not the Lima highlight.
-    expect(await bg(notes)).toBe(await bg(finance))
-    expect(await bg(notes)).not.toBe(await bg(lima(page).first()))
-  })
-
   test("exactly one Lima highlight: the first card in view; it moves with the arrows and returns to normal behind", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
@@ -500,38 +468,6 @@ test.describe("round 2: desktop (1440x900)", () => {
     await group.hover()
     await page.waitForTimeout(500)
     expect(await look(group)).toEqual(onCard)
-  })
-
-  test("the first side panel opens on every load: collapsing it lasts only for the visit; the others remember", async ({ page, context, baseURL }) => {
-    await setup(context, baseURL!)
-    await open(page)
-    const notes = page.locator('[data-panel="notas"] button[aria-controls]')
-    const finance = page.locator('[data-panel="financas"] button[aria-controls]')
-    await expect(notes).toHaveAttribute("aria-expanded", "true")
-
-    // Collapse it, open Finanças, reload: Notas is open again, Finanças is still open.
-    await notes.click()
-    await expect(notes).toHaveAttribute("aria-expanded", "false")
-    await finance.click()
-    await waitSaved(context, (p) => p?.expandedPanels?.includes("financas"))
-    expect((await savedPrefs(context)).expandedPanels).not.toContain("notas")
-    await page.reload()
-    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
-    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
-
-    // Server-rendered open: the HTML already has it expanded (no flash, no jump).
-    const html = await (await page.request.get("/dashboard")).text()
-    expect(html).toMatch(/aria-expanded="true"[^>]*aria-controls|aria-controls[^>]*aria-expanded="true"/)
-
-    // Hide the first panel: the next one becomes the one that opens on load.
-    await customize(page)
-    await page.getByRole("switch", { name: "Esconder Notas e lembretes" }).click()
-    await page.getByRole("button", { name: "Pronto" }).click()
-    await expect(page.locator('[data-panel="notas"]')).toHaveCount(0)
-    await page.locator('[data-panel="financas"] button[aria-controls]').click()
-    await page.reload()
-    await expect(page.locator('[data-panel="financas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
-    await expect(page.locator('[data-panel="dieta"] button[aria-controls]')).toHaveAttribute("aria-expanded", "false")
   })
 
   test("the WHOLE side panel lifts like a Destaques card: title, body and empty area, open and folded; contrast holds", async ({ page, context, baseURL }) => {
@@ -626,7 +562,7 @@ test.describe("round 2: desktop (1440x900)", () => {
     const label = (await page.getByRole("heading", { name: "Destaques", level: 2 }).boundingBox())!
     expect(label.y - scroller.y).toBeLessThanOrEqual(32)
     const main = (await page.locator('[data-panel="seu-dia"]').boundingBox())!
-    const aside = (await page.locator('[data-panel="notas"]').boundingBox())!
+    const aside = (await page.getByTestId("module-cards").boundingBox())!
     expect(Math.abs(main.y - aside.y)).toBeLessThanOrEqual(1)
   })
 
@@ -718,7 +654,7 @@ test.describe("round 2: desktop (1440x900)", () => {
 test.describe("round 2: phone (390x844)", () => {
   test.use(phone)
 
-  test("the deck has one Lima card, the front one, and it changes with the swipe; Notas is open on the normal surface; the panel title toggles", async ({ page, context, baseURL }) => {
+  test("the deck has one Lima card, the front one, and it changes with the swipe", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
     const deck = page.locator(".swiper").first()
@@ -738,11 +674,6 @@ test.describe("round 2: phone (390x844)", () => {
     expect(await deck.locator(".swiper-slide-active a").getAttribute("aria-label")).not.toBe(front)
     await expect(deck.locator('.swiper-slide:not(.swiper-slide-active) a[data-tone="highlight"]')).toHaveCount(0)
 
-    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true")
-    expect(await bg(page.locator('[data-panel="notas"] section'))).toBe(await bg(page.locator('[data-panel="financas"] section')))
-    const finance = page.locator('[data-panel="financas"]')
-    await finance.getByRole("heading", { name: "Finanças" }).click()
-    await expect(finance.locator("button[aria-controls]")).toHaveAttribute("aria-expanded", "true")
   })
 
   test("reduced motion: the flat strip marks the first visible card as Lima", async ({ page, context, baseURL }) => {
@@ -757,16 +688,9 @@ test.describe("round 2: phone (390x844)", () => {
     await expect(strip.locator('a[data-tone="highlight"]')).toHaveCount(1)
   })
 
-  test("Notas opens again after a reload even if it was folded; Abrir agenda is an icon-only 44 px button", async ({ page, context, baseURL }) => {
+  test("Abrir agenda is an icon-only 44 px button", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
-    const notes = page.locator('[data-panel="notas"] button[aria-controls]')
-    await expect(notes).toHaveAttribute("aria-expanded", "true")
-    await notes.click()
-    await expect(notes).toHaveAttribute("aria-expanded", "false")
-    await page.reload()
-    await expect(page.locator('[data-panel="notas"] button[aria-controls]')).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
-    // Tapping the panel card lifts it like a Destaques card (touch has no hover, but the style exists for the tap).
     const agenda = page.getByRole("link", { name: "Abrir agenda" })
     await agenda.scrollIntoViewIfNeeded()
     const box = (await agenda.boundingBox())!

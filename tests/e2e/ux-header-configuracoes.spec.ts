@@ -68,6 +68,10 @@ test("the plan icon is the money icon everywhere and the assistant keeps Sparkle
   await page.goto("/dashboard/plano")
   await expect(page.locator("svg.lucide-badge-dollar-sign").first()).toBeVisible({ timeout: 30000 })
   await expect(page.locator('a[href="/dashboard/plano"] svg.lucide-sparkles, button svg.lucide-sparkles + :text("Fazer upgrade")')).toHaveCount(0)
+  // Sparkles is the assistant's icon only: Pro sees it on the rail assistant button (this setup is collapsed), Free sees it nowhere in the sidebar.
   await page.goto("/dashboard")
-  await expect(page.locator("svg.lucide-sparkles").first()).toBeVisible()
+  await expect(page.locator("[data-sidebar=sidebar] svg.lucide-sparkles")).toHaveCount(0, { timeout: 30000 })
+  await context.addCookies([{ name: "dev_plan", value: "pro", url: baseURL! }])
+  await page.reload()
+  await expect(page.getByTestId("assistant-rail-button").locator("svg.lucide-sparkles")).toBeVisible({ timeout: 30000 })
 })

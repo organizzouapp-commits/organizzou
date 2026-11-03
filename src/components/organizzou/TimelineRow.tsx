@@ -183,7 +183,7 @@ export function TimelineRow({ item, done, nowMs, handlers = {}, current, dimmed,
         checked={done}
         onCheckedChange={(value) => handlers.toggle?.(value === true)}
         aria-label={`${done ? reopenLabel : checkLabel}: ${item.title}`}
-        className="size-[22px] md:size-5 active:scale-90 data-checked:animate-in data-checked:zoom-in-90 data-checked:duration-[400ms] motion-reduce:animate-none motion-reduce:transition-none [&_svg]:size-3.5"
+        className="size-[22px] after:-inset-x-3 after:-inset-y-3 md:size-5 active:scale-90 data-checked:animate-in data-checked:zoom-in-90 data-checked:duration-[400ms] motion-reduce:animate-none motion-reduce:transition-none [&_svg]:size-3.5"
       />
     </span>
   ) : (
@@ -200,7 +200,7 @@ export function TimelineRow({ item, done, nowMs, handlers = {}, current, dimmed,
           <span className="tabular text-[12px] leading-4 text-muted-foreground">{current.range}</span>
         </span>
       ) : null}
-      <Link href={item.href} className={cn("flex min-w-0 flex-col gap-0.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50", current && "gap-1")}>
+      <Link href={item.href} className={cn("flex min-w-0 flex-col justify-center gap-0.5 rounded-md outline-none max-md:min-h-11 focus-visible:ring-3 focus-visible:ring-ring/50", current && "gap-1")}>
         <span className={cn("min-w-0 leading-5 font-semibold [overflow-wrap:anywhere]", current ? "text-[16px]" : "text-[15px]", done && "text-muted-foreground line-through decoration-1")}>
           {item.priority === "high" ? (
             <>
