@@ -1,5 +1,8 @@
 # Revisão de UX: resumo
 
+> **Nota (03/11/2026):** WhatsApp e Open Finance foram **descartados** do produto (ver `docs/REMOVAL-WHATSAPP-OPENFINANCE.md`). O assistente vive só dentro do app. As partes deste documento sobre esses temas ficam como histórico e **não valem mais**.
+
+
 Branch: `experiment/ux-review` (parte da `main`; nada foi mesclado nem enviado). Esta página resume o que mudou por tela, o que
 ainda falta e como testar, voltar ou manter a versão nova.
 

@@ -1,5 +1,8 @@
 # Build Organizzou — master prompt
 
+> **Note (2026-11-03):** WhatsApp and Open Finance were **dropped** from the product (see `docs/REMOVAL-WHATSAPP-OPENFINANCE.md`). The assistant lives only inside the app. Anything below about those topics is history and **no longer applies**.
+
+
 You are the lead engineer and product designer for **Organizzou**, a mobile-first, installable (PWA) personal
 "Life OS" web app in Brazilian Portuguese. Follow `CLAUDE.md` at all times. The full product spec is in
 `docs/PRD.md` and the visual source of truth is `docs/design-system/DESIGN-SYSTEM.md` — **use the design system on
@@ -149,11 +152,11 @@ flashcards with spaced repetition and quiz, AI-generated flashcards/summaries; N
 search and a rich-text editor; reminders (push now, WhatsApp in Phase 9); life goals linked to other modules;
 light gamification (streaks, achievements, level — no pressure).
 
-**Phase 8 — Vault + Open Finance.** Zero-knowledge vault with master password, folders, item types, password
+**Phase 8 — Vault + Open Finance.** *(Open Finance part CANCELLED on 2026-11-03; the Vault part stands.)* Zero-knowledge vault with master password, folders, item types, password
 generator, weak/reused password alerts, encrypted-only export; Open Finance connection (Pluggy or Belvo) with
 import and auto-categorization.
 
-**Phase 9 — WhatsApp + push + scheduled jobs.** Number linking, webhook, text/audio/buttons, reminders and
+**Phase 9 — WhatsApp + push + scheduled jobs.** *(CANCELLED on 2026-11-03: no WhatsApp. Web push, e-mail reminders and the reminders scheduler remain optional.)* Number linking, webhook, text/audio/buttons, reminders and
 summaries, weekly review, preferences and do-not-disturb, web push notifications.
 
 **Phase 10 — PWA offline, export, browser extension, launch.** Offline mode with sync on reconnect, CSV/JSON export

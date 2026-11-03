@@ -41,16 +41,21 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
   pro: {
     id: "pro",
     name: "Plano Pro",
-    tagline: "Sem limites, com o assistente à vontade.",
+    tagline: "Mais espaço, mais histórico e o assistente à vontade.",
     // TODO(owner): placeholder prices, not final.
     price: { monthlyCents: 1990, yearlyCents: 19900 },
     limits: { taskBoards: null, assistantMessagesPerDay: 200 },
     features: [
       "Tudo do Plano Gratuito",
       "Listas de tarefas ilimitadas",
-      "Assistente com 200 mensagens por dia",
-      "Resumos e revisões semanais personalizados",
-      "Suporte prioritário",
+      "Assistente com 200 mensagens por dia (e provedor de IA externo, se você ativar)",
+      "Histórico e gráficos sem limite de tempo",
+      "Mais hábitos, metas e orçamentos",
+      "Anexos maiores nas notas e tarefas",
+      "Exportação avançada dos seus dados",
+      "Resumo semanal por e-mail (em breve)",
+      "Relatório de senhas do Cofre (em breve)",
+      "Temas extras (em breve)",
     ],
   },
 }

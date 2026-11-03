@@ -135,14 +135,13 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
 - **Fundo da página**: Tinta no escuro; Papel + overlay de Tinta 4% no claro.
 - **Sidebar flutuante** (≥ 768 px): cartão sólido com 16 px de margem (P), raio 24 px, 260 px de largura (rail de 80 px recolhida), altura total menos as margens,
   fundo Grafite (escuro) / Papel (claro). Quatro itens sempre visíveis (Hoje, Tarefas, Agenda, Finanças), grupos **Vida** e **Organização** que dobram, bloco fixo embaixo
-  (o grupo Configurações com Perfil, Configurações, Ajuda e Sair, e, por último, o cartão Lima "Conecte seu WhatsApp"). Item: 40 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Tinta/Papel 6%.
+  (o grupo Configurações com Perfil, Configurações, Ajuda e Sair, e, por último, o cartão Lima "Desbloqueie o Plano Pro", só para o plano Gratuito). Item: 40 px, raio full, ícone Lucide + rótulo; ativo = pílula Lima com ícone e texto Tinta; hover = Tinta/Papel 6%.
   O estado recolhido/expandido é guardado **por usuário em cookie**; em tablet (768–1023 px) a sidebar começa como rail. Detalhes, rail e grade fluida em **5.6**.
 - **Barra superior** (dentro da coluna de conteúdo, sem fundo, alinhada ao topo da sidebar, ~76 px): à esquerda a saudação grande ("Bom dia, Patrick", pelo horário)
   com a data embaixo; nas telas de módulo, o título da página e um subtítulo curto. À direita: pílula de busca (Ctrl K abre a paleta
   de comandos), sino com ponto Lima quando há novidades, alternância de tema, avatar com menu da conta e o botão primário
   contextual "+ Novo" (cada tela registra o seu com `usePrimaryAction`; sem registro abre a captura rápida).
-- **Mobile (< 768 px)**: sem sidebar. Cabeçalho que rola com a página (não é fixo) em 3 linhas: avatar (menu da conta, com
-  "Conectar WhatsApp"), logo e sino; busca + alternador de tema; chips só de texto (Hoje, Tarefas, Agenda, Finanças, Vida ▾,
+- **Mobile (< 768 px)**: sem sidebar. Cabeçalho que rola com a página (não é fixo) em 3 linhas: avatar (menu da conta), logo e sino; busca + alternador de tema; chips só de texto (Hoje, Tarefas, Agenda, Finanças, Vida ▾,
   Organização ▾), de vidro quando inativos e Lima no ativo. Depois que o cabeçalho sai da tela, entra uma barra compacta de vidro
   no topo (avatar, logo, busca e sino). `BottomNav` flutuante em pílula de vidro com cinco itens iguais, ícone e rótulo sempre visíveis (Hoje · Tarefas · **Novo** · Agenda · Outros): o
   item ativo ganha fundo Lima, o "+" é um círculo Lima na mesma linha e faz o mesmo que o "+ Novo" do desktop, e "Outros" abre uma gaveta
@@ -176,8 +175,8 @@ Hierarquia por **peso e opacidade**, não por cor: título em `foreground`, apoi
     Só há um escurecimento sutil de Tinta (de 15% no topo a, no máximo, 40% embaixo) para garantir contraste.
   - Conteúdo: logotipo por tema, 40 px de altura (`h-10`, também na tela de boas-vindas e acima da sheet no mobile), só nas telas de acesso: tema escuro `public/brand/logo-preta.png`, tema
     claro `public/brand/logo-branca.png` (as duas imagens ficam no DOM e alternam pela classe `dark`: sem flash nem hydration mismatch), selo, título grande, subtítulo e 3 passos. **Passos do login**: "Veja seu dia",
-    "Fale com o assistente", "Receba lembretes". **Passos do cadastro**: "Crie sua conta", "Conecte seu WhatsApp",
-    "Organize seu dia". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
+    "Fale com o assistente", "Receba lembretes". **Passos do cadastro**: "Crie sua conta", "Organize seu dia",
+    "Peça pelo assistente". Ao trocar de tela, o conteúdo troca com fade + deslize de 8 px, escalonado de 60 ms em 60 ms.
   - **Cartões de passo de vidro**: Papel 8% + `backdrop-blur(16px)` + borda de 1 px em Papel 12%. O passo ativo é Lima com texto
     Tinta. Hover e foco do teclado: sobe 4 px, borda Lima 40%, fundo Papel 12% e círculo do número preenchido de Lima
     (o foco soma o anel). Clicar num passo o torna o ativo (apenas visual).
@@ -290,12 +289,12 @@ Só a caixa de conteúdo rola (`data-app-scroll`): `overscroll-behavior: contain
 
 **Sidebar expandida (260 px).** Sempre visíveis: Hoje, Tarefas, Agenda, Finanças. Grupos que dobram (`Collapsible`, chevron que gira, altura animada em
 0,4 s): **Vida** (Rotina, Treinos, Dieta, Estudos) e **Organização** (Notas e lembretes, Metas, Diário, Cofre). O estado de cada grupo é lembrado por usuário
-(`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: o grupo **Configurações** (mesmo `Collapsible`, mesma animação de 0,4 s; ao abrir, o bloco cresce para cima e só a lista de navegação encolhe) e, **por último**, o card Lima "Conecte seu WhatsApp".
-O grupo **Configurações** tem Perfil (`/dashboard/perfil`), Configurações (`/dashboard/configuracoes`), Ajuda (`/dashboard/ajuda`) e Sair; **Sair sempre pede confirmação** (`AlertDialog` "Deseja sair da sua conta?"). Os mesmos itens aparecem no menu do avatar da barra superior e no cabeçalho do celular (que também lista "Conectar WhatsApp"). Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
+(`localStorage`, chave derivada do cookie da sidebar) e o grupo da página ativa abre sozinho ao navegar. Bloco fixo embaixo, nesta ordem: o grupo **Configurações** (mesmo `Collapsible`, mesma animação de 0,4 s; ao abrir, o bloco cresce para cima e só a lista de navegação encolhe) e, **por último**, o card Lima "Desbloqueie o Plano Pro" (só no plano Gratuito).
+O grupo **Configurações** tem Perfil (`/dashboard/perfil`), Configurações (`/dashboard/configuracoes`), Ajuda (`/dashboard/ajuda`) e Sair; **Sair sempre pede confirmação** (`AlertDialog` "Deseja sair da sua conta?"). Os mesmos itens aparecem no menu do avatar da barra superior e no cabeçalho do celular. Se a tela for baixa, só a lista de navegação rola (sem barra); o bloco de baixo nunca. Em telas até
 900 px de altura o card dispensa o ícone e a descrição. Contador (ex.: Tarefas 15) à direita do rótulo; num grupo fechado aparece a soma dos itens.
 
-**Rail (recolhida, 80 px).** Todo controle é um quadrado de 44 px no **mesmo eixo vertical** (logo, botão de recolher, itens, item ativo Lima, itens de baixo e o ícone do
-WhatsApp). Cada grupo vira um ícone (Vida = coração com pulso, Organização = pasta, Configurações = engrenagem) que abre um *flyout* (Popover à direita; o de Configurações alinha pela base e abre para cima) com os itens. Contador: bolinha Lima com número Tinta no canto
+**Rail (recolhida, 80 px).** Todo controle é um quadrado de 44 px no **mesmo eixo vertical** (logo, botão de recolher, itens, item ativo Lima, itens de baixo e o ícone de
+upgrade, no plano Gratuito). Cada grupo vira um ícone (Vida = coração com pulso, Organização = pasta, Configurações = engrenagem) que abre um *flyout* (Popover à direita; o de Configurações alinha pela base e abre para cima) com os itens. Contador: bolinha Lima com número Tinta no canto
 superior direito do ícone (nos grupos, a soma). Tooltip com o rótulo ao passar o mouse.
 
 **Grade fluida.** O conteúdo usa toda a largura ao lado da sidebar (sem `max-width` nem centralização). A grade de 12 colunas (gap 20 px) reflui por **container queries**

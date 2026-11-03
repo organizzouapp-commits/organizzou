@@ -2,7 +2,8 @@
 
 Organizzou is a mobile-first, installable (PWA) personal "Life OS" web app for Brazilian users: Dashboard, Tasks,
 Routine, Calendar, Finance, Workouts, Diet, Studies, Notes & Reminders and a Password Vault, all controllable by
-conversation with a built-in Claude assistant — in the app and on WhatsApp (text and voice).
+conversation with a built-in Claude assistant, inside the app only (WhatsApp and Open Finance were dropped on 2026-11-03, see
+`docs/REMOVAL-WHATSAPP-OPENFINANCE.md`).
 
 Read these before any UI or product work:
 - `docs/PRD.md` — full product requirements (Portuguese, original spec)
@@ -41,11 +42,11 @@ Read these before any UI or product work:
 - Supabase via `@supabase/ssr`. **Row Level Security on every table**, scoped to `auth.uid()`. Migrations in
   `supabase/migrations/` (never edit the DB by hand). Generate types into `src/lib/supabase/types.ts`.
 - Validate every input on the server with `zod`. Forms: `react-hook-form` + `zod`.
-- Secrets (Anthropic, WhatsApp, speech-to-text, Open Finance, Supabase service role) **only on the server**,
+- Secrets (Anthropic, Supabase service role, and any optional AI/e-mail/push provider) **only on the server**,
   read from environment variables; keep `.env.example` up to date. Never expose them with `NEXT_PUBLIC_`.
-- The Claude assistant (app and WhatsApp) must **never** read, write or receive Vault data. Enforce this in code
+- The Claude assistant (in the app) must **never** read, write or receive Vault data. Enforce this in code
   (separate tables/schema, no assistant tools for it, server-side guard), not just in the prompt.
-- Destructive or sensitive assistant actions require explicit user confirmation. Log every assistant/WhatsApp action
+- Destructive or sensitive assistant actions require explicit user confirmation. Log every assistant action
   in an audit table.
 - Model name for the Claude API comes from an env var (`ANTHROPIC_MODEL`); don't hard-code it.
 - Quality gate before saying a step is done: `npm run lint`, `npm run typecheck`, `npm run build`, and tests

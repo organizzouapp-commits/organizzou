@@ -1,6 +1,6 @@
 # Assistente e captura rápida
 
-Um só motor (`src/server/assistant/`) serve o chat do app, a captura rápida e, na próxima tarefa, o WhatsApp.
+Um só motor (`src/server/assistant/`) serve o chat do app e a captura rápida. O assistente vive só dentro do app: não existe canal de WhatsApp (descartado em 03/11/2026).
 
 ## Como funciona
 

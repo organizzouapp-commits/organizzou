@@ -1,5 +1,8 @@
 # PROJETO: [NOME DO APP] — Aplicativo web de gestão pessoal (Life OS)
 
+> **Nota (03/11/2026):** WhatsApp e Open Finance foram **descartados** do produto (ver `docs/REMOVAL-WHATSAPP-OPENFINANCE.md`). O assistente vive só dentro do app. As partes deste documento sobre esses temas ficam como histórico e **não valem mais**.
+
+
 ## 1. Visão geral
 Crie um aplicativo web responsivo (mobile-first, instalável como PWA) de gestão
 pessoal que une Dashboard, Tarefas, Rotina, Agenda, Finanças, Treinos, Dieta,

@@ -51,11 +51,11 @@ grava em ordem, desfaz e avisa com um toast se o banco recusar. As telas passara
 | Tarefas | **Real** | `boards`, `board_lists`, `tasks`, `task_checklist_items`, `task_comments`, `tags`, `task_tags`, `attachments` | As ações reais que já existiam passam a valer |
 | Rotina | **Real** | `habits`, `habit_logs` | Um registro por hábito por dia |
 | Agenda | **Real** | `events` (+ tarefas com data, dias de treino e provas lidos dos outros módulos) | Dias de treino e provas entram "o dia todo": nenhum horário foi escolhido |
-| Finanças | **Real** | `finance_accounts`, `finance_categories`, `finance_transactions`, `finance_bills`, `finance_goals` | Valores em centavos. Open Finance segue "Em breve" |
+| Finanças | **Real** | `finance_accounts`, `finance_categories`, `finance_transactions`, `finance_bills`, `finance_goals` | Valores em centavos. Sem Open Finance (removido do produto) |
 | Treinos | **Real** | `exercises` (catálogo + próprios), `workout_plans`, `plan_exercises`, `workout_sessions`, `set_logs` | |
 | Dieta | **Real** | `foods` (catálogo + próprios), `meal_items`, `diet_goals`, `weight_logs`, `water_logs` | Sem meta de peso até a pessoa definir |
 | Estudos | **Real** | `subjects`, `study_sessions`, `study_deadlines`, `flashcard_decks`, `flashcards` | Novo: criar baralho e cartão. Os blocos semanais de exemplo não existem em conta real |
-| Notas e lembretes | **Real** | `notes` (salva ~0,8 s depois de parar de digitar), `note_folders`, `reminders` | Entrega do lembrete por app/WhatsApp segue "Em breve" |
+| Notas e lembretes | **Real** | `notes` (salva ~0,8 s depois de parar de digitar), `note_folders`, `reminders` | Entrega do lembrete pelo app segue "Em breve" |
 | Metas | **Real** | `life_goals`, `life_goal_links`, `life_goal_milestones` | O progresso das ligações é **contado ao vivo** nos outros módulos (nada guardado) |
 | Diário | **Real** | `journal_entries` (humor, texto, sono) | "Treinou" e "estudou" vêm dos outros módulos |
 | Captura rápida (Novo) | **Real** | `tasks`, `finance_transactions`, `notes` | Tarefa, gasto ("gastei 45 no mercado") ou nota; o resto vira nota, e a tela diz isso |
@@ -83,8 +83,8 @@ grava em ordem, desfaz e avisa com um toast se o banco recusar. As telas passara
 - **Upload de foto**: bucket e coluna prontos, tela não ligada.
 - **Preferências de notificação**: a tabela `notification_preferences` existe e é provisionada; a tela de avisos ainda guarda só no
   navegador (nada é enviado de qualquer jeito).
-- **WhatsApp, push, Open Finance, pagamentos, voz, IA**: seguem "Em breve". As tabelas `whatsapp_links`, `push_subscriptions`,
-  `user_stats`, `achievements` existem para quando forem construídos.
+- **Push, pagamentos, voz, IA**: seguem "Em breve". As tabelas `push_subscriptions`, `user_stats`, `achievements` existem para quando forem construídos.
+- **WhatsApp e Open Finance**: removidos do produto (03/11/2026). `whatsapp_links` continua no banco, sem uso; o drop está preparado em `supabase/pending-drops/`.
 
 ## Dados de demonstração: só em organizzouapp@gmail.com
 

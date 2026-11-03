@@ -7,7 +7,7 @@ vive no banco, só na conta de teste, ver `docs/DATA-AUDIT.md`); **Não constru�
 Auditoria completa por módulo, com as tabelas: `docs/DATA-AUDIT.md`.
 
 Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu. Tudo que é simulado e tem efeito externo
-(WhatsApp, banco, e-mail, pagamento, IA) aparece com selo **"Em breve"** e controle desabilitado com uma explicação curta.
+(e-mail, pagamento, IA) aparece com selo **"Em breve"** e controle desabilitado com uma explicação curta.
 
 ## Contas e acesso
 
@@ -42,17 +42,16 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Captura rápida (Novo) | **Real**: vira tarefa, gasto ("gastei 45 no mercado") ou nota | `src/components/assistant/quick-capture.tsx`, `src/features/assistant/actions.ts` |
 | Busca global (Ctrl K) | **Real** (títulos dos dados do próprio usuário) | `src/features/search/actions.ts`, `src/components/shell/command-palette.tsx` |
 | Flashcards gerados a partir de anotações | Simulado (sem IA); marcado como "Em breve" | `src/components/studies/estudos-screen.tsx` |
-| WhatsApp: conectar número, enviar código | Não construído (selo "Em breve"; nenhum código é enviado) | `src/components/settings/settings-extras.tsx` |
-| WhatsApp: texto e voz com o assistente | Não construído | — |
-| Avisos (app e WhatsApp), não perturbe | Simulado: preferências só no navegador, nada é enviado (a tabela `notification_preferences` já existe e é criada no cadastro) | `src/components/settings/settings-extras.tsx` |
-| Lembretes das notas | **Real** (gravados em `reminders`); a entrega por app e WhatsApp segue "Em breve" e a tela avisa | `src/components/notes/notas-screen.tsx` |
+| WhatsApp | **Removido do produto** (03/11/2026). O assistente vive só dentro do app | — |
+| Avisos (app e e-mail), não perturbe | Simulado: preferências só no navegador, nada é enviado (a tabela `notification_preferences` já existe e é criada no cadastro) | `src/components/settings/settings-extras.tsx` |
+| Lembretes das notas | **Real** (gravados em `reminders`); a entrega pelo app segue "Em breve" e a tela avisa | `src/components/notes/notas-screen.tsx` |
 | Lembrete e repetição de tarefas | Não construído (campos desabilitados; migration aditiva `20260105000002` escrita e não aplicada) | `src/components/tasks/task-sheet.tsx` |
 
 ## Finanças
 
 | Funcionalidade | Status | Onde está no código |
 |---|---|---|
-| Open Finance (conectar banco, importar lançamentos) | Não construído (selo "Em breve"; nenhum banco aparece como conectado) | `src/components/finance/financas-screen.tsx` |
+| Open Finance | **Removido do produto** (03/11/2026). Finanças é 100% manual | — |
 | Lançamentos, contas fixas, orçamento, metas de economia | **Real** (`finance_*`) | `src/features/persist/`, `src/components/finance/financas-screen.tsx` |
 
 ## Módulos (dados)
@@ -76,6 +75,6 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 
 ## Regra de segurança
 
-O assistente e o WhatsApp **nunca** leem, escrevem nem recebem dados do Cofre. Hoje nenhum dos dois existe de verdade; quando
-forem construídos, a proteção precisa estar no código (tabelas separadas, sem ferramenta do assistente para o cofre e uma
+O assistente **nunca** lê, escreve nem recebe dados do Cofre. A proteção está no código (teste `src/features/assistant/vault-guard.test.ts`),
+não só no prompt; ao mudar o assistente, a proteção precisa estar no código (tabelas separadas, sem ferramenta do assistente para o cofre e uma
 guarda no servidor), não só no prompt.

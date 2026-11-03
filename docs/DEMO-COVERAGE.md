@@ -76,7 +76,6 @@ Depois de aplicar a migration e rodar o seed de novo, rode `E2E_DEMO_SCREENSHOTS
 | Orçamento: abaixo do limite, perto ("Perto do limite"), acima ("Acima do limite") | Coberto (limites escolhidos a partir do gasto do mês) | `financas-visao-geral` |
 | Metas de economia: em andamento e alcançada | Coberto | `financas-metas` |
 | Gráfico dos últimos 6 meses | Coberto | `financas-visao-geral` |
-| Conectar banco (Open Finance) | **Em breve** | `financas` |
 | Tema claro | Coberto | `financas-claro` |
 
 ## Treinos
@@ -113,7 +112,7 @@ Depois de aplicar a migration e rodar o seed de novo, rode `E2E_DEMO_SCREENSHOTS
 |---|---|---|
 | 8 notas: em pasta, sem pasta, fixadas, com etiqueta | Coberto | `notas-notas`, `notas-nota-aberta` |
 | Lembretes: atrasado, hoje, amanhã, mais tarde, concluído | Coberto | `notas-lembretes` |
-| Entrega do lembrete por app e WhatsApp | **Em breve** (a tela avisa) | `notas-lembretes` |
+| Entrega do lembrete pelo app | **Em breve** (a tela avisa) | `notas-lembretes` |
 
 ## Metas, Diário
 
@@ -132,7 +131,7 @@ Depois de aplicar a migration e rodar o seed de novo, rode `E2E_DEMO_SCREENSHOTS
 | Avisos (preferências por tipo) | **Em breve** (a entrega não existe; a tabela `notification_preferences` está pronta) | `configuracoes` |
 | Foto de perfil (upload) | **Em breve** (bucket pronto) | `perfil` |
 | Cofre | **Em breve** | `cofre` |
-| WhatsApp, Open Finance, pagamentos, voz, assistente com IA | **Em breve** | telas acima |
+| Pagamentos, voz, assistente com IA externa | **Em breve** | telas acima |
 | Conquistas, nível e XP | **Sem tela** (as tabelas `user_stats` e `achievements` existem; nenhuma tela as mostra). Sequências aparecem em Hoje e Rotina | |
 
 ## Admin (conta de administrador)

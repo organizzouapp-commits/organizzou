@@ -111,8 +111,7 @@ página). Ele grava `profiles.last_seen_at` e uma linha `(usuário, hora)` em `u
 
 ## O que ainda não existe (e a página diz isso)
 
-- **WhatsApp vinculado**: a coluna da tabela de usuários existe, mas vale **Não** para todos, porque vincular WhatsApp ainda não
-  foi construído. "Telefone informado" (do cadastro) aparece à parte no painel.
+- **WhatsApp e Open Finance**: foram removidos do produto (03/11/2026). A coluna "WhatsApp vinculado" e os cartões de integração saíram do painel.
 - **Pagamentos**: sem provedor, sem faturas, sem MRR/churn. Todo Pro é concedido por um admin (opcionalmente como cortesia com data
   de fim; depois dela a pessoa volta ao Gratuito sozinha, via `profiles.plan_until`).
 - **Suporte**: o formulário "Reportar problema" ainda é só um aviso. Quando existir, crie `public.support_reports`

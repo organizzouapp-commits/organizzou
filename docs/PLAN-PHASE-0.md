@@ -1,5 +1,8 @@
 # Organizzou — Phase 0 plan
 
+> **Note (2026-11-03):** WhatsApp and Open Finance were **dropped** from the product (see `docs/REMOVAL-WHATSAPP-OPENFINANCE.md`). The assistant lives only inside the app. Anything below about those topics is history and **no longer applies**.
+
+
 Status: **awaiting approval**. No application code has been written for this phase.
 Sources read: `CLAUDE.md`, `docs/PRD.md`, `docs/PROMPT-BUILD-APP.md`, `docs/design-system/DESIGN-SYSTEM.md`, the current project.
 

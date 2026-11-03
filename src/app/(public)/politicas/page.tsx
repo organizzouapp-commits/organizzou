@@ -22,7 +22,7 @@ const link =
   "rounded-full px-4 py-2 text-[15px] leading-6 outline-none transition-[color,background-color,box-shadow] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
 
 /** Update this date whenever the texts change. */
-const LAST_UPDATED = "28 de outubro de 2026"
+const LAST_UPDATED = "3 de novembro de 2026"
 
 // One public page for the three documents; each has an anchor (/politicas#termos, #privacidade, #cookies).
 export default function PoliciesPage() {
@@ -76,6 +76,11 @@ export default function PoliciesPage() {
           </p>
           <p className="max-w-prose text-base leading-7">
             Seus dados ficam isolados por conta. O cofre de senhas é criptografado no seu dispositivo e o assistente nunca tem acesso a ele.
+          </p>
+          <p className="max-w-prose text-base leading-7">
+            O assistente funciona só dentro do app. Ele tenta entender o que você escreve com regras no próprio servidor; quando um provedor de IA
+            externo está configurado, o texto enviado ao assistente é processado por ele para gerar a resposta. O Organizzou não se conecta a aplicativos de
+            mensagens nem a contas bancárias.
           </p>
         </section>
 
