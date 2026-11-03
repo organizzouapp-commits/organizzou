@@ -492,7 +492,7 @@ function TaskSheetBody({
               </Select>
             </Field>
           </div>
-          <p className="text-[13px] leading-5 text-muted-foreground">Em breve: avisos pelo WhatsApp e tarefas que se repetem.</p>
+          <p className="text-[13px] leading-5 text-muted-foreground">Os avisos chegam pelo app. Tarefas que se repetem chegam em breve.</p>
         </div>
 
         <Field label="Descrição" htmlFor="task-description">

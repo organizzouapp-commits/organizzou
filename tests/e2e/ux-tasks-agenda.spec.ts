@@ -93,7 +93,7 @@ test("Tarefas: details open as a side panel, autosave shows 'Salvo', E and N sho
   await panel.getByLabel("Descrição").fill("Texto novo")
   await panel.getByLabel("Descrição").blur()
   await expect(panel.getByText("Salvo")).toBeVisible()
-  await expect(panel.getByText("Em breve: avisos pelo WhatsApp")).toBeVisible()
+  await expect(panel.getByText("Os avisos chegam pelo app")).toBeVisible()
   await panel.getByRole("button", { name: "Fechar detalhes" }).click()
   await expect(panel).toHaveCount(0)
   await card.hover()

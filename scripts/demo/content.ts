@@ -483,9 +483,9 @@ export function buildDemo(now: Date, refs: Refs): Demo {
   ]
   notes.forEach(([key, folder, title, body, pinned, tags], i) => add("notes", { id: id("notes", key), folder_id: folder ? id("note_folders", folder) : null, title, body, pinned, tags, created_at: at(-i * 2 - 3, "09:00"), updated_at: at(-i * 2, "18:20") }))
   const reminders: [string, string, number, string, string[], string][] = [
-    ["tax", "Ligar para o contador sobre o imposto de renda", 0, "15:00", ["push", "whatsapp"], "pending"],
-    ["car", "Levar o carro para a revisão", 0, "17:30", ["whatsapp"], "pending"],
-    ["college", "Pagar o boleto da faculdade", 1, "09:00", ["push", "whatsapp"], "pending"],
+    ["tax", "Ligar para o contador sobre o imposto de renda", 0, "15:00", ["push"], "pending"],
+    ["car", "Levar o carro para a revisão", 0, "17:30", ["push"], "pending"],
+    ["college", "Pagar o boleto da faculdade", 1, "09:00", ["push"], "pending"],
     ["gift", "Comprar presente da mãe", 3, "12:00", ["push"], "pending"],
     ["antivirus", "Renovar assinatura do antivírus", 8, "10:00", ["push"], "pending"],
     ["docs", "Enviar documentos ao contador", -1, "11:00", ["push"], "done"],

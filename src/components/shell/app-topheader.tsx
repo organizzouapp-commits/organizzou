@@ -3,7 +3,7 @@
 import { memo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, LockIcon, LogOutIcon, MessageCircleIcon, SettingsIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, LogOutIcon, SettingsIcon } from "lucide-react"
 
 import { HeaderActions, headerGroup as group } from "@/components/organizzou/header-actions"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -13,7 +13,6 @@ import { APP_PLAN_ITEM } from "./app-nav"
 import type { ShellUser } from "./app-sidebar"
 import { groupHasActive, isActivePath, useNav, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { useWhatsAppAccess } from "./whatsapp-cta"
 
 const ease = "transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -38,10 +37,9 @@ type TopHeaderProps = {
  * groups in it have a surface: text-only navigation pills, theme switch, search + notifications, account, and the primary
  * action. No backdrop-filter. The expanded sidebar layout keeps AppTopBar.
  */
-/** "Configurações" pill of the collapsed header: same items as the sidebar group, plus Plano e cobrança, WhatsApp (Pro) and Sair. Icon-only below 1200 px. */
+/** "Configurações" pill of the collapsed header: same items as the sidebar group, plus Plano e cobrança and Sair. Icon-only below 1200 px. */
 function AccountPill({ account, active, pathname, tabIndex, onFocus }: { account: { label: string; items: NavItem[] }; active: boolean; pathname: string; tabIndex: number; onFocus: () => void }) {
   const requestSignOut = useRequestSignOut()
-  const whatsapp = useWhatsAppAccess()
   const items = [...account.items, APP_PLAN_ITEM]
   return (
     <DropdownMenu>
@@ -63,18 +61,6 @@ function AccountPill({ account, active, pathname, tabIndex, onFocus }: { account
             </DropdownMenuItem>
           )
         })}
-        {whatsapp.connected && !whatsapp.locked ? null : (
-          <DropdownMenuItem asChild className={menuItem}>
-            <Link href={whatsapp.href}>
-              <MessageCircleIcon strokeWidth={1.75} className="size-[18px]" />
-              <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                Conectar WhatsApp
-                {whatsapp.locked ? <span className="text-[11px] text-muted-foreground">Plano Pro</span> : null}
-              </span>
-              {whatsapp.locked ? <LockIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" /> : null}
-            </Link>
-          </DropdownMenuItem>
-        )}
         <DropdownMenuSeparator className="mx-1 my-2" />
         <DropdownMenuItem onSelect={requestSignOut} className={menuItem}>
           <LogOutIcon strokeWidth={1.75} className="size-[18px]" /> Sair

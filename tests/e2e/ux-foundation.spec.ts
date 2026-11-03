@@ -94,15 +94,12 @@ test("mobile /politicas: the sticky index sits above the text, nothing overlaps"
   expect(after.y).toBeLessThanOrEqual(24)
 })
 
-test("simulated integrations are marked and disabled, never claim success", async ({ page }) => {
+test("Configurações > Segurança: simulated items are marked and disabled, never claim success", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto("/dashboard/configuracoes?aba=whatsapp")
+  await page.goto("/dashboard/configuracoes?aba=seguranca")
   await expect(page.getByText("Em breve").first()).toBeVisible()
-  await expect(page.getByRole("button", { name: "Enviar código" })).toBeDisabled()
-  await page.goto("/dashboard/financas")
-  await page.getByRole("button", { name: "Conectar banco" }).click()
+  await expect(page.getByRole("switch", { name: "Verificação em duas etapas (em breve)" })).toBeDisabled()
   await expect(page.getByText("Conectado", { exact: true })).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Em breve" }).first()).toBeDisabled()
 })
 
 test("Plano Pro: entry points and the waiting list dialog", async ({ page }) => {

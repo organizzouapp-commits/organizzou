@@ -79,7 +79,7 @@ export default function ComingSoonPage() {
           )}
         >
           <p className="site-left max-w-[460px] text-base leading-[1.35] text-balance opacity-90 md:text-lg" style={reveal(2)}>
-            O app que <strong className="font-semibold opacity-100">organiza sua vida inteira</strong> está chegando. Tarefas, finanças, treinos, estudos e um assistente no WhatsApp, num só lugar. Já tem acesso?
+            O app que <strong className="font-semibold opacity-100">organiza sua vida inteira</strong> está chegando. Tarefas, finanças, treinos, estudos e um assistente dentro do app, num só lugar. Já tem acesso?
           </p>
           {/* The entrance animation lives on this wrapper; the hover/active scale lives on the button itself (.site-cta). */}
           <div className="site-right w-full lg:w-auto" style={reveal(3)}>

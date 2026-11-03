@@ -19,7 +19,7 @@ export type CategoryRow = {
 }
 
 export type TransactionKind = "in" | "out"
-export type TransactionSource = "manual" | "open_finance"
+export type TransactionSource = "manual"
 
 export type TransactionRow = {
   id: string

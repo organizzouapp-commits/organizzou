@@ -3,7 +3,7 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, LogOutIcon, MessageCircleIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, BadgeDollarSignIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { BackToAppButton, BackToAppRail, NavBrand } from "./nav-brand"
 import { groupHasActive, isActivePath, useNav, type NavGroup, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { SidebarCta, useWhatsAppAccess } from "./whatsapp-cta"
+import { SidebarCta } from "./plan-cta"
 
 export type ShellUser = { name: string; email: string }
 
@@ -195,10 +195,9 @@ function RailUpgrade({ pathname }: { pathname: string }) {
   )
 }
 
-/** Collapsed rail: the same Configurações group as the expanded sidebar (plus the WhatsApp entry), as a flyout like the other rail groups. */
+/** Collapsed rail: the same Configurações group as the expanded sidebar as a flyout like the other rail groups. */
 function RailAccount({ account, pathname }: { account: Account; pathname: string }) {
   const requestSignOut = useRequestSignOut()
-  const whatsapp = useWhatsAppAccess()
   const [open, setOpen] = useState(false)
   const hasActive = account.items.some((item) => isActivePath(pathname, item.href))
   const itemClass = "flex h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent"
@@ -223,16 +222,6 @@ function RailAccount({ account, pathname }: { account: Account; pathname: string
             </Link>
           )
         })}
-        {whatsapp.connected && !whatsapp.locked ? null : (
-          <Link href={whatsapp.href} onClick={() => setOpen(false)} className={cn(itemClass, ease, focus)}>
-            <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-            <span className="flex min-w-0 flex-1 flex-col leading-tight">
-              <span className="truncate">Conectar WhatsApp</span>
-              {whatsapp.locked ? <span className="truncate text-[11px] text-muted-foreground">Plano Pro</span> : null}
-            </span>
-            {whatsapp.locked ? <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" /> : null}
-          </Link>
-        )}
         <div role="separator" className="my-2 h-px bg-border" />
         <button
           type="button"
@@ -339,7 +328,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
         {account ? <AccountGroup account={account} pathname={pathname} {...groupProps(account.label)} /> : null}
       </nav>
 
-      {/* The only thing anchored at the bottom: the card (upgrade, connect WhatsApp, or nothing). */}
+      {/* The only thing anchored at the bottom: the card (the upgrade card for Free users, nothing for Pro). */}
       <div className="flex shrink-0 flex-col px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
         {nav.features.plan ? <SidebarCta /> : <BackToAppButton className="w-full justify-start px-4" />}
       </div>

@@ -33,7 +33,7 @@ export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult
   if (parsed.data.website) return { ok: true }
 
   const phone = toE164(parsed.data.phone)
-  if (!phone) return { ok: false, error: "Informe um WhatsApp válido com DDD.", fieldErrors: { phone: "Informe um WhatsApp válido com DDD." } }
+  if (!phone) return { ok: false, error: "Informe um telefone válido com DDD.", fieldErrors: { phone: "Informe um telefone válido com DDD." } }
   const email = parsed.data.email.toLowerCase()
   const source = parsed.data.source ?? "em-breve"
 

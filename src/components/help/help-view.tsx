@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MailIcon, MessageCircleIcon, SearchIcon, SparklesIcon } from "lucide-react"
+import { MailIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { EmptyState } from "@/components/organizzou/EmptyState"
@@ -17,8 +17,8 @@ import { Textarea } from "@/components/ui/textarea"
 // Placeholder content: the real FAQ and the support address are defined before launch.
 const FAQ = [
   {
-    q: "Como conecto meu WhatsApp?",
-    a: "A conexão com o WhatsApp ainda está em desenvolvimento. Em Configurações, aba WhatsApp, você acompanha a novidade e será avisado quando abrir.",
+    q: "Como falo com o assistente?",
+    a: "O assistente vive dentro do app: toque no botão do assistente para conversar ou use o Novo (captura rápida) para anotar uma tarefa, um gasto ou uma nota em uma frase. Também dá para ditar pelo microfone do navegador.",
   },
   {
     q: "O que o assistente consegue fazer?",
@@ -69,10 +69,6 @@ export function HelpView() {
               <MailIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
               suporte@organizzouapp.com
             </a>
-            <p className="flex items-center gap-3 text-[13px] leading-5 text-muted-foreground">
-              <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-              Atendimento pelo WhatsApp em breve.
-            </p>
           </BentoCard>
           <BentoCard title="Reportar problema" actions={<SoonBadge />} bodyClassName="flex flex-col gap-4">
             <p className="text-[13px] leading-5 text-muted-foreground">O envio por aqui ainda não está disponível. Por enquanto, descreva o problema por e-mail.</p>

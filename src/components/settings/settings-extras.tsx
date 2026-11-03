@@ -5,19 +5,14 @@ import {
   DownloadIcon,
   FingerprintIcon,
   InfoIcon,
-  LockIcon,
-  LandmarkIcon,
-  MessageCircleIcon,
+  MailIcon,
   SmartphoneIcon,
-  BadgeDollarSignIcon,
   MonitorSmartphoneIcon,
   Trash2Icon,
 } from "lucide-react"
 
-import Link from "next/link"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { SectionTitle } from "@/components/organizzou/PageHeader"
-import { usePlan } from "@/components/organizzou/plan-context"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,19 +21,19 @@ import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
 const NOTIFICATION_TYPES = [
-  { key: "tasks", label: "Tarefas com data", hint: "No dia e 1 hora antes", app: true, wa: true },
-  { key: "agenda", label: "Compromissos da agenda", hint: "Conforme o lembrete de cada evento", app: true, wa: true },
-  { key: "habits", label: "Hábitos do dia", hint: "Resumo no fim da tarde", app: true, wa: false },
-  { key: "bills", label: "Contas a vencer", hint: "3 dias antes e no vencimento", app: true, wa: true },
-  { key: "workout", label: "Horário do treino", hint: "30 minutos antes", app: true, wa: false },
-  { key: "meals", label: "Refeições e água", hint: "Nos horários que você definir", app: false, wa: false },
-  { key: "study", label: "Sessões de estudo e revisões", hint: "Flashcards para revisar", app: true, wa: false },
-  { key: "summary", label: "Resumo matinal e revisão semanal", hint: "Todo dia às 7h30 e domingo às 19h", app: true, wa: true },
+  { key: "tasks", label: "Tarefas com data", hint: "No dia e 1 hora antes", app: true, email: false },
+  { key: "agenda", label: "Compromissos da agenda", hint: "Conforme o lembrete de cada evento", app: true, email: false },
+  { key: "habits", label: "Hábitos do dia", hint: "Resumo no fim da tarde", app: true, email: false },
+  { key: "bills", label: "Contas a vencer", hint: "3 dias antes e no vencimento", app: true, email: false },
+  { key: "workout", label: "Horário do treino", hint: "30 minutos antes", app: true, email: false },
+  { key: "meals", label: "Refeições e água", hint: "Nos horários que você definir", app: false, email: false },
+  { key: "study", label: "Sessões de estudo e revisões", hint: "Flashcards para revisar", app: true, email: false },
+  { key: "summary", label: "Resumo matinal e revisão semanal", hint: "Todo dia às 7h30 e domingo às 19h", app: true, email: false },
 ] as const
 
 export function NotificationsSettings() {
-  const [prefs, setPrefs] = useState<Record<string, { app: boolean; wa: boolean }>>(
-    Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t.key, { app: t.app, wa: t.wa }]))
+  const [prefs, setPrefs] = useState<Record<string, { app: boolean; email: boolean }>>(
+    Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t.key, { app: t.app, email: t.email }]))
   )
   const [quietHours, setQuietHours] = useState(true)
   const [from, setFrom] = useState("22:00")
@@ -57,7 +52,7 @@ export function NotificationsSettings() {
               <SmartphoneIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
             </span>
             <span className="inline-flex items-center gap-1">
-              <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> WhatsApp
+              <MailIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> E-mail
             </span>
           </div>
         </div>
@@ -74,9 +69,9 @@ export function NotificationsSettings() {
                 onCheckedChange={(v) => setPrefs((p) => ({ ...p, [type.key]: { ...p[type.key], app: v } }))}
               />
               <Switch
-                aria-label={`${type.label} no WhatsApp`}
-                checked={prefs[type.key].wa}
-                onCheckedChange={(v) => setPrefs((p) => ({ ...p, [type.key]: { ...p[type.key], wa: v } }))}
+                aria-label={`${type.label} por e-mail`}
+                checked={prefs[type.key].email}
+                onCheckedChange={(v) => setPrefs((p) => ({ ...p, [type.key]: { ...p[type.key], email: v } }))}
               />
             </div>
           </div>
@@ -111,61 +106,6 @@ export function NotificationsSettings() {
   )
 }
 
-export function WhatsAppSettings() {
-  const { canUseWhatsApp } = usePlan()
-  return (
-    <div className="@container grid w-full gap-8 @min-[860px]:grid-cols-2">
-      <section className="flex max-w-xl flex-col gap-5">
-        <div className="flex items-center gap-3">
-          <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-6" />
-          <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">WhatsApp</h2>
-          <SoonBadge />
-        </div>
-        <p className="text-[15px] leading-6 text-muted-foreground">
-          Em breve você poderá falar com o assistente por texto ou áudio e receber lembretes na hora certa. Só o número verificado aqui conseguirá conversar com a sua conta.
-        </p>
-        {canUseWhatsApp ? null : (
-          <div className="flex flex-col gap-3 rounded-2xl border border-border p-4">
-            <p className="flex items-start gap-2 text-[15px] leading-6">
-              <LockIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
-              <span>O WhatsApp faz parte do Plano Pro. Com o Plano Gratuito a conexão fica bloqueada.</span>
-            </p>
-            <Button asChild variant="outline" className="self-start">
-              <Link href="/dashboard/plano">
-                <BadgeDollarSignIcon strokeWidth={1.75} /> Ver Plano Pro
-              </Link>
-            </Button>
-          </div>
-        )}
-        <p className="flex items-start gap-2 rounded-2xl border border-border p-4 text-[15px] leading-6">
-          <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
-          <span>A conexão ainda não está disponível, então nenhum código é enviado. Avisamos você quando abrir.</span>
-        </p>
-        <div className="flex flex-col gap-2" aria-disabled>
-          <Label htmlFor="phone" className="text-muted-foreground">Número com DDD</Label>
-          <div className="flex gap-2">
-            <span className="flex h-11 items-center rounded-lg border border-input px-3 text-[15px] text-muted-foreground md:h-9">+55</span>
-            <Input id="phone" disabled placeholder="(11) 91234-5678" />
-          </div>
-        </div>
-        <Button disabled className="self-start">
-          Enviar código
-        </Button>
-        <p className="text-[13px] leading-5 text-muted-foreground">O cofre de senhas nunca será acessível pelo WhatsApp.</p>
-      </section>
-      <section aria-label="Como vai funcionar" className="flex flex-col rounded-2xl border border-border p-5">
-        <SectionTitle>Como vai funcionar</SectionTitle>
-        {["Registrar tarefas, gastos e treinos por texto ou áudio", "Receber lembretes e o resumo do dia", "Confirmar ações sensíveis com botões", "Falar só a partir do número verificado"].map((item) => (
-          <p key={item} className="flex min-h-12 items-center gap-3 border-b border-border text-[15px] leading-6 last:border-b-0">
-            <InfoIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-            {item}
-          </p>
-        ))}
-      </section>
-    </div>
-  )
-}
-
 export function SecuritySettings() {
 
   return (
@@ -193,18 +133,6 @@ export function SecuritySettings() {
             Este navegador
             <span className="text-[13px] leading-5 text-muted-foreground">Sessão atual</span>
           </span>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-4 border-b border-border py-8">
-        <SectionTitle>Open Finance</SectionTitle>
-        <div className="flex items-center gap-3 text-[15px] leading-6">
-          <LandmarkIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
-          <span className="flex flex-1 flex-col">
-            Nenhum banco conectado
-            <span className="text-[13px] leading-5 text-muted-foreground">A importação automática de lançamentos ainda não está disponível.</span>
-          </span>
-          <SoonBadge />
         </div>
       </section>
 

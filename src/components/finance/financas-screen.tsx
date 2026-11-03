@@ -31,13 +31,12 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/organizzou/EmptyState"
-import { UpgradeHint } from "@/components/organizzou/UpgradeHint"
 import { bentoCardClass, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { SplitLayout, StatRow } from "@/components/organizzou/layout"
 import { Stat } from "@/components/organizzou/Stat"
 import { SwipeRow } from "@/components/organizzou/SwipeRow"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
+import { SectionTitle } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -80,8 +79,6 @@ const chartConfig = {
   income: { label: "Entradas", color: "var(--chart-1)" },
   expense: { label: "Saídas", color: "var(--chart-4)" },
 } satisfies ChartConfig
-
-const BANKS = ["Nubank", "Itaú", "Bradesco", "Banco do Brasil", "Santander", "Inter", "Caixa", "C6 Bank"]
 
 /** The person's accounts and categories (real rows; the example ones only in the local prototype), available to every part of the screen. */
 type Refs = { accounts: AccountRow[]; categories: CategoryRow[]; categoryName: (id: string | null) => string; accountName: (id: string) => string }
@@ -171,7 +168,6 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
   const [goals, setGoals] = usePersistedRows<FinancialGoalRow>("finance_goals", initial.goals)
   const [newTransaction, setNewTransaction] = useState(false)
   const [newBill, setNewBill] = useState(false)
-  const [bankOpen, setBankOpen] = useState(false)
   const [goalToFund, setGoalToFund] = useState<FinancialGoalRow | null>(null)
   const [query, setQuery] = useState("")
   const [kindFilter, setKindFilter] = useState("all")
@@ -279,14 +275,6 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        actions={
-          <Button variant="outline" onClick={() => setBankOpen(true)}>
-            <LandmarkIcon strokeWidth={1.75} /> Conectar banco
-          </Button>
-        }
-      />
-
       <Tabs defaultValue="visao">
         <TabsList>
           <TabsTrigger value="visao">Visão geral</TabsTrigger>
@@ -515,7 +503,6 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
                                     {refs.categoryName(t.category_id)} · {refs.accountName(t.account_id)}
                                   </span>
                                 </div>
-                                {t.source === "open_finance" ? <Badge variant="outline" className="hidden sm:inline-flex">Importado</Badge> : null}
                                 <span className="tabular shrink-0 text-[15px] font-medium">{formatSignedBRL(t.amount_cents, t.kind)}</span>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -703,28 +690,6 @@ function FinanceBody({ nowIso, initial }: { nowIso: string; initial: FinanceInit
           toast.success(`${formatBRL(cents)} guardados em ${goal.name}.`)
         }}
       />
-      <Dialog open={bankOpen} onOpenChange={setBankOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Conectar banco</DialogTitle>
-            <DialogDescription>
-              A importação pelo Open Finance ainda não está disponível, então nenhum banco pode ser conectado por enquanto. Quando abrir, o Organizzou só vai ler os dados e nunca vai guardar a senha do seu banco.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col">
-            {BANKS.map((bank) => (
-              <div key={bank} className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-                <LandmarkIcon aria-hidden strokeWidth={1.75} className="size-5 text-muted-foreground" />
-                <span className="flex-1 text-[15px]">{bank}</span>
-                <Button variant="outline" size="sm" disabled>
-                  Em breve
-                </Button>
-              </div>
-            ))}
-            <UpgradeHint limit="banks" used={0} when="always" className="mt-4" />
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

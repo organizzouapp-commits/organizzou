@@ -63,10 +63,10 @@ for (const [w, h] of [[1440, 900], [1280, 800], [1920, 1080], [1100, 700]]) {
   const order = await page.evaluate(() => {
     const inner = document.querySelector("[data-slot='sidebar-inner']")
     const t = [...inner.querySelectorAll("button")].find((b) => b.textContent.trim() === "Configurações")
-    const card = [...inner.querySelectorAll("p")].find((p) => p.textContent.includes("Conecte seu WhatsApp"))
-    return { trigger: t.getBoundingClientRect().bottom, card: card.getBoundingClientRect().top, cardBottom: inner.getBoundingClientRect().bottom - [...inner.querySelectorAll("a")].find((a) => a.textContent.trim() === "Conectar").getBoundingClientRect().bottom }
+    const card = [...inner.querySelectorAll("p")].find((p) => p.textContent.includes("Desbloqueie o Plano Pro"))
+    return { trigger: t.getBoundingClientRect().bottom, card: card.getBoundingClientRect().top, cardBottom: inner.getBoundingClientRect().bottom - [...inner.querySelectorAll("a")].find((a) => a.textContent.trim() === "Fazer upgrade").getBoundingClientRect().bottom }
   })
-  ok("order: Configurações group, then the WhatsApp card as the last element", order.trigger < order.card && order.cardBottom < 40, JSON.stringify(order))
+  ok("order: Configurações group, then the plan card as the last element", order.trigger < order.card && order.cardBottom < 40, JSON.stringify(order))
   await trigger.click()
   await page.waitForTimeout(150)
   const mid = await page.evaluate(() => { const c = [...document.querySelectorAll("[data-slot='collapsible-content']")].pop(); return c.getBoundingClientRect().height })
@@ -92,9 +92,9 @@ for (const [w, h] of [[1440, 900], [1280, 800], [1920, 1080], [1100, 700]]) {
   // pages
   await side(page).getByRole("link", { name: "Perfil", exact: true }).click()
   await page.waitForURL("**/dashboard/perfil")
-  await page.getByLabel("Telefone (WhatsApp)").waitFor({ timeout: 15000 })
+  await page.getByLabel("Telefone", { exact: true }).waitFor({ timeout: 15000 })
   await page.waitForTimeout(500)
-  const pc = { title: await page.title(), h1: await page.getByRole("heading", { name: "Perfil", level: 1 }).count(), nome: await page.getByLabel("Nome").count(), email: await page.getByLabel("E-mail", { exact: true }).count(), tel: await page.getByLabel("Telefone (WhatsApp)").count(), btn: await page.getByRole("button", { name: "Alterar senha" }).count() }
+  const pc = { title: await page.title(), h1: await page.getByRole("heading", { name: "Perfil", level: 1 }).count(), nome: await page.getByLabel("Nome").count(), email: await page.getByLabel("E-mail", { exact: true }).count(), tel: await page.getByLabel("Telefone", { exact: true }).count(), btn: await page.getByRole("button", { name: "Alterar senha" }).count() }
   ok("Perfil: title, heading and fields", pc.title === "Organizzou - Perfil" && pc.h1 === 1 && pc.nome === 1 && pc.email === 1 && pc.tel === 1 && pc.btn === 1, JSON.stringify(pc))
   await page.screenshot({ path: `${out}/perfil-1280x800-dark.png` })
   ok("Perfil: the group stays open on its own page", (await side(page).getByRole("button", { name: "Configurações", exact: true }).getAttribute("aria-expanded")) === "true")
@@ -102,9 +102,9 @@ for (const [w, h] of [[1440, 900], [1280, 800], [1920, 1080], [1100, 700]]) {
   await page.waitForURL("**/dashboard/ajuda")
   await page.waitForTimeout(800)
   ok("Ajuda: title, FAQ and contact", (await page.title()) === "Organizzou - Ajuda" && (await page.getByText("Perguntas frequentes").count()) > 0 && (await page.getByText("Fale com a gente").count()) > 0)
-  await page.getByRole("button", { name: "Como conecto meu WhatsApp?" }).click()
+  await page.getByRole("button", { name: "Como falo com o assistente?" }).click()
   await page.waitForTimeout(500)
-  ok("Ajuda: FAQ item expands", (await page.getByText("aba WhatsApp").count()) > 0)
+  ok("Ajuda: FAQ item expands", (await page.getByText("botão do assistente").count()) > 0)
   await page.screenshot({ path: `${out}/ajuda-1280x800-dark.png` })
   await ctx.close()
 }
@@ -145,7 +145,7 @@ for (const theme of ["dark", "light"]) {
   await page.waitForTimeout(500)
   const menu = page.getByRole("menu")
   const text = await menu.innerText()
-  ok(`mobile avatar menu has Perfil, Configurações, Ajuda, Conectar WhatsApp, Sair  ${theme}`, ["Perfil", "Configurações", "Ajuda", "Conectar WhatsApp", "Sair"].every((t) => text.includes(t)))
+  ok(`mobile avatar menu has Perfil, Configurações, Ajuda, Sair  ${theme}`, ["Perfil", "Configurações", "Ajuda", "Sair"].every((t) => text.includes(t)))
   await page.screenshot({ path: `${out}/avatar-menu-390x844-${theme}.png` })
   await menu.getByRole("menuitem", { name: "Sair" }).click()
   ok(`mobile Sair confirms  ${theme}`, await page.getByRole("alertdialog").getByText("Deseja sair da sua conta?").isVisible())

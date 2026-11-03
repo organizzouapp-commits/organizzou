@@ -105,7 +105,7 @@ export function WaitlistForm({
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="wl-phone" className="text-[14px] leading-5">
-          WhatsApp
+          Telefone
         </Label>
         <div className="flex gap-2">
           <span className="flex h-[52px] shrink-0 items-center rounded-xl border border-input px-4 text-base dark:bg-input/30" aria-label="Código do Brasil">

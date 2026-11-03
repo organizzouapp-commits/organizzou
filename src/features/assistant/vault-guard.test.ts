@@ -9,7 +9,7 @@ import { parseCapture } from "@/server/assistant/parse"
 import { TOOLS } from "@/server/assistant/tools"
 
 /**
- * The assistant (app and, later, WhatsApp), quick capture and the global search must never read, write or receive Vault data.
+ * The assistant (in the app only), quick capture and the global search must never read, write or receive Vault data.
  * These checks enforce it in code, not in a prompt: nothing they are built from may import a vault module or touch a vault table,
  * and a line about passwords is never routed anywhere.
  */

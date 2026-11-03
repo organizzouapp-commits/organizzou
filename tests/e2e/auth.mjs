@@ -87,7 +87,7 @@ for (const [theme, size, vp] of [["dark", "d", { width: 1280, height: 900 }], ["
   await page.getByRole("link", { name: "Criar conta" }).first().click()
   await page.waitForURL("**/cadastro")
   await page.waitForTimeout(900)
-  ok("sign-up steps", (await page.getByRole("button", { name: "Conecte seu WhatsApp" }).count()) === 1)
+  ok("sign-up steps", (await page.getByRole("button", { name: "Peça pelo assistente" }).count()) === 1)
   await ctx.close()
 }
 // mobile: welcome screen, bottom sheet, logo as the back button, tap outside, browser Back, direct entries

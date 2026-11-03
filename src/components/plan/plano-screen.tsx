@@ -14,7 +14,7 @@ import { LIMIT_LABELS, PLANS, type LimitKey } from "@/lib/plans"
 
 type Billing = "monthly" | "yearly"
 
-const LIMIT_ROWS: LimitKey[] = ["taskBoards", "banks", "assistantMessagesPerDay"]
+const LIMIT_ROWS: LimitKey[] = ["taskBoards", "assistantMessagesPerDay"]
 
 function limitText(limit: number | null, key: LimitKey) {
   if (limit === null) return "Ilimitado"

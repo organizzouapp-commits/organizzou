@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 
 import { SitePreloader } from "@/components/site/site-preloader"
 
-const DESCRIPTION = "O app que organiza sua vida: tarefas, finanças, treinos, estudos e um assistente no WhatsApp, num só lugar."
+const DESCRIPTION = "O app que organiza sua vida: tarefas, finanças, treinos, estudos e um assistente dentro do app, num só lugar."
 
 // Public marketing pages: no app shell, only the root providers (theme, toaster, cookie consent).
 // The title comes from the root layout (default). Open Graph is replaced as a whole, so repeat the shared fields.

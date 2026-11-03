@@ -71,7 +71,6 @@ export type UserRow = {
   created_at: string
   last_seen: string | null
   provider: string
-  whatsapp_linked: boolean
   status: UserStatus
   total: number
 }

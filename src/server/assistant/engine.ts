@@ -7,7 +7,7 @@ import { MAX_OUTPUT_TOKENS, MAX_TOOL_STEPS } from "./usage"
 import { type Tool, TOOLS, toolByName, toolDefinitions } from "./tools"
 
 /**
- * The assistant engine, shared by the app chat and quick capture (WhatsApp will call the same functions). It runs a bounded tool-use
+ * The assistant engine, shared by the app chat and quick capture. It runs a bounded tool-use
  * loop against the Anthropic API on the person's own session; the API key comes from the environment and never leaves the server.
  * The client is injected so tests run it against a mock, with no network and no key.
  */

@@ -51,7 +51,7 @@ const ok = (n, p) => results.push(`${p ? "PASS" : "FAIL"}  ${n}`)
   await ctx.close()
 }
 
-// mobile: header chips (Vida / Organização menus), floating bottom nav, avatar menu with the WhatsApp link
+// mobile: header chips (Vida / Organização menus), floating bottom nav, avatar menu
 {
   const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, hasTouch: true })
   await ctx.addInitScript(() => localStorage.setItem("theme", "light"))
@@ -67,7 +67,7 @@ const ok = (n, p) => results.push(`${p ? "PASS" : "FAIL"}  ${n}`)
   await page.keyboard.press("Escape")
   await page.getByRole("button", { name: "Menu da conta" }).first().click()
   await page.waitForTimeout(500)
-  ok("avatar menu has the WhatsApp link", (await page.getByRole("menuitem", { name: "Conectar WhatsApp" }).count()) === 1)
+  ok("avatar menu has Perfil, Configurações and Ajuda", (await page.getByRole("menuitem", { name: /^(Perfil|Configurações|Ajuda)$/ }).count()) === 3)
   await ctx.close()
 }
 

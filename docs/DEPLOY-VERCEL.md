@@ -52,7 +52,7 @@ Nunca coloque `NEXT_PUBLIC_` na frente de uma chave secreta: ela iria para o nav
 | `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_TARGET_EMAIL`, `RLS_CHECK_EMAIL` | Credenciais de teste: nunca na Vercel |
 | `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` | Só para o Supabase **local** (`supabase/config.toml`). O Google em produção é configurado no painel do Supabase (veja `DEPLOY-DOMINIO.md`) |
 
-O cookie `dev_admin` (e `dev_plan`, `dev_whatsapp`) só tem efeito com `PROTOTYPE_BYPASS_AUTH`, ou seja, nunca em produção.
+O cookie `dev_admin` (e `dev_plan`) só tem efeito com `PROTOTYPE_BYPASS_AUTH`, ou seja, nunca em produção.
 
 ## Banco de dados (Supabase)
 

@@ -73,7 +73,7 @@ export function ProfileForm({ displayName, email, phone }: ProfileViewProps) {
           <Input id="profile-email" value={email} readOnly disabled />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="profile-phone">Telefone (WhatsApp)</Label>
+          <Label htmlFor="profile-phone">Telefone</Label>
           <div className="flex gap-2">
             <span className="flex h-11 shrink-0 items-center rounded-lg border border-input px-3 text-base md:h-9 md:text-sm dark:bg-input/30" aria-label="Código do Brasil">
               +55

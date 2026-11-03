@@ -78,7 +78,7 @@ test.describe("admin shell", () => {
     await expect(sidebar.getByRole("link", { name: "Visão geral", exact: true })).toBeVisible({ timeout: 30000 })
     for (const name of ["Usuários", "Atividade"]) await expect(sidebar.getByRole("link", { name, exact: true })).toBeVisible()
     for (const group of ["Negócio", "Produto", "Sistema"]) await expect(sidebar.getByRole("button", { name: group })).toBeVisible()
-    // The app's plan card, WhatsApp card and assistant do not exist here.
+    // The app's plan card and assistant do not exist here.
     await expect(page.getByText("Desbloqueie o Plano Pro")).toHaveCount(0)
     await expect(page.getByRole("button", { name: /assistente/i })).toHaveCount(0)
     // Header actions: search and "Voltar ao app" (outline button), no "Novo" and no bell.

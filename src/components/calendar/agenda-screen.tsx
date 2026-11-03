@@ -1109,7 +1109,7 @@ function EventForm({
             </SelectContent>
           </Select>
         </div>
-        <p className="col-span-2 -mt-2 text-[13px] leading-5 text-muted-foreground">Em breve: os lembretes chegam pelo app e pelo WhatsApp. Por enquanto só ficam anotados no evento.</p>
+        <p className="col-span-2 -mt-2 text-[13px] leading-5 text-muted-foreground">Os lembretes chegam pelo app, na hora que você escolher.</p>
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="event-notes">Notas</Label>

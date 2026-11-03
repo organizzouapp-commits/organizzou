@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, MessageCircleIcon, BadgeDollarSignIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
+import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -31,7 +31,6 @@ import { BACK_TO_APP_HREF } from "./nav-brand"
 import { metaFor, useNavContext } from "./nav-config"
 import { useNotifications } from "./notifications"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { useWhatsAppAccess } from "./whatsapp-cta"
 
 function initials(name: string) {
   return name
@@ -121,7 +120,7 @@ export function Bell({ bare = false }: { bare?: boolean }) {
           ) : null}
         </div>
         {items.length === 0 ? (
-          <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p>
+          <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app chegam aqui.</p>
         ) : (
           <FadeScroll>
             {items.map((n) => {
@@ -164,12 +163,11 @@ const menuIcon = "size-[18px]"
 
 /**
  * `header`: the collapsed layout's top header, which sits inside its own pill group and shows the name and e-mail from 1440 px.
- * `compact`: avatar only (mobile header); its menu also lists "Conectar WhatsApp", since there is no sidebar card on mobile.
+ * `compact`: avatar only (mobile header).
  */
 export function UserMenu({ user, compact = false, header = false }: { user: ShellUser; compact?: boolean; header?: boolean }) {
   const requestSignOut = useRequestSignOut()
   const { definition, pro } = usePlan()
-  const whatsapp = useWhatsAppAccess()
   const { nav, isAdmin } = useNavContext()
   const inAdmin = nav.id === "admin"
   return (
@@ -231,18 +229,6 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           <DropdownMenuItem asChild className={menuItem}>
             <Link href="/admin">
               <ShieldIcon strokeWidth={1.75} className={menuIcon} /> Área do admin
-            </Link>
-          </DropdownMenuItem>
-        ) : null}
-        {nav.features.plan && compact && !(whatsapp.connected && !whatsapp.locked) ? (
-          <DropdownMenuItem asChild className={menuItem}>
-            <Link href={whatsapp.href}>
-              <MessageCircleIcon strokeWidth={1.75} className={menuIcon} />
-              <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                Conectar WhatsApp
-                {whatsapp.locked ? <span className="text-[11px] text-muted-foreground">Plano Pro</span> : null}
-              </span>
-              {whatsapp.locked ? <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-4 text-muted-foreground" /> : null}
             </Link>
           </DropdownMenuItem>
         ) : null}

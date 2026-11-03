@@ -42,7 +42,7 @@ export type NavConfig = {
     assistant: boolean
     /** Notification bell. */
     notifications: boolean
-    /** Plan card in the sidebar, upgrade button in the header, WhatsApp entries. */
+    /** Plan card in the sidebar, upgrade button in the header. */
     plan: boolean
     /** The home route greets the user instead of showing a static title. */
     greeting: boolean

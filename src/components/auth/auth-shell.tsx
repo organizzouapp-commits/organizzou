@@ -37,7 +37,7 @@ const COPY = {
     badge: "Comece agora",
     headline: "Comece a se organizar",
     subtitle: "Três passos e pronto.",
-    steps: ["Crie sua conta agora", "Conecte seu WhatsApp", "Organize seu dia a dia"],
+    steps: ["Crie sua conta agora", "Organize seu dia a dia", "Peça pelo assistente"],
   },
 } as const
 

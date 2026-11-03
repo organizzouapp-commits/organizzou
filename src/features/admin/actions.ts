@@ -220,8 +220,8 @@ export async function exportUsersCsv(input: UserFilters): Promise<ExportResult> 
   }
 
   const csv = toCsv(
-    ["Nome", "E-mail", "Plano", "Cadastro", "Último acesso", "Login", "WhatsApp vinculado", "Status"],
-    rows.map((r) => [r.name ?? "", r.email, PLAN_LABEL[r.plan], fmtDate(r.created_at), fmtDateTime(r.last_seen), r.provider, r.whatsapp_linked ? "Sim" : "Não", STATUS_LABEL[r.status]])
+    ["Nome", "E-mail", "Plano", "Cadastro", "Último acesso", "Login", "Status"],
+    rows.map((r) => [r.name ?? "", r.email, PLAN_LABEL[r.plan], fmtDate(r.created_at), fmtDateTime(r.last_seen), r.provider, STATUS_LABEL[r.status]])
   )
   const logged = await logAdminAction(ctx.secret, { adminId: ctx.admin.adminId, adminEmail: ctx.admin.email, action: "users.export", payload: { rows: rows.length, filters: parsed.data } })
   if (!logged.ok) return { ok: false, error: "Não foi possível registrar a exportação na auditoria, então ela foi cancelada." }

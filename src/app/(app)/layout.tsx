@@ -37,10 +37,9 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
     await supabase.rpc("provision_me")
     profile = (await supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()).data
   }
-  // Development only (the same switch that skips login): flip the plan and the WhatsApp state by cookie to test every sidebar state.
+  // Development only (the same switch that skips login): flip the plan by cookie to test every sidebar state.
   const jar = await cookies()
   const planNow = bypassAuth && jar.get("dev_plan") ? parsePlan(jar.get("dev_plan")?.value) : plan
-  const whatsappConnected = bypassAuth && jar.get("dev_whatsapp")?.value === "1"
   const name = profile?.display_name || email.split("@")[0] || "Você"
 
   // The collapsed/expanded sidebar is remembered per user in a cookie.
@@ -55,7 +54,6 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
       user={{ name, email }}
       theme={profile?.theme}
       plan={planNow}
-      whatsappConnected={whatsappConnected}
       nowIso={new Date().toISOString()}
       openTasks={openTasks}
       notifications={notifications}

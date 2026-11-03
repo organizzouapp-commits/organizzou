@@ -11,8 +11,8 @@ export const waitlistSchema = z.object({
   phone: z
     .string()
     .trim()
-    .min(1, "Informe seu WhatsApp.")
-    .refine((value) => toE164(value) !== null, "Informe um WhatsApp válido com DDD."),
+    .min(1, "Informe seu telefone.")
+    .refine((value) => toE164(value) !== null, "Informe um telefone válido com DDD."),
   email: z
     .string()
     .trim()

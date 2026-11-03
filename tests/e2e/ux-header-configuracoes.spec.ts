@@ -11,13 +11,12 @@ async function setup(context: BrowserContext, baseURL: string, plan: "free" | "p
   await context.addCookies([
     { name: "organizzou_consent", value: CONSENT, url: baseURL },
     { name: "dev_plan", value: plan, url: baseURL },
-    { name: "dev_whatsapp", value: "0", url: baseURL },
     { name: SIDEBAR_COOKIE, value: "false", url: baseURL },
   ])
 }
 
 for (const width of [1440, 1100]) {
-  test(`Free, ${width}px: Configurações is the last pill, opens one dropdown at a time, WhatsApp is locked`, async ({ page, context, baseURL }) => {
+  test(`Free, ${width}px: Configurações is the last pill, opens one dropdown at a time`, async ({ page, context, baseURL }) => {
     await setup(context, baseURL!, "free")
     await page.setViewportSize({ width, height: 900 })
     await page.goto("/dashboard")
@@ -32,9 +31,7 @@ for (const width of [1440, 1100]) {
 
     await pills.last().click()
     for (const name of ["Perfil", "Configurações", "Ajuda", "Plano e cobrança"]) await expect(page.getByRole("menuitem", { name })).toBeVisible()
-    const whatsapp = page.getByRole("menuitem", { name: /Conectar WhatsApp/ })
-    await expect(whatsapp).toContainText("Plano Pro")
-    await expect(whatsapp).toHaveAttribute("href", "/dashboard/plano")
+    await expect(page.getByRole("menuitem", { name: /WhatsApp/i })).toHaveCount(0)
     await expect(page.getByRole("menuitem", { name: "Sair" })).toBeVisible()
 
     // Only one dropdown at a time: the open menu is modal, so another pill opens only after it closes.
@@ -49,7 +46,7 @@ for (const width of [1440, 1100]) {
   })
 }
 
-test("Pro: WhatsApp entry leads to the settings tab; Sair asks for confirmation; active state on /dashboard/configuracoes", async ({ page, context, baseURL }) => {
+test("Pro: Sair asks for confirmation; active state on /dashboard/configuracoes", async ({ page, context, baseURL }) => {
   await setup(context, baseURL!, "pro")
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto("/dashboard/configuracoes")
@@ -59,9 +56,7 @@ test("Pro: WhatsApp entry leads to the settings tab; Sair asks for confirmation;
   await expect(pill).toHaveClass(/bg-highlight/)
   await expect(nav.getByRole("button", { name: "Vida" })).not.toHaveClass(/bg-highlight/)
   await pill.click()
-  const whatsapp = page.getByRole("menuitem", { name: /Conectar WhatsApp/ })
-  await expect(whatsapp).toHaveAttribute("href", "/dashboard/configuracoes?aba=whatsapp")
-  await expect(whatsapp).not.toContainText("Plano Pro")
+  await expect(page.getByRole("menuitem", { name: /WhatsApp/i })).toHaveCount(0)
   await page.getByRole("menuitem", { name: "Sair" }).click()
   await expect(page.getByRole("alertdialog")).toBeVisible()
   await page.getByRole("button", { name: "Cancelar" }).click()

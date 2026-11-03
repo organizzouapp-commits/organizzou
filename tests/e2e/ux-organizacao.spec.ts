@@ -72,12 +72,10 @@ test("Configurações: vertical nav, sections switch, the URL keeps the section"
   await page.goto("/dashboard/configuracoes")
   const nav = page.getByRole("navigation", { name: "Seções" })
   await expect(nav).toBeVisible({ timeout: 30000 })
-  for (const name of ["Perfil", "Aparência", "Avisos", "WhatsApp", "Segurança e dados", "Plano e cobrança"]) await expect(nav.getByRole("button", { name })).toBeVisible()
+  for (const name of ["Perfil", "Aparência", "Avisos", "Segurança e dados", "Plano e cobrança"]) await expect(nav.getByRole("button", { name })).toBeVisible()
   await nav.getByRole("button", { name: "Avisos" }).click()
   await expect(page.getByText("App", { exact: true }).first()).toBeVisible()
   await expect(page).toHaveURL(/aba=avisos/)
-  await nav.getByRole("button", { name: "WhatsApp" }).click()
-  await expect(page.getByRole("button", { name: "Enviar código" })).toBeDisabled()
 })
 
 test("Perfil: same screen, profile section first, avatar upload marked Em breve", async ({ page }) => {

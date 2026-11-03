@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { devBypassEnabled } from "./bypass"
 
 /**
- * PROTOTYPE_BYPASS_AUTH skips the login and unlocks the dev_admin / dev_plan / dev_whatsapp cookies. In production none of that may
+ * PROTOTYPE_BYPASS_AUTH skips the login and unlocks the dev_admin / dev_plan cookies. In production none of that may
  * ever work, even if someone sets the variable by mistake in the Vercel dashboard.
  */
 describe("dev bypass is inert in production", () => {
@@ -56,7 +56,7 @@ describe("dev bypass is inert in production", () => {
     const files = walk(root).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\./.test(f))
     for (const file of files) {
       const text = readFileSync(file, "utf8")
-      if (/["'](dev_admin|dev_plan|dev_whatsapp)["']/.test(text)) {
+      if (/["'](dev_admin|dev_plan)["']/.test(text)) {
         expect(/\bbypassAuth\b/.test(text), `${relative(root, file)} reads a dev cookie without checking bypassAuth`).toBe(true)
       }
       if (/process\.env\.PROTOTYPE_BYPASS_AUTH|env\.PROTOTYPE_BYPASS_AUTH/.test(text)) {

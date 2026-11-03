@@ -113,7 +113,6 @@ type AppShellProps = {
   theme?: string
   /** The user's plan (profiles.plan, defaults to free). */
   plan: PlanId
-  whatsappConnected?: boolean
   /** Request time from the server, used by the prototype assistant to answer relative questions. */
   nowIso: string
   /** Tasks not done yet, for the sidebar badge (real accounts). */
@@ -126,7 +125,7 @@ type AppShellProps = {
   children: React.ReactNode
 }
 
-export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whatsappConnected, nowIso, sidebarOpen, sidebarCookie, openTasks = 0, notifications = [], children }: AppShellProps) {
+export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIso, sidebarOpen, sidebarCookie, openTasks = 0, notifications = [], children }: AppShellProps) {
   const nav = NAVS[navId]
   const bottomItems = useMemo(() => bottomNavItems(nav), [nav])
   const navValue = useMemo(() => ({ nav, isAdmin }), [nav, isAdmin])
@@ -191,7 +190,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, whats
     <NotificationsProvider initial={notifications}>
     <NavProvider value={navValue}>
     <AssistantProvider value={assistantContext}>
-      <PlanProvider plan={plan} whatsappConnected={whatsappConnected}>
+      <PlanProvider plan={plan}>
       <SignOutProvider value={requestSignOut}>
       <PrimaryActionProvider>
         {/* Layer 0 (the tiny pre-blurred photo) is rendered once by the (app) layout. Layer 1 (md+): the frame, fixed at 20px,

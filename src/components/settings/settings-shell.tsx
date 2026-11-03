@@ -1,21 +1,20 @@
 "use client"
 
 import { useState } from "react"
-import { BellIcon, MessageCircleIcon, PaletteIcon, ShieldCheckIcon, BadgeDollarSignIcon, UserIcon } from "lucide-react"
+import { BellIcon, PaletteIcon, ShieldCheckIcon, BadgeDollarSignIcon, UserIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { SettingsLayout, type SettingsSection } from "@/components/organizzou/layout"
 import { ProfileForm, PasswordForm } from "@/components/profile/profile-view"
 
 import { PlanSettings } from "./plan-settings"
-import { NotificationsSettings, SecuritySettings, WhatsAppSettings } from "./settings-extras"
+import { NotificationsSettings, SecuritySettings } from "./settings-extras"
 import { AppearanceSettings } from "./settings-form"
 
 const SECTIONS: SettingsSection[] = [
   { id: "perfil", label: "Perfil", icon: UserIcon },
   { id: "aparencia", label: "Aparência", icon: PaletteIcon },
   { id: "avisos", label: "Avisos", icon: BellIcon },
-  { id: "whatsapp", label: "WhatsApp", icon: MessageCircleIcon },
   { id: "seguranca", label: "Segurança e dados", icon: ShieldCheckIcon },
   { id: "plano", label: "Plano e cobrança", icon: BadgeDollarSignIcon },
 ]
@@ -53,11 +52,6 @@ export function SettingsShell({ initial, profile }: { initial?: string; profile:
       {active === "avisos" ? (
         <BentoCard>
           <NotificationsSettings />
-        </BentoCard>
-      ) : null}
-      {active === "whatsapp" ? (
-        <BentoCard>
-          <WhatsAppSettings />
         </BentoCard>
       ) : null}
       {active === "seguranca" ? (

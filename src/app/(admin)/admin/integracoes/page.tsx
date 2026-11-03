@@ -19,12 +19,6 @@ function numbersFor(id: string, n: IntegrationNumbers): { label: string; value: 
       ]
     case "google":
       return [{ label: "Entram com Google", value: n.google_users }]
-    case "whatsapp":
-      // Phone numbers typed at sign-up, NOT linked WhatsApp numbers: linking does not exist yet.
-      return [
-        { label: "Números vinculados", value: 0 },
-        { label: "Telefones informados no cadastro", value: n.phones_informed },
-      ]
     default:
       return []
   }

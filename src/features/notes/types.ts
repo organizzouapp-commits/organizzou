@@ -14,7 +14,7 @@ export type NoteRow = {
   updated_at: string
 }
 
-export type ReminderChannel = "push" | "whatsapp"
+export type ReminderChannel = "push"
 
 export type ReminderRow = {
   id: string

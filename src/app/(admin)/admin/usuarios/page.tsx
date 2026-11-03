@@ -119,7 +119,6 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     Último acesso
                   </SortHead>
                   <TableHead>Login</TableHead>
-                  <TableHead>WhatsApp vinculado</TableHead>
                   <TableHead className="pr-6">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -150,7 +149,6 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <TableCell className="tabular whitespace-nowrap">{fmtDate(row.created_at)}</TableCell>
                     <TableCell className="tabular whitespace-nowrap">{fmtDateTime(row.last_seen)}</TableCell>
                     <TableCell>{providerLabel(row.provider)}</TableCell>
-                    <TableCell>{row.whatsapp_linked ? "Sim" : "Não"}</TableCell>
                     <TableCell className="pr-6">
                       <Badge variant="outline" className="rounded-full whitespace-nowrap">
                         {STATUS_LABELS[row.status]}

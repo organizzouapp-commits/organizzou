@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LIMIT_LABELS, type LimitKey } from "@/lib/plans"
 
-const ROWS: LimitKey[] = ["taskBoards", "banks", "assistantMessagesPerDay"]
+const ROWS: LimitKey[] = ["taskBoards", "assistantMessagesPerDay"]
 
 export function PlanSettings() {
   const { definition, pro } = usePlan()

@@ -62,7 +62,7 @@ export const TABLES = {
     occurred_on: day,
     method: text(60).nullable(),
     description: text(200),
-    source: z.enum(["manual", "open_finance"]),
+    source: z.literal("manual"),
   }),
   finance_bills: table({
     name: name(80),
@@ -109,13 +109,13 @@ export const TABLES = {
   flashcards: table({ deck_id: z.uuid(), front: name(2000), back: name(2000), ease: z.number().min(1.3).max(10), interval_days: z.number().int().min(0).max(36500), repetitions: z.number().int().min(0).max(10000), due_on: day }),
   note_folders: table({ name: name(80) }),
   notes: table({ folder_id: z.uuid().nullable(), title: text(200), body: text(100000), pinned: z.boolean(), tags: z.array(z.string().max(40)).max(30) }),
-  reminders: table({ title: name(200), remind_at: instant, channels: z.array(z.enum(["push", "whatsapp"])).max(2), status: z.enum(["pending", "done"]), note_id: z.uuid().nullable() }),
+  reminders: table({ title: name(200), remind_at: instant, channels: z.array(z.string().max(20)).max(2).transform((list) => list.filter((c) => c === "push")), status: z.enum(["pending", "done"]), note_id: z.uuid().nullable() }),
   life_goals: table({ title: name(160), description: text(2000).nullable(), deadline: day.nullable(), status: z.enum(["active", "done"]) }),
   life_goal_links: table({ goal_id: z.uuid(), module: name(40), label: name(120), done: z.number().min(0).max(1e12), total: z.number().positive().max(1e12), unit: text(20) }),
   life_goal_milestones: table({ goal_id: z.uuid(), title: name(160), done: z.boolean() }),
   journal_entries: table({ entry_date: day, mood: z.number().int().min(1).max(5), text: text(20000), sleep_hours: z.number().min(0).max(24).nullable() }),
   notification_preferences: table(
-    { push_enabled: z.boolean(), whatsapp_enabled: z.boolean(), email_enabled: z.boolean(), daily_summary: z.boolean(), daily_summary_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/) },
+    { push_enabled: z.boolean(), email_enabled: z.boolean(), daily_summary: z.boolean(), daily_summary_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/) },
     "user_id"
   ),
 } satisfies Record<string, TableConfig>

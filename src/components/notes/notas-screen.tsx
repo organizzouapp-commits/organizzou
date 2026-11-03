@@ -13,7 +13,6 @@ import {
   InfoIcon,
   ItalicIcon,
   ListIcon,
-  MessageCircleIcon,
   NotebookPenIcon,
   PinIcon,
   PlusIcon,
@@ -51,7 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { parseMarkdown, wordCount, type Inline } from "@/features/notes/markdown"
-import type { NoteFolderRow, NoteRow, ReminderChannel, ReminderRow } from "@/features/notes/types"
+import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
 import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -385,7 +384,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="flex max-w-[72ch] items-start gap-2 text-[13px] leading-5 text-muted-foreground">
                 <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
-                Em breve: os lembretes serão avisados pelo app e pelo WhatsApp. Por enquanto eles ficam só aqui, na lista.
+                Os lembretes avisam você pelo app, na hora marcada.
               </p>
               <Button variant="outline" onClick={() => setCreatingReminder(true)}>
                 <PlusIcon strokeWidth={1.75} /> Novo lembrete
@@ -412,11 +411,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
                           {r.channels.includes("push") ? (
                             <span className="inline-flex items-center gap-1">
                               <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
-                            </span>
-                          ) : null}
-                          {r.channels.includes("whatsapp") ? (
-                            <span className="inline-flex items-center gap-1">
-                              <MessageCircleIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> WhatsApp
                             </span>
                           ) : null}
                         </span>
@@ -508,20 +502,19 @@ function ReminderForm({ today, onCreate, onClose }: { today: string; onCreate: (
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(today)
   const [time, setTime] = useState("09:00")
-  const [channels, setChannels] = useState<string[]>(["push"])
 
   return (
     <form
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!title.trim() || channels.length === 0) return
+        if (!title.trim()) return
         onCreate({
           id: newId(),
           user_id: USER,
           title: title.trim(),
           remind_at: toDueIso(date, time, SP_TIMEZONE),
-          channels: channels as ReminderChannel[],
+          channels: ["push"],
           status: "pending",
           note_id: null,
         })
@@ -546,22 +539,11 @@ function ReminderForm({ today, onCreate, onClose }: { today: string; onCreate: (
           <Input id="rem-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label>Avisar por</Label>
-        <ToggleGroup type="multiple" variant="outline" value={channels} onValueChange={setChannels} className="justify-start">
-          <ToggleGroupItem value="push">
-            <BellIcon strokeWidth={1.75} /> App
-          </ToggleGroupItem>
-          <ToggleGroupItem value="whatsapp">
-            <MessageCircleIcon strokeWidth={1.75} /> WhatsApp
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!title.trim() || channels.length === 0}>
+        <Button type="submit" disabled={!title.trim()}>
           Criar lembrete
         </Button>
       </DialogFooter>
