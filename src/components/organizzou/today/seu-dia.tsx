@@ -1,55 +1,29 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import {
-  ArrowUpRightIcon,
-  CalendarDaysIcon,
-  CalendarIcon,
-  ChevronDownIcon,
-  DumbbellIcon,
-  FlagIcon,
-  FlameIcon,
-  GraduationCapIcon,
-  PlusIcon,
-  ReceiptTextIcon,
-  RepeatIcon,
-  SquareCheckIcon,
-  TimerResetIcon,
-  TriangleAlertIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowUpRightIcon, CalendarDaysIcon, CalendarIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, MinusIcon, PlusIcon, SquareCheckIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { useAssistant } from "@/components/assistant/assistant-context"
+import { showCaptureToast } from "@/components/assistant/capture-toasts"
 import { bentoCardClass, cardHover } from "@/components/organizzou/Bento"
 import { EmptyState } from "@/components/organizzou/EmptyState"
-import { SwipeRow } from "@/components/organizzou/SwipeRow"
-import { Badge } from "@/components/ui/badge"
+import { TimelineRow, type RowCurrent, type RowHandlers } from "@/components/organizzou/TimelineRow"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Progress } from "@/components/ui/progress"
-import { saveHabitQty } from "@/features/today/actions"
+import { Input } from "@/components/ui/input"
+import { captureQuick } from "@/features/assistant/actions"
 import { completeTask, updateTask } from "@/features/tasks/actions"
+import { completeWorkout, payBill, reopenWorkout, saveHabitQty, undoPayBill } from "@/features/today/actions"
 import type { GroupId } from "@/features/today/prefs"
 import type { DayData, DayItem, DayItemKind } from "@/features/today/types"
+import { toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
+import { readAs } from "@/server/assistant/parse"
 
+import { clock, dayKey, dayTitle, hourOf, number, remainingText, stepFor, stepLabel, TZ } from "./day-format"
 import { useTodayPrefs } from "./prefs-context"
 import { useTodayState } from "./today-state"
-
-const TZ = "America/Sao_Paulo"
-const MAX_ROWS = 8
-
-const KIND_ICON: Record<DayItemKind, LucideIcon> = {
-  task: SquareCheckIcon,
-  event: CalendarDaysIcon,
-  workout: DumbbellIcon,
-  study: GraduationCapIcon,
-  habit: RepeatIcon,
-  bill: ReceiptTextIcon,
-}
 
 const FILTERS: { id: string; label: string; kinds: DayItemKind[] | null }[] = [
   { id: "tudo", label: "Tudo", kinds: null },
@@ -61,46 +35,11 @@ const FILTERS: { id: string; label: string; kinds: DayItemKind[] | null }[] = [
   { id: "estudos", label: "Estudos", kinds: ["study"] },
 ]
 
-type Period = "manha" | "tarde" | "noite"
-const PERIODS: { id: Period; label: string }[] = [
-  { id: "manha", label: "Manhã" },
-  { id: "tarde", label: "Tarde" },
-  { id: "noite", label: "Noite" },
-]
+const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+const MAX_DESKTOP = 8
+const MAX_MOBILE = 3
 
-const hourOf = (ms: number) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false }).format(new Date(ms))) % 24
-const clock = (iso: string | number) => new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso))
-const periodOfHour = (hour: number): Period => (hour < 12 ? "manha" : hour < 18 ? "tarde" : "noite")
-
-/** Step of the "+" button for a quantity habit: a natural amount per unit, never a fraction of the target. */
-function stepFor(unit: string, target: number) {
-  if (unit === "L") return 0.25
-  if (unit === "min") return 10
-  if (unit === "páginas") return 5
-  return Math.max(1, Math.round(target / 4))
-}
-const number = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })
-const durationText = (min?: number) => (min ? (min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60}` : ""}` : `${min} min`) : null)
-
-/** "em 25 min", "em 1 h 20". */
-function inText(minutes: number) {
-  if (minutes < 1) return "agora"
-  if (minutes < 60) return `em ${Math.round(minutes)} min`
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
-  return `em ${h} h${m ? ` ${m}` : ""}`
-}
-
-/** "há 2 dias", "há 3 h", "há 20 min". */
-function agoText(sinceMs: number, nowMs: number) {
-  const minutes = Math.max(1, Math.round((nowMs - sinceMs) / 60000))
-  if (minutes < 60) return `há ${minutes} min`
-  if (minutes < 24 * 60) return `há ${Math.floor(minutes / 60)} h`
-  const days = Math.floor(minutes / (24 * 60))
-  return `há ${days} ${days === 1 ? "dia" : "dias"}`
-}
-
-/** Keeps "agora" and "em 25 min" true while the page stays open. */
+/** Keeps "agora", the divider and the overdue wording true while the page stays open: recomputed every minute. */
 function useNow(initialIso: string) {
   const [now, setNow] = useState(() => new Date(initialIso).getTime())
   useEffect(() => {
@@ -110,233 +49,147 @@ function useNow(initialIso: string) {
   return now
 }
 
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+const isEnded = (item: DayItem, nowMs: number) => item.kind === "event" && Boolean(item.endAt) && new Date(item.endAt!).getTime() <= nowMs
+const isCurrent = (item: DayItem, nowMs: number) => Boolean(item.at && item.endAt) && new Date(item.at!).getTime() <= nowMs && nowMs < new Date(item.endAt!).getTime()
+const preview = (titles: string[]) => (titles.length <= 2 ? titles.join(" e ") : `${titles.slice(0, 2).join(", ")} e mais ${titles.length - 2}`)
+
+/** Order inside the untimed part of the day: bills, tasks, all-day events, then the rest. */
+function rank(item: DayItem) {
+  if (item.kind === "bill") return 0
+  if (item.kind === "task") return 1
+  return 2
+}
+const prio = (item: DayItem) => ({ high: 3, medium: 2, low: 1, none: 0 })[item.priority ?? "none"]
+
 // ---------------------------------------------------------------------------------------------------------------------
 
-type RowActions = {
-  isDone: (item: DayItem) => boolean
-  qtyOf: (item: DayItem) => number
-  complete: (item: DayItem, done: boolean) => void
-  addQty: (item: DayItem) => void
-  postpone: (item: DayItem) => void
-}
-
-type Mark = "now" | "next" | null
-
-function ItemBadges({ item, mark, nowMs, nextAtMs }: { item: DayItem; mark: Mark; nowMs: number; nextAtMs?: number }) {
-  return (
-    <>
-      {mark === "now" ? <Badge variant="highlight" className="rounded-full whitespace-nowrap">Agora</Badge> : null}
-      {mark === "next" && nextAtMs ? (
-        <Badge variant="secondary" className="rounded-full whitespace-nowrap">
-          Próximo · {inText((nextAtMs - nowMs) / 60000)}
-        </Badge>
-      ) : null}
-      {item.bill ? (
-        <Badge variant="outline" className="rounded-full whitespace-nowrap">
-          {item.bill.when}
-        </Badge>
-      ) : null}
-    </>
-  )
-}
-
-function DayRow({ item, actions, mark, nowMs, nextAtMs, timeColumn }: { item: DayItem; actions: RowActions; mark: Mark; nowMs: number; nextAtMs?: number; timeColumn: boolean }) {
-  const Icon = KIND_ICON[item.kind]
-  const done = actions.isDone(item)
-  const [menu, setMenu] = useState(false)
-  const hold = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const canPostpone = item.kind === "task" && !done
-  const canComplete = item.action === "check"
-
-  // A long press on a touch screen opens the same menu as the context-menu key / right click: the accessible way to "concluir" and "adiar".
-  const startHold = (event: React.PointerEvent) => {
-    if (event.pointerType !== "touch" || (!canComplete && !canPostpone)) return
-    hold.current = setTimeout(() => setMenu(true), 550)
-  }
-  const stopHold = () => clearTimeout(hold.current)
-  useEffect(() => () => clearTimeout(hold.current), [])
-
-  const [moduleLabel, ...detailParts] = item.meta.split(" · ")
-  const detail = detailParts.join(" · ")
-  const qty = item.habit ? actions.qtyOf(item) : 0
-  const duration = durationText(item.durationMin)
-  const late = item.overdueSince ? agoText(new Date(item.overdueSince).getTime(), nowMs) : null
-
-  const row = (
-    <div
-      data-kind={item.kind}
-      data-done={done ? "" : undefined}
-      data-mark={mark ?? undefined}
-      onPointerDown={startHold}
-      onPointerUp={stopHold}
-      onPointerLeave={stopHold}
-      onPointerCancel={stopHold}
-      onContextMenu={(event) => {
-        if (!canComplete && !canPostpone) return
-        event.preventDefault()
-        setMenu(true)
-      }}
-      className={cn(
-        "relative flex min-h-16 items-center gap-3 py-3 min-[431px]:min-h-14",
-        // A section without times reserves no time column: the icon (or title, on phones) starts at the left edge, level with the group label.
-        timeColumn || mark ? "pl-3" : "pl-0",
-        // The hairline starts under the title, not at the card edge.
-        timeColumn ? "after:absolute after:right-0 after:bottom-0 after:left-[72px] after:h-px after:bg-border min-[431px]:after:left-[116px]" : "after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border min-[431px]:after:left-6",
-        // The next item gets a Lima bar (Tinta in light mode: `primary`), never a color of its own.
-        mark === "next" && "before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary",
-        mark === "now" && "before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-primary"
-      )}
-    >
-      {timeColumn ? (
-        <span className="flex w-12 shrink-0 flex-col min-[431px]:w-16">
-          {item.at ? <span className="tabular text-[14px] leading-5 font-semibold">{clock(item.at)}</span> : null}
-          {duration ? <span className="tabular text-[12px] leading-4 text-muted-foreground">{duration}</span> : null}
-        </span>
-      ) : null}
-      <Icon aria-hidden strokeWidth={1.75} className={cn("hidden size-4 shrink-0 text-muted-foreground min-[431px]:block", !timeColumn && "-mr-1")} />
-
-      <Link href={item.href} className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-        <span className={cn("line-clamp-2 text-[15px] leading-5 font-medium break-words", done && "text-muted-foreground line-through")}>
-          {item.priority === "high" ? (
-            <>
-              <FlagIcon aria-hidden strokeWidth={1.75} className="mr-1 -mt-0.5 inline size-3.5" />
-              <span className="sr-only">Prioridade alta. </span>
-            </>
-          ) : null}
-          {item.title}
-        </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[13px] leading-5 text-muted-foreground">
-          <Icon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0 min-[431px]:hidden" />
-          <span className="shrink-0">{moduleLabel}</span>
-          {detail ? <span className="min-w-0 truncate">· {detail}</span> : null}
-          {late ? <span className="shrink-0 font-medium text-foreground">· {late}</span> : null}
-          {item.streak ? (
-            <span className="tabular flex shrink-0 items-center gap-0.5">
-              · <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> {item.streak} dias
-            </span>
-          ) : null}
-          {item.habit ? (
-            <span className="tabular shrink-0">
-              · {number(qty)} de {number(item.habit.target)} {item.habit.unit}
-            </span>
-          ) : null}
-        </span>
-        {item.habit ? <Progress value={Math.min(100, Math.round((qty / item.habit.target) * 100))} aria-hidden className="mt-1 h-1 max-w-48" /> : null}
-        {item.bill ? (
-          <span className="tabular text-[13px] leading-5 font-medium min-[431px]:hidden">{item.bill.amount}</span>
-        ) : null}
-        <span className="flex flex-wrap gap-1.5 pt-0.5 empty:hidden min-[431px]:hidden">
-          <ItemBadges item={item} mark={mark} nowMs={nowMs} nextAtMs={nextAtMs} />
-        </span>
-      </Link>
-
-      <span className="hidden shrink-0 items-center gap-2 min-[431px]:flex">
-        <ItemBadges item={item} mark={mark} nowMs={nowMs} nextAtMs={nextAtMs} />
-        {item.bill ? <span className="tabular min-w-20 text-right text-[15px] font-medium">{item.bill.amount}</span> : null}
-      </span>
-
-      {item.action === "check" ? (
-        <span className="flex size-11 shrink-0 items-center justify-center">
-          <Checkbox checked={done} onCheckedChange={(value) => actions.complete(item, value === true)} aria-label={done ? `Reabrir ${item.title}` : `Concluir ${item.title}`} className="after:-inset-3" />
-        </span>
-      ) : null}
-      {item.action === "plus" ? (
-        <Button type="button" variant="outline" size="icon" disabled={done} className="size-11 shrink-0 rounded-full" aria-label={`Adicionar ${number(stepFor(item.habit?.unit ?? "", item.habit?.target ?? 1))} ${item.habit?.unit ?? ""} a ${item.title}`} onClick={() => actions.addQty(item)}>
-          <PlusIcon strokeWidth={1.75} />
-        </Button>
-      ) : null}
-      {item.action === "pay" ? (
-        <Button asChild variant="outline" className="h-11 shrink-0 rounded-full px-4">
-          <Link href={item.href} aria-label={`Pagar ${item.title}`}>
-            Pagar
-          </Link>
-        </Button>
-      ) : null}
-
-      {canComplete || canPostpone ? (
-        <DropdownMenu open={menu} onOpenChange={setMenu}>
-          <DropdownMenuTrigger asChild>
-            <span aria-hidden tabIndex={-1} className="pointer-events-none absolute right-0 bottom-0 size-px" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" collisionPadding={{ top: 16, bottom: 104, left: 16, right: 16 }} className="min-w-52 rounded-2xl p-2">
-            {canComplete ? (
-              <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => actions.complete(item, !done)}>
-                <SquareCheckIcon strokeWidth={1.75} /> {done ? "Reabrir" : "Concluir"}
-              </DropdownMenuItem>
-            ) : null}
-            {canPostpone ? (
-              <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => actions.postpone(item)}>
-                <TimerResetIcon strokeWidth={1.75} /> Adiar para amanhã
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </div>
-  )
-
-  // Swipe (touch only): right = concluir, left = adiar (tasks). The menu above is the non-gesture path.
-  if ((canComplete && !done) || canPostpone) {
-    return (
-      <SwipeRow
-        surfaceClassName="bg-card"
-        onSwipeRight={canComplete && !done ? () => actions.complete(item, true) : undefined}
-        rightLabel="Concluir"
-        onSwipeLeft={canPostpone ? () => actions.postpone(item) : undefined}
-        leftLabel="Adiar"
-        leftIcon={TimerResetIcon}
-      >
-        {row}
-      </SwipeRow>
-    )
-  }
-  return row
-}
-
-function NowLine({ nowMs }: { nowMs: number }) {
-  return (
-    <div role="separator" aria-label={`Agora, ${clock(nowMs)}`} data-now className="flex items-center gap-3 py-1 pl-3">
-      <span className="tabular w-12 shrink-0 rounded-full bg-highlight px-2 py-0.5 text-center text-[11px] leading-4 font-semibold text-highlight-foreground min-[431px]:w-16">agora</span>
-      <span aria-hidden className="h-0.5 flex-1 rounded-full bg-primary" />
-    </div>
-  )
-}
-
-/** A group of the day. The WHOLE header is the toggle: chevron next to the label, then the count, then (folded) a short summary. */
-function Group({ id, label, count, open, onToggle, summary, emphasis, children }: { id: GroupId; label: string; count: number; open: boolean; onToggle: () => void; summary: string; emphasis?: boolean; children: React.ReactNode }) {
+/** A group of the day: the whole left side of the header toggles it; ONE count (a pill); folded, a one-line preview follows. */
+function Group({
+  id,
+  label,
+  count,
+  open,
+  onToggle,
+  preview: previewText,
+  icon: Icon,
+  action,
+  children,
+}: {
+  id: GroupId
+  label: string
+  count: string | number
+  open: boolean
+  onToggle: () => void
+  preview?: string
+  icon?: LucideIcon
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <section aria-label={label} data-group={id} className="flex flex-col">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className={cn("-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 text-left", cardHover)}
-      >
-        <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", !open && "-rotate-90")} />
-        {emphasis ? <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
-        <h3 className={cn("text-[11px] leading-4 font-semibold tracking-[0.12em] uppercase", emphasis ? "text-foreground" : "text-muted-foreground")}>{label}</h3>
-        <Badge variant="secondary" className="tabular rounded-full">
-          {count}
-        </Badge>
-        {!open ? <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">{summary}</span> : null}
-      </button>
+      <div className="flex min-h-11 items-center gap-2">
+        <button type="button" aria-expanded={open} onClick={onToggle} className={cn("-ml-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left", cardHover)}>
+          <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", EASE, !open && "-rotate-90")} />
+          {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
+          <h3 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</h3>
+          <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{count}</span>
+          {!open && previewText ? <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">{previewText}</span> : null}
+        </button>
+        {action}
+      </div>
       {open ? children : null}
     </section>
   )
 }
 
+/** "agora": the current time in a Lima pill and a hairline across the card (Lima in dark, Tinta verso in light: `chart-1`). */
+function NowDivider({ nowMs }: { nowMs: number }) {
+  return (
+    <div role="separator" aria-label={`Agora, ${clock(nowMs)}`} data-now className="flex items-center gap-3 py-2">
+      <span className="tabular inline-flex h-6 shrink-0 items-center rounded-full bg-highlight px-2.5 text-[12px] leading-4 font-semibold text-highlight-foreground">{clock(nowMs)}</span>
+      <span aria-hidden className="h-px flex-1 bg-chart-1" />
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+type HabitActions = { toggle: (item: DayItem) => void; add: (item: DayItem) => void; remove: (item: DayItem) => void; qtyOf: (item: DayItem) => number; isDone: (item: DayItem) => boolean }
+
+/** Habits are chips, not rows: a circle that fills when done, and for quantity habits an inline − / + (phones: only +). */
+function HabitChips({ habits, actions }: { habits: DayItem[]; actions: HabitActions }) {
+  const circle = (done: boolean) => (
+    <span aria-hidden className={cn("flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors duration-[400ms] motion-reduce:transition-none", done ? "bg-primary text-primary-foreground" : "border-[1.75px] border-muted-foreground/60")}>
+      {done ? <CheckIcon strokeWidth={2.25} className="size-3.5" /> : null}
+    </span>
+  )
+  const chip = (done: boolean) => cn("flex min-h-11 items-center gap-2 rounded-full border px-3 text-[15px] leading-5", done ? "border-transparent bg-foreground/6" : "border-border")
+  return (
+    <ul className="flex flex-wrap gap-2 pb-2">
+      {habits.map((item) => {
+        const done = actions.isDone(item)
+        if (!item.habit) {
+          return (
+            <li key={item.id}>
+              <button type="button" aria-pressed={done} onClick={() => actions.toggle(item)} className={cn(chip(done), "outline-none focus-visible:ring-3 focus-visible:ring-ring/50", cardHover)}>
+                {circle(done)}
+                <span className="font-medium">{item.title}</span>
+              </button>
+            </li>
+          )
+        }
+        const qty = actions.qtyOf(item)
+        const label = stepLabel(item.habit.unit, item.habit.target)
+        const round = "size-9 shrink-0 rounded-full"
+        return (
+          <li key={item.id} className={cn(chip(done), "max-md:w-full")} data-habit-qty={item.id}>
+            {circle(done)}
+            <span className="min-w-0 font-medium">{item.title}</span>
+            <span className="tabular ml-auto text-[13px] whitespace-nowrap text-muted-foreground md:ml-0">
+              {number(qty)} de {number(item.habit.target)} {item.habit.unit}
+            </span>
+            <span className="-mr-1.5 flex items-center gap-1">
+              <Button type="button" variant="outline" size="icon" className={cn(round, "hidden md:inline-flex")} aria-label={`Remover ${label}`} disabled={qty <= 0} onClick={() => actions.remove(item)}>
+                <MinusIcon strokeWidth={1.75} className="size-4" />
+              </Button>
+              <Button type="button" variant="outline" size="icon" className={cn(round, "size-11 md:size-9")} aria-label={`Adicionar ${label}`} disabled={done} onClick={() => actions.add(item)}>
+                <PlusIcon strokeWidth={1.75} className="size-4" />
+              </Button>
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+const DONE_TOAST: Record<DayItemKind, string> = { task: "Tarefa concluída", workout: "Treino concluído", bill: "Conta paga", event: "Concluído", study: "Concluído", habit: "Hábito concluído" }
 
 export function SeuDia({ data }: { data: DayData }) {
+  const router = useRouter()
   const state = useTodayState()
   const { prefs, update } = useTodayPrefs()
-  const { openQuickCapture } = useAssistant()
   const nowMs = useNow(data.nowIso)
   const [filter, setFilter] = useState("tudo")
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const listRef = useRef<HTMLDivElement>(null)
+  const [lingering, setLingering] = useState<Set<string>>(new Set())
+  const [overrides, setOverrides] = useState<Record<string, Partial<DayItem>>>({})
+  const [showEarlier, setShowEarlier] = useState(false)
+  const [moreOverdue, setMoreOverdue] = useState(false)
+  const [draft, setDraft] = useState("")
+  const [adding, setAdding] = useState(false)
+  const chipsRef = useRef<HTMLDivElement>(null)
+  /** Ids the server gave us when something was created for a tick (a payment's spending, a workout session), so "Desfazer" can remove it. */
+  const created = useRef<Record<string, string>>({})
+  /** Saves of the same item run one after the other, so a quick "Desfazer" can never overtake the save it undoes. */
+  const chain = useRef<Record<string, Promise<unknown>>>({})
+  const inOrder = <T,>(id: string, run: () => Promise<T>): Promise<T> => {
+    const next = (chain.current[id] ?? Promise.resolve()).then(run, run)
+    chain.current[id] = next.catch(() => undefined)
+    return next
+  }
 
   const isDone = (item: DayItem) => {
     if (item.habit) return (state.qty[item.id] ?? item.habit.qty) >= item.habit.target
@@ -344,208 +197,329 @@ export function SeuDia({ data }: { data: DayData }) {
   }
   const qtyOf = (item: DayItem) => state.qty[item.id] ?? item.habit?.qty ?? 0
 
-  async function persistTask(item: DayItem, run: () => Promise<{ ok: boolean }>, rollback: () => void) {
-    // Tasks go to the task actions, habits to the habit log; the other kinds (events, bills) are only listed here.
-    if (item.kind !== "task") return
-    try {
-      const result = await run()
-      if (!result.ok) throw new Error("save")
-    } catch {
-      rollback()
-      toast.error("Não foi possível salvar. Tente de novo.")
+  // ----- actions ----------------------------------------------------------------------------------------------------
+  function complete(item: DayItem, done: boolean) {
+    state.setDone(item.id, done)
+    if (done) {
+      setLingering((s) => new Set(s).add(item.id))
+      setTimeout(() => setLingering((s) => (s.delete(item.id), new Set(s))), 1000)
     }
-  }
-
-  const actions: RowActions = {
-    isDone,
-    qtyOf,
-    complete(item, done) {
-      state.setDone(item.id, done)
-      if (item.kind === "habit") {
-        void saveHabitQty({ habitId: item.id, qty: done ? 1 : 0 }).then((result) => {
-          if (result.ok) return
-          state.setDone(item.id, !done)
-          toast.error("Não foi possível salvar. Tente de novo.")
-        })
-      }
-      void persistTask(
-        item,
-        () => (completeTask({ id: item.id, done })),
-        () => state.setDone(item.id, !done)
-      )
-      toast(done ? "Concluído." : "Reaberto.", done ? { action: { label: "Desfazer", onClick: () => actions.complete(item, false) } } : undefined)
-    },
-    addQty(item) {
-      if (!item.habit) return
-      const next = Math.min(item.habit.target, Math.round((qtyOf(item) + stepFor(item.habit.unit, item.habit.target)) * 100) / 100)
-      const before = qtyOf(item)
-      state.setQty(item.id, next)
-      void saveHabitQty({ habitId: item.id, qty: next }).then((result) => {
+    const planId = item.id.split(":")[0]
+    const save = (): Promise<{ ok: boolean }> => {
+      if (item.kind === "habit") return saveHabitQty({ habitId: item.id, qty: done ? 1 : 0 })
+      if (item.kind === "task") return completeTask({ id: item.id, done })
+      if (item.kind === "workout")
+        return done ? completeWorkout({ planId }).then((r) => (r.ok && (created.current[item.id] = r.sessionId), r)) : reopenWorkout({ planId, sessionId: created.current[item.id] })
+      if (item.kind === "bill")
+        return done
+          ? payBill({ billId: item.id }).then((r) => (r.ok && (created.current[item.id] = r.transactionId), r))
+          : created.current[item.id]
+            ? undoPayBill({ billId: item.id, transactionId: created.current[item.id] })
+            : Promise.resolve({ ok: false })
+      return Promise.resolve({ ok: true })
+    }
+    void inOrder(item.id, save)
+      .then((result) => {
         if (result.ok) return
-        state.setQty(item.id, before)
-        toast.error("Não foi possível salvar. Tente de novo.")
+        throw new Error("save")
       })
-      if (next >= item.habit.target) toast.success("Meta do dia atingida.")
-    },
-    postpone(item) {
-      if (!item.due) return
-      const moved = new Date(new Date(item.due.at).getTime() + 24 * 60 * 60_000).toISOString()
-      state.postpone(item.id, true)
-      void persistTask(
-        item,
-        () => (updateTask({ id: item.id, patch: { dueAt: moved, dueHasTime: item.due!.hasTime } })),
-        () => state.postpone(item.id, false)
-      )
-      toast("Adiado para amanhã.", {
-        action: {
-          label: "Desfazer",
-          onClick: () => {
-            state.postpone(item.id, false)
-            void persistTask(
-              item,
-              () => (updateTask({ id: item.id, patch: { dueAt: item.due!.at, dueHasTime: item.due!.hasTime } })),
-              () => state.postpone(item.id, true)
-            )
-          },
+      .catch(() => {
+        state.setDone(item.id, !done)
+        toast.error(item.kind === "bill" && done ? "Não consegui marcar como paga. Confira se você tem uma conta em Finanças." : "Não foi possível salvar. Tente de novo.")
+      })
+    if (done) toast(DONE_TOAST[item.kind], { action: { label: "Desfazer", onClick: () => complete(item, false) } })
+    else toast("Reaberto.")
+  }
+
+  function addQty(item: DayItem) {
+    if (!item.habit) return
+    const before = qtyOf(item)
+    const next = Math.min(item.habit.target, Math.round((before + stepFor(item.habit.unit, item.habit.target)) * 100) / 100)
+    state.setQty(item.id, next)
+    void saveHabitQty({ habitId: item.id, qty: next }).then((result) => {
+      if (result.ok) return
+      state.setQty(item.id, before)
+      toast.error("Não foi possível salvar. Tente de novo.")
+    })
+    if (next >= item.habit.target) toast.success("Meta do dia atingida.")
+  }
+  function removeQty(item: DayItem) {
+    if (!item.habit) return
+    const before = qtyOf(item)
+    const next = Math.max(0, Math.round((before - stepFor(item.habit.unit, item.habit.target)) * 100) / 100)
+    state.setQty(item.id, next)
+    void saveHabitQty({ habitId: item.id, qty: next }).then((result) => {
+      if (result.ok) return
+      state.setQty(item.id, before)
+      toast.error("Não foi possível salvar. Tente de novo.")
+    })
+  }
+
+  /** Moves a task's due date. `restore` puts the old values back (rollback and "Desfazer"). */
+  async function moveTask(item: DayItem, dueAt: string, hasTime: boolean) {
+    const result = await inOrder(item.id, () => updateTask({ id: item.id, patch: { dueAt, dueHasTime: hasTime } }))
+    return result.ok
+  }
+  const tomorrowIso = (item: DayItem) => toDueIso(dayKey(nowMs + 86_400_000), item.due?.hasTime ? clock(item.due.at) : null, TZ)
+
+  function postpone1h(item: DayItem) {
+    const base = Math.max(nowMs, item.due ? new Date(item.due.at).getTime() : nowMs)
+    const moved = new Date(base + 3_600_000).toISOString()
+    const original = { at: item.at, overdue: item.overdue, overdueSince: item.overdueSince, due: item.due }
+    const apply = (patch: Partial<DayItem>) => setOverrides((o) => ({ ...o, [item.id]: patch }))
+    const revert = () => setOverrides((o) => (delete o[item.id], { ...o }))
+    apply({ at: moved, overdue: false, overdueSince: undefined, due: { at: moved, hasTime: true } })
+    void moveTask(item, moved, true).then((ok) => {
+      if (ok) return
+      revert()
+      toast.error("Não foi possível salvar. Tente de novo.")
+    })
+    toast("Adiado em 1 hora.", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          revert()
+          if (original.due) void moveTask(item, original.due.at, original.due.hasTime)
         },
-      })
-    },
+      },
+    })
   }
 
-  // ----- what is on the list --------------------------------------------------------------------------------------
-  const all = data.items.filter((item) => !state.postponed.has(item.id))
+  function tomorrow(item: DayItem) {
+    const moved = tomorrowIso(item)
+    state.postpone(item.id, true)
+    void moveTask(item, moved, Boolean(item.due?.hasTime)).then((ok) => {
+      if (ok) return
+      state.postpone(item.id, false)
+      toast.error("Não foi possível salvar. Tente de novo.")
+    })
+    toast("Adiado para amanhã.", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          state.postpone(item.id, false)
+          if (item.due) void moveTask(item, item.due.at, item.due.hasTime)
+        },
+      },
+    })
+  }
+
+  function rescheduleOverdue(list: DayItem[]) {
+    const tasks = list.filter((item) => item.kind === "task")
+    if (tasks.length === 0) return
+    tasks.forEach((item) => state.postpone(item.id, true))
+    void Promise.all(tasks.map((item) => moveTask(item, tomorrowIso(item), Boolean(item.due?.hasTime)).then((ok) => [item, ok] as const))).then((results) => {
+      const failed = results.filter(([, ok]) => !ok).map(([item]) => item)
+      failed.forEach((item) => state.postpone(item.id, false))
+      if (failed.length > 0) toast.error(`Não consegui reagendar ${plural(failed.length, "tarefa", "tarefas")}.`)
+    })
+    toast(`${plural(tasks.length, "tarefa reagendada", "tarefas reagendadas")} para amanhã.`, {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          tasks.forEach((item) => {
+            state.postpone(item.id, false)
+            if (item.due) void moveTask(item, item.due.at, item.due.hasTime)
+          })
+        },
+      },
+    })
+  }
+
+  async function quickAdd() {
+    const text = draft.trim()
+    if (!text || adding) return
+    setAdding(true)
+    // The same reading the quick capture uses: a date and a time in the text are used when it finds them; otherwise a task due today.
+    const now = new Date(nowMs)
+    const read = readAs("tarefa", text, now)
+    const item = read ? { ...read, day: read.day ?? dayKey(nowMs) } : undefined
+    const result = await captureQuick({ text, items: item ? [item] : undefined })
+    setAdding(false)
+    if (!result.ok) return void toast.error(result.error)
+    setDraft("")
+    showCaptureToast(result.entries, () => router.refresh())
+    router.refresh()
+  }
+
+  // ----- what is on the list ----------------------------------------------------------------------------------------
+  const items = useMemo(
+    () => data.items.filter((item) => !state.postponed.has(item.id)).map((item) => (overrides[item.id] ? { ...item, ...overrides[item.id] } : item)),
+    [data.items, state.postponed, overrides]
+  )
   const kinds = FILTERS.find((f) => f.id === filter)?.kinds ?? null
-  const shown = all.filter((item) => !kinds || kinds.includes(item.kind))
-  const pendingAll = all.filter((item) => !isDone(item))
-  const doneAll = all.filter(isDone)
-  const overdueAll = pendingAll.filter((item) => item.overdue)
+  const visible = items.filter((item) => !kinds || kinds.includes(item.kind))
+  const stays = (item: DayItem) => !isDone(item) || lingering.has(item.id)
 
-  const finished = shown.filter(isDone).sort((a, b) => (state.doneAt[b.id] ?? b.doneAtMs ?? 0) - (state.doneAt[a.id] ?? a.doneAtMs ?? 0))
-  const pending = shown.filter((item) => !isDone(item))
-  const overdue = pending.filter((item) => item.overdue).sort((a, b) => new Date(a.overdueSince ?? 0).getTime() - new Date(b.overdueSince ?? 0).getTime())
-  const rest = pending.filter((item) => !item.overdue)
-
+  const habits = visible.filter((item) => item.kind === "habit")
+  const overdue = visible.filter((item) => item.kind !== "habit" && item.overdue && stays(item)).sort((a, b) => new Date(a.overdueSince ?? 0).getTime() - new Date(b.overdueSince ?? 0).getTime())
+  const finished = visible.filter((item) => item.kind !== "habit" && isDone(item) && !lingering.has(item.id)).sort((a, b) => (state.doneAt[b.id] ?? b.doneAtMs ?? 0) - (state.doneAt[a.id] ?? a.doneAtMs ?? 0))
+  const today = visible.filter((item) => item.kind !== "habit" && !item.overdue && stays(item))
+  const earlier = today.filter((item) => isEnded(item, nowMs)).sort((a, b) => new Date(a.at!).getTime() - new Date(b.at!).getTime())
+  const rest = today.filter((item) => !isEnded(item, nowMs))
   const timed = rest.filter((item) => item.at).sort((a, b) => new Date(a.at!).getTime() - new Date(b.at!).getTime())
-  const byPeriod = (period: Period) => timed.filter((item) => periodOfHour(hourOf(new Date(item.at!).getTime())) === period)
-  const untimed = rest
-    .filter((item) => !item.at)
-    .sort((a, b) => rank(a) - rank(b) || prio(b) - prio(a))
+  const untimed = rest.filter((item) => !item.at).sort((a, b) => rank(a) - rank(b) || prio(b) - prio(a))
+  const past = timed.filter((item) => new Date(item.at!).getTime() <= nowMs && !isCurrent(item, nowMs))
+  const now = timed.filter((item) => isCurrent(item, nowMs))
+  const future = timed.filter((item) => new Date(item.at!).getTime() > nowMs)
+  const tomorrowItems = (data.tomorrow ?? []).filter((item) => !kinds || kinds.includes(item.kind))
 
-  // The next item that has not started, and what is happening right now.
-  const nextItem = timed.find((item) => new Date(item.at!).getTime() > nowMs)
-  const markOf = (item: DayItem): Mark => {
-    if (item.at && item.endAt && new Date(item.at).getTime() <= nowMs && nowMs < new Date(item.endAt).getTime()) return "now"
-    return nextItem?.id === item.id ? "next" : null
-  }
+  // ----- header numbers (never filtered by a chip): past calendar events do not count -----------------------------
+  const counted = items.filter((item) => !isEnded(item, nowMs))
+  const doneCount = counted.filter(isDone).length
+  const overdueCount = items.filter((item) => item.kind !== "habit" && item.overdue && !isDone(item)).length
+  const pct = counted.length === 0 ? undefined : Math.round((doneCount / counted.length) * 100)
+  const pendingCount = (list: DayItem[]) => list.filter((item) => !isDone(item) && !isEnded(item, nowMs)).length
+  const chips = FILTERS.map((f) => ({ ...f, count: pendingCount(f.kinds ? items.filter((item) => f.kinds!.includes(item.kind)) : items) })).filter((f) => f.id === "tudo" || f.count > 0 || f.id === filter)
 
-  // ----- counts for the header and the chips -----------------------------------------------------------------------
-  const total = pendingAll.length + doneAll.length
-  const summary = [plural(pendingAll.length, "pendente", "pendentes"), doneAll.length ? plural(doneAll.length, "concluído", "concluídos") : null, overdueAll.length ? plural(overdueAll.length, "atrasado", "atrasados") : null].filter(Boolean).join(" · ")
-  const counts = Object.fromEntries(FILTERS.map((f) => [f.id, f.kinds ? all.filter((item) => f.kinds!.includes(item.kind)).length : all.length]))
-  const chips = FILTERS.filter((f) => f.id === "tudo" || counts[f.id] > 0 || f.id === filter)
+  // On phones the chips are one scrolling row: the active one is brought into view.
+  useEffect(() => {
+    const row = chipsRef.current
+    const active = row?.querySelector<HTMLElement>("[aria-pressed=true]")
+    if (!row || !active) return
+    const left = active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2
+    row.scrollTo({ left: Math.max(0, left), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+  }, [filter])
 
-  // ----- group state: the person's choice if any, otherwise a smart default ----------------------------------------
+  // ----- group state: the person's choice if any, otherwise a default (Atrasados, Hoje and Hábitos open) ---------------
   const isOpen = (id: GroupId) => {
     const choice = prefs.collapsedGroups[id]
     if (id === "atrasados") {
       // Folded only while no NEW overdue item has appeared since it was folded.
-      const known = overdueAll.every((item) => prefs.overdueSeen.includes(item.id))
+      const known = overdue.every((item) => prefs.overdueSeen.includes(item.id))
       return !(choice === true && known)
     }
     if (choice !== undefined) return !choice
-    return id !== "concluidos"
+    return id !== "concluidos" && id !== "amanha"
   }
-  const toggle = (id: GroupId, currentlyOpen: boolean) =>
-    update((p) => ({
-      ...p,
-      collapsedGroups: { ...p.collapsedGroups, [id]: currentlyOpen },
-      overdueSeen: id === "atrasados" && currentlyOpen ? overdueAll.map((item) => item.id).slice(0, 100) : p.overdueSeen,
-    }), { silent: true })
-
-  // On load the LIST scrolls so "agora" is in view; the page itself never moves.
-  useEffect(() => {
-    const list = listRef.current
-    const marker = list?.querySelector<HTMLElement>("[data-now]")
-    if (!list || !marker) return
-    // Scroll only as far as needed to reveal the line: the emphasized "Atrasados" group at the top stays in view when it fits.
-    const bottom = marker.offsetTop + marker.offsetHeight + 72
-    list.scrollTop = Math.max(0, bottom - list.clientHeight)
-  }, [])
-
-  const nowPeriod = periodOfHour(hourOf(nowMs))
-
-  const rows = (id: string, items: DayItem[], withNowLine: boolean) => {
-    const timeColumn = items.some((item) => item.at)
-    const limit = expanded.has(id) ? items.length : MAX_ROWS
-    const shownRows = items.slice(0, limit)
-    const nodes: React.ReactNode[] = []
-    let placed = !withNowLine
-    shownRows.forEach((item) => {
-      if (!placed && item.at && new Date(item.at).getTime() > nowMs) {
-        nodes.push(<NowLine key="now" nowMs={nowMs} />)
-        placed = true
-      }
-      nodes.push(<DayRow key={item.id} item={item} timeColumn={timeColumn} actions={actions} mark={markOf(item)} nowMs={nowMs} nextAtMs={nextItem?.at ? new Date(nextItem.at).getTime() : undefined} />)
-    })
-    // Every item of the period is earlier than now (or there is none): the line goes at the end.
-    if (!placed && shownRows.length === items.length) nodes.push(<NowLine key="now" nowMs={nowMs} />)
-    return (
-      <>
-        {nodes}
-        {items.length > limit ? (
-          <Button type="button" variant="ghost" className="h-11 self-start rounded-full px-4" onClick={() => setExpanded((s) => new Set(s).add(id))}>
-            Ver mais ({items.length - limit})
-          </Button>
-        ) : null}
-      </>
+  const toggle = (id: GroupId) => {
+    const open = isOpen(id)
+    update(
+      (p) => ({ ...p, collapsedGroups: { ...p.collapsedGroups, [id]: open }, overdueSeen: id === "atrasados" && open ? overdue.map((item) => item.id).slice(0, 100) : p.overdueSeen }),
+      { silent: true }
     )
   }
 
+  // ----- rows ---------------------------------------------------------------------------------------------------------
+  const handlersFor = (item: DayItem): RowHandlers => {
+    const canTick = item.kind === "task" || (item.kind === "workout" && item.action === "check") || item.kind === "bill"
+    const done = isDone(item)
+    return {
+      toggle: canTick ? (checked) => complete(item, checked) : undefined,
+      postpone1h: item.kind === "task" && !done ? () => postpone1h(item) : undefined,
+      tomorrow: item.kind === "task" && !done ? () => tomorrow(item) : undefined,
+      pay: item.kind === "bill" && !done ? () => complete(item, true) : undefined,
+    }
+  }
+  const currentOf = (item: DayItem): RowCurrent => {
+    const start = new Date(item.at!).getTime()
+    const end = new Date(item.endAt!).getTime()
+    return { endsAt: clock(end), remaining: remainingText(end - nowMs), pct: ((nowMs - start) / (end - start)) * 100, range: `${clock(start)}–${clock(end)}` }
+  }
+  const row = (item: DayItem, extra?: { current?: boolean; dimmed?: boolean; className?: string }) => (
+    <TimelineRow key={item.id} item={item} done={isDone(item)} nowMs={nowMs} handlers={handlersFor(item)} current={extra?.current ? currentOf(item) : undefined} dimmed={extra?.dimmed} className={extra?.className} />
+  )
+
+  const overdueRows = (
+    <>
+      {overdue.map((item, index) =>
+        row(item, { className: !moreOverdue && index >= MAX_DESKTOP ? "hidden" : !moreOverdue && index >= MAX_MOBILE ? "max-md:hidden" : undefined })
+      )}
+      {!moreOverdue && overdue.length > MAX_MOBILE ? (
+        <Button type="button" variant="ghost" className="h-11 self-start rounded-full px-4 md:hidden" onClick={() => setMoreOverdue(true)}>
+          Ver mais {overdue.length - MAX_MOBILE} atrasados
+        </Button>
+      ) : null}
+      {!moreOverdue && overdue.length > MAX_DESKTOP ? (
+        <Button type="button" variant="ghost" className="hidden h-11 self-start rounded-full px-4 md:inline-flex" onClick={() => setMoreOverdue(true)}>
+          Ver mais ({overdue.length - MAX_DESKTOP})
+        </Button>
+      ) : null}
+    </>
+  )
+
   const empty = data.items.length === 0
-  const pct = total === 0 ? undefined : Math.round((doneAll.length / total) * 100)
+  const habitDone = habits.filter((item) => isDone(item)).length
+
+  const quickAddForm = (
+    <form
+      className="hidden md:block"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void quickAdd()
+      }}
+    >
+      <label htmlFor="seu-dia-quick-add" className="sr-only">
+        Adicionar ao dia
+      </label>
+      <div className="relative">
+        <PlusIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          id="seu-dia-quick-add"
+          value={draft}
+          disabled={adding}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Adicionar ao dia — ex.: “ligar para o banco às 10h”"
+          autoComplete="off"
+          className="h-12 rounded-2xl pl-12 text-[15px] md:h-12"
+        />
+      </div>
+    </form>
+  )
 
   return (
     <section aria-label="Seu dia" className={cn(bentoCardClass(), "flex min-w-0 flex-col gap-4 rounded-[24px] p-5")}>
-      <header className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3">
+      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+        <div className="flex items-start justify-between gap-3 md:block">
           <div className="flex min-w-0 flex-col">
-            <h2 className="text-[17px] leading-6 font-semibold">Seu dia</h2>
-            {data.state === "ok" && !empty ? (
-              <p className="tabular text-[13px] leading-5 text-muted-foreground" data-testid="seu-dia-summary">
-                {summary}
-              </p>
-            ) : null}
+            <h2 className="text-[20px] leading-7 font-semibold">Seu dia</h2>
+            <p className="text-[13px] leading-5 text-muted-foreground">{dayTitle(nowMs)}</p>
           </div>
-          <Button asChild size="sm" className="h-11 shrink-0 gap-2 rounded-xl bg-highlight px-3.5 text-[14px] text-highlight-foreground hover:bg-highlight/85 md:h-9">
-            <Link href="/dashboard/agenda">
-              <CalendarIcon strokeWidth={1.75} className="size-4" />
-              Abrir agenda
-              <ArrowUpRightIcon strokeWidth={1.75} className="size-3.5" />
+          <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-full md:hidden">
+            <Link href="/dashboard/agenda" aria-label="Abrir agenda">
+              <CalendarIcon strokeWidth={1.75} />
             </Link>
           </Button>
         </div>
-        {/* No bar when there is nothing to do: 0 of 0 is never 100%. */}
-        {pct !== undefined ? <Progress value={pct} aria-label={`Dia: ${pct}% concluído`} className="h-1.5" /> : null}
+        <div className="flex items-start gap-3 md:ml-auto">
+          {data.state === "ok" && !empty ? (
+            <div className="flex w-full flex-col gap-2 md:w-[220px]" data-testid="seu-dia-summary">
+              <div className="flex items-center justify-between gap-3 text-[13px] leading-5">
+                <span className="tabular font-semibold">
+                  {doneCount} de {counted.length} feitos
+                </span>
+                {overdueCount > 0 ? (
+                  <span className="tabular inline-flex items-center gap-1 text-muted-foreground">
+                    <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
+                    {plural(overdueCount, "atrasado", "atrasados")}
+                  </span>
+                ) : null}
+              </div>
+              {pct !== undefined ? (
+                <div role="progressbar" aria-label={`Dia: ${pct}% concluído`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className={cn("h-full rounded-full bg-chart-1 transition-[width] duration-[400ms] motion-reduce:transition-none", EASE)} style={{ width: `${pct}%` }} />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <Button asChild variant="ghost" className="hidden h-10 shrink-0 gap-1.5 rounded-full px-3 text-[14px] md:inline-flex md:h-10">
+            <Link href="/dashboard/agenda">
+              Agenda <ArrowUpRightIcon strokeWidth={1.75} className="size-4" />
+            </Link>
+          </Button>
+        </div>
       </header>
 
       {data.state === "soon" ? (
         <p className="text-[15px] leading-6 text-muted-foreground">Este módulo ainda não tem dados reais. Em breve aparece aqui.</p>
       ) : empty ? (
-        <EmptyState
-          icon={SquareCheckIcon}
-          title="Nada marcado para hoje"
-          description="Seu dia está livre. Adicione uma tarefa para começar."
-          action={
-            <Button variant="outline" className="h-11 rounded-full px-5" onClick={openQuickCapture}>
-              <PlusIcon strokeWidth={1.75} /> Adicionar tarefa
-            </Button>
-          }
-          className="py-8"
-        />
+        <>
+          <EmptyState icon={SquareCheckIcon} title="Nada marcado para hoje" description="Seu dia está livre. Adicione algo abaixo ou use o botão Novo." className="py-8" />
+          {quickAddForm}
+        </>
       ) : (
         <>
-          {/* Scrolls sideways; on phones the edges fade so it is clear there is more. */}
-          <div role="group" aria-label="Filtrar o dia" className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 max-md:[mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-28px),transparent)]">
+          <div ref={chipsRef} role="group" aria-label="Filtrar o dia" className="no-scrollbar -mx-5 flex snap-x gap-2 overflow-x-auto px-5 max-md:[mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-28px),transparent)]">
             {chips.map((f) => (
               <button
                 key={f.id}
@@ -553,60 +527,99 @@ export function SeuDia({ data }: { data: DayData }) {
                 aria-pressed={filter === f.id}
                 onClick={() => setFilter(f.id)}
                 className={cn(
-                  "inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-[15px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                  filter === f.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                  "inline-flex h-11 shrink-0 snap-center items-center gap-2 rounded-full border px-4 text-[15px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-9 md:text-[14px]",
+                  EASE,
+                  filter === f.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border text-foreground hover:bg-accent"
                 )}
               >
                 {f.label}
-                <span className="tabular text-[13px] opacity-70">{counts[f.id]}</span>
+                <span className={cn("tabular text-[13px]", filter === f.id ? "opacity-70" : "text-muted-foreground")}>{f.count}</span>
               </button>
             ))}
           </div>
 
-          <div ref={listRef} data-testid="seu-dia-list" className="flex flex-col gap-1">
-            {shown.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada deste tipo hoje.</p> : null}
+          <div data-testid="seu-dia-list" className="flex flex-col gap-1">
+            {visible.length === 0 && tomorrowItems.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada deste tipo hoje.</p> : null}
 
             {overdue.length > 0 ? (
-              <Group id="atrasados" label="Atrasados" count={overdue.length} open={isOpen("atrasados")} onToggle={() => toggle("atrasados", isOpen("atrasados"))} summary={plural(overdue.length, "pendente", "pendentes")} emphasis>
-                {rows("atrasados", overdue, false)}
+              <Group
+                id="atrasados"
+                label="Atrasados"
+                count={overdue.length}
+                icon={TriangleAlertIcon}
+                open={isOpen("atrasados")}
+                onToggle={() => toggle("atrasados")}
+                preview={preview(overdue.map((item) => item.title))}
+                action={
+                  overdue.some((item) => item.kind === "task") ? (
+                    <Button type="button" variant="outline" className="h-11 shrink-0 gap-1.5 rounded-full px-3 text-[13px] md:h-9 md:gap-2 md:px-4" onClick={() => rescheduleOverdue(overdue)}>
+                      <CalendarIcon strokeWidth={1.75} className="size-4" />
+                      <span className="max-md:hidden">Reagendar tudo para amanhã</span>
+                      <span className="md:hidden">Tudo p/ amanhã</span>
+                    </Button>
+                  ) : null
+                }
+              >
+                {overdueRows}
               </Group>
             ) : null}
 
-            {PERIODS.map((period) => {
-              const items = byPeriod(period.id)
-              const hasNow = period.id === nowPeriod
-              if (items.length === 0 && !hasNow) return null
-              const id = period.id as GroupId
-              return (
-                <Group key={period.id} id={id} label={period.label} count={items.length} open={isOpen(id)} onToggle={() => toggle(id, isOpen(id))} summary={plural(items.length, "pendente", "pendentes")}>
-                  {rows(period.id, items, hasNow)}
-                </Group>
-              )
-            })}
+            {today.length > 0 ? (
+              <Group id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")} preview={preview(rest.map((item) => item.title))}>
+                {earlier.length > 0 ? (
+                  <div className="flex flex-col">
+                    <button type="button" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)} className={cn("-mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2 text-left opacity-70", cardHover)}>
+                      <ChevronRightIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, showEarlier && "rotate-90")} />
+                      <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">
+                        Mais cedo · {plural(earlier.length, "evento", "eventos")} · {earlier.map((item) => item.title).join(", ")}
+                      </span>
+                    </button>
+                    {showEarlier ? earlier.map((item) => row(item, { dimmed: true })) : null}
+                  </div>
+                ) : null}
+                {past.map((item) => row(item))}
+                <NowDivider nowMs={nowMs} />
+                {now.map((item) => row(item, { current: true }))}
+                {future.map((item) => row(item))}
+                {untimed.map((item) => row(item))}
+              </Group>
+            ) : null}
 
-            {untimed.length > 0 ? (
-              <Group id="sem-horario" label="Sem horário" count={untimed.length} open={isOpen("sem-horario")} onToggle={() => toggle("sem-horario", isOpen("sem-horario"))} summary={plural(untimed.length, "pendente", "pendentes")}>
-                {rows("sem-horario", untimed, false)}
+            {habits.length > 0 ? (
+              <Group id="habitos" label="Hábitos" count={`${habitDone} de ${habits.length}`} open={isOpen("habitos")} onToggle={() => toggle("habitos")}>
+                <HabitChips habits={habits} actions={{ toggle: (item) => complete(item, !isDone(item)), add: addQty, remove: removeQty, qtyOf, isDone }} />
               </Group>
             ) : null}
 
             {finished.length > 0 ? (
-              <Group id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos", isOpen("concluidos"))} summary={plural(finished.length, "concluído", "concluídos")}>
-                {rows("concluidos", finished, false)}
+              <Group id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos")} preview={preview(finished.map((item) => item.title))}>
+                {finished.map((item) => row(item))}
+              </Group>
+            ) : null}
+
+            {hourOf(nowMs) >= 18 && tomorrowItems.length > 0 ? (
+              <Group
+                id="amanha"
+                label="Amanhã"
+                count={tomorrowItems.length}
+                icon={CalendarDaysIcon}
+                open={isOpen("amanha")}
+                onToggle={() => toggle("amanha")}
+                preview={(() => {
+                  const first = tomorrowItems[0]
+                  const text = `${first.at ? `${clock(first.at)} ` : ""}${first.title}`
+                  return tomorrowItems.length > 1 ? `${text} e mais ${tomorrowItems.length - 1}` : text
+                })()}
+              >
+                {tomorrowItems.map((item) => (
+                  <TimelineRow key={item.id} item={item} done={false} nowMs={nowMs} />
+                ))}
               </Group>
             ) : null}
           </div>
+          {quickAddForm}
         </>
       )}
     </section>
   )
 }
-
-/** Order inside "Sem horário": bills, tasks, all-day events, plain habits, and quantity habits (with progress) last. */
-function rank(item: DayItem) {
-  if (item.kind === "bill") return 0
-  if (item.kind === "task") return 1
-  if (item.kind === "habit") return item.habit ? 4 : 3
-  return 2
-}
-const prio = (item: DayItem) => ({ high: 3, medium: 2, low: 1, none: 0 })[item.priority ?? "none"]

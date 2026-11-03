@@ -29,7 +29,7 @@ test.describe("a clean account: every module shows its empty state", () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   const modules: { path: string; empty: RegExp | string; action?: string; tab?: string }[] = [
-    { path: "", empty: "Nada marcado para hoje", action: "Adicionar tarefa" },
+    { path: "", empty: "Nada marcado para hoje" },
     { path: "/tarefas", empty: "Nenhum quadro ainda", action: "Criar quadro" },
     { path: "/rotina", empty: "Nenhum hábito ainda", action: "Criar o primeiro hábito" },
     { path: "/agenda", empty: "Nada marcado para este dia." },

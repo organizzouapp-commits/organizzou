@@ -589,16 +589,16 @@ test.describe("round 2: desktop (1440x900)", () => {
     }
   })
 
-  test("Abrir agenda and both arrows are Lima buttons with a hand cursor; a disabled arrow is muted and not-allowed", async ({ page, context, baseURL }) => {
+  test("the Agenda link is a quiet ghost link; both arrows are Lima buttons with a hand cursor; a disabled arrow is muted and not-allowed", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
     const limaColor = await bg(lima(page).first())
-    const agenda = page.getByRole("link", { name: "Abrir agenda" })
+    const agenda = page.getByRole("region", { name: "Seu dia" }).getByRole("link", { name: /^Agenda/ })
     const next = page.getByRole("button", { name: "Próximos destaques" })
     const prev = page.getByRole("button", { name: "Destaques anteriores" })
     await page.mouse.move(5, 5)
-    await expect.poll(() => bg(agenda)).toBe(limaColor)
     await expect.poll(() => bg(next)).toBe(limaColor)
+    expect(await bg(agenda)).not.toBe(limaColor)
     for (const control of [agenda, next]) expect(await control.evaluate((el) => getComputedStyle(el).cursor)).toBe("pointer")
     // "Anterior" starts disabled: muted surface, reduced opacity, not-allowed.
     await expect(prev).toBeDisabled()
@@ -610,9 +610,7 @@ test.describe("round 2: desktop (1440x900)", () => {
       await page.evaluate((s) => document.documentElement.classList.toggle("dark", s === "dark"), scheme)
       await page.mouse.move(5, 5)
       await page.waitForTimeout(600)
-      await agenda.evaluate((el) => el.setAttribute("data-probe", "agenda"))
       await next.evaluate((el) => el.setAttribute("data-probe", "next"))
-      expect(await contrastOf(page, '[data-probe="agenda"]', '[data-probe="agenda"]'), `agenda ${scheme}`).toBeGreaterThanOrEqual(4.5)
       expect(await contrastOf(page, '[data-probe="next"] svg', '[data-probe="next"]'), `arrow ${scheme}`).toBeGreaterThanOrEqual(4.5)
     }
     // Hovering darkens/lightens the Lima slightly, never a new color: it stays a Lima mix.
@@ -704,18 +702,16 @@ test.describe("round 2: desktop (1440x900)", () => {
     if (await morning.count()) expect((await morning.locator("a span").first().boundingBox())!.x - g.x).toBeGreaterThan(60)
   })
 
-  test("Abrir agenda is a real outline button, at least 36 px tall, centered with the title", async ({ page, context, baseURL }) => {
+  test("the Agenda link is a 40 px ghost link with an arrow, at the right of the card header", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
-    const agenda = page.getByRole("link", { name: "Abrir agenda" })
+    const agenda = page.getByRole("region", { name: "Seu dia" }).getByRole("link", { name: /^Agenda/ })
     const b = (await agenda.boundingBox())!
-    expect(b.height).toBeGreaterThanOrEqual(36)
-    expect(await agenda.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("1px")
-    expect(await agenda.locator("svg").count()).toBe(2)
+    expect(b.height).toBeGreaterThanOrEqual(40)
+    expect(await agenda.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)")
+    expect(await agenda.locator("svg").count()).toBe(1)
     const card = (await page.getByRole("region", { name: "Seu dia" }).boundingBox())!
     expect(card.x + card.width - (b.x + b.width)).toBeLessThanOrEqual(24)
-    const title = (await page.getByRole("heading", { name: "Seu dia", level: 2 }).boundingBox())!
-    expect(Math.abs(b.y + b.height / 2 - (title.y + title.height / 2))).toBeLessThanOrEqual(20)
   })
 })
 
@@ -761,7 +757,7 @@ test.describe("round 2: phone (390x844)", () => {
     await expect(strip.locator('a[data-tone="highlight"]')).toHaveCount(1)
   })
 
-  test("Notas opens again after a reload even if it was folded; Abrir agenda is Lima with a 44 px target", async ({ page, context, baseURL }) => {
+  test("Notas opens again after a reload even if it was folded; Abrir agenda is an icon-only 44 px button", async ({ page, context, baseURL }) => {
     await setup(context, baseURL!)
     await open(page)
     const notes = page.locator('[data-panel="notas"] button[aria-controls]')
@@ -773,22 +769,10 @@ test.describe("round 2: phone (390x844)", () => {
     // Tapping the panel card lifts it like a Destaques card (touch has no hover, but the style exists for the tap).
     const agenda = page.getByRole("link", { name: "Abrir agenda" })
     await agenda.scrollIntoViewIfNeeded()
-    expect(await bg(agenda)).toBe(await bg(page.locator('a[data-tone="highlight"]').first()))
-    expect((await agenda.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    const box = (await agenda.boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    expect(box.width).toBeGreaterThanOrEqual(44)
+    await expect(agenda).not.toContainText("Agenda")
   })
 
-  test("no empty time column in Sem horário, and Abrir agenda keeps a 44 px target", async ({ page, context, baseURL }) => {
-    test.fixme(true, "Written for the old built-in example data, which no longer exists. Needs the seeded demo account (npm run seed:demo) and a signed-in session; adapt the login and run it there.")
-    await setup(context, baseURL!)
-    await open(page)
-    const group = page.locator('[data-group="sem-horario"]')
-    const header = group.getByRole("button", { name: /^Sem horário/ })
-    await header.scrollIntoViewIfNeeded()
-    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click()
-    const g = (await group.boundingBox())!
-    const title = (await group.locator("[data-kind] a span").first().boundingBox())!
-    expect(title.x - g.x).toBeLessThanOrEqual(4)
-    expect((await page.getByRole("link", { name: "Abrir agenda" }).boundingBox())!.height).toBeGreaterThanOrEqual(44)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  })
 })

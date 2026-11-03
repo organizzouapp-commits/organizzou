@@ -7,7 +7,7 @@ import { getDay, getDiet, getFinance, getMood, getNotes, getStat, getStudy, getW
 import { DietPanel, FinancePanel, MoodPanel, NotesPanel, StudyPanel, WorkoutPanel } from "./panels"
 import { SeuDia } from "./seu-dia"
 import { StatCard, StatCardSkeleton } from "./stat-card"
-import { PanelSkeleton, WidgetError } from "./widget-error"
+import { PanelSkeleton, SeuDiaSkeleton, WidgetError } from "./widget-error"
 
 /**
  * The widget registry (server). Each widget = { id, title, icon, module, kind, defaultVisible } (from the catalog) plus:
@@ -57,7 +57,7 @@ async function PanelBody({ id, nowIso }: { id: PanelId; nowIso: string }) {
   try {
     data = await loadPanel(id, nowIso)
   } catch {
-    return <WidgetError title={meta.title} />
+    return <WidgetError title={meta.title} message={id === "seu-dia" ? "Não consegui carregar seu dia. Tente de novo." : undefined} />
   }
   switch (id) {
     case "seu-dia":
@@ -78,7 +78,7 @@ async function PanelBody({ id, nowIso }: { id: PanelId; nowIso: string }) {
 }
 
 const PANEL_SKELETON: Record<PanelId, ReactNode> = {
-  "seu-dia": <PanelSkeleton rows={5} tall />,
+  "seu-dia": <SeuDiaSkeleton />,
   notas: <PanelSkeleton rows={3} />,
   financas: <PanelSkeleton rows={2} />,
   dieta: <PanelSkeleton rows={2} />,
