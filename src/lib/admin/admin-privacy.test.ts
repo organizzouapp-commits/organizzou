@@ -57,6 +57,7 @@ const ALLOWED_RELATIONS = new Set([
   "public.waitlist",
   "public.user_activity_hourly",
   "public.audit_log",
+  "public.assistant_usage",
   "public.boards",
   "public.tasks",
   "public.tags",

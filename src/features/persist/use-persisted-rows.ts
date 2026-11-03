@@ -87,6 +87,19 @@ export function usePersistedRows<T extends { id: string }>(table: TableName, ini
     [debounceMs, flush]
   )
 
+  // When the server sends different rows (router.refresh() after a quick capture or the assistant created something), show them, unless
+  // this screen has changes of its own that have not been sent yet. Rows equal to what is already here change nothing.
+  const seen = useRef(initial)
+  useEffect(() => {
+    if (typeof initial === "function" || seen.current === initial) return
+    seen.current = initial
+    if (sent.current !== current.current) return
+    if (JSON.stringify(initial) === JSON.stringify(sent.current)) return
+    sent.current = initial
+    current.current = initial
+    setState(initial)
+  }, [initial])
+
   // Leaving the screen (or the tab) must not lose a change that is still waiting for its pause.
   useEffect(() => {
     const onHide = () => document.visibilityState === "hidden" && flush()

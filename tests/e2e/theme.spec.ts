@@ -17,6 +17,9 @@ test.describe.configure({ mode: "serial" })
 const isLight = (page: Page) => page.evaluate(() => document.documentElement.classList.contains("light") && !document.documentElement.classList.contains("dark"))
 const isDark = (page: Page) => page.evaluate(() => document.documentElement.classList.contains("dark"))
 
+/** The computed page background, as the browser paints it: the class alone is not proof, the light tokens must really apply. */
+const bodyBackground = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+
 async function open(page: Page, path: string) {
   await page.goto(path)
   await page.waitForFunction(() => document.querySelectorAll('[hidden][id^="S:"]').length === 0, undefined, { timeout: 30000 })
@@ -35,12 +38,15 @@ test("header switch: dark -> light -> dark, and the choice survives a reload", a
   await expect.poll(() => isDark(page)).toBe(true)
   await toggle.click()
   await expect.poll(() => isLight(page)).toBe(true)
+  const lightBg = await bodyBackground(page)
   await page.waitForTimeout(1500)
   await page.reload()
   await page.waitForFunction(() => document.querySelectorAll('[hidden][id^="S:"]').length === 0, undefined, { timeout: 30000 })
   expect(await isLight(page)).toBe(true)
+  expect(await bodyBackground(page)).toBe(lightBg)
   await page.getByRole("button", { name: "Alternar entre tema claro e escuro" }).first().click()
   await expect.poll(() => isDark(page)).toBe(true)
+  await expect.poll(() => bodyBackground(page)).not.toBe(lightBg)
   await page.reload()
   expect(await isDark(page)).toBe(true)
 })

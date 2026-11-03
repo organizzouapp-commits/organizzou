@@ -5,7 +5,7 @@ import { ComingSoon, DataUnavailable, Intro, SegmentedLinks, TableCard } from "@
 import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageGrid, PageShell, StatRow } from "@/components/organizzou/layout"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { assistantUsage } from "@/lib/admin/data"
+import { assistantTokens, assistantUsage } from "@/lib/admin/data"
 import { fmtInt, fmtPct } from "@/lib/admin/format"
 
 const RANGES = ["7", "30", "90"] as const
@@ -17,7 +17,7 @@ const RANGES = ["7", "30", "90"] as const
 export default async function AssistantPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
   const { periodo } = await searchParams
   const range = RANGES.find((r) => r === periodo) ?? "30"
-  const usage = await assistantUsage(Number(range))
+  const [usage, tokens] = await Promise.all([assistantUsage(Number(range)), assistantTokens(Number(range))])
 
   if (!usage.ok) return <DataUnavailable error={usage.error} />
   const u = usage.data
@@ -38,8 +38,19 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       }
     >
       {u.total === 0 ? (
-        <Intro icon={SparklesIcon}>Nenhuma ação do assistente registrada no período. O assistente do app ainda é uma prévia simulada: só ações reais gravadas em auditoria aparecem aqui.</Intro>
+        <Intro icon={SparklesIcon}>Nenhuma ação do assistente registrada no período. Só ações reais gravadas em auditoria aparecem aqui.</Intro>
       ) : null}
+
+      {tokens.ok ? (
+        <StatRow min={200}>
+          <KpiCard label="Mensagens ao assistente" value={fmtInt(tokens.data.messages)} support={`nos últimos ${range} dias`} tone="highlight" />
+          <KpiCard label="Pessoas que usaram" value={fmtInt(tokens.data.users)} support="com ao menos uma mensagem" />
+          <KpiCard label="Tokens de entrada" value={fmtInt(tokens.data.input_tokens)} support="o que o modelo leu" />
+          <KpiCard label="Tokens de saída" value={fmtInt(tokens.data.output_tokens)} support="o que o modelo escreveu" />
+        </StatRow>
+      ) : (
+        <Intro icon={CoinsIcon}>Mensagens e tokens aparecem aqui quando a atualização do banco do assistente for aplicada.</Intro>
+      )}
 
       <StatRow min={200}>
         <KpiCard label="Ações executadas" value={fmtInt(u.total)} support={`nos últimos ${range} dias`} tone="highlight" />

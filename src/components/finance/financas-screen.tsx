@@ -58,7 +58,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { guessCategory } from "@/features/assistant/rules"
+import { guessCategory } from "@/server/assistant/parse"
 import {
   accountBalance,
   billStatus,

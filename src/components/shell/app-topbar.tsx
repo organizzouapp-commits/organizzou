@@ -1,6 +1,6 @@
 "use client"
 
-import { memo } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
@@ -64,6 +64,39 @@ const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
 }
 
 /**
+ * The notification list: scrolls by wheel, touch and keyboard (focusing an item scrolls it into view) with no visible scrollbar, and
+ * fades out at the bottom edge while there is more below, so it is clear the list goes on.
+ */
+function FadeScroll({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLUListElement>(null)
+  const [more, setMore] = useState(false)
+  const measure = useCallback(() => {
+    const el = ref.current
+    if (el) setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
+  }, [])
+  useEffect(() => {
+    measure()
+    const el = ref.current
+    if (!el) return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [measure, children])
+  return (
+    <ul
+      ref={ref}
+      onScroll={measure}
+      className={cn(
+        "max-h-[70dvh] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        more && "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]"
+      )}
+    >
+      {children}
+    </ul>
+  )
+}
+
+/**
  * The bell. It lists the person's own notifications (newest first): unread ones carry a Lima dot, tapping one marks it read and opens
  * what it is about, "Marcar todas como lidas" clears the dot, and with nothing to show it says so. The dot on the bell is the unread
  * count > 0. `bare`: no border or fill of its own, for use inside a pill group (the collapsed header).
@@ -90,7 +123,7 @@ export function Bell({ bare = false }: { bare?: boolean }) {
         {items.length === 0 ? (
           <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app e do WhatsApp chegam em breve.</p>
         ) : (
-          <ul className="max-h-[min(24rem,60dvh)] overflow-y-auto overscroll-contain">
+          <FadeScroll>
             {items.map((n) => {
               const Icon = KIND_ICONS[n.kind] ?? InfoIcon
               const row = (
@@ -119,7 +152,7 @@ export function Bell({ bare = false }: { bare?: boolean }) {
                 </li>
               )
             })}
-          </ul>
+          </FadeScroll>
         )}
       </PopoverContent>
     </Popover>

@@ -3,8 +3,9 @@
 import { memo, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react"
 
+import { useAssistant } from "@/components/assistant/assistant-context"
 import { GlassSurface } from "@/components/organizzou/GlassSurface"
 import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
@@ -47,6 +48,7 @@ type MobileHeaderProps = {
 export const MobileHeader = memo(function MobileHeader({ user, onSearch }: MobileHeaderProps) {
   const pathname = usePathname()
   const nav = useNav()
+  const { openQuickCapture } = useAssistant()
   const [mainGroup, ...foldedGroups] = nav.groups
   const chipsRef = useRef<HTMLElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -104,6 +106,12 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
               className="h-11 cursor-pointer rounded-full border-border bg-card pr-4 pl-11 text-[15px] md:h-11 dark:bg-card"
             />
           </div>
+          {nav.features.assistant ? (
+            // Phones had no way to open the quick capture: the same "Novo" as the desktop header, as a round Lima button.
+            <Button size="icon" className="size-11 shrink-0 rounded-full md:size-11" aria-label="Novo" onClick={openQuickCapture}>
+              <PlusIcon strokeWidth={1.75} />
+            </Button>
+          ) : null}
           <ThemeSwitch />
         </div>
 

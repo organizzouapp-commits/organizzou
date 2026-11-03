@@ -22,6 +22,7 @@
     "seed:demo:reset": "node --env-file=.env.local scripts/seed-demo.ts --reset"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@date-fns/tz": "^1.5.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

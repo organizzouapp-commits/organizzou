@@ -178,6 +178,10 @@ export type AssistantUsage = {
   top_users: { user_id: string; email: string; actions: number }[]
 }
 
+export type AssistantTokens = { messages: number; input_tokens: number; output_tokens: number; users: number; daily: { day: string; messages: number; tokens: number }[] }
+/** Messages and tokens the assistant used (counters only, never text). Not ok until the migration that adds it is applied. */
+export const assistantTokens = (rangeDays = 30) => rpc<AssistantTokens>("assistant_tokens", { range_days: rangeDays })
+
 export const assistantUsage = (rangeDays = 30) => rpc<AssistantUsage>("assistant_usage", { range_days: rangeDays })
 
 export type IntegrationNumbers = { total_users: number; google_users: number; email_users: number; phones_informed: number; waitlist: number }

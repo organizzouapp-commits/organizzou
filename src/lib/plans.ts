@@ -32,13 +32,13 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     tagline: "O essencial para organizar o dia.",
     // TODO(owner): free stays at zero.
     price: { monthlyCents: 0, yearlyCents: 0 },
-    limits: { banks: 1, taskBoards: 3, assistantMessagesPerDay: 20 },
+    limits: { banks: 1, taskBoards: 3, assistantMessagesPerDay: 15 },
     features: [
       "Tarefas, rotina, agenda e notas",
       "Finanças com lançamentos manuais",
       "Até 3 listas de tarefas",
       "1 banco conectado (quando o Open Finance chegar)",
-      "20 mensagens por dia com o assistente",
+      "15 mensagens por dia com o assistente (só texto no app)",
     ],
   },
   pro: {
@@ -47,12 +47,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     tagline: "Sem limites, com o assistente à vontade.",
     // TODO(owner): placeholder prices, not final.
     price: { monthlyCents: 1990, yearlyCents: 19900 },
-    limits: { banks: null, taskBoards: null, assistantMessagesPerDay: null },
+    limits: { banks: null, taskBoards: null, assistantMessagesPerDay: 200 },
     features: [
       "Tudo do Plano Gratuito",
       "Listas de tarefas ilimitadas",
       "Bancos ilimitados no Open Finance",
-      "Assistente sem limite diário, no app e no WhatsApp",
+      "Assistente com 200 mensagens por dia, no app e no WhatsApp",
       "Resumos e revisões semanais personalizados",
       "Suporte prioritário",
     ],
@@ -64,7 +64,7 @@ export type LimitKey = keyof PlanLimits
 export const LIMIT_LABELS: Record<LimitKey, { singular: string; plural: string; hint: string }> = {
   banks: { singular: "banco conectado", plural: "bancos conectados", hint: "Conecte quantos bancos quiser" },
   taskBoards: { singular: "lista de tarefas", plural: "listas de tarefas", hint: "Crie quantas listas precisar" },
-  assistantMessagesPerDay: { singular: "mensagem por dia", plural: "mensagens por dia", hint: "Converse com o assistente sem limite diário" },
+  assistantMessagesPerDay: { singular: "mensagem por dia", plural: "mensagens por dia", hint: "Converse com o assistente até 200 vezes por dia" },
 }
 
 export function parsePlan(value: unknown): PlanId {
