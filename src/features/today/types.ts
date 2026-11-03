@@ -71,9 +71,9 @@ export type NotesData = {
   pinned: { id: string; title: string; preview: string }[]
 }
 
-export type FinanceData = { state: WidgetState; surplus: string; surplusTrend: "up" | "down"; budgetPct: number; budgetLine: string }
+export type FinanceData = { state: WidgetState; surplus: string; /** The month's balance in cents; negative = more out than in. */ surplusCents: number; surplusTrend: "up" | "down"; budgetPct: number; budgetLine: string }
 export type DietData = { state: WidgetState; kcal: number; goalKcal: number; protein: number; waterMl: number; waterGoalMl: number }
-export type WorkoutData = { state: WidgetState; title: string | null; time: string | null; weekDone: number; weekPlanned: number }
+export type WorkoutData = { state: WidgetState; title: string | null; time: string | null; /** A session of today's workout is already completed. */ doneToday: boolean; weekDone: number; weekPlanned: number }
 export type StudyData = { state: WidgetState; studiedMin: number; dailyGoalMin: number; dueCards: number; exam: { title: string; days: number } | null }
 
 export type PanelDataMap = {

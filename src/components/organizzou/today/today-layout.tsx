@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 
 import { CustomizeDialog } from "./customize"
 import { HighlightsSection } from "./highlights"
+import { ModuleAccordionProvider } from "./module-accordion"
 import { PrefsProvider } from "./prefs-context"
 import { TodayStateProvider } from "./today-state"
 
@@ -109,8 +110,9 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   const items = enabledHighlights(prefs).map((id) => ({ id, node: node(`stat:${id}`) }))
 
   const visible = prefs.panels.filter((p) => p.visible)
-  const hasMain = visible.some((p) => p.id === "seu-dia")
-  const asideCount = visible.filter((p) => p.id !== "seu-dia").length
+  const main = visible.find((p) => p.id === "seu-dia")
+  const hasMain = Boolean(main)
+  const aside = visible.filter((p) => p.id !== "seu-dia")
 
   const customize = (
     <Tooltip>
@@ -127,6 +129,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   return (
     <PrefsProvider value={api}>
       <TodayStateProvider>
+        <ModuleAccordionProvider>
         {/* From 768 px the page sits in a frame with 24 px rounded corners. The top padding keeps the first row (label, arrows, button)
             clear of that corner zone, so nothing is ever clipped by the curve. */}
         <div className="@container flex min-w-0 flex-col gap-5 pb-6 md:pt-4">
@@ -146,33 +149,32 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
               />
             </div>
           ) : (
-            <div
-              style={{ "--aside": Math.max(asideCount, 1) } as React.CSSProperties}
-              className={cn(
-                // Rows are as tall as their panel and no taller (align-content: start). The main card spans the aside rows plus one
-                // flexible spare row, so when it is taller the extra height goes to the spare row, never between the panels.
-                "grid min-w-0 grid-cols-1 content-start items-start gap-3 @min-[880px]:gap-x-5",
-                hasMain && "@min-[880px]:[grid-template-rows:repeat(var(--aside),auto)_1fr]",
-                hasMain ? "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]" : "@min-[880px]:grid-cols-2 @min-[1320px]:grid-cols-3"
-              )}
-            >
-              {visible.map((panel) => {
-                const isMain = hasMain && panel.id === "seu-dia"
-                return (
-                  <div
-                    key={panel.id}
-                    data-panel={panel.id}
-                    className={cn("min-w-0", isMain ? "@min-[880px]:col-start-1 @min-[880px]:row-start-1 @min-[880px]:[grid-row:1/-1]" : hasMain && "@min-[880px]:col-start-2")}
-                  >
-                    {node(`panel:${panel.id}`)}
-                  </div>
-                )
-              })}
+            <div className={cn("grid min-w-0 grid-cols-1 items-start gap-3 @min-[880px]:gap-x-5", hasMain && "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]")}>
+              {main ? (
+                <div data-panel="seu-dia" className="min-w-0">
+                  {node("panel:seu-dia")}
+                </div>
+              ) : null}
+              {/* The module cards: separate cards, 8 px apart, grouped by CSS under "PRECISA DE VOCÊ" (the cards that need attention today)
+                  and "NO RITMO" (everything up to date). Each card carries data-needs; `has-[]` orders the wrappers and shows the labels,
+                  so the order is decided by the data on every load, with no client JS. */}
+              {aside.length > 0 ? (
+                <div data-testid="module-cards" className="group/aside flex min-w-0 flex-col gap-2">
+                  <p className="order-1 hidden px-1 pb-0.5 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase group-has-[[data-needs=true]]/aside:block">Precisa de você</p>
+                  <p className="order-3 mt-2 hidden px-1 pb-0.5 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase group-has-[[data-needs=false]]/aside:block">No ritmo</p>
+                  {aside.map((panel) => (
+                    <div key={panel.id} data-panel={panel.id} className="order-4 min-w-0 has-[[data-needs=true]]:order-2">
+                      {node(`panel:${panel.id}`)}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
 
         <CustomizeDialog open={open} onOpenChange={setOpen} prefs={prefs} onChange={change} />
+        </ModuleAccordionProvider>
       </TodayStateProvider>
     </PrefsProvider>
   )

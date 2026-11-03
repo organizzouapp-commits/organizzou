@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowUpRightIcon, CalendarDaysIcon, CalendarIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, MinusIcon, PlusIcon, SquareCheckIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react"
+import { ArrowUpRightIcon, CalendarDaysIcon, CalendarIcon, ChevronRightIcon, PlusIcon, SquareCheckIcon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { showCaptureToast } from "@/components/assistant/capture-toasts"
 import { bentoCardClass, cardHover } from "@/components/organizzou/Bento"
 import { EmptyState } from "@/components/organizzou/EmptyState"
+import { HabitChips } from "@/components/organizzou/HabitChip"
+import { NowDivider, TimelineGroup } from "@/components/organizzou/TimelineGroup"
 import { TimelineRow, type RowCurrent, type RowHandlers } from "@/components/organizzou/TimelineRow"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +23,7 @@ import { toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { readAs } from "@/server/assistant/parse"
 
-import { clock, dayKey, dayTitle, hourOf, number, remainingText, stepFor, stepLabel, TZ } from "./day-format"
+import { clock, dayKey, dayTitle, hourOf, remainingText, stepFor, TZ } from "./day-format"
 import { useTodayPrefs } from "./prefs-context"
 import { useTodayState } from "./today-state"
 
@@ -63,106 +65,6 @@ function rank(item: DayItem) {
 const prio = (item: DayItem) => ({ high: 3, medium: 2, low: 1, none: 0 })[item.priority ?? "none"]
 
 // ---------------------------------------------------------------------------------------------------------------------
-
-/** A group of the day: the whole left side of the header toggles it; ONE count (a pill); folded, a one-line preview follows. */
-function Group({
-  id,
-  label,
-  count,
-  open,
-  onToggle,
-  preview: previewText,
-  icon: Icon,
-  action,
-  children,
-}: {
-  id: GroupId
-  label: string
-  count: string | number
-  open: boolean
-  onToggle: () => void
-  preview?: string
-  icon?: LucideIcon
-  action?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <section aria-label={label} data-group={id} className="flex flex-col">
-      <div className="flex min-h-11 items-center gap-2">
-        <button type="button" aria-expanded={open} onClick={onToggle} className={cn("-ml-2 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left", cardHover)}>
-          <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", EASE, !open && "-rotate-90")} />
-          {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
-          <h3 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</h3>
-          <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{count}</span>
-          {!open && previewText ? <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">{previewText}</span> : null}
-        </button>
-        {action}
-      </div>
-      {open ? children : null}
-    </section>
-  )
-}
-
-/** "agora": the current time in a Lima pill and a hairline across the card (Lima in dark, Tinta verso in light: `chart-1`). */
-function NowDivider({ nowMs }: { nowMs: number }) {
-  return (
-    <div role="separator" aria-label={`Agora, ${clock(nowMs)}`} data-now className="flex items-center gap-3 py-2">
-      <span className="tabular inline-flex h-6 shrink-0 items-center rounded-full bg-highlight px-2.5 text-[12px] leading-4 font-semibold text-highlight-foreground">{clock(nowMs)}</span>
-      <span aria-hidden className="h-px flex-1 bg-chart-1" />
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
-
-type HabitActions = { toggle: (item: DayItem) => void; add: (item: DayItem) => void; remove: (item: DayItem) => void; qtyOf: (item: DayItem) => number; isDone: (item: DayItem) => boolean }
-
-/** Habits are chips, not rows: a circle that fills when done, and for quantity habits an inline − / + (phones: only +). */
-function HabitChips({ habits, actions }: { habits: DayItem[]; actions: HabitActions }) {
-  const circle = (done: boolean) => (
-    <span aria-hidden className={cn("flex size-[22px] shrink-0 items-center justify-center rounded-full transition-colors duration-[400ms] motion-reduce:transition-none", done ? "bg-primary text-primary-foreground" : "border-[1.75px] border-muted-foreground/60")}>
-      {done ? <CheckIcon strokeWidth={2.25} className="size-3.5" /> : null}
-    </span>
-  )
-  const chip = (done: boolean) => cn("flex min-h-11 items-center gap-2 rounded-full border px-3 text-[15px] leading-5", done ? "border-transparent bg-foreground/6" : "border-border")
-  return (
-    <ul className="flex flex-wrap gap-2 pb-2">
-      {habits.map((item) => {
-        const done = actions.isDone(item)
-        if (!item.habit) {
-          return (
-            <li key={item.id}>
-              <button type="button" aria-pressed={done} onClick={() => actions.toggle(item)} className={cn(chip(done), "outline-none focus-visible:ring-3 focus-visible:ring-ring/50", cardHover)}>
-                {circle(done)}
-                <span className="font-medium">{item.title}</span>
-              </button>
-            </li>
-          )
-        }
-        const qty = actions.qtyOf(item)
-        const label = stepLabel(item.habit.unit, item.habit.target)
-        const round = "size-9 shrink-0 rounded-full"
-        return (
-          <li key={item.id} className={cn(chip(done), "max-md:w-full")} data-habit-qty={item.id}>
-            {circle(done)}
-            <span className="min-w-0 font-medium">{item.title}</span>
-            <span className="tabular ml-auto text-[13px] whitespace-nowrap text-muted-foreground md:ml-0">
-              {number(qty)} de {number(item.habit.target)} {item.habit.unit}
-            </span>
-            <span className="-mr-1.5 flex items-center gap-1">
-              <Button type="button" variant="outline" size="icon" className={cn(round, "hidden md:inline-flex")} aria-label={`Remover ${label}`} disabled={qty <= 0} onClick={() => actions.remove(item)}>
-                <MinusIcon strokeWidth={1.75} className="size-4" />
-              </Button>
-              <Button type="button" variant="outline" size="icon" className={cn(round, "size-11 md:size-9")} aria-label={`Adicionar ${label}`} disabled={done} onClick={() => actions.add(item)}>
-                <PlusIcon strokeWidth={1.75} className="size-4" />
-              </Button>
-            </span>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -542,7 +444,7 @@ export function SeuDia({ data }: { data: DayData }) {
             {visible.length === 0 && tomorrowItems.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada deste tipo hoje.</p> : null}
 
             {overdue.length > 0 ? (
-              <Group
+              <TimelineGroup
                 id="atrasados"
                 label="Atrasados"
                 count={overdue.length}
@@ -561,11 +463,11 @@ export function SeuDia({ data }: { data: DayData }) {
                 }
               >
                 {overdueRows}
-              </Group>
+              </TimelineGroup>
             ) : null}
 
             {today.length > 0 ? (
-              <Group id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")} preview={preview(rest.map((item) => item.title))}>
+              <TimelineGroup id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")} preview={preview(rest.map((item) => item.title))}>
                 {earlier.length > 0 ? (
                   <div className="flex flex-col">
                     <button type="button" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)} className={cn("-mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2 text-left opacity-70", cardHover)}>
@@ -582,23 +484,23 @@ export function SeuDia({ data }: { data: DayData }) {
                 {now.map((item) => row(item, { current: true }))}
                 {future.map((item) => row(item))}
                 {untimed.map((item) => row(item))}
-              </Group>
+              </TimelineGroup>
             ) : null}
 
             {habits.length > 0 ? (
-              <Group id="habitos" label="Hábitos" count={`${habitDone} de ${habits.length}`} open={isOpen("habitos")} onToggle={() => toggle("habitos")}>
+              <TimelineGroup id="habitos" label="Hábitos" count={`${habitDone} de ${habits.length}`} open={isOpen("habitos")} onToggle={() => toggle("habitos")}>
                 <HabitChips habits={habits} actions={{ toggle: (item) => complete(item, !isDone(item)), add: addQty, remove: removeQty, qtyOf, isDone }} />
-              </Group>
+              </TimelineGroup>
             ) : null}
 
             {finished.length > 0 ? (
-              <Group id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos")} preview={preview(finished.map((item) => item.title))}>
+              <TimelineGroup id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos")} preview={preview(finished.map((item) => item.title))}>
                 {finished.map((item) => row(item))}
-              </Group>
+              </TimelineGroup>
             ) : null}
 
             {hourOf(nowMs) >= 18 && tomorrowItems.length > 0 ? (
-              <Group
+              <TimelineGroup
                 id="amanha"
                 label="Amanhã"
                 count={tomorrowItems.length}
@@ -614,7 +516,7 @@ export function SeuDia({ data }: { data: DayData }) {
                 {tomorrowItems.map((item) => (
                   <TimelineRow key={item.id} item={item} done={false} nowMs={nowMs} />
                 ))}
-              </Group>
+              </TimelineGroup>
             ) : null}
           </div>
           {quickAddForm}

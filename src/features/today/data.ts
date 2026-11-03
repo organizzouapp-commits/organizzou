@@ -416,6 +416,7 @@ export async function getFinance(nowIso: string): Promise<FinanceData> {
   return {
     state: m.transactions.length === 0 ? "empty" : "ok",
     surplus: formatBRL(t.surplus),
+    surplusCents: t.surplus,
     surplusTrend: t.surplus >= 0 ? "up" : "down",
     budgetPct: budget === 0 ? 0 : Math.round((spent / budget) * 100),
     budgetLine: budget === 0 ? "Sem orçamento definido" : `${formatBRL(spent)} de ${formatBRL(budget)}`,
@@ -433,7 +434,8 @@ export async function getWorkout(nowIso: string): Promise<WorkoutData> {
   const slot = m.src.workoutOn(m.today)[0]
   const weekDone = m.src.workoutSessions.filter((s) => s.completed && s.performed_on >= m.weekStart && s.performed_on <= m.today).length
   const weekPlanned = m.weekDays.reduce((sum, day) => sum + m.src.workoutOn(day).length, 0)
-  return { state: weekPlanned === 0 && weekDone === 0 ? "empty" : "ok", title: slot?.title ?? null, time: slot?.start ? clock(slot.start) : null, weekDone, weekPlanned }
+  const doneToday = m.src.workoutSessions.some((s) => s.completed && s.performed_on === m.today)
+  return { state: weekPlanned === 0 && weekDone === 0 ? "empty" : "ok", title: slot?.title ?? null, time: slot?.start ? clock(slot.start) : null, doneToday, weekDone, weekPlanned }
 }
 
 export async function getStudy(nowIso: string): Promise<StudyData> {

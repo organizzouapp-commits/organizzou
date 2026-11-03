@@ -55,14 +55,16 @@ export function SeuDiaSkeleton() {
   )
 }
 
-/** Card-shaped placeholder for a panel while its data streams in. It only appears after 200 ms (`.page-skeleton`). */
-export function PanelSkeleton({ rows = 2, tall }: { rows?: number; tall?: boolean }) {
+/** Card-shaped placeholder for a panel while its data streams in: the folded header of a ModuleCard. It only appears after 200 ms (`.page-skeleton`). */
+export function PanelSkeleton({ tall }: { rows?: number; tall?: boolean }) {
   return (
-    <div aria-hidden className={cn(bentoCardClass(), "page-skeleton flex flex-col gap-4 rounded-[24px] p-5", tall && "min-h-[28rem]")}>
-      <div className="h-5 w-32 rounded-full bg-muted" />
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="h-10 w-full rounded-xl bg-muted" />
-      ))}
+    <div aria-hidden className={cn("page-skeleton flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-foreground/6 bg-card p-4", tall && "min-h-[28rem]")}>
+      <div className="size-5 shrink-0 rounded-full bg-muted" />
+      <div className="flex flex-1 flex-col gap-2">
+        <div className="h-4 w-32 rounded-full bg-muted" />
+        <div className="h-3 w-44 max-w-full rounded-full bg-muted" />
+      </div>
+      <div className="h-4 w-16 rounded-full bg-muted" />
     </div>
   )
 }
