@@ -270,6 +270,7 @@ test.describe("desktop", () => {
     const toggle = page.locator('[data-group="hoje"] > button')
     await toggle.click()
     await expect(toggle).toHaveAttribute("aria-expanded", "false")
+    await expect.poll(() => page.evaluate(() => window.localStorage.getItem("organizzou:tarefas-groups"))).toContain("hoje")
     await page.reload()
     await expect(page.locator('[data-group="hoje"] > button')).toHaveAttribute("aria-expanded", "false", { timeout: 60000 })
     await page.getByRole("button", { name: "Adicionar tarefa…" }).click()
