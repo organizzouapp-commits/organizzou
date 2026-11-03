@@ -22,7 +22,7 @@ function ymd(offsetDays: number, now: number) {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: TZ }).format(new Date(now + offsetDays * 86_400_000))
 }
 
-function build(nowMs: number): BoardData {
+function build(nowMs: number, volume = 0): BoardData {
   const lists: ListRow[] = L.map((l, i) => ({ id: l.id, board_id: BOARD, name: l.name, is_done_list: l.done, position: (i + 1) * 1000, user_id: U, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" }))
   let n = 0
   const task = (listIdx: number, title: string, over: Partial<TaskView> & { dueDay?: number; time?: string; tags?: number[] } = {}): TaskView => {
@@ -69,6 +69,8 @@ function build(nowMs: number): BoardData {
     task(2, "Fechar contrato com fornecedor de embalagens", { dueDay: -3, tags: [1] }),
     task(2, "Trocar a lâmpada da cozinha", { tags: [0] }),
     task(2, "Conciliar notas fiscais de setembro", { tags: [1] }),
+    // Optional extra volume (?volume=30) to exercise the internal scroll of a long list.
+    ...Array.from({ length: volume }, (_, i) => task(0, `Tarefa extra ${i + 1}`, { dueDay: (i % 9) - 2 })),
   ]
   return { board: { id: BOARD, name: "Minhas tarefas", user_id: U, archived: false, position: 1000, created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z" } as BoardData["board"], boards: [{ id: BOARD, name: "Minhas tarefas" }, { id: "b0000000-0000-4000-8000-000000000002", name: "Casa e vida" }], lists, tasks, tags: TAGS, timezone: TZ }
 }
@@ -128,6 +130,13 @@ function createFixtureApi(initial: BoardData): BoardApi {
       patchTask(taskId, { list_id: list.id, completed_at: done ? stamp() : null })
       return { ok: true, data: { listId: list.id, completedAt: done ? stamp() : null, position: 99000 } }
     },
+    moveTaskToBoard: async ({ taskId, boardId }) => {
+      tasks = tasks.filter((t) => t.id !== taskId)
+      return { ok: true, data: { boardName: boardId.endsWith("2") ? "Casa e vida" : "Minhas tarefas", listId: "a0000000-0000-4000-8000-000000000001", listName: "A fazer" } }
+    },
+    getBoardLists: async (boardId) => ({ ok: true, data: initial.lists.map((l) => ({ ...l, board_id: boardId })) }),
+    renameTag: async () => ok,
+    deleteTag: async () => ok,
     createTag: async ({ name }) => ({ ok: true, data: { id: nid(), name, swatch: "neutro", user_id: U, created_at: stamp(), updated_at: stamp() } }),
     setTaskTags: async ({ taskId, tagIds }) => {
       patchTask(taskId, { tagIds })
@@ -169,8 +178,8 @@ function createFixtureApi(initial: BoardData): BoardApi {
   }
 }
 
-export function FixtureBoard({ nowMs, view }: { nowMs: number; view: "kanban" | "lista" | "calendario" | null }) {
-  const data = useMemo(() => build(nowMs), [nowMs])
+export function FixtureBoard({ nowMs, view, volume = 0 }: { nowMs: number; view: "kanban" | "lista" | "calendario" | null; volume?: number }) {
+  const data = useMemo(() => build(nowMs, volume), [nowMs, volume])
   const api = useMemo(() => createFixtureApi(data), [data])
   return <BoardClient initial={data} api={api} initialView={view} nowIso={new Date(nowMs).toISOString()} basePath="/design-system/tarefas" />
 }

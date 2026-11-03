@@ -54,6 +54,9 @@ type TaskDetailProps = {
   /** The open task, or null (closed). */
   task: TaskView | null
   boardName: string
+  boardId: string
+  boards: { id: string; name: string }[]
+  onMoveToBoard: (task: TaskView, boardId: string) => void
   lists: ListRow[]
   tags: TagRow[]
   timeZone: string
@@ -190,6 +193,7 @@ function Property({
   value,
   desktop,
   readOnly,
+  wide,
   children,
 }: {
   label: string
@@ -197,6 +201,8 @@ function Property({
   value: React.ReactNode
   desktop: boolean
   readOnly?: boolean
+  /** The date picker: 320 px wide. */
+  wide?: boolean
   children?: (close: () => void) => React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -226,7 +232,7 @@ function Property({
               <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-72 p-2">
+          <PopoverContent align="end" collisionPadding={16} avoidCollisions sticky="always" className={cn("max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-2", wide ? "w-80" : "w-72")}>
             {children(close)}
           </PopoverContent>
         </Popover>
@@ -300,6 +306,9 @@ function DetailBody({
   api,
   task,
   boardName,
+  boardId,
+  boards,
+  onMoveToBoard,
   lists,
   tags,
   timeZone,
@@ -326,7 +335,24 @@ function DetailBody({
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [newItem, setNewItem] = useState("")
-  const [newComment, setNewComment] = useState("")
+  // The draft survives closing the pop-up and reloads until it is sent (comments are never posted on blur).
+  const draftKey = `organizzou:tarefas-comment:${task.id}`
+  const [newComment, setNewCommentState] = useState(() => {
+    try {
+      return typeof window === "undefined" ? "" : (window.localStorage.getItem(draftKey) ?? "")
+    } catch {
+      return ""
+    }
+  })
+  function setNewComment(value: string) {
+    setNewCommentState(value)
+    try {
+      if (value) window.localStorage.setItem(draftKey, value)
+      else window.localStorage.removeItem(draftKey)
+    } catch {
+      // Private mode: the draft just does not survive.
+    }
+  }
   const [uploading, setUploading] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [removeFile, setRemoveFile] = useState<AttachmentRow | null>(null)
@@ -570,24 +596,33 @@ function DetailBody({
   // ---------------------------------------------------------------- pieces
   const dueContent = (close: () => void) => (
     <div className="flex flex-col gap-2">
-      <OptionList
-        options={[
-          { id: "hoje", label: "Hoje" },
-          { id: "amanha", label: "Amanhã" },
-          { id: "semana", label: "Próxima semana" },
-          { id: "sem", label: "Sem data" },
-        ]}
-        value={due?.day === today ? "hoje" : due?.day === plusDays(1) ? "amanha" : due?.day === plusDays(7) ? "semana" : !due ? "sem" : ""}
-        onPick={(id) => {
-          setDueDay(id === "hoje" ? today : id === "amanha" ? plusDays(1) : id === "semana" ? plusDays(7) : null)
-          if (id === "sem") close()
-        }}
-      />
-      <Calendar mode="single" locale={ptBR} selected={due ? new Date(`${due.day}T12:00:00`) : undefined} onSelect={(date) => date && setDueDay(format(date, "yyyy-MM-dd"))} className="mx-auto" />
-      <label className="flex min-h-11 items-center justify-between gap-3 px-3 text-[15px]">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Atalhos de prazo">
+        {[
+          { id: "hoje", label: "Hoje", on: due?.day === today },
+          { id: "amanha", label: "Amanhã", on: due?.day === plusDays(1) },
+          { id: "semana", label: "Próxima semana", on: due?.day === plusDays(7) },
+          { id: "sem", label: "Sem data", on: !due },
+        ].map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            aria-pressed={chip.on}
+            onClick={() => {
+              setDueDay(chip.id === "hoje" ? today : chip.id === "amanha" ? plusDays(1) : chip.id === "semana" ? plusDays(7) : null)
+              if (chip.id === "sem") close()
+            }}
+            className={cn("inline-flex h-9 items-center rounded-full border px-3 text-[14px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:h-11", chip.on ? "border-transparent bg-foreground/14 font-semibold" : "border-border hover:bg-accent")}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+      <Calendar mode="single" locale={ptBR} selected={due ? new Date(`${due.day}T12:00:00`) : undefined} onSelect={(date) => date && setDueDay(format(date, "yyyy-MM-dd"))} className="mx-auto w-full [--cell-size:--spacing(9)]" />
+      <label className="flex min-h-11 items-center justify-between gap-3 px-1 text-[15px]">
         Hora
         <Input
           type="time"
+          step={300}
           aria-label="Hora do prazo"
           disabled={!due}
           value={due?.time ?? ""}
@@ -626,7 +661,7 @@ function DetailBody({
 
   const properties = (
     <div className={cn(desktop ? "flex flex-col gap-4" : "divide-y divide-border overflow-hidden rounded-[14px] bg-foreground/4")} data-testid="properties">
-      <Property label="Status" icon={LayoutListIcon} value={list?.name ?? "—"} desktop={desktop}>
+      <Property label="Lista" icon={LayoutListIcon} value={list?.name ?? "—"} desktop={desktop}>
         {(close) => (
           <OptionList
             options={lists.map((l) => ({ id: l.id, label: l.name }))}
@@ -638,7 +673,18 @@ function DetailBody({
           />
         )}
       </Property>
-      <Property label="Lista" icon={ListIcon} value={boardName} desktop={desktop} readOnly />
+      <Property label="Quadro" icon={ListIcon} value={boardName} desktop={desktop}>
+        {(close) => (
+          <OptionList
+            options={boards.map((b) => ({ id: b.id, label: b.name }))}
+            value={boardId}
+            onPick={(id) => {
+              if (id !== boardId) onMoveToBoard(task, id)
+              close()
+            }}
+          />
+        )}
+      </Property>
       <Property label="Prioridade" icon={FlagIcon} value={PRIORITY_LABELS[asPriority(task.priority)]} desktop={desktop}>
         {(close) => (
           <OptionList
@@ -651,7 +697,7 @@ function DetailBody({
           />
         )}
       </Property>
-      <Property label="Prazo" icon={CalendarIcon} value={dueLabel} desktop={desktop}>
+      <Property label="Prazo" icon={CalendarIcon} value={dueLabel} desktop={desktop} wide>
         {dueContent}
       </Property>
       <Property
@@ -773,9 +819,27 @@ function DetailBody({
                 aria-label="Adicionar item"
                 placeholder="Adicionar item"
                 maxLength={300}
+                enterKeyHint="next"
                 onChange={(e) => setNewItem(e.target.value)}
+                // Auto-commit: leaving the field saves a non-empty text (not when the blur is a tap on the field own check button).
+                onBlur={(e) => {
+                  if (e.relatedTarget instanceof HTMLElement && e.relatedTarget.dataset.addItemConfirm !== undefined) return
+                  if (newItem.trim()) void addItem()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation()
+                    setNewItem("")
+                    e.currentTarget.blur()
+                  }
+                }}
                 className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
               />
+              {newItem.trim() ? (
+                <Button type="submit" size="icon" data-add-item-confirm aria-label="Salvar item" className="size-11 shrink-0 rounded-full md:hidden" onMouseDown={(e) => e.preventDefault()}>
+                  <CheckIcon strokeWidth={1.75} />
+                </Button>
+              ) : null}
             </form>
           </li>
         </ul>
@@ -860,9 +924,9 @@ function DetailBody({
                   <EllipsisIcon strokeWidth={1.75} />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-40 rounded-2xl p-2">
-                <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={() => void removeComment(comment)}>
-                  <Trash2Icon strokeWidth={1.75} /> Excluir comentário
+              <DropdownMenuContent align="end" className="min-w-[140px] rounded-2xl p-2">
+                <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px] whitespace-nowrap" onSelect={() => void removeComment(comment)}>
+                  <Trash2Icon strokeWidth={1.75} /> Excluir
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

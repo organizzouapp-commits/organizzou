@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+
+import { InlineInput } from "./inline-input"
 
 type QuickAddProps = {
   label?: string
@@ -15,8 +16,8 @@ type QuickAddProps = {
 }
 
 /**
- * "Adicionar tarefa" row that turns into an input. Enter saves and keeps the field open for the next one, Shift+Enter inserts a
- * new line, Esc closes, and pasting several lines creates one task per line.
+ * "Adicionar tarefa" row that turns into an input (auto-commit rule, see InlineInput). Enter saves and keeps the field open for
+ * the next one, Esc discards, leaving the field saves, and pasting several lines creates one task per line.
  */
 export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSignal = 0 }: QuickAddProps) {
   const [open, setOpen] = useState(false)
@@ -25,30 +26,6 @@ export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSig
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (openSignal > 0) setOpen(true)
   }, [openSignal])
-  const [title, setTitle] = useState("")
-  const [busy, setBusy] = useState(false)
-  const ref = useRef<HTMLTextAreaElement>(null)
-
-  async function addAll(values: string[]) {
-    setBusy(true)
-    let ok = true
-    for (const value of values) {
-      if (!(await onAdd(value))) {
-        ok = false
-        break
-      }
-    }
-    setBusy(false)
-    if (ok) setTitle("")
-    // Keep typing: the field gets the focus back after the (disabled) save.
-    requestAnimationFrame(() => ref.current?.focus())
-  }
-
-  async function submit() {
-    const value = title.trim()
-    if (!value || busy) return
-    await addAll([value])
-  }
 
   if (!open) {
     return (
@@ -59,37 +36,17 @@ export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSig
   }
 
   return (
-    <Textarea
-      ref={ref}
-      autoFocus
-      rows={1}
-      value={title}
-      disabled={busy}
-      placeholder="Título da tarefa (Enter adiciona)"
-      aria-label="Título da nova tarefa"
-      className={`min-h-11 resize-none py-2.5 ${className ?? ""}`}
-      onChange={(e) => setTitle(e.target.value)}
-      onPaste={(e) => {
-        const text = e.clipboardData.getData("text")
-        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-        if (lines.length > 1) {
-          e.preventDefault()
-          void addAll(lines)
-        }
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault()
-          void submit()
-        }
-        if (e.key === "Escape") {
-          e.stopPropagation()
-          setOpen(false)
-          setTitle("")
-        }
-      }}
-      onBlur={() => {
-        if (!title.trim()) setOpen(false)
+    <InlineInput
+      multiline
+      keepOpen
+      maxLength={200}
+      ariaLabel="Título da nova tarefa"
+      placeholder="Título da tarefa"
+      className={className}
+      onCommit={onAdd}
+      onClose={() => setOpen(false)}
+      onPasteLines={async (lines) => {
+        for (const line of lines) if (!(await onAdd(line))) break
       }}
     />
   )

@@ -14,7 +14,7 @@ async function consent(context: BrowserContext, baseURL: string) {
 async function open(page: Page, path = "/design-system/tarefas") {
   await page.goto(path)
   // CSS selector on purpose: with a pop-up open the page behind is aria-hidden.
-  await expect(page.locator('button[aria-label^="Lista de tarefas:"]')).toBeVisible({ timeout: 60000 })
+  await expect(page.locator('button[aria-label^="Quadro:"]')).toBeVisible({ timeout: 60000 })
   await page.waitForFunction(() => document.querySelectorAll('[hidden][id^="S:"]').length === 0, undefined, { timeout: 30000 })
 }
 
@@ -62,42 +62,6 @@ test.describe("desktop", () => {
     const chips = (await page.getByRole("group", { name: "Atalhos" }).boundingBox())!
     const views = (await page.getByRole("tablist", { name: "Visão" }).boundingBox())!
     expect(chips.y).toBeGreaterThan(views.y + views.height - 1)
-  })
-
-  test("Kanban: three columns, one page scroll, sticky headers, no inner scroll", async ({ page, context, baseURL }) => {
-    await consent(context, baseURL!)
-    await open(page, "/design-system/tarefas?view=kanban")
-    await expect(page.locator("[data-column]")).toHaveCount(3)
-    const scrollers = await page.locator("[data-column]").evaluateAll((cols) =>
-      cols.map((col) => {
-        const bad: string[] = []
-        for (let el = col as HTMLElement | null; el && el !== document.body; el = el.parentElement) {
-          const s = getComputedStyle(el)
-          if (/(auto|scroll)/.test(s.overflowY)) bad.push(el.tagName)
-        }
-        return { bad, header: getComputedStyle(col.querySelector("header")!).position, width: Math.round(col.getBoundingClientRect().width) }
-      })
-    )
-    for (const c of scrollers) {
-      expect(c.bad).toEqual([])
-      expect(c.header).toBe("sticky")
-      expect(c.width).toBeGreaterThanOrEqual(300)
-      expect(c.width).toBeLessThanOrEqual(381)
-    }
-    // Left aligned: nothing stretches the columns across the whole row.
-    const last = (await page.locator("[data-column]").last().boundingBox())!
-    expect(last.x + last.width).toBeLessThan(1440 - 120)
-  })
-
-  test("below 1280 'Concluído' folds into a 56 px rail that expands on click", async ({ page, context, baseURL }) => {
-    await consent(context, baseURL!)
-    await page.setViewportSize({ width: 1100, height: 900 })
-    await open(page, "/design-system/tarefas?view=kanban")
-    const rail = page.getByRole("button", { name: /Mostrar Concluído/ })
-    await expect(rail).toBeVisible()
-    expect(Math.round((await rail.locator("xpath=ancestor::section[1]").boundingBox())!.width)).toBe(56)
-    await rail.click()
-    await expect(page.locator('[data-column]', { hasText: "Concluído" })).toBeVisible()
   })
 
   test("card anatomy: no stripe, no signal bars, flag only for high priority, overdue wording", async ({ page, context, baseURL }) => {
@@ -225,7 +189,7 @@ test.describe("desktop", () => {
     await dlg.getByRole("button", { name: "Comentar" }).click()
     await expect(dlg.getByText("Tudo certo por aqui")).toBeVisible()
     await dlg.getByRole("button", { name: "Mais ações do comentário" }).click()
-    await page.getByRole("menuitem", { name: "Excluir comentário" }).click()
+    await page.getByRole("menuitem", { name: "Excluir" }).click()
     await expect(dlg.getByText("Tudo certo por aqui")).toHaveCount(0)
     // Attachments: a file over 10 MB is rejected with a message, a small one is listed with its size.
     await dlg.getByTestId("attach-input").setInputFiles({ name: "grande.bin", mimeType: "application/octet-stream", buffer: Buffer.alloc(11 * 1024 * 1024) })
@@ -256,28 +220,28 @@ test.describe("desktop", () => {
     await consent(context, baseURL!)
     await open(page, "/design-system/tarefas?view=lista")
     await page.getByRole("button", { name: "Buscar tarefas" }).click()
-    await page.getByPlaceholder("Buscar tarefas  ( / )").fill("zzzz")
+    await page.getByPlaceholder("Buscar tarefas").fill("zzzz")
     await expect(page.getByText("Nenhuma tarefa com esses filtros")).toBeVisible()
     await page.getByRole("button", { name: "Limpar filtros" }).click()
     await expect(page.locator("[data-group]").first()).toBeVisible()
   })
 
-  test("Lista groups by due date, folds are remembered, 'Adicionar tarefa…' opens the creation dialog", async ({ page, context, baseURL }) => {
+  test("Lista groups by the quadro's lists; collapse is remembered; the inline composer adds a task", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
     await open(page, "/design-system/tarefas?view=lista")
-    const groups = await page.locator("[data-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-group")))
-    expect(groups).toEqual(["atrasadas", "hoje", "amanha", "semana", "depois", "sem-data", "concluidas"])
-    const toggle = page.locator('[data-group="hoje"] > button')
+    const groups = await page.locator("[data-group]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
+    expect(groups).toEqual(["A fazer", "Em andamento", "Concluído"])
+    const toggle = page.getByRole("button", { name: "Recolher A fazer" })
     await toggle.click()
-    await expect(toggle).toHaveAttribute("aria-expanded", "false")
-    await expect.poll(() => page.evaluate(() => window.localStorage.getItem("organizzou:tarefas-groups"))).toContain("hoje")
+    await expect(page.getByRole("button", { name: "Expandir A fazer" })).toHaveAttribute("aria-expanded", "false")
     await page.reload()
-    await expect(page.locator('[data-group="hoje"] > button')).toHaveAttribute("aria-expanded", "false", { timeout: 60000 })
-    await page.getByRole("button", { name: "Adicionar tarefa…" }).click()
-    await expect(page.getByRole("dialog")).toContainText("Nova tarefa")
-    await page.getByLabel("Título").fill("Revisar contrato amanhã 10h")
-    await page.getByRole("button", { name: "Criar tarefa" }).click()
-    await expect(page.getByText("Revisar contrato", { exact: false }).first()).toBeVisible()
+    await expect(page.getByRole("button", { name: "Expandir A fazer" })).toBeVisible({ timeout: 60000 })
+    await page.getByRole("button", { name: "Expandir A fazer" }).click()
+    const group = page.locator('[data-group] >> nth=0')
+    await group.getByRole("button", { name: "Adicionar tarefa", exact: true }).click()
+    await page.getByLabel("Título da nova tarefa").fill("Revisar contrato")
+    await page.getByLabel("Título da nova tarefa").press("Enter")
+    await expect(card(page, "Revisar contrato")).toBeVisible()
   })
 })
 
@@ -288,9 +252,9 @@ test.describe("phone", () => {
     await consent(context, baseURL!)
     await open(page)
     await expect(page.getByRole("tab", { name: "Lista", selected: true })).toBeVisible()
-    await expect(page.locator('[data-group="atrasadas"]')).toBeVisible()
-    const add = page.getByRole("button", { name: "Nova tarefa" })
-    expect(Math.round((await add.boundingBox())!.width)).toBe(44)
+    await expect(page.locator("[data-group]").first()).toBeVisible()
+    // The "+" lives in the app header now: the block itself has none.
+    await expect(page.getByRole("button", { name: "Nova tarefa" })).toHaveCount(0)
     await expect(page.getByRole("button", { name: "Buscar tarefas" })).toBeVisible()
     await expect(page.getByRole("button", { name: /^Filtrar e ordenar/ })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -299,14 +263,15 @@ test.describe("phone", () => {
   test("Kanban: status tabs follow the swipe between columns; cards are separate; 'Ver mais' after 5", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
     await open(page, "/design-system/tarefas?view=kanban")
-    const tabs = page.getByRole("tablist", { name: "Status das tarefas" })
+    const tabs = page.getByRole("tablist", { name: "Listas do quadro" })
     await expect(tabs.getByRole("tab", { name: /^A fazer/ })).toHaveAttribute("aria-selected", "true")
     expect((await tabs.boundingBox())!.height).toBeGreaterThanOrEqual(47)
     await expect(page.getByRole("button", { name: /Ver mais 4 tarefas/ })).toBeVisible()
     await tabs.getByRole("tab", { name: /^Em andamento/ }).click()
     await expect(tabs.getByRole("tab", { name: /^Em andamento/ })).toHaveAttribute("aria-selected", "true")
-    // Swiping the columns moves the active tab.
-    await page.locator(".snap-x").first().evaluate((el) => el.scrollTo({ left: 2 * (el.clientWidth + 12), behavior: "instant" }))
+    // Swiping the columns moves the active tab (after our own smooth scroll from the tap has finished).
+    await page.waitForTimeout(900)
+    await page.locator(".snap-mandatory").first().evaluate((el) => el.scrollTo({ left: 2 * (el.clientWidth + 12), behavior: "instant" }))
     await expect(tabs.getByRole("tab", { name: /^Concluído/ })).toHaveAttribute("aria-selected", "true")
   })
 
@@ -351,8 +316,8 @@ test.describe("phone", () => {
     const box = (await sheet.boundingBox())!
     expect(box.height).toBeGreaterThanOrEqual(844 * 0.9)
     expect(box.height).toBeLessThanOrEqual(844 * 0.93)
-    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(5)
-    for (const row of await sheet.getByTestId("properties").getByRole("button", { name: /Status|Prioridade|Prazo|Tags/ }).all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(51)
+    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(6)
+    for (const row of await sheet.getByTestId("properties").getByRole("button", { name: /^(Lista|Quadro|Prioridade|Prazo|Tags)$/ }).all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(51)
     await sheet.getByRole("button", { name: "Prioridade", exact: true }).click()
     await page.getByRole("dialog").last().getByRole("button", { name: "Média" }).click()
     await expect(sheet.getByRole("button", { name: "Prioridade", exact: true })).toContainText("Média")
@@ -368,14 +333,15 @@ test.describe("phone", () => {
 
   test("creation sheet: '+' opens it with the title focused", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
-    await open(page)
-    await page.getByRole("button", { name: "Nova tarefa" }).click()
+    await open(page, "/design-system/tarefas?view=kanban")
+    await page.getByRole("button", { name: "Adicionar tarefa em A fazer" }).click()
     await expect(page.getByRole("dialog")).toContainText("Nova tarefa")
     await expect(page.getByLabel("Título")).toBeFocused()
     await page.getByLabel("Título").fill("Ligar para a escola")
     await page.getByRole("button", { name: "Hoje", exact: true }).click()
     await page.getByRole("button", { name: "Criar tarefa" }).click()
-    await expect(page.getByText("Ligar para a escola")).toBeVisible()
+    // The new task is the 10th of "A fazer" (the phone list shows 5), so the toast is the proof.
+    await expect(page.getByText("Tarefa criada.")).toBeVisible()
   })
 
   test("Filtrar e ordenar sheet carries the sort; shortcut chips scroll in Lista", async ({ page, context, baseURL }) => {

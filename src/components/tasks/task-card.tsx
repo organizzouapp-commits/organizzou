@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowRightIcon, CalendarIcon, CheckIcon, ClockIcon, EllipsisIcon, GripVerticalIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { ArrowRightIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,6 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 
+import { InlineInput } from "./inline-input"
 import { DueLabel, PriorityFlag, TagDots, TaskCounters } from "./task-meta"
 
 /** What a task can do from its card, row, swipe panel or menu. */
@@ -24,6 +25,9 @@ export type TaskActions = {
   remove: () => void
   /** Enters multi-select mode with this task selected. */
   select: () => void
+  duplicate: () => void
+  /** Renames in place (auto-commit); resolves false when the save failed. */
+  rename: (title: string) => Promise<boolean>
 }
 
 type Density = "card" | "row"
@@ -48,13 +52,13 @@ type TaskCardBodyProps = {
 
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-/** The ⋯ menu. On phones the trigger is visually hidden (keyboard and screen readers still reach it) and a long press opens it. */
-function ActionsMenu({ task, actions, open, onOpenChange }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void }) {
+/** The ⋯ menu: the ONE trigger of a card (32 px column; 44 px hit area on phones). A long press opens it on phones too. */
+function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void; onRename: () => void }) {
   const done = Boolean(task.completed_at)
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Mais ações: ${task.title}`} className="size-8 rounded-full max-md:sr-only max-md:focus-visible:not-sr-only max-md:focus-visible:absolute max-md:focus-visible:top-1 max-md:focus-visible:right-1">
+        <Button variant="ghost" size="icon" aria-label={`Mais ações: ${task.title}`} className="relative size-8 rounded-full opacity-100 transition-opacity duration-150 group-focus-within/card:opacity-100 group-hover/card:opacity-100 data-[state=open]:opacity-100 max-md:after:absolute max-md:after:-inset-1.5 md:opacity-60">
           <EllipsisIcon strokeWidth={1.75} />
         </Button>
       </DropdownMenuTrigger>
@@ -64,6 +68,12 @@ function ActionsMenu({ task, actions, open, onOpenChange }: { task: TaskView; ac
         </DropdownMenuItem>
         <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.open}>
           <PencilIcon strokeWidth={1.75} /> Abrir detalhes
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={onRename}>
+          <TextCursorInputIcon strokeWidth={1.75} /> Renomear
+        </DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.duplicate}>
+          <CopyIcon strokeWidth={1.75} /> Duplicar
         </DropdownMenuItem>
         <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.select}>
           <ListChecksIcon strokeWidth={1.75} /> Selecionar
@@ -192,6 +202,9 @@ function SwipeShell({ task, actions, onLongPress, children, className }: { task:
  */
 export function TaskCardBody({ task, tags, now, timeZone, actions, density = "card", className, inert, selecting, selected, onSelect, anchor }: TaskCardBodyProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const openTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(openTimer.current), [])
   const isMobile = useIsMobile()
   const done = Boolean(task.completed_at)
   const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
@@ -201,6 +214,12 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       data-density={density}
       data-task-id={anchor ? task.id : undefined}
       data-selected={selected ? "" : undefined}
+      onKeyDown={(e) => {
+        if (e.key === "F2" && !inert && !selecting && !renaming) {
+          e.preventDefault()
+          setRenaming(true)
+        }
+      }}
       className={cn(
         "group/card relative flex items-start gap-3 text-card-foreground transition-colors duration-[400ms] motion-reduce:transition-none",
         EASE,
@@ -224,11 +243,28 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
           )}
         </span>
       )}
+      {renaming ? (
+        <div className="flex min-w-0 flex-1 flex-col justify-center py-1" onPointerDown={(e) => e.stopPropagation()}>
+          <InlineInput multiline maxLength={200} initialValue={task.title} ariaLabel={`Renomear ${task.title}`} onCommit={actions.rename} onClose={() => setRenaming(false)} />
+        </div>
+      ) : (
       <button
         type="button"
         data-task-open
-        onClick={selecting ? onSelect : actions.open}
-        className="flex min-w-0 flex-1 flex-col justify-center gap-1 self-stretch rounded-md py-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
+        onClick={(e) => {
+          if (selecting) return onSelect?.()
+          // Desktop: a double click renames, so the single click waits a beat; phones open at once.
+          if (isMobile || e.detail === 0) return actions.open()
+          window.clearTimeout(openTimer.current)
+          openTimer.current = window.setTimeout(actions.open, 220)
+        }}
+        onDoubleClick={(e) => {
+          if (selecting || isMobile) return
+          e.preventDefault()
+          window.clearTimeout(openTimer.current)
+          setRenaming(true)
+        }}
+        className="flex min-w-0 flex-1 cursor-grab flex-col justify-center gap-1 self-stretch rounded-md py-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 max-md:min-h-11"
       >
         {/* Completed: struck through and muted (an opacity of 60% would drop the meta line under 4.5:1). */}
         <span className={cn("text-[15px] leading-5 font-semibold [overflow-wrap:anywhere]", done && "text-muted-foreground line-through")}>
@@ -240,34 +276,13 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
           <TaskCounters task={task} className="ml-auto" />
         </span>
       </button>
+      )}
       {/* The flag comes right after the title, high priority only. */}
       <PriorityFlag priority={task.priority} className="mt-1 -ml-1 self-start" />
-      {inert ? null : isMobile ? (
-        <span className="absolute top-1 right-1">
-          <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />
-        </span>
-      ) : (
-        <>
-          <div className="absolute right-1.5 bottom-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within/card:opacity-100 group-hover/card:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
-            <span className="flex items-center gap-0.5 rounded-full bg-card/95 p-0.5 ring-1 ring-border">
-              <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Concluir ${task.title}`} title="Concluir" onClick={actions.toggle}>
-                <CheckIcon strokeWidth={1.75} />
-              </Button>
-              {!done ? (
-                <>
-                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Adiar 1 h: ${task.title}`} title="Adiar 1 h" onClick={actions.postpone1h}>
-                    <ClockIcon strokeWidth={1.75} />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label={`Amanhã: ${task.title}`} title="Amanhã" onClick={actions.tomorrow}>
-                    <CalendarIcon strokeWidth={1.75} />
-                  </Button>
-                </>
-              ) : null}
-              <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />
-              <GripVerticalIcon aria-hidden strokeWidth={1.75} className="mr-1 size-4 cursor-grab text-muted-foreground" />
-            </span>
-          </div>
-        </>
+      {inert ? null : (
+        <div className="-mr-1 flex w-8 shrink-0 items-start justify-center" onPointerDown={(e) => e.stopPropagation()}>
+          <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} onRename={() => setRenaming(true)} />
+        </div>
       )}
     </div>
   )
@@ -294,7 +309,7 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("touch-manipulation outline-none", isDragging && "opacity-40")}>
+    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("touch-manipulation cursor-grab outline-none", isDragging && "opacity-40")}>
       <TaskCardBody {...body} />
     </div>
   )

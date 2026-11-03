@@ -1,9 +1,10 @@
 import type { ListRow, TagRow, TaskView } from "@/features/tasks/types"
 
+import type { ListActions } from "./list-parts"
 import type { TaskActions } from "./task-card"
 
 /** Props shared by the three board views. */
-export type ViewProps = {
+export type ViewProps = ListActions & {
   lists: ListRow[]
   tasks: TaskView[]
   tags: TagRow[]
@@ -17,6 +18,6 @@ export type ViewProps = {
   actionsFor: (task: TaskView) => TaskActions
   /** Multi-select mode (long press on a row): the views show selection checks. */
   selection: { active: boolean; ids: Set<string>; toggle: (id: string) => void }
-  /** The "Adicionar tarefa…" first row of Lista and of the phone Kanban opens the creation sheet. */
+  /** Opens the creation sheet (phones) for a list. */
   onCreate: (listId?: string) => void
 }

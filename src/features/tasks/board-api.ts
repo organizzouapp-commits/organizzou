@@ -9,11 +9,13 @@ import type {
   createTagSchema,
   createTaskSchema,
   moveTasksSchema,
+  moveTaskToBoardSchema,
   renameBoardSchema,
   reorderListsSchema,
   setTaskTagsSchema,
   updateChecklistItemSchema,
   updateListSchema,
+  updateTagSchema,
   updateTaskSchema,
 } from "./schemas"
 import type {
@@ -46,11 +48,15 @@ export type BoardApi = {
   updateTask(input: z.input<typeof updateTaskSchema>): Promise<ActionResult<TaskView>>
   deleteTask(id: string): Promise<ActionResult>
   moveTasks(input: z.input<typeof moveTasksSchema>): Promise<ActionResult>
+  moveTaskToBoard(input: z.input<typeof moveTaskToBoardSchema>): Promise<ActionResult<{ boardName: string; listId: string; listName: string }>>
+  getBoardLists(boardId: string): Promise<ActionResult<ListRow[]>>
   completeTask(
     input: z.input<typeof completeTaskSchema>
   ): Promise<ActionResult<{ listId: string; completedAt: string | null; position: number }>>
 
   createTag(input: z.input<typeof createTagSchema>): Promise<ActionResult<TagRow>>
+  renameTag(input: z.input<typeof updateTagSchema>): Promise<ActionResult>
+  deleteTag(id: string): Promise<ActionResult>
   setTaskTags(input: z.input<typeof setTaskTagsSchema>): Promise<ActionResult>
 
   addChecklistItem(input: z.input<typeof addChecklistItemSchema>): Promise<ActionResult<ChecklistItemRow>>

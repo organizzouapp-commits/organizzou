@@ -49,6 +49,8 @@ export const updateTaskSchema = z.object({
     .partial(),
 })
 
+export const moveTaskToBoardSchema = z.object({ taskId: id, boardId: id, listId: id.optional() })
+export const updateTagSchema = z.object({ id, name: z.string().trim().min(1, "Informe o nome da tag.").max(40) })
 export const moveTasksSchema = z.object({ listId: id, taskIds: z.array(id).min(1) })
 export const completeTaskSchema = z.object({ id, done: z.boolean() })
 

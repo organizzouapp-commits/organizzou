@@ -22,14 +22,20 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
-import { dueOfShortcut, shortcutCounts, type Shortcut } from "@/features/tasks/view"
+import { countForShortcut, criteriaToFilters, DEFAULT_SHORTCUTS, filtersToCriteria, isActiveShortcut, loadShortcuts, saveShortcuts, type ShortcutCriteria, type ShortcutDef } from "@/features/tasks/shortcuts"
+import { dueOfShortcut } from "@/features/tasks/view"
 import { asPriority, type BoardData, type ListRow, type Priority, type TagRow, type TaskView } from "@/features/tasks/types"
 import { dayKey, toDueIso } from "@/lib/dates"
+import { cn } from "@/lib/utils"
 
 import { BoardToolbar, type ViewMode } from "./board-toolbar"
 import { CalendarView } from "./calendar-view"
+import { KanbanTabs } from "./kanban-tabs"
 import { KanbanView } from "./kanban-view"
-import { ListView } from "./list-view"
+import { ManageListsSheet } from "./manage-lists-sheet"
+import { ShortcutEditor } from "./shortcut-editor"
+import { useCollapsedLists } from "./list-parts"
+import { ListView, type GroupBy } from "./list-view"
 import { MoveDialog } from "./move-dialog"
 import { NewTaskDialog, type NewTaskInput } from "./new-task-dialog"
 import type { TaskActions } from "./task-card"
@@ -47,6 +53,9 @@ type BoardClientProps = {
   basePath?: string
 }
 
+const foldDone = (list: ListRow) => list.is_done_list
+const never = () => false
+
 export function BoardClient({ initial, api, initialView, nowIso, basePath = "/dashboard/tarefas" }: BoardClientProps) {
   const router = useRouter()
   const isMobile = useIsMobile()
@@ -63,6 +72,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [view, setView] = useState<ViewMode>(initialView ?? "kanban")
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS)
   const [sort, setSort] = useState<SortKey>("manual")
+  const [groupBy, setGroupBy] = useState<GroupBy>("lista")
+  const [mobileList, setMobileList] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   const [newTaskList, setNewTaskList] = useState<string | undefined>(undefined)
@@ -77,6 +88,15 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [listToDelete, setListToDelete] = useState<ListRow | null>(null)
   const [doneToClear, setDoneToClear] = useState<ListRow | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [manageListsOpen, setManageListsOpen] = useState(false)
+  const [shortcuts, setShortcuts] = useState<ShortcutDef[]>(DEFAULT_SHORTCUTS)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [shortcutDraft, setShortcutDraft] = useState<ShortcutCriteria | null>(null)
+  useEffect(() => {
+    // The saved shortcuts only exist in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShortcuts(loadShortcuts())
+  }, [])
   const searchRef = useRef<HTMLInputElement>(null)
   const hoveredTask = useRef<string | null>(null)
 
@@ -100,6 +120,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     const atalho = params.get("atalho")
     if (atalho) setFilters((f) => ({ ...f, due: dueOfShortcut(atalho) }))
   }
+
+  // Collapsed lists are shared by Kanban and Lista; Lista folds "concluded" lists the first time.
+  const { collapsed, toggle: toggleCollapse } = useCollapsedLists(initial.board.id, view === "lista" ? foldDone : never)
 
   const timeZone = initial.timezone
   const boardId = initial.board.id
@@ -133,7 +156,14 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     window.addEventListener("popstate", onPop)
     return () => window.removeEventListener("popstate", onPop)
   }, [])
-  const counts = useMemo(() => shortcutCounts(tasks, { now, timeZone }), [tasks, now, timeZone])
+  const counts = useMemo(() => Object.fromEntries(shortcuts.map((s) => [s.id, countForShortcut(s, tasks, { now, timeZone })])), [shortcuts, tasks, now, timeZone])
+  const activeShortcutId = shortcuts.find((s) => isActiveShortcut(s, filters))?.id ?? null
+  const categories = useMemo(() => [...new Set(tasks.map((t) => t.category).filter((c): c is string => Boolean(c)))].sort((a, b) => a.localeCompare(b, "pt-BR")), [tasks])
+  const listCounts = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const t of visible) map[t.list_id] = (map[t.list_id] ?? 0) + 1
+    return map
+  }, [visible])
 
   function changeView(next: ViewMode) {
     setView(next)
@@ -148,12 +178,19 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     }
   }
 
-  function changeShortcut(shortcut: Shortcut) {
-    setFilters((f) => ({ ...f, due: dueOfShortcut(shortcut) }))
+  function changeShortcut(def: ShortcutDef) {
+    // Clicking the active chip clears it (back to "Todas").
+    const target = activeShortcutId === def.id && def.id !== "todas" ? (shortcuts.find((s) => s.id === "todas") ?? def) : def
+    setFilters((f) => criteriaToFilters(target.criteria, f))
     const url = new URL(window.location.href)
-    if (shortcut === "todas") url.searchParams.delete("atalho")
-    else url.searchParams.set("atalho", shortcut)
+    if (target.builtin && target.id !== "todas") url.searchParams.set("atalho", target.id)
+    else url.searchParams.delete("atalho")
     window.history.replaceState(null, "", url)
+  }
+
+  function changeShortcuts(next: ShortcutDef[]) {
+    setShortcuts(next)
+    saveShortcuts(next)
   }
 
   function replaceTask(next: TaskView) {
@@ -248,6 +285,25 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     })
   }
 
+  /** Detail pop-up / "Mover para…": another quadro. The task leaves this board, the toast offers to put it back. */
+  async function moveToBoard(task: TaskView, targetBoardId: string, listId?: string) {
+    const result = await api.moveTaskToBoard({ taskId: task.id, boardId: targetBoardId, listId })
+    if (!result.ok) return void toast.error(result.error)
+    openTaskById(null)
+    setTasks((current) => current.filter((t) => t.id !== task.id))
+    toast(`Movida para ${result.data.boardName} › ${result.data.listName}`, {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          void api.moveTaskToBoard({ taskId: task.id, boardId, listId: task.list_id }).then((back) => {
+            if (!back.ok) return void toast.error(back.error)
+            setTasks((current) => [...current.filter((t) => t.id !== task.id), task])
+          })
+        },
+      },
+    })
+  }
+
   async function confirmDeleteTask() {
     const task = taskToDelete
     setTaskToDelete(null)
@@ -311,6 +367,18 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       tomorrow: () => postponeTomorrow(task),
       move: () => setMoveFor([task]),
       remove: () => setTaskToDelete(task),
+      duplicate: () => void duplicateTask(task),
+      rename: async (title) => {
+        const previous = task
+        replaceTask({ ...task, title })
+        const result = await api.updateTask({ id: task.id, patch: { title } })
+        if (!result.ok) {
+          replaceTask(previous)
+          toast.error(result.error)
+          return false
+        }
+        return true
+      },
       select: () => {
         setSelecting(true)
         setSelected(new Set([task.id]))
@@ -370,6 +438,16 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       return
     }
     setLists((current) => [...current, result.data])
+  }
+
+  async function reorderLists(ids: string[]) {
+    const snapshot = lists
+    setLists(ids.map((id, i) => ({ ...lists.find((l) => l.id === id)!, position: (i + 1) * 1000 })))
+    const result = await api.reorderLists({ boardId, listIds: ids })
+    if (!result.ok) {
+      setLists(snapshot)
+      toast.error(result.error)
+    }
   }
 
   async function renameList(list: ListRow, name: string) {
@@ -454,7 +532,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     router.push(result.data.nextBoardId ? `/dashboard/tarefas/${result.data.nextBoardId}` : "/dashboard/tarefas")
   }
 
-  usePrimaryAction("Nova tarefa", () => setNewTaskOpen(true))
+  // "Nova tarefa" from the app header: pre-filled with this quadro and, on phones in Kanban, the list being looked at.
+  usePrimaryAction("Nova tarefa", () => {
+    setNewTaskList(view === "kanban" && isMobile ? (mobileList ?? lists[0]?.id) : undefined)
+    setNewTaskOpen(true)
+  })
 
   async function confirmClearDone() {
     const list = doneToClear
@@ -547,11 +629,20 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       setNewTaskList(listId)
       setNewTaskOpen(true)
     },
+    onRenameList: renameList,
+    onToggleDoneList: (list: ListRow) => void toggleDoneList(list),
+    onMoveList: (list: ListRow, direction: -1 | 1) => void moveList(list, direction),
+    onDeleteList: setListToDelete,
+    onClearDone: setDoneToClear,
+    onAddList: addList,
+    onReorderLists: (ids: string[]) => void reorderLists(ids),
+    collapsed,
+    onToggleCollapse: toggleCollapse,
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className={bentoCardClass()}>
+    <div className="flex flex-col gap-5 max-md:gap-3">
+      <div className={cn("max-md:sticky max-md:top-[4.5rem] max-md:z-20 max-md:-mx-4 max-md:bg-background max-md:px-4 max-md:pt-1 max-md:pb-2", !isMobile && bentoCardClass())}>
       <BoardToolbar
         ref={searchRef}
         isMobile={isMobile}
@@ -561,10 +652,6 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         onNewBoard={() => setNewBoardOpen(true)}
         onRenameBoard={() => setRenameOpen(true)}
         onArchiveBoard={() => setArchiveOpen(true)}
-        onNewTask={() => {
-          setNewTaskList(undefined)
-          setNewTaskOpen(true)
-        }}
         view={view}
         onViewChange={changeView}
         filters={filters}
@@ -573,8 +660,31 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         onSortChange={setSort}
         lists={lists}
         tags={tags}
+        shortcuts={shortcuts}
         counts={counts}
+        activeShortcutId={activeShortcutId}
         onShortcut={changeShortcut}
+        onEditShortcuts={() => {
+          setShortcutDraft(null)
+          setEditorOpen(true)
+        }}
+        onSaveFilterAsShortcut={() => {
+          setShortcutDraft(filtersToCriteria(filters))
+          setEditorOpen(true)
+        }}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
+        onManageLists={() => setManageListsOpen(true)}
+        listTabs={
+          <KanbanTabs
+            lists={lists}
+            counts={listCounts}
+            activeId={mobileList ?? lists[0]?.id}
+            onSelect={setMobileList}
+            onAdd={addList}
+            onManage={() => setManageListsOpen(true)}
+          />
+        }
       />
       </div>
 
@@ -604,17 +714,13 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           {...viewProps}
           dragEnabled={sort === "manual" && !filtering}
           onMoveTasks={(listId, ids) => void moveToList(listId, ids)}
-          onAddList={addList}
-          onRenameList={renameList}
-          onToggleDoneList={(list) => void toggleDoneList(list)}
-          onMoveList={(list, direction) => void moveList(list, direction)}
-          onDeleteList={setListToDelete}
           isMobile={isMobile}
-          onClearDone={setDoneToClear}
+          activeListId={mobileList}
+          onActiveListChange={setMobileList}
         />
       ) : view === "lista" ? (
         <div className={bentoCardClass()}>
-          <ListView {...viewProps} />
+          <ListView {...viewProps} groupBy={groupBy} />
         </div>
       ) : (
         <div className={bentoCardClass()}>
@@ -624,10 +730,15 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       </div>
       </div>
 
+      <ShortcutEditor open={editorOpen} onOpenChange={setEditorOpen} shortcuts={shortcuts} onChange={changeShortcuts} lists={lists} tags={tags} categories={categories} draft={shortcutDraft} />
+      <ManageListsSheet open={manageListsOpen} onOpenChange={setManageListsOpen} lists={lists} actions={viewProps} />
       <TaskDetail
         api={api}
         task={openTask}
         boardName={boardName}
+        boardId={boardId}
+        boards={boards.map((b) => (b.id === boardId ? { ...b, name: boardName } : b))}
+        onMoveToBoard={(task, target) => void moveToBoard(task, target)}
         lists={lists}
         tags={tags}
         timeZone={timeZone}

@@ -15,12 +15,14 @@ import {
   createTagSchema,
   createTaskSchema,
   moveTasksSchema,
+  moveTaskToBoardSchema,
   registerAttachmentSchema,
   renameBoardSchema,
   reorderListsSchema,
   setTaskTagsSchema,
   updateChecklistItemSchema,
   updateListSchema,
+  updateTagSchema,
   updateTaskSchema,
 } from "./schemas"
 import { queryTaskDetail } from "./detail"
@@ -362,6 +364,56 @@ export async function createTag(input: z.input<typeof createTagSchema>): Promise
     .single()
   if (error?.code === "23505") return { ok: false, error: "Você já tem uma tag com esse nome." }
   return error || !data ? { ok: false, error: SAVE_ERROR } : { ok: true, data }
+}
+
+export async function renameTag(input: z.input<typeof updateTagSchema>): Promise<ActionResult> {
+  const parsed = updateTagSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error)
+  const s = await session()
+  if (!s) return { ok: false, error: SESSION_ERROR }
+  const { error } = await s.supabase.from("tags").update({ name: parsed.data.name }).eq("id", parsed.data.id)
+  if (error?.code === "23505") return { ok: false, error: "Você já tem uma tag com esse nome." }
+  return error ? { ok: false, error: SAVE_ERROR } : { ok: true }
+}
+
+/** Deletes the tag; the join rows go with it (task_tags cascades), so the tag simply disappears from every task. */
+export async function deleteTag(id: string): Promise<ActionResult> {
+  const s = await session()
+  if (!s) return { ok: false, error: SESSION_ERROR }
+  const { error } = await s.supabase.from("tags").delete().eq("id", id)
+  return error ? { ok: false, error: SAVE_ERROR } : { ok: true }
+}
+
+/** The lists of a board (for the second step of "Mover para…" when the target is another quadro). */
+export async function getBoardLists(boardId: string): Promise<ActionResult<ListRow[]>> {
+  const s = await session()
+  if (!s) return { ok: false, error: SESSION_ERROR }
+  const { data, error } = await s.supabase.from("board_lists").select("*").eq("board_id", boardId).order("position")
+  return error || !data ? { ok: false, error: SAVE_ERROR } : { ok: true, data }
+}
+
+/** Moves a task to another quadro: into the given list, or the first open list of the target. Existing columns only, no schema change. */
+export async function moveTaskToBoard(
+  input: z.input<typeof moveTaskToBoardSchema>
+): Promise<ActionResult<{ boardName: string; listId: string; listName: string }>> {
+  const parsed = moveTaskToBoardSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error)
+  const s = await session()
+  if (!s) return { ok: false, error: SESSION_ERROR }
+
+  const { data: board } = await s.supabase.from("boards").select("id, name").eq("id", parsed.data.boardId).eq("archived", false).maybeSingle()
+  if (!board) return { ok: false, error: "Esse quadro não existe mais." }
+  const { data: lists } = await s.supabase.from("board_lists").select("id, name, is_done_list").eq("board_id", board.id).order("position")
+  const target = parsed.data.listId ? lists?.find((l) => l.id === parsed.data.listId) : (lists?.find((l) => !l.is_done_list) ?? lists?.[0])
+  if (!target) return { ok: false, error: "Esse quadro ainda não tem listas." }
+  const { data: last } = await s.supabase.from("tasks").select("position").eq("list_id", target.id).order("position", { ascending: false }).limit(1)
+  const { error } = await s.supabase
+    .from("tasks")
+    .update({ board_id: board.id, list_id: target.id, position: (last?.[0]?.position ?? 0) + 1000, completed_at: target.is_done_list ? new Date().toISOString() : null })
+    .eq("id", parsed.data.taskId)
+  if (error) return { ok: false, error: SAVE_ERROR }
+  refresh()
+  return { ok: true, data: { boardName: board.name, listId: target.id, listName: target.name } }
 }
 
 export async function setTaskTags(input: z.input<typeof setTaskTagsSchema>): Promise<ActionResult> {

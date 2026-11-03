@@ -1,4 +1,4 @@
-import { dayDiff, isOverdue } from "@/lib/dates"
+import { dayDiff, dayKey, isOverdue } from "@/lib/dates"
 
 import type { ListRow, Priority, TaskView } from "./types"
 import { asPriority } from "./types"
@@ -12,6 +12,9 @@ export type TaskFilters = {
   tagIds: string[]
   due: DueFilter
   listIds: string[]
+  categories: string[]
+  /** Inclusive day range (YYYY-MM-DD) used by custom shortcuts. */
+  range: { from: string | null; to: string | null } | null
   showCompleted: boolean
 }
 
@@ -21,6 +24,8 @@ export const EMPTY_FILTERS: TaskFilters = {
   tagIds: [],
   due: "all",
   listIds: [],
+  categories: [],
+  range: null,
   showCompleted: true,
 }
 
@@ -30,6 +35,8 @@ export function countActiveFilters(filters: TaskFilters) {
     (filters.tagIds.length > 0 ? 1 : 0) +
     (filters.due !== "all" ? 1 : 0) +
     (filters.listIds.length > 0 ? 1 : 0) +
+    (filters.categories.length > 0 ? 1 : 0) +
+    (filters.range ? 1 : 0) +
     (filters.showCompleted ? 0 : 1)
   )
 }
@@ -50,6 +57,12 @@ export function applyFilters(
     if (filters.priorities.length > 0 && !filters.priorities.includes(asPriority(task.priority))) return false
     if (filters.tagIds.length > 0 && !filters.tagIds.some((id) => task.tagIds.includes(id))) return false
     if (filters.listIds.length > 0 && !filters.listIds.includes(task.list_id)) return false
+    if (filters.categories.length > 0 && !(task.category && filters.categories.includes(task.category))) return false
+    if (filters.range) {
+      if (!task.due_at) return false
+      const day = dayKey(new Date(task.due_at), context.timeZone)
+      if ((filters.range.from && day < filters.range.from) || (filters.range.to && day > filters.range.to)) return false
+    }
 
     switch (filters.due) {
       case "none":
