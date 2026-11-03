@@ -14,7 +14,7 @@ import { isPanelId, isStatId, PANEL_WIDGETS, STAT_IDS, type PanelId, type StatId
  */
 export const PREFS_VERSION = 2
 
-export const GROUP_IDS = ["atrasados", "manha", "tarde", "noite", "sem-horario", "concluidos"] as const
+export const GROUP_IDS = ["atrasados", "hoje", "habitos", "concluidos", "amanha", "manha", "tarde", "noite", "sem-horario"] as const
 export type GroupId = (typeof GROUP_IDS)[number]
 
 export const prefsSchema = z.object({

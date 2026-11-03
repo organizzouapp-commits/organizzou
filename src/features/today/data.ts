@@ -314,7 +314,11 @@ export async function getDay(nowIso: string): Promise<DayData> {
     items.push({ id: e.key, kind: "event", title: e.title, meta: ["Agenda", e.allDay ? "Dia todo" : e.detail].filter(Boolean).join(" · "), at: e.allDay ? null : e.start.toISOString(), endAt: e.allDay || !e.end ? undefined : e.end.toISOString(), durationMin: minutes, href: "/dashboard/agenda", action: "none" })
   }
   for (const s of src.workoutOn(m.today)) {
-    items.push({ id: s.id, kind: "workout", title: s.title, meta: `Treinos · ${s.detail}`, at: s.start ?? null, endAt: s.end, durationMin: s.start && s.end ? Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000) : undefined, href: "/dashboard/treinos", action: "none" })
+    // A real plan can be ticked off here: its id is "<plan uuid>:<day>"; a completed session of that plan today means it is done.
+    const planId = s.id.split(":")[0]
+    const real = /^[0-9a-f-]{36}$/i.test(planId)
+    const finished = real && src.workoutSessions.some((w) => w.plan_id === planId && w.performed_on === m.today && w.completed)
+    items.push({ id: s.id, kind: "workout", title: s.title, meta: `Treinos · ${s.detail}`, at: s.start ?? null, endAt: s.end, durationMin: s.start && s.end ? Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000) : undefined, href: "/dashboard/treinos", action: real ? "check" : "none", done: finished || undefined })
   }
   for (const s of src.studyOn(m.today)) {
     items.push({ id: s.id, kind: "study", title: s.title, meta: `Estudos · ${s.detail}`, at: s.start ?? null, endAt: s.end, durationMin: s.start && s.end ? Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000) : undefined, href: "/dashboard/estudos", action: "none" })
@@ -355,7 +359,19 @@ export async function getDay(nowIso: string): Promise<DayData> {
     })
   }
 
-  return { state: items.length === 0 ? "empty" : "ok", nowIso, items }
+  // Tomorrow, for the evening preview: open tasks due that day and the events that start on it.
+  const tomorrowFrom = new Date(at(nowIso, 1, "00:00"))
+  const tomorrowTo = new Date(at(nowIso, 2, "00:00"))
+  const tomorrow: DayItem[] = []
+  for (const t of m.open.filter((x) => x.due_at && dayDiff(x.due_at, m.now, m.tz) === 1)) {
+    tomorrow.push({ id: t.id, kind: "task", title: t.title, meta: `Tarefas · ${t.boardName}`, at: t.due_has_time ? t.due_at : null, priority: asPriorityValue(t.priority), href: `/dashboard/tarefas/${t.boardId}`, action: "none" })
+  }
+  for (const e of src.events.flatMap((ev) => expandEvent(ev, tomorrowFrom, tomorrowTo, m.tz))) {
+    tomorrow.push({ id: e.key, kind: "event", title: e.title, meta: ["Agenda", e.allDay ? "Dia todo" : e.detail].filter(Boolean).join(" · "), at: e.allDay ? null : e.start.toISOString(), href: "/dashboard/agenda", action: "none" })
+  }
+  tomorrow.sort((a, b) => (a.at ? new Date(a.at).getTime() : Infinity) - (b.at ? new Date(b.at).getTime() : Infinity))
+
+  return { state: items.length === 0 ? "empty" : "ok", nowIso, items, tomorrow }
 }
 
 const asPriorityValue = (value: string): DayItem["priority"] => (value === "high" || value === "medium" || value === "low" ? value : "none")

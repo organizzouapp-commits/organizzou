@@ -62,7 +62,8 @@ export type DayItem = {
   habit?: { qty: number; target: number; unit: string }
 }
 
-export type DayData = { state: WidgetState; nowIso: string; items: DayItem[] }
+/** `tomorrow`: what is already planned for the next day (open tasks and events), for the "Amanhã" group shown in the evening. */
+export type DayData = { state: WidgetState; nowIso: string; items: DayItem[]; tomorrow?: DayItem[] }
 
 export type NotesData = {
   state: WidgetState
