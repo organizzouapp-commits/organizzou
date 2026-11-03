@@ -70,14 +70,14 @@ export function ModuleCard({
       data-module-card={id}
       data-open={open ? "" : undefined}
       data-needs={needs ? "true" : "false"}
-      className={cn("flex min-w-0 flex-col rounded-2xl border bg-card transition-colors duration-[400ms] motion-reduce:transition-none", EASE, open ? "border-foreground/22" : "border-foreground/6")}
+      className={cn("flex min-w-0 flex-col rounded-[16px] border bg-card transition-colors duration-[400ms] motion-reduce:transition-none", EASE, open ? "border-foreground/22" : "border-foreground/6")}
     >
       <button
         type="button"
         aria-expanded={open}
         aria-controls={bodyId}
         onClick={onToggle}
-        className="flex min-h-14 w-full min-w-0 items-center gap-3 rounded-2xl p-4 text-left outline-none hover:bg-foreground/4 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex min-h-14 w-full min-w-0 items-center gap-3 rounded-[16px] p-4 text-left outline-none hover:bg-foreground/4 focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 flex-1 flex-col">
@@ -94,13 +94,11 @@ export function ModuleCard({
         className={cn("grid transition-[grid-template-rows,opacity] duration-[400ms] motion-reduce:transition-none", EASE, open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}
       >
         <div inert={!open} data-animating={animating ? "" : undefined} className="min-h-0 overflow-hidden">
-          <div className="flex min-w-0 flex-col gap-[14px] px-4 pb-4">
-            {children}
-            <div className="-mx-4 h-px bg-border" aria-hidden />
-            <Link href={href} className="-mt-1 flex min-h-11 items-center gap-1.5 self-start rounded-md text-[15px] font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
-              Abrir {moduleName} <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-4" />
-            </Link>
-          </div>
+          <div className="flex min-w-0 flex-col gap-[14px] px-4 pb-4">{children}</div>
+          {/* Footer: 1 px hairline + 40 px (44 px on phones) in total, 16 px side padding, and the card ends right after it. */}
+          <Link href={href} className="flex h-11 items-center gap-1.5 rounded-b-[16px] border-t border-border px-4 text-[14px] leading-5 font-medium outline-none hover:bg-foreground/4 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset md:h-10">
+            Abrir {moduleName} <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-4" />
+          </Link>
         </div>
       </div>
     </section>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { SectionHeader } from "@/components/organizzou/SectionHeader"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { A11y, EffectCards, Keyboard } from "swiper/modules"
 import { Swiper, SwiperSlide } from "swiper/react"
@@ -110,10 +111,10 @@ export function HighlightArrows({ api }: { api: CarouselApi | undefined }) {
   if (!api || (!state.prev && !state.next)) return null
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Button type="button" size="icon" className="size-11 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
+      <Button type="button" size="icon" className="size-9 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Destaques anteriores" disabled={!state.prev} onClick={() => api.scrollPrev()}>
         <ChevronLeftIcon strokeWidth={1.75} />
       </Button>
-      <Button type="button" size="icon" className="size-11 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
+      <Button type="button" size="icon" className="size-9 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/85 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50" aria-label="Próximos destaques" disabled={!state.next} onClick={() => api.scrollNext()}>
         <ChevronRightIcon strokeWidth={1.75} />
       </Button>
     </div>
@@ -241,13 +242,15 @@ export function HighlightsSection({ items, customize }: { items: HighlightItem[]
   const [api, setApi] = useState<CarouselApi>()
   return (
     <section aria-label="Destaques" className="flex min-w-0 flex-col gap-3">
-      <div className="flex min-h-11 items-center justify-between gap-3">
-        {items.length > 0 ? <h2 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Destaques</h2> : <span />}
-        <div className="flex items-center gap-2">
-          <HighlightArrows api={api} />
-          {customize}
-        </div>
-      </div>
+      <SectionHeader
+        title={items.length > 0 ? "Destaques" : ""}
+        actions={
+          <>
+            <HighlightArrows api={api} />
+            {customize}
+          </>
+        }
+      />
       {items.length > 0 ? (
         <>
           <div className="md:hidden">

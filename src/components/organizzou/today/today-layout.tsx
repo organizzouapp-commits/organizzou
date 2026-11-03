@@ -12,6 +12,8 @@ import { savePrefs } from "@/features/today/actions"
 import { enabledHighlights, PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, wantedKeys, type TodayPrefs } from "@/features/today/prefs"
 import { cn } from "@/lib/utils"
 
+import { SectionHeader } from "@/components/organizzou/SectionHeader"
+
 import { CustomizeDialog } from "./customize"
 import { HighlightsSection } from "./highlights"
 import { ModuleAccordionProvider } from "./module-accordion"
@@ -117,7 +119,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   const customize = (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button type="button" variant="outline" className="h-11 min-w-11 rounded-full px-3 md:px-5" aria-label="Personalizar" onClick={() => setOpen(true)}>
+        <Button type="button" variant="outline" className="h-11 min-w-11 rounded-full px-3 md:h-9 md:px-4" aria-label="Personalizar" onClick={() => setOpen(true)}>
           <SlidersHorizontalIcon strokeWidth={1.75} />
           <span className="max-md:hidden">Personalizar</span>
         </Button>
@@ -132,7 +134,7 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
         <ModuleAccordionProvider>
         {/* From 768 px the page sits in a frame with 24 px rounded corners. The top padding keeps the first row (label, arrows, button)
             clear of that corner zone, so nothing is ever clipped by the curve. */}
-        <div className="@container flex min-w-0 flex-col gap-5 pb-6 md:pt-4">
+        <div className="@container flex min-w-0 flex-col gap-6 pb-6 md:pt-4">
           <HighlightsSection items={items} customize={customize} />
 
           {visible.length === 0 ? (
@@ -149,25 +151,28 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
               />
             </div>
           ) : (
-            <div className={cn("grid min-w-0 grid-cols-1 items-start gap-3 @min-[880px]:gap-x-5", hasMain && "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]")}>
+            <div className={cn("grid min-w-0 grid-cols-1 items-start gap-6 @min-[880px]:gap-x-5", hasMain && "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]")}>
               {main ? (
-                <div data-panel="seu-dia" className="min-w-0">
-                  {node("panel:seu-dia")}
+                <div className="flex min-w-0 flex-col gap-3">
+                  <SectionHeader title="Seu dia" />
+                  <div data-panel="seu-dia" className="min-w-0">
+                    {node("panel:seu-dia")}
+                  </div>
                 </div>
               ) : null}
-              {/* The module cards: separate cards, 8 px apart, grouped by CSS under "PRECISA DE VOCÊ" (the cards that need attention today)
-                  and "NO RITMO" (everything up to date). Each card carries data-needs; `has-[]` orders the wrappers and shows the labels,
-                  so the order is decided by the data on every load, with no client JS. */}
+              {/* The module cards: ONE list under one overline, 8 px apart. Each card carries data-needs; `has-[]` puts the cards that need
+                  attention first, so the order follows the data on every load with no client JS. */}
               {aside.length > 0 ? (
-                <div data-testid="module-cards" className="group/aside flex min-w-0 flex-col gap-2">
-                  <p className="order-1 hidden px-1 pb-0.5 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase group-has-[[data-needs=true]]/aside:block">Precisa de você</p>
-                  <p className="order-3 mt-2 hidden px-1 pb-0.5 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase group-has-[[data-needs=false]]/aside:block">No ritmo</p>
-                  {aside.map((panel) => (
-                    <div key={panel.id} data-panel={panel.id} className="order-4 min-w-0 has-[[data-needs=true]]:order-2">
-                      {node(`panel:${panel.id}`)}
-                    </div>
-                  ))}
-                </div>
+                <section aria-label="Precisa de você" data-testid="module-cards" className="flex min-w-0 flex-col gap-3">
+                  <SectionHeader title="Precisa de você" />
+                  <div className="flex min-w-0 flex-col gap-2">
+                    {aside.map((panel) => (
+                      <div key={panel.id} data-panel={panel.id} className="order-4 min-w-0 has-[[data-needs=true]]:order-2">
+                        {node(`panel:${panel.id}`)}
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ) : null}
             </div>
           )}

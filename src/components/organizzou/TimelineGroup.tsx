@@ -9,14 +9,13 @@ import { clock } from "@/components/organizzou/today/day-format"
 
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-/** A group of the day: the whole left side of the header toggles it; ONE count (a pill); folded, a one-line preview follows. */
+/** A group of the day: the whole left side of the header toggles it; ONE count (a pill); folded, nothing else (no item titles). */
 export function TimelineGroup({
   id,
   label,
   count,
   open,
   onToggle,
-  preview: previewText,
   icon: Icon,
   action,
   children,
@@ -26,7 +25,6 @@ export function TimelineGroup({
   count: string | number
   open: boolean
   onToggle: () => void
-  preview?: string
   icon?: LucideIcon
   action?: React.ReactNode
   children: React.ReactNode
@@ -39,7 +37,6 @@ export function TimelineGroup({
           {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
           <h3 className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</h3>
           <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{count}</span>
-          {!open && previewText ? <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">{previewText}</span> : null}
         </button>
         {action}
       </div>

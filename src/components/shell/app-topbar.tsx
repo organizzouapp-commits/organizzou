@@ -101,8 +101,8 @@ export function Bell({ bare = false }: { bare?: boolean }) {
           {unread > 0 ? <span aria-hidden data-testid="bell-dot" className={cn("absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2", bare ? "ring-card" : "ring-background")} /> : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="max-h-[min(480px,70dvh)] w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 max-md:max-h-[80dvh]">
-        <div className={cn("flex shrink-0 items-center justify-between gap-2 border-b px-5 py-2 transition-colors duration-[400ms] motion-reduce:transition-none", scrolled ? "border-border" : "border-transparent")}>
+      <PopoverContent align="end" className="max-h-[min(480px,70dvh)] w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 max-md:max-h-[min(360px,55dvh)] max-md:[@media(max-height:500px)]:max-h-[70dvh]">
+        <div className={cn("flex shrink-0 items-center justify-between gap-2 border-b px-5 py-2 max-md:h-12 max-md:py-0 transition-colors duration-[400ms] motion-reduce:transition-none", scrolled ? "border-border" : "border-transparent")}>
           <p className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
           {unread > 0 ? (
             <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-3 text-[13px]" onClick={markAllRead}>
@@ -121,14 +121,14 @@ export function Bell({ bare = false }: { bare?: boolean }) {
                 <>
                   <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={cn("text-[15px] leading-5", !n.read_at && "font-medium")}>{n.title}</span>
-                    {n.body ? <span className="text-[13px] leading-5 text-muted-foreground">{n.body}</span> : null}
-                    <span className="text-[12px] leading-4 text-muted-foreground">{formatDistanceToNowStrict(new Date(n.created_at), { locale: ptBR, addSuffix: true })}</span>
+                    <span className={cn("text-[15px] leading-5 max-md:truncate max-md:text-[14px] max-md:font-semibold", !n.read_at && "font-medium")}>{n.title}</span>
+                    {n.body ? <span className="text-[13px] leading-5 text-muted-foreground max-md:hidden">{n.body}</span> : null}
+                    <span className="text-[12px] leading-4 text-muted-foreground max-md:truncate">{formatDistanceToNowStrict(new Date(n.created_at), { locale: ptBR, addSuffix: true })}</span>
                   </span>
                   {!n.read_at ? <span aria-label="Não lida" role="img" className="mt-1.5 size-2 shrink-0 rounded-full bg-highlight" /> : null}
                 </>
               )
-              const className = "flex min-h-11 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+              const className = "flex min-h-11 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left max-md:min-h-[56px] max-md:items-center max-md:px-4 outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
               return (
                 <li key={n.id} data-read={n.read_at ? "" : undefined}>
                   {n.link ? (

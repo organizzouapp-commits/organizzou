@@ -561,8 +561,8 @@ test.describe("round 2: desktop (1440x900)", () => {
     const scroller = (await page.locator("[data-app-scroll]").boundingBox())!
     const label = (await page.getByRole("heading", { name: "Destaques", level: 2 }).boundingBox())!
     expect(label.y - scroller.y).toBeLessThanOrEqual(32)
-    const main = (await page.locator('[data-panel="seu-dia"]').boundingBox())!
-    const aside = (await page.getByTestId("module-cards").boundingBox())!
+    const main = (await page.getByRole("heading", { name: "Seu dia", level: 2 }).boundingBox())!
+    const aside = (await page.getByRole("heading", { name: "Precisa de você", level: 2 }).boundingBox())!
     expect(Math.abs(main.y - aside.y)).toBeLessThanOrEqual(1)
   })
 

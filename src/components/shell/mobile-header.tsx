@@ -3,19 +3,20 @@
 import { memo, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon, LogOutIcon, PlusIcon, SearchIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { GlassSurface } from "@/components/organizzou/GlassSurface"
 import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 import type { ShellUser } from "./app-sidebar"
 import { Bell, UserMenu } from "./app-topbar"
 import { NavBrand } from "./nav-brand"
+import { useRequestSignOut } from "./sign-out-dialog"
 import { groupHasActive, isActivePath, useNav } from "./nav-config"
 
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -49,6 +50,9 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
   const pathname = usePathname()
   const nav = useNav()
   const { openQuickCapture } = useAssistant()
+  const requestSignOut = useRequestSignOut()
+  const account = nav.account
+  const accountActive = account ? account.items.some((item) => isActivePath(pathname, item.href)) : false
   const [mainGroup, ...foldedGroups] = nav.groups
   const chipsRef = useRef<HTMLElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -153,6 +157,36 @@ export const MobileHeader = memo(function MobileHeader({ user, onSearch }: Mobil
               </DropdownMenu>
             )
           })}
+          {account ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ChipButton active={accountActive} data-active={accountActive ? "" : undefined}>
+                  {account.label}
+                  <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 opacity-60" />
+                </ChipButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={8} className="w-auto min-w-56 rounded-2xl p-2">
+                {account.items.map((item) => {
+                  const itemActive = isActivePath(pathname, item.href)
+                  return (
+                    <DropdownMenuItem
+                      key={item.id}
+                      asChild
+                      className={cn("min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]", itemActive && "bg-highlight font-medium text-highlight-foreground focus:bg-highlight focus:text-highlight-foreground")}
+                    >
+                      <Link href={item.href} aria-current={itemActive ? "page" : undefined}>
+                        <item.icon strokeWidth={1.75} className="size-[18px]" /> {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  )
+                })}
+                <DropdownMenuSeparator className="mx-1 my-2" />
+                <DropdownMenuItem onSelect={requestSignOut} className="min-h-11 gap-3 rounded-xl px-3 py-2 text-[15px]">
+                  <LogOutIcon strokeWidth={1.75} className="size-[18px]" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </nav>
         <div ref={sentinelRef} aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px" />
       </header>

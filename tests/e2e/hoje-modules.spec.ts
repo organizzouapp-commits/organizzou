@@ -48,13 +48,13 @@ test.describe("structure", () => {
       orders.push(
         await page.evaluate(() => {
           const groups = [...document.querySelectorAll("[data-group]")].map((el) => `group:${el.getAttribute("data-group")}`)
-          // The cards and labels in VISUAL order: CSS `order` first, then the DOM position.
-          const stack = [...document.querySelectorAll('[data-testid="module-cards"] > *')]
+          // The label, then the cards in VISUAL order: CSS `order` first, then the DOM position.
+          const label = document.querySelector('[data-testid="module-cards"] > div:first-child')!.textContent
+          const stack = [...document.querySelectorAll('[data-testid="module-cards"] [data-panel]')]
             .map((el, index) => ({ el, index, order: Number(getComputedStyle(el).order) }))
-            .filter(({ el }) => getComputedStyle(el).display !== "none")
             .sort((a, b) => a.order - b.order || a.index - b.index)
-            .map(({ el }) => (el.tagName === "P" ? `label:${el.textContent}` : `card:${el.querySelector("[data-module-card]")!.getAttribute("data-module-card")}`))
-          return ["main:seu-dia", ...groups, ...stack]
+            .map(({ el }) => `card:${el.querySelector("[data-module-card]")!.getAttribute("data-module-card")}`)
+          return ["main:seu-dia", ...groups, `label:${label}`, ...stack]
         })
       )
       // Single column on the phone: every card spans the width of the page content (16 px gutters).
@@ -66,26 +66,74 @@ test.describe("structure", () => {
       await context.close()
     }
     expect(orders[0]).toEqual(orders[1])
+    // ONE list under one overline; the cards that need attention come first, the up-to-date one last.
     expect(orders[0]).toContain("label:Precisa de você")
-    expect(orders[0]).toContain("label:No ritmo")
-    // Cards that need attention come first, the rest after "No ritmo".
-    const stack = orders[0].filter((x) => x.startsWith("card:") || x.startsWith("label:"))
-    expect(stack.indexOf("label:Precisa de você")).toBe(0)
-    expect(stack.indexOf("label:No ritmo")).toBe(stack.length - 2)
+    const stack = orders[0].filter((x) => x.startsWith("card:"))
+    expect(stack).toHaveLength(6)
+    expect(stack).toContain("card:dieta")
     expect(stack.slice(-1)).toEqual(["card:dieta"])
   })
 
-  test("the floating assistant button does not exist", async ({ page, context, baseURL }) => {
+  test("no 'No ritmo' label anywhere; Dieta e água sits inside the single list", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto("/dashboard")
-    await expect(page.getByRole("link", { name: "Hoje" }).first()).toBeVisible({ timeout: 60000 })
-    await expect(page.getByRole("button", { name: /Abrir o assistente|Falar com o assistente/ })).toHaveCount(0)
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openFixture(page)
+    await expect(page.getByText("No ritmo")).toHaveCount(0)
+    await expect(page.getByTestId("module-cards").locator('[data-module-card="dieta"]')).toHaveCount(1)
+    await expect(page.getByTestId("module-cards").getByRole("heading", { name: "Precisa de você" })).toHaveCount(1)
   })
 })
 
 test.describe("module cards (phone)", () => {
   test.use(phone)
+
+  test("collapsed groups show no item titles; the 'Mais cedo' row has only the count", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await openFixture(page)
+    for (const id of ["atrasados", "hoje", "concluidos"]) {
+      const toggle = page.locator(`[data-group="${id}"] > div > button`).first()
+      if ((await toggle.getAttribute("aria-expanded")) === "true") await toggle.click()
+      await expect(toggle).toHaveAttribute("aria-expanded", "false")
+      const text = (await page.locator(`[data-group="${id}"]`).innerText()).replace(/\s+/g, " ")
+      expect(text).not.toMatch(/Internet|Responder|Revisar|Reunião|Fechar a planilha|Ligar para o banco/)
+    }
+    await page.locator('[data-group="hoje"] > div > button').first().click()
+    await expect(page.getByRole("button", { name: /Mais cedo/ })).toHaveText(/^Mais cedo · 2 eventos$/)
+  })
+
+  test("Atrasados header: no alert icon; the bulk action is only inside the expanded group and never overlaps the header", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await openFixture(page)
+    const group = page.locator('[data-group="atrasados"]')
+    const header = group.locator("> div").first()
+    await expect(header.locator("svg.lucide-triangle-alert")).toHaveCount(0)
+    const toggle = header.getByRole("button").first()
+    await toggle.click()
+    await expect(toggle).toHaveAttribute("aria-expanded", "false")
+    await expect(group.getByRole("button", { name: /Reagendar tudo/ })).toHaveCount(0)
+    await expect(header).toContainText("5")
+    await toggle.click()
+    const bulk = group.getByRole("button", { name: "Reagendar tudo para amanhã" })
+    await expect(bulk).toBeVisible()
+    const hb = (await header.boundingBox())!
+    const bb = (await bulk.boundingBox())!
+    expect(bb.y).toBeGreaterThanOrEqual(hb.y + hb.height - 1)
+    expect(bb.height).toBeGreaterThanOrEqual(44)
+    const gb = (await group.boundingBox())!
+    expect(Math.round(bb.width)).toBe(Math.round(gb.width))
+  })
+
+  test("the module card footer is at most 44 px high on phones and the card ends right after it", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await openFixture(page)
+    await cardHeader(page, "estudos").click()
+    const link = page.getByRole("link", { name: /Abrir Estudos/ })
+    await expect(link).toBeVisible()
+    await expect.poll(async () => Math.round((await link.boundingBox())!.height)).toBeLessThanOrEqual(44)
+    const card = (await page.locator('[data-module-card="estudos"]').boundingBox())!
+    const lb = (await link.boundingBox())!
+    expect(Math.round(card.y + card.height - (lb.y + lb.height))).toBeLessThanOrEqual(2)
+  })
 
   test("accordion: one card open at a time, aria-expanded and inert follow", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
@@ -179,11 +227,11 @@ test.describe("module cards (phone)", () => {
     await expect(page.getByText("Adiado em 1 hora.")).toBeVisible()
   })
 
-  test("Atrasados shows 3 rows and a 'Ver mais' row; the bulk action says 'Tudo p/ amanhã'", async ({ page, context, baseURL }) => {
+  test("Atrasados shows 3 rows and a 'Ver mais' row; the bulk action is a full-width button inside the group", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
     await openFixture(page)
     const group = page.locator('[data-group="atrasados"]')
-    await expect(group.getByRole("button", { name: /Tudo p\/ amanhã/ })).toBeVisible()
+    await expect(group.getByRole("button", { name: "Reagendar tudo para amanhã" })).toBeVisible()
     await expect(group.getByRole("button", { name: /Ver mais 2 atrasados/ })).toBeVisible()
     await group.getByRole("button", { name: /Ver mais 2 atrasados/ }).click()
     await expect(group.getByRole("button", { name: /Ver mais/ })).toHaveCount(0)
@@ -196,7 +244,7 @@ test.describe("module cards (phone)", () => {
     const total = await checks.count()
     expect(total).toBeGreaterThan(4)
     for (let i = 0; i < Math.min(total, 6); i++) {
-      await checks.nth(i).scrollIntoViewIfNeeded()
+      await checks.nth(i).evaluate((el) => el.scrollIntoView({ block: "center" }))
       const box = (await checks.nth(i).boundingBox())!
       // A tap 20 px from the centre, in every direction, still lands on the checkbox.
       for (const [dx, dy] of [[20, 0], [-20, 0], [0, 20], [0, -20]]) {
@@ -275,6 +323,22 @@ test.describe("Seu dia (desktop)", () => {
     await habit.getByRole("button", { name: /Remover/ }).click()
     await expect(habit).toContainText("1,25 de 2,5 L")
     await expect(page.getByLabel("Adicionar ao dia")).toBeVisible()
+  })
+
+  test("SEU DIA and PRECISA DE VOCÊ overlines share a baseline, the columns start at the same y, the footer is 40 px", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await openFixture(page)
+    const seuDia = page.getByRole("heading", { name: "Seu dia" })
+    const needs = page.getByRole("heading", { name: "Precisa de você" })
+    await expect(seuDia).toHaveCSS("text-transform", "uppercase")
+    expect(Math.round((await seuDia.boundingBox())!.y)).toBe(Math.round((await needs.boundingBox())!.y))
+    const main = (await page.locator('[data-panel="seu-dia"]').boundingBox())!
+    const colTop = await page.evaluate(() => Math.min(...[...document.querySelectorAll('[data-testid="module-cards"] [data-panel]')].map((el) => el.getBoundingClientRect().top)))
+    expect(Math.round(colTop)).toBe(Math.round(main.y))
+    await cardHeader(page, "estudos").click()
+    const link = page.getByRole("link", { name: /Abrir Estudos/ })
+    await expect.poll(async () => Math.round((await link.boundingBox())!.height)).toBeLessThanOrEqual(40)
+    await expect(page.locator('[data-panel="seu-dia"] h3').first()).toHaveCSS("font-size", "16px")
   })
 
   test("hover reveals the postpone actions; the module cards can sit beside Seu dia", async ({ page, context, baseURL }) => {
@@ -369,7 +433,7 @@ test.describe("notifications panel", () => {
       await page.getByRole("button", { name: /^Notificações/ }).click({ timeout: 60000 })
       const panel = page.locator("[data-slot=popover-content]")
       await expect(panel).toBeVisible()
-      const cap = width < 768 ? height * 0.8 : Math.min(480, height * 0.7)
+      const cap = width < 768 ? Math.min(360, height * 0.55) : Math.min(480, height * 0.7)
       expect((await panel.boundingBox())!.height).toBeLessThanOrEqual(cap + 1)
 
       const region = page.getByRole("region", { name: "Lista de notificações" })
@@ -382,12 +446,37 @@ test.describe("notifications panel", () => {
       await region.hover()
       await page.mouse.wheel(0, 600)
       await expect.poll(() => region.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
-      expect((await header.boundingBox())!.y).toBe(before)
+      expect((await header.boundingBox())!.y).toBeCloseTo(before, 0)
       expect(await page.evaluate(() => window.scrollY)).toBe(0)
       // The hairline under the header appears only once the list has scrolled.
       expect(await header.evaluate((el) => getComputedStyle(el.parentElement!).borderBottomColor)).not.toBe("rgba(0, 0, 0, 0)")
     })
   }
+
+  test("landscape phone (height < 500): capped at 70dvh", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await page.setViewportSize({ width: 740, height: 360 })
+    await page.goto("/design-system/notificacoes")
+    await page.getByRole("button", { name: /^Notificações/ }).click({ timeout: 60000 })
+    expect((await page.locator("[data-slot=popover-content]").boundingBox())!.height).toBeLessThanOrEqual(360 * 0.7 + 1)
+  })
+
+  test("phone: compact rows (56 px), 3 to 6 rows visible, header at most 48 px", async ({ page, context, baseURL }) => {
+    await consent(context, baseURL!)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto("/design-system/notificacoes")
+    await page.getByRole("button", { name: /^Notificações/ }).click({ timeout: 60000 })
+    const region = page.getByRole("region", { name: "Lista de notificações" })
+    const rows = region.locator("li > button")
+    // The popover zooms in while it opens: measure once it has settled.
+    await expect.poll(async () => (await rows.first().boundingBox())!.height).toBeGreaterThanOrEqual(55.9)
+    const h = (await rows.first().boundingBox())!.height
+    expect(h).toBeLessThanOrEqual(60)
+    const rb = (await region.boundingBox())!
+    const visible = await rows.evaluateAll((els, bottom) => els.filter((e) => e.getBoundingClientRect().bottom <= bottom + 1).length, rb.y + rb.height)
+    expect(visible).toBeGreaterThanOrEqual(3)
+    expect(visible).toBeLessThanOrEqual(6)
+  })
 
   test("keyboard: the region takes focus and scrolls with the arrow keys; Esc closes", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)

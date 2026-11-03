@@ -54,7 +54,6 @@ function useNow(initialIso: string) {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const isEnded = (item: DayItem, nowMs: number) => item.kind === "event" && Boolean(item.endAt) && new Date(item.endAt!).getTime() <= nowMs
 const isCurrent = (item: DayItem, nowMs: number) => Boolean(item.at && item.endAt) && new Date(item.at!).getTime() <= nowMs && nowMs < new Date(item.endAt!).getTime()
-const preview = (titles: string[]) => (titles.length <= 2 ? titles.join(" e ") : `${titles.slice(0, 2).join(", ")} e mais ${titles.length - 2}`)
 
 /** Order inside the untimed part of the day: bills, tasks, all-day events, then the rest. */
 function rank(item: DayItem) {
@@ -374,8 +373,7 @@ export function SeuDia({ data }: { data: DayData }) {
       <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
         <div className="flex items-start justify-between gap-3 md:block">
           <div className="flex min-w-0 flex-col">
-            <h2 className="text-[20px] leading-7 font-semibold">Seu dia</h2>
-            <p className="text-[13px] leading-5 text-muted-foreground">{dayTitle(nowMs)}</p>
+            <h3 className="text-[16px] leading-6 font-semibold">{dayTitle(nowMs)}</h3>
           </div>
           <Button asChild variant="outline" size="icon" className="size-11 shrink-0 rounded-full md:hidden">
             <Link href="/dashboard/agenda" aria-label="Abrir agenda">
@@ -448,32 +446,36 @@ export function SeuDia({ data }: { data: DayData }) {
                 id="atrasados"
                 label="Atrasados"
                 count={overdue.length}
-                icon={TriangleAlertIcon}
                 open={isOpen("atrasados")}
                 onToggle={() => toggle("atrasados")}
-                preview={preview(overdue.map((item) => item.title))}
                 action={
                   overdue.some((item) => item.kind === "task") ? (
-                    <Button type="button" variant="outline" className="h-11 shrink-0 gap-1.5 rounded-full px-3 text-[13px] md:h-9 md:gap-2 md:px-4" onClick={() => rescheduleOverdue(overdue)}>
+                    <Button type="button" variant="outline" className="hidden h-9 shrink-0 gap-2 rounded-full px-4 text-[13px] md:inline-flex" onClick={() => rescheduleOverdue(overdue)}>
                       <CalendarIcon strokeWidth={1.75} className="size-4" />
-                      <span className="max-md:hidden">Reagendar tudo para amanhã</span>
-                      <span className="md:hidden">Tudo p/ amanhã</span>
+                      Reagendar tudo para amanhã
                     </Button>
                   ) : null
                 }
               >
+                {/* Phones: the bulk action lives inside the expanded group, as a full-width button, so it never crowds the header. */}
+                {overdue.some((item) => item.kind === "task") ? (
+                  <Button type="button" variant="secondary" className="mb-1 h-11 w-full gap-2 rounded-xl md:hidden" onClick={() => rescheduleOverdue(overdue)}>
+                    <CalendarIcon strokeWidth={1.75} className="size-4" />
+                    Reagendar tudo para amanhã
+                  </Button>
+                ) : null}
                 {overdueRows}
               </TimelineGroup>
             ) : null}
 
             {today.length > 0 ? (
-              <TimelineGroup id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")} preview={preview(rest.map((item) => item.title))}>
+              <TimelineGroup id="hoje" label="Hoje" count={rest.length} open={isOpen("hoje")} onToggle={() => toggle("hoje")}>
                 {earlier.length > 0 ? (
                   <div className="flex flex-col">
                     <button type="button" aria-expanded={showEarlier} onClick={() => setShowEarlier((v) => !v)} className={cn("-mx-2 flex min-h-11 items-center gap-2 rounded-xl px-2 text-left", cardHover)}>
                       <ChevronRightIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, showEarlier && "rotate-90")} />
                       <span className="min-w-0 truncate text-[13px] leading-5 text-muted-foreground">
-                        Mais cedo · {plural(earlier.length, "evento", "eventos")} · {earlier.map((item) => item.title).join(", ")}
+                        Mais cedo · {plural(earlier.length, "evento", "eventos")}
                       </span>
                     </button>
                     {showEarlier ? earlier.map((item) => row(item, { dimmed: true })) : null}
@@ -494,7 +496,7 @@ export function SeuDia({ data }: { data: DayData }) {
             ) : null}
 
             {finished.length > 0 ? (
-              <TimelineGroup id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos")} preview={preview(finished.map((item) => item.title))}>
+              <TimelineGroup id="concluidos" label="Concluídos" count={finished.length} open={isOpen("concluidos")} onToggle={() => toggle("concluidos")}>
                 {finished.map((item) => row(item))}
               </TimelineGroup>
             ) : null}
@@ -507,11 +509,6 @@ export function SeuDia({ data }: { data: DayData }) {
                 icon={CalendarDaysIcon}
                 open={isOpen("amanha")}
                 onToggle={() => toggle("amanha")}
-                preview={(() => {
-                  const first = tomorrowItems[0]
-                  const text = `${first.at ? `${clock(first.at)} ` : ""}${first.title}`
-                  return tomorrowItems.length > 1 ? `${text} e mais ${tomorrowItems.length - 1}` : text
-                })()}
               >
                 {tomorrowItems.map((item) => (
                   <TimelineRow key={item.id} item={item} done={false} nowMs={nowMs} />

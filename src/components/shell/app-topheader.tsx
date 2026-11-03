@@ -9,7 +9,6 @@ import { HeaderActions, headerGroup as group } from "@/components/organizzou/hea
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-import { APP_PLAN_ITEM } from "./app-nav"
 import type { ShellUser } from "./app-sidebar"
 import { groupHasActive, isActivePath, useNav, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
@@ -40,7 +39,7 @@ type TopHeaderProps = {
 /** "Configurações" pill of the collapsed header: same items as the sidebar group, plus Plano e cobrança and Sair. Icon-only below 1200 px. */
 function AccountPill({ account, active, pathname, tabIndex, onFocus }: { account: { label: string; items: NavItem[] }; active: boolean; pathname: string; tabIndex: number; onFocus: () => void }) {
   const requestSignOut = useRequestSignOut()
-  const items = [...account.items, APP_PLAN_ITEM]
+  const items = account.items
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -74,7 +73,7 @@ export const AppTopHeader = memo(function AppTopHeader({ user, onSearch }: TopHe
   const pathname = usePathname()
   const nav = useNav()
   const [mainGroup, ...foldedGroups] = nav.groups
-  const accountPaths = nav.account ? [...nav.account.items.map((item) => item.href), APP_PLAN_ITEM.href] : []
+  const accountPaths = nav.account ? nav.account.items.map((item) => item.href) : []
   const [focusIndex, setFocusIndex] = useState<number | null>(null)
   const navRef = useRef<HTMLElement>(null)
 

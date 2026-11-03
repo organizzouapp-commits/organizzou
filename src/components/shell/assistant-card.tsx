@@ -23,17 +23,17 @@ export function AssistantCard({ onNavigate, className }: { onNavigate?: () => vo
         openAssistant()
       }}
       className={cn(
-        "flex min-h-14 w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent p-3 text-left outline-none hover:border-sidebar-foreground/30 focus-visible:ring-3 focus-visible:ring-sidebar-ring/50 [@media(max-height:900px)]:p-2.5",
+        "flex min-h-14 w-full items-center gap-3 rounded-[16px] bg-highlight p-3 text-left text-highlight-foreground outline-none hover:ring-2 hover:ring-highlight-foreground/20 focus-visible:ring-2 focus-visible:ring-highlight-foreground/20 [@media(max-height:900px)]:p-2.5",
         ease,
         className
       )}
     >
-      <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-highlight text-highlight-foreground">
+      <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-highlight-foreground/10">
         <SparklesIcon strokeWidth={1.75} className="size-5" />
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="text-[15px] leading-5 font-semibold">Assistente virtual</span>
-        <span className="text-[13px] leading-5 text-muted-foreground">Pergunte ou peça algo</span>
+        <span className="truncate text-[13px] leading-5 text-highlight-foreground/70">Pergunte ou peça algo</span>
       </span>
     </button>
   )
@@ -57,5 +57,20 @@ export function AssistantRailButton({ className }: { className?: string }) {
       </TooltipTrigger>
       <TooltipContent side="right">Assistente virtual</TooltipContent>
     </Tooltip>
+  )
+}
+
+/** Phones only (the sidebar is a drawer there): the 56 px Lima circle that opens the assistant. Pro only; the shell hides it while the assistant is open. */
+export function AssistantFloatingButton({ onClick, className }: { onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      aria-label="Abrir assistente virtual"
+      data-testid="assistant-fab"
+      onClick={onClick}
+      className={cn("flex size-14 shrink-0 items-center justify-center rounded-full bg-highlight text-highlight-foreground outline-none transition-transform duration-120 ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95", className)}
+    >
+      <SparklesIcon aria-hidden strokeWidth={1.75} className="size-6" />
+    </button>
   )
 }

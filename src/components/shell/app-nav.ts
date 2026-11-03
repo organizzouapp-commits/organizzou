@@ -5,6 +5,12 @@ import { modules, type ModuleId } from "@/components/organizzou/modules"
 import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { moreSections, type NavConfig, type NavGroup, type NavItem } from "./nav-config"
 
+/** "Plano e cobrança" belongs to the Configurações group, like Perfil, Configurações and Ajuda. */
+const PLAN_ITEM: NavItem = { id: "plano", label: "Plano e cobrança", href: "/dashboard/plano", icon: BadgeDollarSignIcon }
+
+/** ONE list of account entries: the sidebar group, the rail flyout, the desktop header dropdown, the phone header chip and the phone "Outros" sheet all read it. */
+const accountItems: NavItem[] = [...ACCOUNT_ITEMS, PLAN_ITEM]
+
 function item(id: ModuleId): NavItem {
   const m = modules[id]
   return { id: m.id, label: m.name, href: m.href, icon: m.icon }
@@ -23,18 +29,21 @@ export const appNav: NavConfig = {
   id: "app",
   home: { href: "/dashboard", label: "Organizzou — Hoje" },
   groups,
-  account: { label: ACCOUNT_GROUP_LABEL, items: ACCOUNT_ITEMS },
+  account: { label: ACCOUNT_GROUP_LABEL, items: accountItems },
   mobile: {
     pill,
     more: {
       label: "Outros",
       title: "Outros módulos",
       // Finanças has no heading of its own (it is the only leftover of the main group), Vida and Organização keep theirs.
-      sections: moreSections(
-        groups,
-        pill.map((p) => p.href),
-        { headlessMain: true }
-      ),
+      sections: [
+        ...moreSections(
+          groups,
+          pill.map((p) => p.href),
+          { headlessMain: true }
+        ),
+        { label: ACCOUNT_GROUP_LABEL, items: accountItems },
+      ],
     },
   },
   pageMeta: {
@@ -57,5 +66,3 @@ export const appNav: NavConfig = {
   features: { assistant: true, notifications: true, plan: true, greeting: true },
 }
 
-/** The app header lists this next to the account items ("Configurações" dropdown). */
-export const APP_PLAN_ITEM: NavItem = { id: "plano", label: "Plano e cobrança", href: "/dashboard/plano", icon: BadgeDollarSignIcon }

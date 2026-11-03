@@ -100,7 +100,7 @@ export function FinancePanel({ data }: { data: FinanceData }) {
       moduleName="Finanças"
       state={data.state}
       needs={short}
-      subtitle={data.budgetLine}
+      subtitle={`Orçamento ${data.budgetPct}%`}
       status={
         <>
           {short ? <TriangleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> : null}
@@ -153,15 +153,10 @@ export function DietPanel({ data }: { data: DietData }) {
       moduleName="Dieta"
       state={data.state}
       needs={data.kcal === 0}
-      subtitle={
-        <>
-          <span className="min-[431px]:hidden">{kcal} · </span>
-          Água {liters(water)}
-        </>
-      }
+      subtitle={`Água ${liters(water)}`}
       status={
         <>
-          <span className="max-[430px]:sr-only">{kcal}</span>
+          <span className="max-[390px]:sr-only">{kcal}</span>
           <Ring value={data.goalKcal === 0 ? 0 : data.kcal / data.goalKcal} label={`Calorias: ${kcal}`} />
         </>
       }
@@ -269,7 +264,7 @@ export function MoodPanel({ data }: { data: { mood: number | null } }) {
   const meta = panelMeta("humor")
   const Icon = meta?.icon
   return (
-    <section aria-label="Como você está?" data-module-card="humor" data-needs={data.mood === null ? "true" : "false"} className="flex min-w-0 flex-col gap-3 rounded-2xl border border-foreground/6 bg-card p-4">
+    <section aria-label="Como você está?" data-module-card="humor" data-needs={data.mood === null ? "true" : "false"} className="flex min-w-0 flex-col gap-3 rounded-[16px] border border-foreground/6 bg-card p-4">
       <div className="flex min-h-9 items-center gap-3">
         {Icon ? <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" /> : null}
         <h2 className="min-w-0 flex-1 text-[17px] leading-6 font-semibold">Como você está?</h2>
