@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { MailIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
+import { usePlan } from "@/components/organizzou/plan-context"
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { BentoCard } from "@/components/organizzou/Bento"
@@ -18,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea"
 const FAQ = [
   {
     q: "Como falo com o assistente?",
-    a: "O assistente vive dentro do app: toque no botão do assistente para conversar ou use o Novo (captura rápida) para anotar uma tarefa, um gasto ou uma nota em uma frase. Também dá para ditar pelo microfone do navegador.",
+    a: "O assistente virtual (Plano Pro) fica no menu lateral: toque em “Assistente virtual” para conversar. Em qualquer plano, use o Novo (captura rápida) para anotar uma tarefa, um gasto ou uma nota em uma frase. Também dá para ditar pelo microfone do navegador.",
   },
   {
     q: "O que o assistente consegue fazer?",
@@ -52,6 +53,7 @@ function normalize(text: string) {
 
 export function HelpView() {
   const { openAssistant } = useAssistant()
+  const { pro } = usePlan()
   const [query, setQuery] = useState("")
   const terms = normalize(query).split(/\s+/).filter(Boolean)
   const results = FAQ.filter((item) => terms.every((t) => normalize(`${item.q} ${item.a}`).includes(t)))
@@ -61,10 +63,12 @@ export function HelpView() {
       aside={
         <>
           <BentoCard title="Fale com a gente" bodyClassName="flex flex-col gap-4">
-            <p className="text-[15px] leading-6 text-muted-foreground">Não achou o que procurava? Pergunte ao assistente ou mande uma mensagem.</p>
-            <Button type="button" onClick={openAssistant} className="self-start">
-              <SparklesIcon strokeWidth={1.75} /> Falar com o assistente
-            </Button>
+            <p className="text-[15px] leading-6 text-muted-foreground">Não achou o que procurava? {pro ? "Pergunte ao assistente ou mande uma mensagem." : "Mande uma mensagem para o nosso suporte."}</p>
+            {pro ? (
+              <Button type="button" onClick={openAssistant} className="self-start">
+                <SparklesIcon strokeWidth={1.75} /> Falar com o assistente
+              </Button>
+            ) : null}
             <a href="mailto:suporte@organizzouapp.com" className="flex items-center gap-3 rounded-xl text-[15px] underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
               <MailIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
               suporte@organizzouapp.com

@@ -75,6 +75,11 @@ export function isPro(plan: PlanId) {
   return plan === "pro"
 }
 
+/** The virtual assistant (chat) is a Pro feature. The chat route asks this; the UI only hides what the server would refuse. */
+export function canUseAssistant(plan: PlanId) {
+  return plan === "pro"
+}
+
 /** True when `used` has reached the plan's limit for `key` (never for unlimited plans). */
 export function reachedLimit(plan: PlanId, key: LimitKey, used: number) {
   const limit = PLANS[plan].limits[key]

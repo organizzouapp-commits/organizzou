@@ -8,7 +8,6 @@ import { useTheme } from "next-themes"
 import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
-import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -16,7 +15,7 @@ import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
-import type { PlanId } from "@/lib/plans"
+import { isPro, type PlanId } from "@/lib/plans"
 import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
 import { AppSidebar, type ShellUser } from "./app-sidebar"
 import { FrameGlass } from "./frame-glass"
@@ -76,18 +75,14 @@ function useIsTablet() {
   )
 }
 
-type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void; onAssistant: (() => void) | null }
+type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void }
 
-/**
- * Phones: one fixed row 12 px above the bottom safe area, 16 px from both edges. `--bottom-bar-h` (52 px) is the height of both the nav and the assistant button. The floating nav takes the remaining width and the
- * assistant button (a Lima circle, no glass) sits at its right, vertically centered. The row hides while the keyboard is open.
- */
-function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomBarProps) {
+/** Phones: one fixed floating nav row 12 px above the bottom safe area, 16 px from both edges. The row hides while the keyboard is open. */
+function ShellBottomBar({ items, activeId, onSelect }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
-    <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex items-center gap-3 [--bottom-bar-h:52px] md:hidden", typing && "hidden")}>
+    <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex items-center md:hidden", typing && "hidden")}>
       <BottomNav items={items} activeId={activeId} onSelect={onSelect} className="flex-1" />
-      {onAssistant ? <AssistantFab className="size-(--bottom-bar-h) shrink-0 bg-highlight text-highlight-foreground [&_svg]:size-5" onClick={onAssistant} /> : null}
     </div>
   )
 }
@@ -177,7 +172,10 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
     }
   }, [router, nav])
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
-  const assistantContext = useMemo(() => ({ openAssistant: () => setAssistantOpen(true), openQuickCapture: () => setCaptureOpen(true) }), [])
+  // The virtual assistant is a Pro feature: Free users who reach it (a link, the palette) land on the plans page instead.
+  const pro = isPro(plan)
+  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push("/dashboard/plano")), [pro, router])
+  const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true) }), [openAssistant])
 
   const withAssistant = nav.features.assistant
 
@@ -220,15 +218,12 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
             </div>
           </SidebarInset>
 
-          {/* Desktop keeps the corner button; phones have it in the bottom bar. */}
-          {withAssistant ? <AssistantFab className="fixed z-40 max-md:hidden md:right-6 md:bottom-6" onClick={() => setAssistantOpen(true)} /> : null}
-
-          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} onAssistant={withAssistant ? () => setAssistantOpen(true) : null} />
+          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} />
 
           {withAssistant ? (
             <>
-              <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={() => setAssistantOpen(true)} nowIso={nowIso} />
-              <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
+              <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={openAssistant} nowIso={nowIso} />
+              {pro ? <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} /> : null}
               <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
             </>
           ) : (

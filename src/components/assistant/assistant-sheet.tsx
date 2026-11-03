@@ -24,9 +24,10 @@ type AssistantSheetProps = {
 type Action = { label: string; href: string; undo?: { table: string; id: string; restore?: Record<string, unknown> }[] }
 type Confirm = { question: string; confirmLabel: string; pending: { tool: string; input: unknown } }
 type Message = { id: string; role: "user" | "assistant"; text: string; actions?: Action[]; confirm?: Confirm; choices?: string[]; resolved?: boolean }
-type Status = { state: "loading" } | { state: "unavailable"; reason: "not_configured" | "pending_update" } | { state: "ready"; used: number; limit: number }
+type Status = { state: "loading" } | { state: "unavailable"; reason: "not_configured" | "pending_update" | "pro_only" } | { state: "ready"; used: number; limit: number }
 
-const UNAVAILABLE: Record<"not_configured" | "pending_update", string> = {
+const UNAVAILABLE: Record<"not_configured" | "pending_update" | "pro_only", string> = {
+  pro_only: "O assistente virtual faz parte do Plano Pro. A captura rápida (botão Novo) continua disponível em todos os planos.",
   not_configured: "O assistente com IA ainda não foi ligado neste ambiente. A captura rápida (botão Novo) continua salvando tarefas, gastos e notas.",
   pending_update: "O assistente está esperando uma atualização do banco de dados para ligar. A captura rápida continua funcionando.",
 }
@@ -54,7 +55,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
       .then((r) => r.json())
       .then((data) => {
         if (!alive) return
-        if (!data.available) return setStatus({ state: "unavailable", reason: data.reason === "pending_update" ? "pending_update" : "not_configured" })
+        if (!data.available) return setStatus({ state: "unavailable", reason: data.reason === "pending_update" || data.reason === "pro_only" ? data.reason : "not_configured" })
         setStatus({ state: "ready", used: data.used ?? 0, limit: data.limit })
         setMessages((data.history ?? []).map((m: { id: string; role: "user" | "assistant"; text: string; actions?: Action[] }) => ({ id: m.id, role: m.role, text: m.text, actions: m.actions })))
       })

@@ -13,7 +13,6 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
 
-import { AssistantFab } from "@/components/organizzou/AssistantFab"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { HabitCheck } from "@/components/organizzou/HabitCheck"
@@ -430,12 +429,11 @@ export default function DesignSystemPage() {
 
       <Separator />
 
-      <Section overline="Mobile" title="BottomNav flutuante e assistente">
+      <Section overline="Mobile" title="BottomNav flutuante">
         <div className="relative max-w-sm overflow-hidden rounded-2xl border border-border">
           <div className="flex h-40 items-start p-4 text-[13px] leading-5 text-muted-foreground">
             Conteúdo da tela
           </div>
-          <AssistantFab className="absolute top-4 right-4" />
           <div className="flex justify-center px-4 pt-2 pb-6">
             <BottomNav items={navItems} activeId={navActive} onSelect={setNavActive} />
           </div>

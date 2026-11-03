@@ -7,6 +7,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { cn } from "@/lib/utils"
 
 import { isActivePath, useNav, type NavConfig } from "./nav-config"
+import { SidebarCta } from "./plan-cta"
 
 /** True when the route belongs to a page that is only reachable from the "more" sheet ("Outros" in the app, "Mais" in the admin). */
 export function isOtherPath(nav: NavConfig, pathname: string) {
@@ -16,7 +17,8 @@ export function isOtherPath(nav: NavConfig, pathname: string) {
 /** Bottom sheet behind the last item of the floating nav: the pages that have no slot in it, grouped like the desktop sidebar. */
 export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const pathname = usePathname()
-  const { more } = useNav().mobile
+  const nav = useNav()
+  const { more } = nav.mobile
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -25,7 +27,10 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
           <DrawerTitle>{more.title}</DrawerTitle>
           <DrawerDescription className="sr-only">Escolha uma página para abrir.</DrawerDescription>
         </DrawerHeader>
-        <nav aria-label={more.title} className="no-scrollbar flex flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="no-scrollbar flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {/* Same slot as the sidebar card: the upgrade card for Free users, the virtual assistant for Pro (no floating button on phones). */}
+          {nav.features.plan ? <SidebarCta onNavigate={() => onOpenChange(false)} className="[&]:min-h-14" /> : null}
+        <nav aria-label={more.title} className="flex flex-col gap-4">
           {more.sections.map((section, index) => (
             <div key={section.label ?? index} className="flex flex-col">
               {section.label ? <p className="px-3 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{section.label}</p> : null}
@@ -50,6 +55,7 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
           ))}
         </nav>
+        </div>
       </DrawerContent>
     </Drawer>
   )

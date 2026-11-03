@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { BackToAppButton, BackToAppRail, NavBrand } from "./nav-brand"
 import { groupHasActive, isActivePath, useNav, type NavGroup, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
+import { AssistantRailButton } from "./assistant-card"
 import { SidebarCta } from "./plan-cta"
 
 export type ShellUser = { name: string; email: string }
@@ -184,7 +185,7 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
 
 function RailUpgrade({ pathname }: { pathname: string }) {
   const { pro } = usePlan()
-  if (pro) return null
+  if (pro) return <AssistantRailButton />
   const active = isActivePath(pathname, "/dashboard/plano")
   return (
     <RailTip label="Fazer upgrade">
@@ -328,7 +329,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
         {account ? <AccountGroup account={account} pathname={pathname} {...groupProps(account.label)} /> : null}
       </nav>
 
-      {/* The only thing anchored at the bottom: the card (the upgrade card for Free users, nothing for Pro). */}
+      {/* The only thing anchored at the bottom: the card (the upgrade card for Free users, the virtual assistant for Pro). */}
       <div className="flex shrink-0 flex-col px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
         {nav.features.plan ? <SidebarCta /> : <BackToAppButton className="w-full justify-start px-4" />}
       </div>

@@ -4,6 +4,8 @@ import Link from "next/link"
 import { BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
+
+import { AssistantCard } from "./assistant-card"
 import { cn } from "@/lib/utils"
 
 type CardProps = {
@@ -36,8 +38,8 @@ export function UpgradeCta({ onNavigate, className }: CardProps) {
   )
 }
 
-/** The card at the bottom of the sidebar: Free users see the upgrade card, Pro users see nothing. */
+/** The slot at the bottom of the sidebar: Free users see the upgrade card, Pro users the virtual assistant. */
 export function SidebarCta({ onNavigate, className }: CardProps) {
   const { pro } = usePlan()
-  return pro ? null : <UpgradeCta onNavigate={onNavigate} className={className} />
+  return pro ? <AssistantCard onNavigate={onNavigate} className={className} /> : <UpgradeCta onNavigate={onNavigate} className={className} />
 }
