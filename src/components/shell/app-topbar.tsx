@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
@@ -62,36 +62,25 @@ const KIND_ICONS: Record<NotificationKind, LucideIcon> = {
   reminder: AlarmClockIcon,
 }
 
+const PAGE = 50
+
 /**
- * The notification list: scrolls by wheel, touch and keyboard (focusing an item scrolls it into view) with no visible scrollbar, and
- * fades out at the bottom edge while there is more below, so it is clear the list goes on.
+ * The panel's scroll region: it takes whatever height the capped panel has left (flex-1, min-h-0), scrolls on its own and keeps the
+ * page behind still (overscroll-behavior: contain). It is a focusable region, so the arrow keys scroll it. `onScrolled` tells the
+ * header when to draw its hairline.
  */
-function FadeScroll({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLUListElement>(null)
-  const [more, setMore] = useState(false)
-  const measure = useCallback(() => {
-    const el = ref.current
-    if (el) setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
-  }, [])
-  useEffect(() => {
-    measure()
-    const el = ref.current
-    if (!el) return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [measure, children])
+function NotificationScroll({ onScrolled, children }: { onScrolled: (scrolled: boolean) => void; children: React.ReactNode }) {
   return (
-    <ul
-      ref={ref}
-      onScroll={measure}
-      className={cn(
-        "max-h-[70dvh] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        more && "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]"
-      )}
+    <div
+      role="region"
+      aria-label="Lista de notificações"
+      tabIndex={0}
+      data-testid="notifications-scroll"
+      onScroll={(event) => onScrolled(event.currentTarget.scrollTop > 0)}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 outline-none [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
     >
       {children}
-    </ul>
+    </div>
   )
 }
 
@@ -102,16 +91,18 @@ function FadeScroll({ children }: { children: React.ReactNode }) {
  */
 export function Bell({ bare = false }: { bare?: boolean }) {
   const { items, unread, markRead, markAllRead } = useNotifications()
+  const [scrolled, setScrolled] = useState(false)
+  const [shown, setShown] = useState(PAGE)
   return (
-    <Popover>
+    <Popover onOpenChange={() => setScrolled(false)}>
       <PopoverTrigger asChild>
         <Button variant={bare ? "ghost" : "surface"} size="icon" className={cn("relative rounded-full", bare && "size-10 md:size-10")} aria-label={unread > 0 ? `Notificações, ${unread} ${unread === 1 ? "nova" : "novas"}` : "Notificações"}>
           <BellIcon strokeWidth={1.75} />
           {unread > 0 ? <span aria-hidden data-testid="bell-dot" className={cn("absolute top-2 right-2.5 size-2 rounded-full bg-highlight ring-2", bare ? "ring-card" : "ring-background")} /> : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] gap-0 p-2">
-        <div className="flex items-center justify-between gap-2 px-3 py-1">
+      <PopoverContent align="end" className="max-h-[min(480px,70dvh)] w-80 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0 max-md:max-h-[80dvh]">
+        <div className={cn("flex shrink-0 items-center justify-between gap-2 border-b px-5 py-2 transition-colors duration-[400ms] motion-reduce:transition-none", scrolled ? "border-border" : "border-transparent")}>
           <p className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notificações</p>
           {unread > 0 ? (
             <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-3 text-[13px]" onClick={markAllRead}>
@@ -120,10 +111,11 @@ export function Bell({ bare = false }: { bare?: boolean }) {
           ) : null}
         </div>
         {items.length === 0 ? (
-          <p className="px-3 py-3 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app chegam aqui.</p>
+          <p className="px-5 py-4 text-[15px] leading-6 text-muted-foreground">Nada novo por aqui. Os avisos do app chegam aqui.</p>
         ) : (
-          <FadeScroll>
-            {items.map((n) => {
+          <NotificationScroll onScrolled={setScrolled}>
+            <ul>
+            {items.slice(0, shown).map((n) => {
               const Icon = KIND_ICONS[n.kind] ?? InfoIcon
               const row = (
                 <>
@@ -151,7 +143,13 @@ export function Bell({ bare = false }: { bare?: boolean }) {
                 </li>
               )
             })}
-          </FadeScroll>
+            </ul>
+            {items.length > shown ? (
+              <Button type="button" variant="ghost" className="mt-1 h-11 w-full rounded-xl text-[15px]" onClick={() => setShown((n) => n + PAGE)}>
+                Carregar mais
+              </Button>
+            ) : null}
+          </NotificationScroll>
         )}
       </PopoverContent>
     </Popover>
