@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { SquareKanbanIcon } from "lucide-react"
 
@@ -12,7 +13,12 @@ export const metadata: Metadata = { title: "Tarefas" }
 
 async function FirstBoardRedirect() {
   const boards = await getBoards()
-  if (boards.length > 0) redirect(`/dashboard/tarefas/${boards[0].id}`)
+  if (boards.length > 0) {
+    // The board that opens is never a coin toss: the one the person used last, otherwise the oldest (the default board they got at sign-up).
+    const last = (await cookies()).get("tasks_last_board")?.value
+    const oldest = [...boards].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0]
+    redirect(`/dashboard/tarefas/${boards.find((b) => b.id === last)?.id ?? oldest.id}`)
+  }
 
   return (
     <EmptyState

@@ -9,6 +9,7 @@ import { buildDemo, type Refs } from "../../scripts/demo/content.ts"
 const CATEGORIES = ["Moradia", "Mercado", "Restaurantes", "Transporte", "Saúde", "Lazer", "Assinaturas", "Educação", "Salário", "Renda extra", "Outros"]
 const refs: Refs = {
   userId: "00000000-0000-4000-8000-000000000000",
+  defaultBoard: { id: "00000000-0000-4000-8000-0000000000b0", lists: ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"] },
   categories: Object.fromEntries(CATEGORIES.map((n) => [n, `cat-${n}`])),
   foods: new Proxy({}, { get: (_t, name) => `food-${String(name)}` }) as Record<string, string>,
   exercises: new Proxy({}, { get: (_t, name) => `ex-${String(name)}` }) as Record<string, string>,

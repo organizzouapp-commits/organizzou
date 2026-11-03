@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { exportUsersCsv } from "@/features/admin/actions"
-import { listUsers, USER_PAGE_SIZE, userDetail, userHistory, type UserFilters as Filters } from "@/lib/admin/data"
+import { listUsers, testAccountIds, USER_PAGE_SIZE, userDetail, userHistory, type UserFilters as Filters } from "@/lib/admin/data"
 import { requireAdmin } from "@/lib/admin/guard"
 import { fmtDate, fmtDateTime } from "@/lib/admin/format"
 import { PLAN_LABELS, providerLabel, STATUS_LABELS } from "@/lib/admin/labels"
@@ -48,6 +48,15 @@ function SortHead({ filters, column, children, className }: { filters: Filters; 
   )
 }
 
+/** Marks a test account in the list: it is listed, but left out of the aggregate numbers. */
+function TestBadge() {
+  return (
+    <Badge variant="outline" className="shrink-0 rounded-full border-highlight/60 bg-highlight/15 whitespace-nowrap">
+      Teste
+    </Badge>
+  )
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -58,8 +67,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
   const { adminId } = await requireAdmin()
   const canWrite = secretKeyConfigured()
-  const [list, detail, history] = await Promise.all([
+  const [list, tests, detail, history] = await Promise.all([
     listUsers(filters, page),
+    testAccountIds(),
     selected ? userDetail(selected) : Promise.resolve(null),
     selected ? userHistory(selected) : Promise.resolve({ plans: [], audit: [] }),
   ])
@@ -127,6 +137,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           <AvatarFallback>{initials(row.name || row.email)}</AvatarFallback>
                         </Avatar>
                         <span className="truncate font-medium">{row.name || row.email.split("@")[0]}</span>
+                        {tests.has(row.id) ? <TestBadge /> : null}
                       </Link>
                     </TableCell>
                     <TableCell className="max-w-64 truncate text-muted-foreground">{row.email}</TableCell>
@@ -162,6 +173,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           audit={history.audit}
           canWrite={canWrite}
           adminId={adminId}
+          isTest={selected ? tests.has(selected) : false}
         />
       ) : null}
     </PageShell>

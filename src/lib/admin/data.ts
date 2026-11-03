@@ -103,6 +103,15 @@ export const listUsers = (filters: UserFilters, page: number, size = USER_PAGE_S
     p_size: size,
   })
 
+/**
+ * Ids of the test accounts (the demo account and every profile marked is_test). The user list always shows them, flagged "Teste", while
+ * the aggregate numbers leave them out. Until the migration that adds this function is applied the list is empty and nothing is flagged.
+ */
+export async function testAccountIds(): Promise<Set<string>> {
+  const result = await rpc<string[]>("test_account_ids")
+  return new Set(result.ok && Array.isArray(result.data) ? result.data : [])
+}
+
 export type UserDetail = {
   id: string
   email: string

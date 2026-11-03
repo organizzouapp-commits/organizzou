@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { EllipsisIcon } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -37,11 +37,26 @@ function bottomNavItems(nav: NavConfig): BottomNavItem[] {
   return [...nav.mobile.pill.map((item) => ({ id: item.href, label: item.label, icon: item.icon })), { id: MORE_ID, label: nav.mobile.more.label, icon: EllipsisIcon }]
 }
 
-// The profile is the source of truth for the theme across devices.
+/**
+ * The profile carries the theme across devices: when the app opens, a theme saved on the profile that differs from this device's is
+ * applied ONCE. It must not re-apply on later renders: the person's own click (header switch or Perfil) changes the theme here and is
+ * saved to the profile by useThemeChoice, and a stale profile value forcing itself back was exactly the "it won't go light" bug.
+ * "Sistema" is a choice made on this device only (the profile column stores light or dark), so it is left alone.
+ */
 function ThemeSync({ theme }: { theme?: string }) {
   const { setTheme } = useTheme()
+  const applied = useRef(false)
   useEffect(() => {
-    if (theme === "dark" || theme === "light") setTheme(theme)
+    if (applied.current) return
+    applied.current = true
+    let local: string | null = null
+    try {
+      local = window.localStorage.getItem("theme")
+    } catch {
+      // Blocked storage: the profile value is all there is.
+    }
+    if (local === "system") return
+    if ((theme === "dark" || theme === "light") && theme !== local) setTheme(theme)
   }, [theme, setTheme])
   return null
 }

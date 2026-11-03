@@ -44,6 +44,8 @@ async function findUser(target: string) {
   return null
 }
 
+const isDemoId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)
+
 const user = await findUser(email)
 if (!user) {
   console.error(`A conta ${email} ainda não existe. Entre uma vez no app com o Google usando esse e-mail (isso cria a conta) e rode o comando de novo.`)
@@ -66,8 +68,17 @@ const rows = async (table: string, columns: string) => {
   return (data ?? []) as unknown as Record<string, string>[]
 }
 const byName = (list: Record<string, string>[]) => Object.fromEntries(list.map((r) => [r.name, r.id]))
+// The board that opens by default: the oldest board that is not a demo one (the account's own, made at sign-up), with its lists in order.
+const ownBoards = ((await db.from("boards").select("id, created_at").eq("user_id", uid).eq("archived", false).order("created_at")).data ?? []).filter((b) => !isDemoId(b.id as string))
+const defaultBoardId = ownBoards[0]?.id as string | undefined
+const defaultLists = defaultBoardId ? (((await db.from("board_lists").select("id").eq("board_id", defaultBoardId).order("position")).data ?? []) as { id: string }[]).map((l) => l.id) : []
+if (!defaultBoardId || defaultLists.length < 3) {
+  console.error("Não achei o quadro padrão da conta com 3 listas (A fazer, Em andamento, Concluído). Rode antes: npm run users:backfill")
+  process.exit(1)
+}
 const refs: Refs = {
   userId: uid,
+  defaultBoard: { id: defaultBoardId, lists: defaultLists.slice(0, 3) },
   categories: byName(await rows("finance_categories", "id, name")),
   foods: byName(await rows("foods", "id, name")),
   exercises: byName(await rows("exercises", "id, name")),
@@ -84,7 +95,6 @@ const demo = buildDemo(new Date(), refs)
 const isMissingTable = (error: { code?: string }) => error.code === "PGRST205" || error.code === "42P01"
 const skipped: string[] = []
 
-const isDemoId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)
 
 async function demoIdsIn(table: string) {
   const found: string[] = []

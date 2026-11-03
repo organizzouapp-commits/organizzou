@@ -94,10 +94,12 @@ type UserPanelProps = {
   /** SUPABASE_SECRET_KEY is set on the server. Without it every write action is disabled. */
   canWrite: boolean
   adminId: string
+  /** A test account: listed with a "Teste" badge and left out of the aggregate numbers. */
+  isTest?: boolean
 }
 
 /** Right-hand panel from 1024 px, full-screen sheet below. Open while `?usuario=` is in the URL. */
-export function UserPanel({ detail, plans, audit, canWrite, adminId }: UserPanelProps) {
+export function UserPanel({ detail, plans, audit, canWrite, adminId, isTest = false }: UserPanelProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -130,6 +132,11 @@ export function UserPanel({ detail, plans, audit, canWrite, adminId }: UserPanel
                 <Badge variant="outline" className="rounded-full">
                   {STATUS_TEXT[status]}
                 </Badge>
+                {isTest ? (
+                  <Badge variant="outline" className="rounded-full border-highlight/60 bg-highlight/15">
+                    Teste
+                  </Badge>
+                ) : null}
               </div>
             </SheetHeader>
 

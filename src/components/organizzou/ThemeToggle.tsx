@@ -1,11 +1,12 @@
 "use client"
 
 import { MoonIcon, SunIcon } from "lucide-react"
-import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+
+import { useThemeChoice } from "./use-theme-choice"
 
 type ThemeToggleProps = {
   round?: boolean
@@ -19,7 +20,7 @@ type ThemeToggleProps = {
 // Both icons are always rendered and swapped with CSS, so there is no
 // hydration mismatch and no flash while next-themes resolves the theme.
 export function ThemeToggle({ round = false, surface = false, tooltip = false, className }: ThemeToggleProps) {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { resolved, choose } = useThemeChoice()
 
   const button = (
     <Button
@@ -27,7 +28,7 @@ export function ThemeToggle({ round = false, surface = false, tooltip = false, c
       size="icon"
       className={cn(round && "rounded-full", className)}
       aria-label="Alternar entre tema claro e escuro"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      onClick={() => choose(resolved === "dark" ? "light" : "dark")}
     >
       <SunIcon strokeWidth={1.75} className="hidden dark:block" />
       <MoonIcon strokeWidth={1.75} className="block dark:hidden" />
@@ -52,12 +53,12 @@ export function ThemeToggle({ round = false, surface = false, tooltip = false, c
  * follow the `dark` class on <html> (CSS only), so there is no hydration mismatch and no flash while next-themes resolves.
  */
 export function ThemeSwitch({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { resolved, choose } = useThemeChoice()
   return (
     <button
       type="button"
       aria-label="Alternar entre tema claro e escuro"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      onClick={() => choose(resolved === "dark" ? "light" : "dark")}
       className={cn(
         "relative flex h-11 shrink-0 items-center rounded-full border border-border bg-card p-[3px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         className

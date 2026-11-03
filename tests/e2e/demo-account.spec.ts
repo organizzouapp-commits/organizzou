@@ -95,7 +95,7 @@ test.describe("the demo account keeps what you do in Hoje", () => {
     await page.goto("/dashboard")
     const unread = page.getByRole("button", { name: /^Notificações, \d+ (nova|novas)$/ }).first()
     await expect(unread, "the demo has unread notifications (needs npm run seed:demo and migration 20261103000005)").toBeVisible({ timeout: 60000 })
-    await expect(page.getByTestId("bell-dot").first()).toBeVisible()
+    await expect(page.getByTestId("bell-dot").locator("visible=true").first()).toBeVisible()
     await unread.click()
     await expect(page.getByRole("img", { name: "Não lida" }).first()).toBeVisible()
     await page.getByRole("button", { name: "Marcar todas como lidas" }).click()

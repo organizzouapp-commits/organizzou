@@ -14,6 +14,7 @@ import { checkSeedRequest, PRODUCTION_FLAG } from "../../scripts/demo/guard.ts"
  */
 const refs: Refs = {
   userId: "00000000-0000-4000-8000-000000000000",
+  defaultBoard: { id: "00000000-0000-4000-8000-0000000000b0", lists: ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"] },
   categories: Object.fromEntries(["Moradia", "Mercado", "Restaurantes", "Transporte", "Saúde", "Lazer", "Assinaturas", "Educação", "Salário", "Renda extra", "Outros"].map((n) => [n, `cat-${n}`])),
   foods: new Proxy({}, { get: (_t, name) => `food-${String(name)}` }) as Record<string, string>,
   exercises: new Proxy({}, { get: (_t, name) => `ex-${String(name)}` }) as Record<string, string>,
@@ -127,7 +128,8 @@ describe("the demo content", () => {
   })
 
   it("every reference points to a row the demo (or the account's defaults) provides", () => {
-    const ids = new Set(demo.flatMap((t) => t.rows.map((r) => r.id as string)))
+    // The default board and its lists belong to the account (made at sign-up); the demo tasks hang off them.
+    const ids = new Set([...demo.flatMap((t) => t.rows.map((r) => r.id as string)), refs.defaultBoard.id, ...refs.defaultBoard.lists])
     const defaults = new Set([...Object.values(refs.categories), "food-", "ex-"])
     const parents: Record<string, string> = { board_id: "boards", list_id: "board_lists", task_id: "tasks", tag_id: "tags", habit_id: "habits", account_id: "finance_accounts", plan_id: "workout_plans", session_id: "workout_sessions", subject_id: "subjects", deck_id: "flashcard_decks", folder_id: "note_folders", goal_id: "life_goals" }
     for (const { table, rows } of demo) {

@@ -24,7 +24,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   const [profileResult, plan, openTasks, notifications, probe] = await Promise.all([
     supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle(),
     getUserPlan(supabase, userId),
-    bypassAuth ? 0 : supabase.from("tasks").select("id", { count: "exact", head: true }).is("completed_at", null).then((r) => r.count ?? 0),
+    bypassAuth ? 0 : openTaskCount(supabase),
     getNotifications(loose),
     // One cheap probe: are the module tables there yet? (The database update can land after the app update.)
     loose.from("habits").select("id", { head: true, count: "exact" }),
@@ -71,6 +71,18 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
 // First session load / session refresh: the blocking full-page state, with the full loading logotype (after ~300 ms).
 function ShellFallback() {
   return <LoadingScreen delayed />
+}
+
+/**
+ * Open tasks that are on a board the person can see: not done, not archived, and not on an archived board. The same predicate the
+ * boards use, so the badge and the board lists cannot disagree about what is open.
+ */
+async function openTaskCount(supabase: Awaited<ReturnType<typeof getSession>>["supabase"]) {
+  const boards = await supabase.from("boards").select("id").eq("archived", false)
+  const ids = (boards.data ?? []).map((b) => b.id)
+  if (ids.length === 0) return 0
+  const { count } = await supabase.from("tasks").select("id", { count: "exact", head: true }).is("completed_at", null).eq("archived", false).in("board_id", ids)
+  return count ?? 0
 }
 
 /** Shown only while the database update for the modules has not been applied: the app says so instead of pretending to save. */

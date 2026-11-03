@@ -39,14 +39,14 @@ Depois de aplicar a migration e rodar o seed de novo, rode `E2E_DEMO_SCREENSHOTS
 
 | Elemento / estado | Status | Captura |
 |---|---|---|
-| Quadro com 3 listas (Trabalho) e quadro com 4 listas (Lançamento do app); 5 quadros no total | Coberto | `tarefas-kanban-trabalho`, `tarefas-quatro-listas` |
-| Kanban, Lista e Calendário | Coberto | `tarefas-kanban-trabalho`, `tarefas-lista-trabalho`, `tarefas-calendario-trabalho` |
-| Tarefa atrasada, de hoje com hora, de amanhã, sem data | Coberto | `tarefas-kanban-trabalho` |
-| Prioridade alta, média, baixa | Coberto | `tarefas-kanban-trabalho`, `tarefas-lista-trabalho` |
-| Com checklist (1/3, 3/5), comentários, anexos (arquivos de verdade no Storage), etiquetas (Trabalho, Urgente...) | Coberto | `tarefas-kanban-trabalho`, `tarefas-detalhe-detalhe-relatorio` |
-| Concluída (coluna Concluído) | Coberto | `tarefas-kanban-trabalho` |
+| Quadro padrão "Minhas tarefas" (o que abre primeiro) com 16 cards nas 3 listas A fazer, Em andamento, Concluído; mais os quadros Faculdade (3 listas) e Lançamento do app (4 listas) no seletor | Coberto | `tarefas-kanban`, `tarefas-quatro-listas` |
+| Kanban, Lista e Calendário | Coberto | `tarefas-kanban`, `tarefas-lista`, `tarefas-calendario` |
+| Tarefa atrasada, de hoje com hora, de amanhã, sem data | Coberto | `tarefas-kanban` |
+| Prioridade alta, média, baixa | Coberto | `tarefas-kanban`, `tarefas-lista` |
+| Com checklist (1/3, 3/5), comentários, anexos (arquivos de verdade no Storage), etiquetas (Trabalho, Urgente...) | Coberto | `tarefas-kanban`, `tarefas-detalhe-detalhe-relatorio` |
+| Concluída (coluna Concluído) | Coberto | `tarefas-kanban` |
 | Tarefa ou quadro arquivado | Sem tela (arquivar só esconde; não há lista de arquivados) | |
-| Mais de 15 tarefas em vários quadros | Coberto (27 tarefas) | |
+| Mais de 15 tarefas no quadro que abre primeiro | Coberto (16 cards no quadro padrão; a etiqueta de Tarefas no menu conta as abertas de todos os quadros não arquivados) | `tarefas-kanban` |
 
 ## Agenda
 
