@@ -304,6 +304,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     toast(`${doomed.length} ${doomed.length === 1 ? "tarefa concluída removida" : "tarefas concluídas removidas"}.`)
   }
 
+  // Remember the board in use: /dashboard/tarefas opens it next time.
+  useEffect(() => {
+    document.cookie = `tasks_last_board=${initial.board.id}; path=/; max-age=31536000; samesite=lax`
+  }, [initial.board.id])
+
   // Keyboard shortcuts: N new, / search, E edit, Space complete, ? help (ignored while typing or with a dialog open).
   const shortcutRef = useRef<(event: KeyboardEvent) => void>(() => {})
   useEffect(() => {

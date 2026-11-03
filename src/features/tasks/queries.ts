@@ -9,7 +9,7 @@ export async function getBoards() {
   const { supabase } = await getSession()
   const { data } = await supabase
     .from("boards")
-    .select("id, name")
+    .select("id, name, created_at")
     .eq("archived", false)
     .order("position")
     .order("created_at")

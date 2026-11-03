@@ -12,6 +12,8 @@ export type Row = Record<string, unknown>
 
 /** What already exists in the account (created by the sign-up provisioning or the catalogs) that demo rows point to. */
 export type Refs = {
+  /** The board that opens by default (the one the account got at sign-up) and its lists in order: A fazer, Em andamento, Concluído. */
+  defaultBoard: { id: string; lists: string[] }
   /** The account the rows are for: attachment files live under `<user id>/...` in Storage. */
   userId: string
   categories: Record<string, string>
@@ -120,10 +122,13 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     attachments?: [name: string, mime: string, text: string][]
     done?: boolean
   }
-  const boards: { key: string; name: string; lists: string[]; tasks: TaskSeed[][] }[] = [
+  // `into: "default"`: these tasks go onto the account's default board (spread over its three lists) instead of a board of their own,
+  // so the board that opens first is full. The other boards stay as extra boards in the selector.
+  const boards: { key: string; name: string; lists: string[]; tasks: TaskSeed[][]; into?: "default" }[] = [
     {
       key: "work",
       name: "Trabalho",
+      into: "default",
       lists: ["A fazer", "Em andamento", "Concluído"],
       tasks: [
         [
@@ -145,6 +150,7 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     {
       key: "home",
       name: "Casa e vida",
+      into: "default",
       lists: ["Ideias", "Fazendo", "Feito"],
       tasks: [
         [
@@ -198,11 +204,11 @@ export function buildDemo(now: Date, refs: Refs): Demo {
     ],
   })
   boards.forEach((b, bi) => {
-    const boardId = id("boards", b.key)
-    add("boards", { id: boardId, name: `${b.name}`, position: (bi + 1) * 1000 + 500, archived: false })
+    const boardId = b.into === "default" ? refs.defaultBoard.id : id("boards", b.key)
+    if (!b.into) add("boards", { id: boardId, name: `${b.name}`, position: (bi + 1) * 1000 + 500, archived: false })
     b.lists.forEach((listName, li) => {
-      const listId = id("board_lists", `${b.key}:${li}`)
-      add("board_lists", { id: listId, board_id: boardId, name: listName, position: (li + 1) * 1000, is_done_list: li === b.lists.length - 1 })
+      const listId = b.into === "default" ? refs.defaultBoard.lists[li] : id("board_lists", `${b.key}:${li}`)
+      if (!b.into) add("board_lists", { id: listId, board_id: boardId, name: listName, position: (li + 1) * 1000, is_done_list: li === b.lists.length - 1 })
       b.tasks[li].forEach((t, ti) => {
         const taskId = id("tasks", `${b.key}:${t.key}`)
         add("tasks", {
@@ -216,7 +222,7 @@ export function buildDemo(now: Date, refs: Refs): Demo {
           due_has_time: Boolean(t.due?.[1]),
           category: t.category ?? null,
           swatch: t.swatch ?? "neutro",
-          position: (ti + 1) * 1000,
+          position: (ti + 1) * 1000 + bi,
           completed_at: li === b.lists.length - 1 ? at(-1 - ti, "16:30") : null,
           archived: false,
         })

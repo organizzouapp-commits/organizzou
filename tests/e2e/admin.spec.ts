@@ -239,3 +239,52 @@ test.describe("change plan (real project)", () => {
     await person.close()
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The demo account is a test account: the user list always shows it with a "Teste" badge (the aggregate numbers leave it out), and an
+// admin can change its plan like any other. Needs the migration 20261103000006 applied, an admin login and the demo session
+// (E2E_DEMO_SESSION=1). It puts the account back to Gratuito at the end.
+const DEMO_EMAIL = "organizzouapp@gmail.com"
+
+test.describe("test accounts (real project)", () => {
+  test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD || !process.env.E2E_DEMO_SESSION, "Set E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD and E2E_DEMO_SESSION=1 (server WITHOUT PROTOTYPE_BYPASS_AUTH).")
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  async function changeDemoTo(page: Page, plan: "Pro" | "Gratuito", toast: RegExp) {
+    await page.goto(`/admin/usuarios?q=${encodeURIComponent(DEMO_EMAIL)}`)
+    await page.getByRole("link", { name: /Abrir/ }).first().click()
+    await page.getByRole("button", { name: "Alterar plano" }).click()
+    const dialog = page.getByRole("alertdialog")
+    await dialog.getByRole("combobox", { name: "Novo plano" }).click()
+    await page.getByRole("option", { name: plan, exact: true }).click()
+    await dialog.getByRole("button", { name: "Alterar plano" }).click()
+    await expect(page.getByText(toast)).toBeVisible({ timeout: 30000 })
+  }
+
+  test("listed with the Teste badge; Pro and back to Gratuito are audited and show at once in the account's app", async ({ page, browser, baseURL }) => {
+    const { demoSessionCookies } = await import("./helpers/demo-session")
+    await page.context().addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
+    await signIn(page, ADMIN_EMAIL!, ADMIN_PASSWORD!)
+
+    await page.goto(`/admin/usuarios?q=${encodeURIComponent(DEMO_EMAIL)}`)
+    const row = page.getByRole("row", { name: new RegExp(escapeRe(DEMO_EMAIL)) }).or(page.getByRole("row", { name: /Teste/ })).first()
+    await expect(row.getByText("Teste", { exact: true })).toBeVisible({ timeout: 30000 })
+
+    const person = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    await person.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }, ...(await demoSessionCookies(DEMO_EMAIL, baseURL!))])
+    const app = await person.newPage()
+    await app.goto("/dashboard")
+    await expect(app.getByRole("link", { name: "Fazer upgrade" }).first()).toBeVisible({ timeout: 30000 })
+
+    await changeDemoTo(page, "Pro", /Plano Pro ativado/)
+    await page.goto("/admin/auditoria")
+    await expect(page.getByRole("row", { name: /Plano alterado/ }).first()).toBeVisible({ timeout: 30000 })
+    await app.reload()
+    await expect(app.getByRole("link", { name: "Fazer upgrade" })).toHaveCount(0)
+
+    await changeDemoTo(page, "Gratuito", /Plano alterado para Gratuito/)
+    await app.reload()
+    await expect(app.getByRole("link", { name: "Fazer upgrade" }).first()).toBeVisible()
+    await person.close()
+  })
+})
