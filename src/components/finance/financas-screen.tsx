@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { GOAL_ICON_KEYS, localGoalIconRepo, type GoalIconKey } from "@/features/finance/goal-icons"
 import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-history"
+import { localAccountMetaRepo, orderAccounts, type AccountLayout, type AccountMeta } from "@/features/finance/account-meta"
 import { featureFirst, localGoalLayoutRepo } from "@/features/finance/goal-layout"
 import { monthOf, shiftMonth } from "@/features/finance/stats"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils"
 
 import { BillsTab } from "./bills"
 import { FinanceProvider, type Filters, type Finance, type FinanceInitial, type TabId } from "./context"
+import { AccountManager, DeleteAccountDialog } from "./accounts"
 import { AccountDialog, BillDialog, FundDialog, GoalDialog, LimitsDialog, TransactionDialog } from "./dialogs"
 import { GoalsDesktop, GoalsMobile } from "./goals"
 import { OverviewDesktop, OverviewMobile } from "./overview"
@@ -72,7 +74,8 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [tab, setTab] = useState<TabId>("visao")
   const [month, setMonth] = useState(monthOf(today))
   const [filters, setFiltersState] = useState<Filters>({ kind: "all", category: "all", query: "", sort: "date-desc" })
-  const [accounts, setAccounts] = useRows<AccountRow>("finance_accounts", initial.accounts, memory)
+  const [allAccounts, setAccounts] = useRows<AccountRow>("finance_accounts", initial.accounts, memory)
+  const [accountLayout, setAccountLayout] = useState<AccountLayout>({ meta: {}, order: [] })
   const [categories, setCategories] = useRows<CategoryRow>("finance_categories", initial.categories, memory)
   const [transactions, setTransactions] = useRows<TransactionRow>("finance_transactions", initial.transactions, memory)
   const [bills, setBills] = useRows<RecurringBillRow>("finance_bills", initial.bills, memory)
@@ -84,7 +87,9 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
   const [fundGoal, setFundGoal] = useState<FinancialGoalRow | null>(null)
-  const [accountOpen, setAccountOpen] = useState(false)
+  const [accountDialog, setAccountDialog] = useState<{ row: AccountRow | null } | null>(null)
+  const [managerOpen, setManagerOpen] = useState(false)
+  const [deleteAccountTarget, setDeleteAccountTarget] = useState<AccountRow | null>(null)
   const [limitsOpen, setLimitsOpen] = useState(false)
   const [filterSheet, setFilterSheet] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -95,11 +100,13 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     setGoalIcons(localGoalIconRepo.load())
     setGoalHistory(localGoalHistoryRepo.load())
     setGoalOrderState(localGoalLayoutRepo.load())
+    setAccountLayout(localAccountMetaRepo.load())
   }, [])
 
   const setFilters = useCallback((next: Partial<Filters>) => setFiltersState((current) => ({ ...current, ...next })), [])
   const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? "Sem categoria"
-  const accountName = (id: string) => accounts.find((a) => a.id === id)?.name ?? ""
+  const accounts = orderAccounts(allAccounts, accountLayout.order).filter((a) => !accountLayout.meta[a.id]?.archived)
+  const accountName = (id: string) => allAccounts.find((a) => a.id === id)?.name ?? ""
 
   // ---------------------------------------------------------- transactions
   function saveTransaction(row: TransactionRow) {
@@ -251,9 +258,64 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   }
 
   // ------------------------------------------------- accounts and limits
-  function saveAccount(row: AccountRow) {
-    setAccounts((current) => [...current, row])
-    undoable("Conta adicionada.", () => setAccounts((current) => current.filter((a) => a.id !== row.id)))
+  function changeLayout(update: (layout: AccountLayout) => AccountLayout) {
+    setAccountLayout((current) => {
+      const next = update(current)
+      localAccountMetaRepo.save(next)
+      return next
+    })
+  }
+
+  function saveAccount(row: AccountRow, meta: AccountMeta) {
+    const previous = allAccounts.find((a) => a.id === row.id)
+    const previousMeta = accountLayout.meta[row.id]
+    setAccounts((current) => (previous ? current.map((a) => (a.id === row.id ? row : a)) : [...current, row]))
+    changeLayout((layout) => ({ ...layout, meta: { ...layout.meta, [row.id]: meta } }))
+    if (previous) {
+      undoable("Conta atualizada.", () => {
+        setAccounts((current) => current.map((a) => (a.id === row.id ? previous : a)))
+        changeLayout((layout) => ({ ...layout, meta: { ...layout.meta, [row.id]: previousMeta ?? {} } }))
+      })
+    } else undoable("Conta adicionada.", () => setAccounts((current) => current.filter((a) => a.id !== row.id)))
+  }
+
+  function renameAccount(row: AccountRow, name: string) {
+    const next = name.trim()
+    if (!next || next === row.name) return
+    setAccounts((current) => current.map((a) => (a.id === row.id ? { ...a, name: next, updated_at: nowIso } : a)))
+    undoable("Conta renomeada.", () => setAccounts((current) => current.map((a) => (a.id === row.id ? row : a))))
+  }
+
+  function setAccountArchived(row: AccountRow, archived: boolean) {
+    changeLayout((layout) => ({ ...layout, meta: { ...layout.meta, [row.id]: { ...layout.meta[row.id], archived } } }))
+    undoable(archived ? `${row.name} arquivada.` : `${row.name} reativada.`, () => changeLayout((layout) => ({ ...layout, meta: { ...layout.meta, [row.id]: { ...layout.meta[row.id], archived: !archived } } })))
+  }
+
+  function reorderAccounts(ids: string[]) {
+    changeLayout((layout) => ({ ...layout, order: ids }))
+  }
+
+  const accountTxCount = (id: string) => transactions.filter((t) => t.account_id === id).length
+
+  function deleteAccount(row: AccountRow, how: { kind: "plain" } | { kind: "move"; to: string } | { kind: "cascade" }) {
+    const mine = transactions.filter((t) => t.account_id === row.id)
+    const meta = accountLayout.meta[row.id]
+    const order = accountLayout.order
+    if (how.kind === "move") setTransactions((current) => current.map((t) => (t.account_id === row.id ? { ...t, account_id: how.to } : t)))
+    if (how.kind === "cascade") setTransactions((current) => current.filter((t) => t.account_id !== row.id))
+    setAccounts((current) => current.filter((a) => a.id !== row.id))
+    changeLayout((layout) => {
+      const rest = { ...layout.meta }
+      delete rest[row.id]
+      return { meta: rest, order: layout.order.filter((id) => id !== row.id) }
+    })
+    const message = how.kind === "cascade" ? `${row.name} e ${mine.length} ${mine.length === 1 ? "lançamento excluídos" : "lançamentos excluídos"}.` : `${row.name} excluída.`
+    undoable(message, () => {
+      setAccounts((current) => [...current, row])
+      if (how.kind === "cascade") setTransactions((current) => [...mine, ...current].sort(byDayDesc))
+      if (how.kind === "move") setTransactions((current) => current.map((t) => (mine.some((m) => m.id === t.id) ? { ...t, account_id: row.id } : t)))
+      changeLayout((layout) => ({ meta: meta ? { ...layout.meta, [row.id]: meta } : layout.meta, order }))
+    })
   }
 
   function saveLimits(limits: Record<string, number | null>) {
@@ -267,6 +329,9 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     month,
     isMobile,
     accounts,
+    allAccounts,
+    accountMeta: accountLayout.meta,
+    accountOrder: accountLayout.order,
     categories,
     transactions,
     bills,
@@ -302,8 +367,16 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     featureGoal,
     openNewGoal: () => setGoalDialog({ row: null }),
     saveAccount,
+    renameAccount,
+    setAccountArchived,
+    reorderAccounts,
+    accountTxCount,
+    deleteAccount,
+    editAccount: (row) => setAccountDialog({ row }),
+    askDeleteAccount: setDeleteAccountTarget,
+    openAccountManager: () => setManagerOpen(true),
     saveLimits,
-    openNewAccount: () => setAccountOpen(true),
+    openNewAccount: () => setAccountDialog({ row: null }),
     openTransfer: () => toast("Transferências entre contas ainda não estão disponíveis."),
     openLimits: () => setLimitsOpen(true),
   }
@@ -403,7 +476,9 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       <BillDialog open={Boolean(billDialog)} onOpenChange={(open) => !open && setBillDialog(null)} row={billDialog?.row ?? null} />
       <GoalDialog open={Boolean(goalDialog)} onOpenChange={(open) => !open && setGoalDialog(null)} row={goalDialog?.row ?? null} />
       <FundDialog goal={fundGoal} onClose={() => setFundGoal(null)} />
-      <AccountDialog open={accountOpen} onOpenChange={setAccountOpen} />
+      <AccountDialog open={Boolean(accountDialog)} onOpenChange={(open) => !open && setAccountDialog(null)} row={accountDialog?.row ?? null} />
+      <AccountManager open={managerOpen} onOpenChange={setManagerOpen} />
+      <DeleteAccountDialog row={deleteAccountTarget} onClose={() => setDeleteAccountTarget(null)} />
       <LimitsDialog open={limitsOpen} onOpenChange={setLimitsOpen} />
       <FiltersSheet open={filterSheet} onOpenChange={setFilterSheet} />
     </FinanceProvider>

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowDownRightIcon, ArrowLeftRightIcon, ArrowUpRightIcon, CircleAlertIcon, PlusIcon, ReceiptIcon, ScaleIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowDownRightIcon, ArrowLeftRightIcon, ArrowUpRightIcon, CircleAlertIcon, PlusIcon, ReceiptIcon, ScaleIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { monthlySeries } from "@/features/finance/stats"
@@ -14,9 +14,12 @@ import { BentoCard, BentoStat, BudgetRing, CashflowChart, SegmentedPills, Wallet
 import { BillMini } from "./bill-mini"
 import { useFinance } from "./context"
 import { derive, variation } from "./derive"
+import { AccountMenu } from "./accounts"
+import { accountIcon, accountIconKey } from "./dialogs"
 import { GoalRing, useGoalSets } from "./goals"
 import { AddPill, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, HeroPill, MoneyText, ProgressBar, StatusChip, useCategoryColor } from "./parts"
 import { accountBalance } from "@/features/finance/stats"
+import type { AccountRow } from "@/features/finance/types"
 
 // ------------------------------------------------------------------ hero and stats
 
@@ -76,8 +79,8 @@ function SpendRow({ row }: { row: ReturnType<typeof derive>["categories"][number
   const color = useCategoryColor(category.id)
   const pct = ratio === null ? 0 : ratio * 100
   return (
-    <div data-category-card={category.id} className="grid min-w-0 grid-cols-[32px_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5">
-      <CategoryCircle id={category.id} name={category.name} size="sm" className="row-span-2" />
+    <div data-category-card={category.id} className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5">
+      <CategoryCircle id={category.id} name={category.name} size="lg" className="row-span-2" />
       <div className="flex min-w-0 items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[15px] leading-6 font-medium">{category.name}</span>
@@ -124,7 +127,7 @@ export function SpendingBento() {
   const d = derive(f)
   return (
     <BentoCard title="Onde estou gastando" onArrow={() => f.goTab("lancamentos")} arrowLabel="Ver lançamentos" data-testid="spending-card" className="h-full">
-      <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-4">
         {d.categories.slice(0, 5).map((row) => (
           <SpendRow key={row.category.id} row={row} />
         ))}
@@ -198,13 +201,40 @@ export function WatchBento() {
   )
 }
 
+/** One wallet with everything it needs from the finance context: the account's icon, color, status chip, ⋯ menu and edit on tap. */
+function Wallet({ account, className }: { account: AccountRow; className?: string }) {
+  const f = useFinance()
+  const meta = f.accountMeta[account.id]
+  return (
+    <WalletMiniCard
+      account={account}
+      balance={accountBalance(account, f.transactions)}
+      icon={accountIcon(accountIconKey(account, meta))}
+      swatch={meta?.color}
+      chip={meta?.archived ? "Arquivada" : "Ativa"}
+      onOpen={() => f.editAccount(account)}
+      menu={<AccountMenu account={account} />}
+      className={className}
+    />
+  )
+}
+
+const ManageButton = () => {
+  const f = useFinance()
+  return (
+    <Button type="button" variant="outline" size="sm" data-manage-accounts onClick={f.openAccountManager}>
+      <SettingsIcon strokeWidth={1.75} /> Gerenciar
+    </Button>
+  )
+}
+
 export function AccountsBento() {
   const f = useFinance()
   return (
-    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} className="h-full" data-testid="accounts-card">
+    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} actions={<ManageButton />} className="h-full" data-testid="accounts-card">
       <div className="grid grid-cols-2 gap-3">
         {f.accounts.slice(0, 4).map((a) => (
-          <WalletMiniCard key={a.id} account={a} balance={accountBalance(a, f.transactions)} />
+          <Wallet key={a.id} account={a} />
         ))}
       </div>
       <AddPill label="Adicionar conta…" onClick={f.openNewAccount} />
@@ -216,10 +246,10 @@ export function AccountsBento() {
 export function AccountsCarousel() {
   const f = useFinance()
   return (
-    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} data-testid="accounts-card">
+    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} actions={<ManageButton />} data-testid="accounts-card">
       <div data-testid="accounts-carousel" className="scroll-soft -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
         {f.accounts.map((a) => (
-          <WalletMiniCard key={a.id} account={a} balance={accountBalance(a, f.transactions)} className="w-[152px] shrink-0 snap-start" />
+          <Wallet key={a.id} account={a} className="w-[152px] shrink-0 snap-start" />
         ))}
         <button type="button" data-add-task-pill onClick={f.openNewAccount} className="flex w-[152px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border p-3 text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
           <PlusIcon aria-hidden strokeWidth={1.75} className="size-5" />

@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useId, useRef } from "react"
-import { ArrowUpRightIcon, BanknoteIcon, LandmarkIcon, type LucideIcon } from "lucide-react"
+import { ArrowUpRightIcon, type LucideIcon } from "lucide-react"
 
 import { useLabelColors } from "@/components/tasks/label-colors-context"
 import type { AccountRow } from "@/features/finance/types"
 import { resolveHex } from "@/features/tasks/colors"
 import { formatBRL } from "@/lib/money"
+import { swatches, type SwatchId } from "@/lib/swatches"
 import { cn } from "@/lib/utils"
 
 import { MoneyText, SUMMARY_CARD } from "./parts"
@@ -305,17 +306,22 @@ export function Sparkline({ points, label, tone = "inverse", className }: { poin
 
 // ------------------------------------------------------------------ wallets and timeline
 
-export function WalletMiniCard({ account, balance, className }: { account: AccountRow; balance: number; className?: string }) {
+/** A wallet: the icon circle (tinted with the account's swatch), the name and balance, a status chip; tapping the card opens `onOpen`, the ⋯ menu comes from `menu`. */
+export function WalletMiniCard({ account, balance, icon: Icon, swatch, chip = "Ativa", onOpen, menu, className }: { account: AccountRow; balance: number; icon: LucideIcon; swatch?: SwatchId; chip?: string; onOpen?: () => void; menu?: React.ReactNode; className?: string }) {
+  const tint = swatch && swatch !== "neutro"
   return (
-    <div data-account={account.id} data-wallet className={cn("flex min-w-0 flex-col gap-2 rounded-[14px] border border-border bg-card p-3", className)}>
-      <span aria-hidden className="flex size-9 items-center justify-center rounded-full border border-border bg-muted/50">
-        {account.institution === "Dinheiro" ? <BanknoteIcon strokeWidth={1.75} className="size-4" /> : <LandmarkIcon strokeWidth={1.75} className="size-4" />}
-      </span>
-      <div className="flex min-w-0 flex-col">
+    <div data-account={account.id} data-wallet className={cn("relative flex min-w-0 flex-col gap-2 rounded-[14px] border border-border bg-card p-3", className)}>
+      <div className="flex items-start justify-between">
+        <span aria-hidden className={cn("flex size-9 items-center justify-center rounded-full border", tint ? cn("border-transparent", swatches[swatch].fill, swatch === "grafite" || swatch === "tinta-verso" ? "text-palette-papel" : "text-palette-tinta") : "border-border bg-muted/50")}>
+          <Icon strokeWidth={1.75} className="size-4" />
+        </span>
+        <span className="-mt-1 -mr-1 relative z-10">{menu}</span>
+      </div>
+      <button type="button" data-wallet-open onClick={onOpen} disabled={!onOpen} className="flex min-w-0 flex-col text-left outline-none after:absolute after:inset-0 after:rounded-[14px] focus-visible:after:ring-3 focus-visible:after:ring-ring/50">
         <span className="truncate text-[13px] leading-5 text-muted-foreground">{account.name}</span>
         <MoneyText cents={balance} tone="value" dimDecimals className="text-[16px] leading-6 font-semibold" />
-      </div>
-      <span className="inline-flex h-6 w-fit items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 text-muted-foreground">Ativa</span>
+      </button>
+      <span className="inline-flex h-6 w-fit items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 text-muted-foreground">{chip}</span>
     </div>
   )
 }

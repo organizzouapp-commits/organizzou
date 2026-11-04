@@ -1,18 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { CircleAlertIcon, PlusIcon } from "lucide-react"
+import { BanknoteIcon, CircleAlertIcon, CreditCardIcon, LandmarkIcon, PiggyBankIcon, PlusIcon, WalletIcon } from "lucide-react"
 
 import { ManageablePicker } from "@/components/tasks/manageable-picker"
 import { PillTabs, dashedPillClass, pillClass } from "@/components/tasks/pill-tabs"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
+import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ACCOUNT_ICON_KEYS, ACCOUNT_ICON_LABELS, ACCOUNT_KINDS, ACCOUNT_KIND_LABELS, DEFAULT_ICON, type AccountIconKey, type AccountKind, type AccountMeta } from "@/features/finance/account-meta"
 import { GOAL_ICON_KEYS, GOAL_ICON_LABELS, type GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { formatBRL, parseBRL } from "@/lib/money"
+import type { SwatchId } from "@/lib/swatches"
 import { newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
@@ -197,7 +201,7 @@ function TransactionForm({ row, onClose }: { row: TransactionRow | null; onClose
             <SelectValue placeholder="Escolha a conta" />
           </SelectTrigger>
           <SelectContent>
-            {f.accounts.map((a) => (
+            {f.allAccounts.filter((a) => a.id === row?.account_id || f.accounts.some((x) => x.id === a.id)).map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.name}
               </SelectItem>
@@ -415,21 +419,40 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
 
 // ----------------------------------------------------------- Conta
 
-export function AccountDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function AccountDialog({ open, onOpenChange, row }: { open: boolean; onOpenChange: (open: boolean) => void; row: AccountRow | null }) {
   return (
-    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title="Nova conta" description="Uma conta, banco ou carteira para registrar seus lançamentos.">
-      {open ? <AccountForm onClose={() => onOpenChange(false)} /> : null}
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={row ? "Editar conta" : "Nova conta"} description="Uma conta, banco, carteira, cartão ou poupança para registrar seus lançamentos.">
+      {open ? <AccountForm key={row?.id ?? "new"} row={row} onClose={() => onOpenChange(false)} /> : null}
     </ResponsiveSheet>
   )
 }
 
-function AccountForm({ onClose }: { onClose: () => void }) {
+const ACCOUNT_ICON_COMPONENTS = { landmark: LandmarkIcon, wallet: WalletIcon, card: CreditCardIcon, piggy: PiggyBankIcon, banknote: BanknoteIcon } as const
+export const accountIcon = (key: AccountIconKey) => ACCOUNT_ICON_COMPONENTS[key]
+
+/** The icon a wallet shows: the one chosen, else the one of its kind (an old "Dinheiro" account keeps the banknote). */
+export function accountIconKey(row: AccountRow, meta: AccountMeta | undefined): AccountIconKey {
+  return meta?.icon ?? (meta?.kind ? DEFAULT_ICON[meta.kind] : row.institution === "Dinheiro" ? "banknote" : "landmark")
+}
+
+export function AccountGlyph({ account, meta, className }: { account: AccountRow; meta: AccountMeta | undefined; className?: string }) {
+  const Icon = ACCOUNT_ICON_COMPONENTS[accountIconKey(account, meta)]
+  return <Icon aria-hidden strokeWidth={1.75} className={className} />
+}
+
+function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => void }) {
   const f = useFinance()
-  const [name, setName] = useState("")
-  const [institution, setInstitution] = useState("")
-  const [opening, setOpening] = useState("")
+  const meta = row ? f.accountMeta[row.id] : undefined
+  const [name, setName] = useState(row?.name ?? "")
+  const [institution, setInstitution] = useState(row && row.institution !== row.name ? row.institution : "")
+  const [opening, setOpening] = useState(row ? (row.opening_balance_cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "")
+  const [kind, setKind] = useState<AccountKind>(meta?.kind ?? "bank")
+  const [icon, setIcon] = useState<AccountIconKey | null>(meta?.icon ?? null)
+  const [color, setColor] = useState<SwatchId>(meta?.color ?? "neutro")
+  const [archived, setArchived] = useState(meta?.archived ?? false)
   const [tried, setTried] = useState(false)
   const error = name.trim() ? null : "Dê um nome para a conta."
+  const shownIcon = icon ?? DEFAULT_ICON[kind]
   return (
     <form
       noValidate
@@ -439,8 +462,16 @@ function AccountForm({ onClose }: { onClose: () => void }) {
         setTried(true)
         if (error) return
         const now = new Date().toISOString()
-        const account: AccountRow = { id: newId(), user_id: USER, name: name.trim(), institution: institution.trim() || name.trim(), opening_balance_cents: parseBRL(opening) ?? 0, created_at: now, updated_at: now }
-        f.saveAccount(account)
+        const account: AccountRow = {
+          id: row?.id ?? newId(),
+          user_id: row?.user_id ?? USER,
+          name: name.trim(),
+          institution: institution.trim() || name.trim(),
+          opening_balance_cents: parseBRL(opening) ?? 0,
+          created_at: row?.created_at ?? now,
+          updated_at: now,
+        }
+        f.saveAccount(account, { kind, icon: icon ?? undefined, color, archived })
         onClose()
       }}
     >
@@ -450,10 +481,51 @@ function AccountForm({ onClose }: { onClose: () => void }) {
       <Field label="Instituição (opcional)" htmlFor="acc-inst">
         <Input id="acc-inst" value={institution} maxLength={60} placeholder="Ex.: Nu Pagamentos" onChange={(e) => setInstitution(e.target.value)} className={INPUT} />
       </Field>
-      <Field label="Saldo inicial (opcional)" htmlFor="acc-open">
+      <Field label="Tipo">
+        <div role="radiogroup" aria-label="Tipo da conta" className="flex flex-wrap gap-2">
+          {ACCOUNT_KINDS.map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={pillClass(kind === k)}>
+              {ACCOUNT_KIND_LABELS[k]}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Ícone">
+        <div role="radiogroup" aria-label="Ícone da conta" className="flex flex-wrap gap-2">
+          {ACCOUNT_ICON_KEYS.map((key) => {
+            const Icon = accountIcon(key)
+            const on = shownIcon === key
+            return (
+              <button key={key} type="button" role="radio" aria-checked={on} aria-label={ACCOUNT_ICON_LABELS[key]} title={ACCOUNT_ICON_LABELS[key]} onClick={() => setIcon(key)} className={cn("relative flex size-11 items-center justify-center rounded-full border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:size-10", on ? "border-transparent bg-highlight text-highlight-foreground" : "border-border")}>
+                <Icon aria-hidden strokeWidth={1.75} className="size-[18px]" />
+              </button>
+            )
+          })}
+        </div>
+      </Field>
+      <Field label="Cor">
+        <SwatchPicker value={color} onChange={setColor} label="Cor da conta" />
+      </Field>
+      <Field label={row ? "Saldo inicial" : "Saldo inicial (opcional)"} htmlFor="acc-open" helper={row ? "O saldo atual é este valor mais as entradas e menos as saídas. Ajuste-o para corrigir o saldo." : undefined}>
         <Input id="acc-open" inputMode="decimal" placeholder="R$ 0,00" value={opening} onChange={(e) => setOpening(e.target.value)} className={INPUT} />
       </Field>
-      <Footer onCancel={onClose} submit="Adicionar conta" />
+      {row ? (
+        <label className="flex min-h-11 items-center justify-between gap-3 text-[15px]">
+          Arquivada
+          <Switch checked={archived} onCheckedChange={setArchived} aria-label="Arquivada" />
+        </label>
+      ) : null}
+      <Footer
+        onCancel={onClose}
+        submit={row ? "Salvar" : "Adicionar conta"}
+        extra={
+          row ? (
+            <Button type="button" variant="outline" className="h-11 flex-1 md:mr-auto md:h-10 md:flex-none" onClick={() => (onClose(), f.askDeleteAccount(row))}>
+              Excluir conta
+            </Button>
+          ) : null
+        }
+      />
     </form>
   )
 }

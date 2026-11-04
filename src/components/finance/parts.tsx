@@ -87,12 +87,12 @@ export function useCategoryColor(id: string | null | undefined) {
 }
 
 /** A circle with the category icon, tinted with its color (16% fill, 30% border) or neutral when it has none. */
-export function CategoryCircle({ id, name, size = "md", className }: { id?: string | null; name: string; size?: "sm" | "md"; className?: string }) {
+export function CategoryCircle({ id, name, size = "md", className }: { id?: string | null; name: string; size?: "sm" | "md" | "lg"; className?: string }) {
   const hex = useCategoryColor(id)
   const Icon = CATEGORY_ICONS[name] ?? TagIcon
   return (
-    <span aria-hidden data-category-circle style={hex ? tintStyle(hex) : undefined} className={cn("flex shrink-0 items-center justify-center rounded-full border", hex ? "" : "border-border bg-muted/50", size === "md" ? "size-10" : "size-8", className)}>
-      <Icon strokeWidth={1.75} className={size === "md" ? "size-[18px]" : "size-4"} />
+    <span aria-hidden data-category-circle style={hex ? tintStyle(hex) : undefined} className={cn("flex shrink-0 items-center justify-center rounded-full border", hex ? "" : "border-border bg-muted/50", size === "lg" ? "size-11" : size === "md" ? "size-10" : "size-8", className)}>
+      <Icon strokeWidth={1.75} className={size === "lg" ? "size-5" : size === "md" ? "size-[18px]" : "size-4"} />
     </span>
   )
 }

@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react"
 
 import type { GoalHistory } from "@/features/finance/goal-history"
+import type { AccountMeta } from "@/features/finance/account-meta"
 import type { GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 
@@ -21,7 +22,13 @@ export type Finance = {
   /** "yyyy-MM" on show (the toolbar). */
   month: string
   isMobile: boolean
+  /** The accounts in use, in the order the person chose: archived ones are left out (pickers, totals, wallets). */
   accounts: AccountRow[]
+  /** Every account, archived included (names of old lançamentos, the manager). */
+  allAccounts: AccountRow[]
+  accountMeta: Record<string, AccountMeta>
+  /** Account ids in the order the person chose (empty = creation order). */
+  accountOrder: string[]
   categories: CategoryRow[]
   transactions: TransactionRow[]
   bills: RecurringBillRow[]
@@ -64,7 +71,17 @@ export type Finance = {
   featureGoal: (goal: FinancialGoalRow, currentOrder: string[]) => void
   openNewGoal: () => void
   // accounts and limits
-  saveAccount: (row: AccountRow) => void
+  /** Creates or updates an account together with its kind, icon, color and archived flag. */
+  saveAccount: (row: AccountRow, meta: AccountMeta) => void
+  renameAccount: (row: AccountRow, name: string) => void
+  setAccountArchived: (row: AccountRow, archived: boolean) => void
+  reorderAccounts: (ids: string[]) => void
+  accountTxCount: (id: string) => number
+  /** Deletes an account: with no lançamentos, moving them to `to`, or taking them along (`cascade`). Offers Desfazer. */
+  deleteAccount: (row: AccountRow, how: { kind: "plain" } | { kind: "move"; to: string } | { kind: "cascade" }) => void
+  editAccount: (row: AccountRow) => void
+  askDeleteAccount: (row: AccountRow) => void
+  openAccountManager: () => void
   saveLimits: (limits: Record<string, number | null>) => void
   openNewAccount: () => void
   /** Moving money between accounts is not built yet; the Transferir pill says so. */
