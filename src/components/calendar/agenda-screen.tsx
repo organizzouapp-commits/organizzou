@@ -35,7 +35,9 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { AgendaRow } from "./agenda-row"
+import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { TaskCardBody, type TaskActions } from "@/components/tasks/task-card"
+import type { TaskView } from "@/features/tasks/types"
 import { completeTask, deleteTask } from "@/features/tasks/actions"
 import { toast } from "sonner"
 
@@ -230,7 +232,12 @@ const realTaskApi: AgendaTaskApi = {
   remove: (id) => deleteTask(id),
 }
 
-export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIso: string; initial: AgendaInitial; taskApi?: AgendaTaskApi }) {
+/** Per-occurrence state of events, treinos and estudos (done, skipped dates). localStorage until `agenda_occurrence_state` is applied. */
+type LocalState = { done: Record<string, true>; skipped: Record<string, true> }
+const LOCAL_KEY = "organizzou:agenda-local"
+const occurrenceKey = (item: Pick<AgendaItem, "kind" | "id" | "start">) => `${item.kind}:${item.id}:${dayKey(item.start, TZ)}`
+
+export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi, memory = false }: { nowIso: string; initial: AgendaInitial; taskApi?: AgendaTaskApi; /** Keep events, treinos and estudos in memory (the dev fixture has no session to save with). */ memory?: boolean }) {
   const todayKey = dayOf(nowIso)
   const isMobile = useIsMobile()
   const [view, setView] = useState<View>("semana")
@@ -249,7 +256,37 @@ export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIs
     else url.searchParams.set("date", next)
     window.history.replaceState(null, "", url)
   }
-  const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
+  const savedEvents = usePersistedRows<EventRow>("events", initial.events)
+  const memEvents = useState<EventRow[]>(initial.events)
+  const [events, setEvents] = memory ? memEvents : savedEvents
+  const savedPlans = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
+  const memPlans = useState<WorkoutPlanRow[]>(initial.plans)
+  const [plans, setPlans] = memory ? memPlans : savedPlans
+  const savedDeadlines = usePersistedRows<DeadlineRow>("study_deadlines", initial.deadlines)
+  const memDeadlines = useState<DeadlineRow[]>(initial.deadlines)
+  const [deadlines, setDeadlines] = memory ? memDeadlines : savedDeadlines
+  const [local, setLocal] = useState<LocalState>({ done: {}, skipped: {} })
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(LOCAL_KEY) ?? "{}") as Partial<LocalState>
+      // localStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocal({ done: raw.done ?? {}, skipped: raw.skipped ?? {} })
+    } catch {
+      setLocal({ done: {}, skipped: {} })
+    }
+  }, [])
+  const changeLocal = (change: (current: LocalState) => LocalState) =>
+    setLocal((current) => {
+      const next = change(current)
+      try {
+        window.localStorage.setItem(LOCAL_KEY, JSON.stringify(next))
+      } catch {
+        // Private mode: the choice just does not survive the visit.
+      }
+      return next
+    })
+  const [ask, setAsk] = useState<AgendaItem | null>(null)
   const [tasks, setTasks] = useState(initial.tasks)
   const router = useRouter()
   const labels = useLabelColorsStore()
@@ -273,7 +310,11 @@ export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIs
     if (kinds.has("event")) {
       for (const event of events) {
         const own = resolveHex(labels.colorOf("event", event.id))
-        for (const item of expandEvent(event, from, to, TZ)) items.push(own ? { ...item, color: own } : item)
+        for (const item of expandEvent(event, from, to, TZ)) {
+          if (local.skipped[occurrenceKey(item)]) continue
+          const marked = { ...item, done: Boolean(local.done[occurrenceKey(item)]) }
+          items.push(own ? { ...marked, color: own } : marked)
+        }
       }
     }
     if (kinds.has("task")) {
@@ -291,18 +332,21 @@ export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIs
       const start = new Date(`${key}T12:00:00-03:00`)
       const end = new Date(start.getTime() + 60 * 60_000)
       if (kinds.has("workout")) {
-        for (const plan of initial.plans.filter((p) => p.weekdays.includes(weekday))) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", editable: false })
+        for (const plan of plans.filter((p) => p.weekdays.includes(weekday) && !local.skipped[`workout:${p.id}:${key}`])) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", category: "Treino", editable: false })
       }
       if (kinds.has("study")) {
-        for (const due of initial.deadlines.filter((d) => d.due_on === key)) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
+        for (const due of deadlines.filter((d) => d.due_on === key && !local.skipped[`study:${d.id}:${key}`])) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", category: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
       }
     }
+    // Treinos and estudos have no completion of their own: it is recorded per occurrence (date).
+    for (const item of items) if ((item.kind === "workout" || item.kind === "study") && local.done[occurrenceKey(item)]) item.done = true
     const text = query.trim().toLowerCase()
-    return text ? items.filter((item) => item.title.toLowerCase().includes(text)) : items
+    const visible = showDone ? items : items.filter((item) => !item.done)
+    return text ? visible.filter((item) => item.title.toLowerCase().includes(text)) : visible
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => collect(gridFrom, gridTo), [events, tasks, kinds, day, nowIso, showDone, query, labels.state])
+  const items = useMemo(() => collect(gridFrom, gridTo), [events, tasks, plans, deadlines, local, kinds, day, nowIso, showDone, query, labels.state])
   const sortItems = (list: AgendaItem[]) => [...list].sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
   const itemsOn = (key: string) => sortItems(items.filter((item) => dayKey(item.start, TZ) === key))
 
@@ -401,17 +445,110 @@ export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIs
     })
   }
 
-  const rowOf = (item: AgendaItem) => (
-    <AgendaRow
-      key={item.key}
-      item={item}
-      color={itemColor(item)}
-      time={item.allDay ? "Dia todo" : item.kind === "task" ? formatTime(item.start) : `${formatTime(item.start)} – ${formatTime(item.end)}`}
-      onOpen={openItem}
-      onToggle={toggleTask}
-      onDelete={deleteTaskItem}
-    />
-  )
+  /** Completes an event, treino or estudo occurrence (stored per date), with the undo toast. */
+  function toggleOccurrence(item: AgendaItem) {
+    const key = occurrenceKey(item)
+    const done = !local.done[key]
+    changeLocal((current) => {
+      const next = { ...current.done }
+      if (done) next[key] = true
+      else delete next[key]
+      return { ...current, done: next }
+    })
+    toast(done ? "Concluído." : "Reaberto.", {
+      duration: 8000,
+      action: {
+        label: "Desfazer",
+        onClick: () =>
+          changeLocal((current) => {
+            const next = { ...current.done }
+            if (done) delete next[key]
+            else next[key] = true
+            return { ...current, done: next }
+          }),
+      },
+    })
+  }
+  const toggleItem = (item: AgendaItem) => (item.kind === "task" ? toggleTask(item) : toggleOccurrence(item))
+
+  /** Removes one row (event, treino or estudo), with the undo toast that puts it back. */
+  function deleteRow(item: AgendaItem, scope: "series" | "occurrence") {
+    if (scope === "occurrence") {
+      const key = occurrenceKey(item)
+      changeLocal((current) => ({ ...current, skipped: { ...current.skipped, [key]: true } }))
+      toast("Ocorrência excluída.", {
+        duration: 8000,
+        action: {
+          label: "Desfazer",
+          onClick: () =>
+            changeLocal((current) => {
+              const next = { ...current.skipped }
+              delete next[key]
+              return { ...current, skipped: next }
+            }),
+        },
+      })
+      return
+    }
+    if (item.kind === "event") {
+      const row = events.find((e) => e.id === item.id)
+      if (!row) return
+      setEvents((current) => current.filter((e) => e.id !== row.id))
+      toast("Evento excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setEvents((current) => (current.some((e) => e.id === row.id) ? current : [...current, row])) } })
+    } else if (item.kind === "workout") {
+      const row = plans.find((p) => p.id === item.id)
+      if (!row) return
+      setPlans((current) => current.filter((p) => p.id !== row.id))
+      toast("Treino excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setPlans((current) => (current.some((p) => p.id === row.id) ? current : [...current, row])) } })
+    } else if (item.kind === "study") {
+      const row = deadlines.find((d) => d.id === item.id)
+      if (!row) return
+      setDeadlines((current) => current.filter((d) => d.id !== row.id))
+      toast("Estudo excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setDeadlines((current) => (current.some((d) => d.id === row.id) ? current : [...current, row])) } })
+    }
+  }
+
+  /** Excluir: tasks wait for the undo window; a series (treino, repeating event) first asks "Só esta ocorrência" / "Toda a série". */
+  function requestDelete(item: AgendaItem) {
+    if (item.kind === "task") return deleteTaskItem(item)
+    const repeats = item.kind === "workout" || (item.kind === "event" && Boolean(events.find((e) => e.id === item.id)?.rrule))
+    if (repeats) return setAsk(item)
+    deleteRow(item, "series")
+  }
+
+  const noop = () => {}
+  const rowOf = (item: AgendaItem) => {
+    const task = {
+      id: item.kind === "task" ? item.id : item.key,
+      board_id: "",
+      list_id: "",
+      title: item.title,
+      description: null,
+      priority: "none",
+      due_at: item.start.toISOString(),
+      due_has_time: !item.allDay,
+      completed_at: item.done ? new Date(0).toISOString() : null,
+      archived: false,
+      position: 0,
+      swatch: "neutro",
+      category: item.category ?? null,
+      user_id: "",
+      created_at: "",
+      updated_at: "",
+      tagIds: [],
+      checklistTotal: 0,
+      checklistDone: 0,
+      commentCount: 0,
+      attachmentCount: 0,
+    } as unknown as TaskView
+    const actions: TaskActions = { open: () => openItem(item), toggle: () => toggleItem(item), remove: () => requestDelete(item), postpone1h: noop, tomorrow: noop, move: noop, select: noop, duplicate: noop, rename: async () => false }
+    const timeText = item.allDay ? "Dia todo" : item.kind === "task" ? formatTime(item.start) : `${formatTime(item.start)} – ${formatTime(item.end)}`
+    return (
+      <div key={item.key} data-agenda-card data-kind={item.kind} data-day-item={item.id}>
+        <TaskCardBody anchor task={task} tags={[]} now={new Date(nowIso)} timeZone={TZ} actions={actions} agenda={{ kind: item.kind, timeText, place: item.location }} colorOverride={itemColor(item)} />
+      </div>
+    )
+  }
 
   /** A task opens the SAME dialog (and URL) as in Tarefas; events, treinos and estudos open the event dialog. */
   function openItem(item: AgendaItem) {
@@ -605,6 +742,31 @@ export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIs
         {isMobile ? null : <aside className="flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0">{aside}</aside>}
       </div>
 
+      <ResponsiveSheet open={Boolean(ask)} onOpenChange={(open) => !open && setAsk(null)} title="Excluir item que se repete" description={ask ? `“${ask.title}” se repete. O que excluir?` : undefined}>
+        <div className="flex flex-col gap-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11"
+            onClick={() => {
+              if (ask) deleteRow(ask, "occurrence")
+              setAsk(null)
+            }}
+          >
+            Só esta ocorrência
+          </Button>
+          <Button
+            type="button"
+            className="h-11"
+            onClick={() => {
+              if (ask) deleteRow(ask, "series")
+              setAsk(null)
+            }}
+          >
+            Toda a série
+          </Button>
+        </div>
+      </ResponsiveSheet>
       <EventDialog
         draft={creating}
         event={editing}
@@ -974,7 +1136,7 @@ function DayGroups({ items, day, renderRow, onNewEvent, flat = false }: { items:
             </button>
             <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
               <div className="min-h-0 overflow-hidden">
-                <div data-group-rows className={cn("flex flex-col", flat ? "rounded-[16px] border border-border bg-card px-3" : "pb-1")}>{list.map((item) => renderRow(item))}</div>
+                <div data-group-rows className="flex flex-col gap-2 pb-2">{list.map((item) => renderRow(item))}</div>
               </div>
             </div>
           </section>
@@ -1041,7 +1203,7 @@ function AgendaDays({ from, todayKey, itemsOn, renderRow, flat }: { from: string
             </button>
             <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
               <div className="min-h-0 overflow-hidden">
-                <div data-group-rows className={cn("flex flex-col", flat ? "rounded-[16px] border border-border bg-card px-3" : "pb-1")}>
+                <div data-group-rows className="flex flex-col gap-2 pb-2">
                   {list.map((item) => renderRow(item))}
                 </div>
               </div>

@@ -63,6 +63,6 @@ export function FixtureAgenda({ nowIso }: { nowIso: string }) {
   const initial = useMemo(() => build(nowIso), [nowIso])
   // In-memory task actions: completing and deleting work without a session.
   const taskApi = { complete: async () => ({ ok: true }), remove: async () => ({ ok: true }) }
-  return <AgendaScreen nowIso={nowIso} initial={initial} taskApi={taskApi} />
+  return <AgendaScreen nowIso={nowIso} initial={initial} taskApi={taskApi} memory />
 }
 
