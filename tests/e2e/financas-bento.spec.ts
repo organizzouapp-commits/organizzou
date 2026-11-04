@@ -491,7 +491,7 @@ test.describe("desktop 1440", () => {
     }
   })
 
-  test("Metas: + Nova meta is a Lima pill in the Em andamento header, goal cards share the full structure", async ({ page }) => {
+  test("Metas: + Nova meta is the dashed add pill in the Em andamento header, goal cards share the full structure", async ({ page }) => {
     await open(page, "Metas")
     const header = page.locator("[data-group=active] [data-group-header]")
     const pill = page.getByRole("button", { name: "Nova meta" })
@@ -501,7 +501,11 @@ test.describe("desktop 1440", () => {
     expect(p.x).toBeGreaterThan(h.x + h.width)
     expect(Math.round(p.height)).toBe(36)
     expect(parseFloat(await computed(pill, "border-top-left-radius"))).toBeGreaterThan(100)
-    expect(await contrast(page, await computed(pill, "color"), await computed(pill, "background-color"))).toBeGreaterThan(4.5)
+    // The shared dashed add pill (not Lima): dashed border, translucent fill, 14px/600 text.
+    expect(await computed(pill, "border-top-style")).toBe("dashed")
+    expect(await computed(pill, "font-weight")).toBe("600")
+    expect(await computed(pill, "background-color")).not.toBe(await computed(page.getByRole("button", { name: "Guardar" }).first(), "background-color"))
+    expect(await computed(pill, "background-color")).toMatch(/rgba?(.*0.0d*)|oklab|color-mix|rgba/)
     // Featured spans half of the grid, the others a quarter; the cards of a row share one height.
     const cards = page.locator("[data-group=active] [data-goal]")
     await expect(cards).toHaveCount(3)

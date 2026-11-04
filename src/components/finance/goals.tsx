@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale"
 import { CalendarClockIcon, GripVerticalIcon, PiggyBankIcon, PlusIcon, StarIcon, TargetIcon, WalletIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
+import { ADD_PILL } from "@/components/tasks/quick-add"
 import { useTaskSensors } from "@/components/tasks/task-dnd"
 import { runningTotal } from "@/features/finance/goal-history"
 import { applyGoalOrder } from "@/features/finance/goal-layout"
@@ -281,14 +282,8 @@ function ActiveHeader({ count, open, onToggle }: { count: number; open: boolean;
   return (
     <div className="flex items-center justify-between gap-3">
       <GroupHeader label="Em andamento" count={count} open={open} onToggle={onToggle} />
-      <button
-        type="button"
-        data-new-goal
-        aria-label="Nova meta"
-        onClick={f.openNewGoal}
-        className="relative inline-flex size-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-highlight text-[14px] font-semibold text-highlight-foreground outline-none transition-colors duration-[400ms] hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none min-[420px]:h-9 min-[420px]:w-auto min-[420px]:px-4"
-      >
-        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" />
+      <button type="button" data-new-goal data-add-task-pill aria-label="Nova meta" onClick={f.openNewGoal} className={cn(ADD_PILL, "h-9 w-auto shrink-0 justify-center px-4 after:absolute after:inset-x-0 after:-inset-y-1 max-[419px]:size-11 max-[419px]:px-0 md:h-9")}>
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
         <span className="max-[419px]:sr-only">Nova meta</span>
       </button>
     </div>
