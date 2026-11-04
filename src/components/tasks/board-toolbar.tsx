@@ -272,7 +272,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
           maxLength={60}
           ariaLabel="Nome do quadro"
           className="min-w-0 flex-1"
-          inputClassName="h-11 rounded-full text-[20px] leading-7 font-semibold md:h-10 md:text-[17px]"
+          inputClassName="h-10 rounded-full text-[18px] leading-6 font-semibold md:h-10 md:text-[17px]"
           onCommit={(name) => props.onCommitBoardName(name)}
           onClose={() => props.onEditingNameChange(false)}
         />
@@ -283,14 +283,14 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
           aria-label={`Quadro: ${currentBoard?.name ?? ""}`}
           title="Clique para renomear"
           onClick={() => props.onEditingNameChange(true)}
-          className="min-h-11 max-w-full min-w-0 truncate rounded-full px-3 text-left text-[20px] leading-7 font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:-ml-3 md:min-h-10 md:text-[17px] md:leading-6"
+          className="relative min-h-10 max-w-full min-w-0 truncate rounded-full px-3 text-left text-[18px] leading-6 font-semibold outline-none after:absolute after:inset-x-0 after:-inset-y-0.5 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 max-md:-ml-2 max-md:min-h-9 max-md:px-2 md:text-[17px]"
         >
           {currentBoard?.name ?? "Tarefas"}
         </button>
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label="Trocar de quadro" className="size-11 shrink-0 rounded-full md:size-10">
+          <Button type="button" variant="ghost" size="icon" aria-label="Trocar de quadro" className="relative size-8 shrink-0 rounded-full after:absolute after:-inset-1.5 md:size-10 md:after:hidden">
             <ChevronDownIcon strokeWidth={1.75} />
           </Button>
         </DropdownMenuTrigger>
@@ -331,7 +331,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
     { id: "calendario", label: "Calendário", icon: CalendarDaysIcon },
   ]
   const viewTabs = (
-    <div role="tablist" aria-label="Visão" className={cn("grid h-[52px] min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile && "w-full")}>
+    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full" : "")}>
       {views.map(({ id, label, icon: Icon }) => {
         const on = props.view === id
         return (
@@ -340,14 +340,17 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
             type="button"
             role="tab"
             aria-selected={on}
+            aria-label={label}
+            title={label}
+            data-view-tab={id}
             onClick={() => props.onViewChange(id)}
             className={cn(
               "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
               on ? "bg-foreground/14 font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Icon aria-hidden strokeWidth={1.75} className="size-4 max-[400px]:hidden" />
-            <span className={cn(!isMobile && "max-[1535px]:sr-only")}>{label}</span>
+            <Icon aria-hidden strokeWidth={1.75} className={isMobile ? "size-5" : "size-4"} />
+            {isMobile ? null : <span className="max-[1535px]:sr-only">{label}</span>}
           </button>
         )
       })}
@@ -357,7 +360,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   // Editable shortcut chips with PENDING counts; hidden at 0 unless pinned (or active). Lima = active.
   const chips = (
     <div className="flex min-w-0 items-center gap-1">
-      <div role="group" aria-label="Atalhos" className="no-scrollbar flex min-w-0 snap-x gap-2 overflow-x-auto" ref={(el) => el?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ inline: "center", block: "nearest" })}>
+      <div role="group" aria-label="Atalhos" className="no-scrollbar flex min-w-0 snap-x gap-2 overflow-x-auto max-md:gap-1.5" ref={(el) => el?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ inline: "center", block: "nearest" })}>
         {props.shortcuts
           .filter((chip) => !chip.hidden && (chip.pinned || (props.counts[chip.id] ?? 0) > 0 || props.activeShortcutId === chip.id))
           .map((chip) => {
@@ -369,7 +372,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
                 aria-pressed={on}
                 onClick={() => props.onShortcut(chip)}
                 className={cn(
-                  "inline-flex h-11 shrink-0 snap-center items-center gap-2 rounded-full border px-4 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-9",
+                  "relative inline-flex h-9 shrink-0 snap-center items-center gap-1.5 rounded-full border px-2.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-4 md:text-[14px] md:after:hidden",
                   on ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border hover:bg-accent"
                 )}
               >
@@ -379,7 +382,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
             )
           })}
       </div>
-      <Button type="button" variant="ghost" size="icon" aria-label="Editar atalhos" className="size-11 shrink-0 rounded-full md:size-9" onClick={props.onEditShortcuts}>
+      <Button type="button" variant="ghost" size="icon" aria-label="Editar atalhos" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1 md:after:hidden" onClick={props.onEditShortcuts}>
         <PencilIcon strokeWidth={1.75} />
       </Button>
     </div>
@@ -411,24 +414,25 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   )
 
   if (isMobile) {
-    // The card itself (solid surface, border, radius 20, 16px padding) is drawn by the page and scrolls away with it. 12px between rows.
+    // The card itself (solid, border, radius 20, 12px padding, 12px above it) is drawn by the page and scrolls away with it. 8px between rows.
     // Row 1: quadro + search + filters. NO "+" here: the app header's Lima "+" is "Nova tarefa" on this screen.
+    // Row 2: icon-only view switch. Row 3: list tabs / shortcut chips (hidden in Calendário, which has its own toolbar).
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {searchOpen ? (
-          <div className="flex h-11 items-center gap-2">
-            <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" aria-label="Fechar a busca" onClick={() => (onFiltersChange({ ...filters, query: "" }), setSearchOpen(false))}>
+          <div className="flex h-9 items-center gap-2">
+            <Button variant="ghost" size="icon" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1" aria-label="Fechar a busca" onClick={() => (onFiltersChange({ ...filters, query: "" }), setSearchOpen(false))}>
               <ArrowLeftIcon strokeWidth={1.75} />
             </Button>
             <SearchField ref={searchRef} value={filters.query} onChange={(query) => onFiltersChange({ ...filters, query })} onEscape={() => (onFiltersChange({ ...filters, query: "" }), setSearchOpen(false))} className="flex-1" />
           </div>
         ) : (
-          <div className="flex h-11 items-center gap-2">
+          <div className="flex h-9 items-center gap-2">
             <div className="min-w-0 flex-1">{boardSwitcher}</div>
-            <Button variant="outline" size="icon" className="size-11 shrink-0 rounded-full" aria-label="Buscar tarefas" onClick={() => setSearchOpen(true)}>
+            <Button variant="outline" size="icon" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1" aria-label="Buscar tarefas" onClick={() => setSearchOpen(true)}>
               <SearchIcon strokeWidth={1.75} />
             </Button>
-            <Button variant="outline" size="icon" className="relative size-11 shrink-0 rounded-full" aria-label={active > 0 ? `Filtrar e ordenar, ${active} ativos` : "Filtrar e ordenar"} onClick={() => setFiltersOpen(true)}>
+            <Button variant="outline" size="icon" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1" aria-label={active > 0 ? `Filtrar e ordenar, ${active} ativos` : "Filtrar e ordenar"} onClick={() => setFiltersOpen(true)}>
               <SlidersHorizontalIcon strokeWidth={1.75} />
               {active > 0 ? <span className="tabular absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-highlight text-[11px] font-semibold text-highlight-foreground">{active}</span> : null}
             </Button>

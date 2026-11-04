@@ -23,7 +23,7 @@ export function KanbanTabs({ lists, counts, activeId, onSelect, onAdd, onManage 
   useEffect(() => () => window.clearTimeout(press.current), [])
 
   return (
-    <div ref={row} role="tablist" aria-label="Listas do quadro" className="no-scrollbar flex h-12 snap-x gap-1 overflow-x-auto rounded-full bg-muted p-1">
+    <div ref={row} role="tablist" aria-label="Listas do quadro" className="no-scrollbar flex h-9 snap-x gap-1.5 overflow-x-auto" data-list-tabs>
       {lists.map((list) => {
         const active = list.id === activeId
         return (
@@ -42,8 +42,8 @@ export function KanbanTabs({ lists, counts, activeId, onSelect, onAdd, onManage 
             onPointerCancel={() => window.clearTimeout(press.current)}
             onContextMenu={(e) => e.preventDefault()}
             className={cn(
-              "flex h-10 min-w-max flex-1 basis-0 snap-center items-center justify-center gap-1.5 rounded-full px-3 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] select-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-              active ? "bg-highlight font-semibold text-highlight-foreground" : "text-muted-foreground"
+              "relative flex h-9 shrink-0 snap-center items-center justify-center gap-1.5 rounded-full px-2.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] select-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+              active ? "bg-highlight font-semibold text-highlight-foreground" : "bg-muted text-muted-foreground"
             )}
           >
             {list.name}
@@ -53,10 +53,10 @@ export function KanbanTabs({ lists, counts, activeId, onSelect, onAdd, onManage 
       })}
       {adding ? (
         <div className="flex min-w-44 shrink-0 items-center rounded-full bg-card px-1">
-          <InlineInput ariaLabel="Nome da nova lista" placeholder="Nome da lista" className="w-full items-center" inputClassName="h-9 rounded-full" onCommit={async (name) => void (await onAdd(name))} onClose={() => setAdding(false)} />
+          <InlineInput ariaLabel="Nome da nova lista" placeholder="Nome da lista" className="w-full items-center" inputClassName="h-8 rounded-full" onCommit={async (name) => void (await onAdd(name))} onClose={() => setAdding(false)} />
         </div>
       ) : (
-        <button type="button" onClick={() => setAdding(true)} className="flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-3 text-[14px] whitespace-nowrap text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <button type="button" onClick={() => setAdding(true)} className="relative flex h-9 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-[13px] whitespace-nowrap text-muted-foreground outline-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50">
           <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" /> Lista
         </button>
       )}

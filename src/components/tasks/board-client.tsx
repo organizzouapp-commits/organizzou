@@ -771,7 +771,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     <LabelColorsProvider value={labels}>
     <PrioritiesProvider value={prio}>
     <div className="flex flex-col gap-5 max-md:gap-3">
-      <div data-testid="board-header" className={cn("max-md:rounded-[20px] max-md:border max-md:border-border max-md:bg-card max-md:p-4", !isMobile && bentoCardClass())}>
+      <div data-testid="board-header" className={cn("max-md:mt-3 max-md:rounded-[20px] max-md:border max-md:border-border max-md:bg-card max-md:p-3", !isMobile && bentoCardClass())}>
       <BoardToolbar
         ref={searchRef}
         isMobile={isMobile}
