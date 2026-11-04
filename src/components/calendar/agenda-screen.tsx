@@ -17,25 +17,35 @@ import {
 import { ptBR } from "date-fns/locale"
 import {
   BellIcon,
+  BookOpenIcon,
   CalendarDaysIcon,
+  PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DumbbellIcon,
   GraduationCapIcon,
-  LayersIcon,
   MapPinIcon,
   PencilIcon,
   RepeatIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
   SquareCheckIcon,
   Trash2Icon,
   type LucideIcon,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Collapse, GroupHeader } from "@/components/organizzou/Group"
+import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { TaskCardBody, type TaskActions } from "@/components/tasks/task-card"
+import type { TaskView } from "@/features/tasks/types"
+import { completeTask, deleteTask } from "@/features/tasks/actions"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { BentoCard } from "@/components/organizzou/Bento"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
+import { ColorPicker } from "@/components/organizzou/ColorPicker"
+import { LabelColorsProvider, useLabelColors, useLabelColorsStore } from "@/components/tasks/label-colors-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -45,14 +55,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { expandEvent, layoutDay, REPEAT_OPTIONS, repeatLabel } from "@/features/calendar/recurrence"
 import type { AgendaItem, AgendaKind, EventRow } from "@/features/calendar/types"
 import { dayKey, inTz, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
-import { getSwatch } from "@/lib/swatches"
+import { resolveHex, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 import type { DeadlineRow } from "@/features/studies/types"
 import type { WorkoutPlanRow } from "@/features/workouts/types"
@@ -67,6 +77,13 @@ const HOUR_START = 6
 const HOUR_END = 23
 const ROW_HEIGHT = 56
 const SNAP = 15 // minutes
+
+export const MODE_ITEMS = [
+  { id: "mes", label: "Mês" },
+  { id: "semana", label: "Semana" },
+  { id: "dia", label: "Dia" },
+  { id: "agenda", label: "Agenda" },
+]
 
 const KIND_META: Record<AgendaKind, { label: string; icon: LucideIcon | null }> = {
   event: { label: "Eventos", icon: null },
@@ -111,24 +128,29 @@ function ItemIcon({ kind, className }: { kind: AgendaKind; className?: string })
   return Icon ? <Icon aria-hidden strokeWidth={1.75} className={className ?? "size-3 shrink-0"} /> : null
 }
 
-function itemTone(item: AgendaItem) {
-  if (item.color) return "text-foreground border border-transparent"
-  return item.swatch === "neutro" ? "bg-secondary text-secondary-foreground" : getSwatch(item.swatch).chip
+/** The item's color: its own (a task color) or the legacy swatch an event was saved with ("neutro" = none). Never wiped. */
+export function itemColor(item: AgendaItem): string | null {
+  return item.color ?? (item.swatch && item.swatch !== "neutro" ? resolveHex(item.swatch) : null)
 }
 
-/** A task with its own color: the color at 22% over the surface and a 1px border at 40%; the text stays the neutral foreground. */
-function itemStyle(item: AgendaItem): React.CSSProperties | undefined {
-  if (!item.color) return undefined
-  return { backgroundColor: `color-mix(in oklab, ${item.color} 22%, var(--card))`, borderColor: `color-mix(in oklab, ${item.color} 40%, transparent)` }
+/** The text is ALWAYS the neutral foreground token; the color only tints the chip and draws the left bar. */
+function itemTone() {
+  return "text-foreground"
+}
+
+/** Colored: the color at 16% over the surface and a 3px solid bar on the left. No color: a 7% neutral tint and no bar. */
+function itemStyle(item: AgendaItem): React.CSSProperties {
+  const color = itemColor(item)
+  if (!color) return { backgroundColor: "color-mix(in oklab, var(--foreground) 7%, transparent)" }
+  return { backgroundColor: `color-mix(in oklab, ${color} 16%, var(--card))`, boxShadow: `inset 3px 0 0 ${color}` }
 }
 
 const HIGHLIGHT = "ring-2 ring-primary ring-offset-1 ring-offset-card"
 
-type ToolbarFilter = { label: string; /** e.g. "2/4" when something is filtered out. */ badge?: string; content: React.ReactNode }
-
 /**
- * The calendar toolbar, shared by the Agenda and Tarefas > Calendário: "Hoje" pill, previous/next circles, the period title, a filter
- * button ("Calendários" / "Listas": a popover on desktop, a bottom sheet on phones) and the Mês | Semana | Dia | Agenda switch.
+ * The calendar toolbar, shared by the Agenda page and Tarefas > Agenda. Desktop: ‹ › circles and the period title (click = today) on
+ * the left, `trailing` (the Filtros pill) and the shared PillTabs Mês | Semana | Dia | Agenda on the right. `compact` (phones): one 40px
+ * row, title + ‹ ›; the modes live in the header block above.
  */
 export function CalendarToolbar({
   title,
@@ -136,27 +158,18 @@ export function CalendarToolbar({
   onShift,
   view,
   onViewChange,
-  filter,
-  agendaTabOnDesktop = false,
   trailing,
   compact = false,
-  tasksDesktop = false,
 }: {
   /** Phones in Tarefas: ONE 40px row — the title at the left ("Ir para hoje" on tap), ‹ › at the right. No Hoje, no filter, no mode tabs (the header card has them). */
   compact?: boolean
-  /** Desktop in Tarefas: ‹ › and the title (click = today) on the left, the Mês | Semana | Dia | Agenda switch on the right. No Hoje, Nova tarefa or Listas. */
-  tasksDesktop?: boolean
   title: string
   onToday: () => void
   onShift: (direction: -1 | 1) => void
   view: CalendarViewId
   onViewChange: (view: CalendarViewId) => void
-  filter: ToolbarFilter
-  agendaTabOnDesktop?: boolean
   trailing?: React.ReactNode
 }) {
-  const isMobile = useIsMobile()
-  const [sheet, setSheet] = useState(false)
   const titleButton = (className: string) => (
     <button type="button" data-testid="calendar-title" aria-label="Ir para hoje" title="Ir para hoje" onClick={onToday} className={cn("min-w-0 cursor-pointer truncate rounded-full text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50", className)}>
       {title}
@@ -175,8 +188,7 @@ export function CalendarToolbar({
       </div>
     )
   }
-  if (tasksDesktop) {
-    return (
+  return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
@@ -187,72 +199,9 @@ export function CalendarToolbar({
           </Button>
         </div>
         {titleButton("flex-1 basis-40 text-xl leading-7 font-semibold tracking-[-0.01em]")}
-        <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
-          <TabsList aria-label="Visão">
-            <TabsTrigger value="mes">Mês</TabsTrigger>
-            <TabsTrigger value="semana">Semana</TabsTrigger>
-            <TabsTrigger value="dia">Dia</TabsTrigger>
-            <TabsTrigger value="agenda">Agenda</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {trailing}
+        <PillTabs ariaLabel="Visão" items={MODE_ITEMS} value={view} onSelect={(item) => onViewChange(item.id as CalendarViewId)} />
       </div>
-    )
-  }
-  const filterButton = (
-    <Button variant="outline" data-testid="calendar-filter" onClick={isMobile ? () => setSheet(true) : undefined}>
-      <LayersIcon strokeWidth={1.75} /> {filter.label}
-      {filter.badge ? <span className="tabular text-muted-foreground">{filter.badge}</span> : null}
-    </Button>
-  )
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
-      <div className="flex items-center gap-1">
-        <Button variant="outline" onClick={onToday}>
-          Hoje
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => onShift(1)}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
-      <h2 data-testid="calendar-title" className="min-w-0 flex-1 basis-full text-xl leading-7 font-semibold tracking-[-0.01em] md:basis-40 md:truncate">
-        {title}
-      </h2>
-      {trailing}
-      {isMobile ? (
-        <>
-          {filterButton}
-          <Drawer open={sheet} onOpenChange={setSheet}>
-            <DrawerContent className="max-h-[80dvh]">
-              <DrawerHeader className="text-left">
-                <DrawerTitle>{filter.label}</DrawerTitle>
-                <DrawerDescription className="sr-only">Escolha o que aparece no calendário.</DrawerDescription>
-              </DrawerHeader>
-              <div className="flex flex-col gap-1 scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filter.content}</div>
-            </DrawerContent>
-          </Drawer>
-        </>
-      ) : (
-        <Popover>
-          <PopoverTrigger asChild>{filterButton}</PopoverTrigger>
-          <PopoverContent align="end" className="w-60 gap-1 p-2">
-            {filter.content}
-          </PopoverContent>
-        </Popover>
-      )}
-      <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
-        <TabsList aria-label="Visão">
-          <TabsTrigger value="mes">Mês</TabsTrigger>
-          <TabsTrigger value="semana">Semana</TabsTrigger>
-          <TabsTrigger value="dia">Dia</TabsTrigger>
-          <TabsTrigger value="agenda" className={agendaTabOnDesktop ? undefined : "md:hidden"}>
-            Agenda
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
   )
 }
 
@@ -260,16 +209,92 @@ export function CalendarToolbar({
 export type Draft = { day: string; start?: string; end?: string }
 
 /** What the other modules put on the calendar (real accounts). Events are the Agenda's own rows. */
-export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_name: string }
+export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_id: string; board_name: string; completed_at?: string | null }
 export type AgendaInitial = { events: EventRow[]; tasks: AgendaTask[]; plans: WorkoutPlanRow[]; deadlines: DeadlineRow[] }
 
-export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: AgendaInitial }) {
+/** The Agenda mode lists this many days; ‹ › step by the same amount. One constant for the Agenda page and Tarefas > Agenda. */
+export const AGENDA_DAYS = 30
+
+/** "Próximos 30 dias" on the current window, otherwise the range ("5 dez – 3 jan"). */
+export function agendaTitle(from: string, todayKey: string) {
+  if (from === todayKey) return `Próximos ${AGENDA_DAYS} dias`
+  const clean = (d: Date) => format(d, "d MMM", { locale: ptBR }).replace(/\./g, "")
+  return `${clean(parseISO(from))} – ${clean(addDays(parseISO(from), AGENDA_DAYS - 1))}`
+}
+
+/** What the page can do to a task: the real server actions by default (the fixture swaps them for in-memory ones). */
+export type AgendaTaskApi = {
+  complete: (id: string, done: boolean) => Promise<{ ok: boolean; error?: string }>
+  remove: (id: string) => Promise<{ ok: boolean; error?: string }>
+}
+const realTaskApi: AgendaTaskApi = {
+  complete: (id, done) => completeTask({ id, done }),
+  remove: (id) => deleteTask(id),
+}
+
+/** Per-occurrence state of events, treinos and estudos (done, skipped dates). localStorage until `agenda_occurrence_state` is applied. */
+type LocalState = { done: Record<string, true>; skipped: Record<string, true> }
+const LOCAL_KEY = "organizzou:agenda-local"
+const occurrenceKey = (item: Pick<AgendaItem, "kind" | "id" | "start">) => `${item.kind}:${item.id}:${dayKey(item.start, TZ)}`
+
+export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi, memory = false }: { nowIso: string; initial: AgendaInitial; taskApi?: AgendaTaskApi; /** Keep events, treinos and estudos in memory (the dev fixture has no session to save with). */ memory?: boolean }) {
   const todayKey = dayOf(nowIso)
   const isMobile = useIsMobile()
   const [view, setView] = useState<View>("semana")
-  const [day, setDay] = useState(todayKey)
-  const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
+  const [day, setDayState] = useState(todayKey)
+  useEffect(() => {
+    // The selected day lives in the URL (?date=YYYY-MM-DD) so a reload or a shared link keeps it. Read after mount, so the server and
+    // the first client render agree.
+    const wanted = new URLSearchParams(window.location.search).get("date")
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted)) setDayState(wanted)
+  }, [])
+  const setDay = (next: string) => {
+    setDayState(next)
+    const url = new URL(window.location.href)
+    if (next === todayKey) url.searchParams.delete("date")
+    else url.searchParams.set("date", next)
+    window.history.replaceState(null, "", url)
+  }
+  const savedEvents = usePersistedRows<EventRow>("events", initial.events)
+  const memEvents = useState<EventRow[]>(initial.events)
+  const [events, setEvents] = memory ? memEvents : savedEvents
+  const savedPlans = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
+  const memPlans = useState<WorkoutPlanRow[]>(initial.plans)
+  const [plans, setPlans] = memory ? memPlans : savedPlans
+  const savedDeadlines = usePersistedRows<DeadlineRow>("study_deadlines", initial.deadlines)
+  const memDeadlines = useState<DeadlineRow[]>(initial.deadlines)
+  const [deadlines, setDeadlines] = memory ? memDeadlines : savedDeadlines
+  const [local, setLocal] = useState<LocalState>({ done: {}, skipped: {} })
+  useEffect(() => {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(LOCAL_KEY) ?? "{}") as Partial<LocalState>
+      // localStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocal({ done: raw.done ?? {}, skipped: raw.skipped ?? {} })
+    } catch {
+      setLocal({ done: {}, skipped: {} })
+    }
+  }, [])
+  const changeLocal = (change: (current: LocalState) => LocalState) =>
+    setLocal((current) => {
+      const next = change(current)
+      try {
+        window.localStorage.setItem(LOCAL_KEY, JSON.stringify(next))
+      } catch {
+        // Private mode: the choice just does not survive the visit.
+      }
+      return next
+    })
+  const [ask, setAsk] = useState<AgendaItem | null>(null)
+  const [tasks, setTasks] = useState(initial.tasks)
+  const router = useRouter()
+  const labels = useLabelColorsStore()
   const [kinds, setKinds] = useState<Set<AgendaKind>>(new Set(["event", "task", "workout", "study"]))
+  const [showDone, setShowDone] = useState(false)
+  const [query, setQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [filterSheet, setFilterSheet] = useState(false)
   const [creating, setCreating] = useState<Draft | null>(null)
   const [editing, setEditing] = useState<EventRow | null>(null)
   const [selected, setSelected] = useState<AgendaItem | null>(null)
@@ -277,17 +302,27 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
 
   // One range covers every view: the month grid that contains the selected day (week and day views always fall inside it).
   const gridFrom = startOfWeek(startOfMonth(parseISO(day)))
-  const gridTo = addDays(endOfWeek(endOfMonth(parseISO(day))), 1)
+  const gridTo = addDays(new Date(Math.max(endOfWeek(endOfMonth(parseISO(day))).getTime(), addDays(parseISO(day), AGENDA_DAYS).getTime())), 1)
 
   // ------------------------------------------------ gather items from every module
   function collect(from: Date, to: Date): AgendaItem[] {
     const items: AgendaItem[] = []
-    if (kinds.has("event")) for (const event of events) items.push(...expandEvent(event, from, to, TZ))
+    if (kinds.has("event")) {
+      for (const event of events) {
+        const own = resolveHex(labels.colorOf("event", event.id))
+        for (const item of expandEvent(event, from, to, TZ)) {
+          if (local.skipped[occurrenceKey(item)]) continue
+          const marked = { ...item, done: Boolean(local.done[occurrenceKey(item)]) }
+          items.push(own ? { ...marked, color: own } : marked)
+        }
+      }
+    }
     if (kinds.has("task")) {
-      for (const task of initial.tasks) {
+      for (const task of tasks) {
+        if (task.completed_at && !showDone) continue
         const start = new Date(task.due_at)
         if (start < from || start >= to) continue
-        items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, editable: false })
+        items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, done: Boolean(task.completed_at), editable: false })
       }
     }
     // Workout days come from the plans' weekdays and study dates from the exams and deliveries: all-day, because no hour was chosen.
@@ -297,25 +332,28 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       const start = new Date(`${key}T12:00:00-03:00`)
       const end = new Date(start.getTime() + 60 * 60_000)
       if (kinds.has("workout")) {
-        for (const plan of initial.plans.filter((p) => p.weekdays.includes(weekday))) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", editable: false })
+        for (const plan of plans.filter((p) => p.weekdays.includes(weekday) && !local.skipped[`workout:${p.id}:${key}`])) items.push({ key: `workout:${plan.id}:${key}`, kind: "workout", id: plan.id, title: plan.name, start, end, allDay: true, swatch: "neutro", detail: "Treino", category: "Treino", editable: false })
       }
       if (kinds.has("study")) {
-        for (const due of initial.deadlines.filter((d) => d.due_on === key)) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
+        for (const due of deadlines.filter((d) => d.due_on === key && !local.skipped[`study:${d.id}:${key}`])) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", category: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
       }
     }
-    return items
+    // Treinos and estudos have no completion of their own: it is recorded per occurrence (date).
+    for (const item of items) if ((item.kind === "workout" || item.kind === "study") && local.done[occurrenceKey(item)]) item.done = true
+    const text = query.trim().toLowerCase()
+    const visible = showDone ? items : items.filter((item) => !item.done)
+    return text ? visible.filter((item) => item.title.toLowerCase().includes(text)) : visible
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => collect(gridFrom, gridTo), [events, kinds, day, nowIso])
+  const items = useMemo(() => collect(gridFrom, gridTo), [events, tasks, plans, deadlines, local, kinds, day, nowIso, showDone, query, labels.state])
   const sortItems = (list: AgendaItem[]) => [...list].sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
   const itemsOn = (key: string) => sortItems(items.filter((item) => dayKey(item.start, TZ) === key))
-  const todayItems = sortItems(collect(new Date(toDueIso(todayKey, "00:00", TZ)), new Date(toDueIso(format(addDays(parseISO(todayKey), 1), "yyyy-MM-dd"), "00:00", TZ))))
 
   // --------------------------------------------------------------- navigation
   function shift(direction: -1 | 1) {
     const date = parseISO(day)
-    const next = view === "mes" ? addMonths(date, direction) : view === "semana" ? addWeeks(date, direction) : addDays(date, direction)
+    const next = view === "mes" ? addMonths(date, direction) : view === "semana" ? addWeeks(date, direction) : addDays(date, view === "agenda" ? AGENDA_DAYS * direction : direction)
     setDay(format(next, "yyyy-MM-dd"))
   }
 
@@ -326,7 +364,9 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       ? upperFirst(format(parseISO(day), "MMMM 'de' yyyy", { locale: ptBR }))
       : view === "semana"
         ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM yyyy", { locale: ptBR })}`
-        : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
+        : view === "agenda"
+          ? agendaTitle(day, todayKey)
+          : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
 
   function toggleKind(kind: AgendaKind) {
     setKinds((current) => {
@@ -359,92 +399,325 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
 
   usePrimaryAction("Novo evento", () => setCreating({ day }))
 
-  const effectiveView: View = isMobile && view === "dia" ? "dia" : view
+  const effectiveView: View = view
+  const taskBoard = new Map(tasks.map((t) => [t.id, t.board_id]))
+  /** Completes (or reopens) a task in place, with the undo toast. */
+  async function setTaskDone(id: string, done: boolean) {
+    const task = tasks.find((t) => t.id === id)
+    const previous = task?.completed_at ?? null
+    setTasks((current) => current.map((t) => (t.id === id ? { ...t, completed_at: done ? new Date().toISOString() : null } : t)))
+    const result = await taskApi.complete(id, done)
+    if (!result.ok) {
+      setTasks((current) => current.map((t) => (t.id === id ? { ...t, completed_at: previous } : t)))
+      toast.error(result.error ?? "Não consegui salvar.")
+      return
+    }
+    // "Desfazer" goes back to the opposite state explicitly (the screen may have re-rendered since).
+    toast(done ? "Tarefa concluída." : "Tarefa reaberta.", { duration: 8000, action: { label: "Desfazer", onClick: () => void setTaskDone(id, !done) } })
+  }
+  const toggleTask = (item: AgendaItem) => void setTaskDone(item.id, !tasks.find((t) => t.id === item.id)?.completed_at)
 
-  const controls = (
-    <CalendarToolbar
-      title={title}
-      onToday={() => setDay(todayKey)}
-      onShift={shift}
-      view={view}
-      onViewChange={setView}
-      filter={{
-        label: "Calendários",
-        badge: kinds.size < 4 ? `${kinds.size}/4` : undefined,
-        content: (Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
-          <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
-            <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
-            {KIND_META[kind].label}
-          </label>
-        )),
-      }}
-    />
+  /** Deleting waits for the undo window (8 s): "Desfazer" puts the row back and nothing was deleted. */
+  const pendingDelete = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  function deleteTaskItem(item: AgendaItem) {
+    const task = tasks.find((t) => t.id === item.id)
+    if (!task) return
+    setTasks((current) => current.filter((t) => t.id !== task.id))
+    const timer = setTimeout(async () => {
+      pendingDelete.current.delete(task.id)
+      const result = await taskApi.remove(task.id)
+      if (!result.ok) {
+        setTasks((current) => [...current, task])
+        toast.error(result.error ?? "Não consegui excluir.")
+      }
+    }, 8000)
+    pendingDelete.current.set(task.id, timer)
+    toast("Tarefa excluída.", {
+      duration: 8000,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          clearTimeout(pendingDelete.current.get(task.id))
+          pendingDelete.current.delete(task.id)
+          setTasks((current) => (current.some((t) => t.id === task.id) ? current : [...current, task]))
+        },
+      },
+    })
+  }
+
+  /** Completes an event, treino or estudo occurrence (stored per date), with the undo toast. */
+  function toggleOccurrence(item: AgendaItem) {
+    const key = occurrenceKey(item)
+    const done = !local.done[key]
+    changeLocal((current) => {
+      const next = { ...current.done }
+      if (done) next[key] = true
+      else delete next[key]
+      return { ...current, done: next }
+    })
+    toast(done ? "Concluído." : "Reaberto.", {
+      duration: 8000,
+      action: {
+        label: "Desfazer",
+        onClick: () =>
+          changeLocal((current) => {
+            const next = { ...current.done }
+            if (done) delete next[key]
+            else next[key] = true
+            return { ...current, done: next }
+          }),
+      },
+    })
+  }
+  const toggleItem = (item: AgendaItem) => (item.kind === "task" ? toggleTask(item) : toggleOccurrence(item))
+
+  /** Removes one row (event, treino or estudo), with the undo toast that puts it back. */
+  function deleteRow(item: AgendaItem, scope: "series" | "occurrence") {
+    if (scope === "occurrence") {
+      const key = occurrenceKey(item)
+      changeLocal((current) => ({ ...current, skipped: { ...current.skipped, [key]: true } }))
+      toast("Ocorrência excluída.", {
+        duration: 8000,
+        action: {
+          label: "Desfazer",
+          onClick: () =>
+            changeLocal((current) => {
+              const next = { ...current.skipped }
+              delete next[key]
+              return { ...current, skipped: next }
+            }),
+        },
+      })
+      return
+    }
+    if (item.kind === "event") {
+      const row = events.find((e) => e.id === item.id)
+      if (!row) return
+      setEvents((current) => current.filter((e) => e.id !== row.id))
+      toast("Evento excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setEvents((current) => (current.some((e) => e.id === row.id) ? current : [...current, row])) } })
+    } else if (item.kind === "workout") {
+      const row = plans.find((p) => p.id === item.id)
+      if (!row) return
+      setPlans((current) => current.filter((p) => p.id !== row.id))
+      toast("Treino excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setPlans((current) => (current.some((p) => p.id === row.id) ? current : [...current, row])) } })
+    } else if (item.kind === "study") {
+      const row = deadlines.find((d) => d.id === item.id)
+      if (!row) return
+      setDeadlines((current) => current.filter((d) => d.id !== row.id))
+      toast("Estudo excluído.", { duration: 8000, action: { label: "Desfazer", onClick: () => setDeadlines((current) => (current.some((d) => d.id === row.id) ? current : [...current, row])) } })
+    }
+  }
+
+  /** Excluir: tasks wait for the undo window; a series (treino, repeating event) first asks "Só esta ocorrência" / "Toda a série". */
+  function requestDelete(item: AgendaItem) {
+    if (item.kind === "task") return deleteTaskItem(item)
+    const repeats = item.kind === "workout" || (item.kind === "event" && Boolean(events.find((e) => e.id === item.id)?.rrule))
+    if (repeats) return setAsk(item)
+    deleteRow(item, "series")
+  }
+
+  const noop = () => {}
+  const rowOf = (item: AgendaItem) => {
+    const task = {
+      id: item.kind === "task" ? item.id : item.key,
+      board_id: "",
+      list_id: "",
+      title: item.title,
+      description: null,
+      priority: "none",
+      due_at: item.start.toISOString(),
+      due_has_time: !item.allDay,
+      completed_at: item.done ? new Date(0).toISOString() : null,
+      archived: false,
+      position: 0,
+      swatch: "neutro",
+      category: item.category ?? null,
+      user_id: "",
+      created_at: "",
+      updated_at: "",
+      tagIds: [],
+      checklistTotal: 0,
+      checklistDone: 0,
+      commentCount: 0,
+      attachmentCount: 0,
+    } as unknown as TaskView
+    const actions: TaskActions = { open: () => openItem(item), toggle: () => toggleItem(item), remove: () => requestDelete(item), postpone1h: noop, tomorrow: noop, move: noop, select: noop, duplicate: noop, rename: async () => false }
+    const timeText = item.allDay ? "Dia todo" : item.kind === "task" ? formatTime(item.start) : `${formatTime(item.start)} – ${formatTime(item.end)}`
+    return (
+      <div key={item.key} data-agenda-card data-kind={item.kind} data-day-item={item.id}>
+        <TaskCardBody anchor task={task} tags={[]} now={new Date(nowIso)} timeZone={TZ} actions={actions} agenda={{ kind: item.kind, timeText, place: item.location }} colorOverride={itemColor(item)} />
+      </div>
+    )
+  }
+
+  /** A task opens the SAME dialog (and URL) as in Tarefas; events, treinos and estudos open the event dialog. */
+  function openItem(item: AgendaItem) {
+    if (item.kind === "task") {
+      const board = taskBoard.get(item.id)
+      if (board) router.push(`/dashboard/tarefas/${board}?tarefa=${item.id}`)
+      return
+    }
+    // Treinos and estudos are read-only here: they open in their own module.
+    if (item.kind === "workout") return void router.push("/dashboard/treinos")
+    if (item.kind === "study") return void router.push("/dashboard/estudos")
+    setSelected(item)
+  }
+
+  // `T` goes to today (ignored while typing or with a dialog open).
+  useEffect(() => {
+    if (isMobile) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "t" || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest("input, textarea, select, [contenteditable=true]") || document.querySelector("[role=dialog], [role=alertdialog]")) return
+      event.preventDefault()
+      setDay(todayKey)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, todayKey])
+
+  const hidden = (4 - kinds.size) + (showDone ? 1 : 0)
+  // Calendários (checkbox rows with a color dot) and "Mostrar concluídas": ONE panel, a popover on desktop and a sheet on phones.
+  const filterContent = (
+    <div className="flex flex-col gap-1" data-testid="agenda-filters">
+      <p className="px-3 pt-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Calendários</p>
+      {(Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
+        <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
+          <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-foreground/55" />
+          {KIND_META[kind].label}
+        </label>
+      ))}
+      <label className="mt-1 flex min-h-11 items-center justify-between gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
+        Mostrar concluídas
+        <Switch checked={showDone} onCheckedChange={setShowDone} aria-label="Mostrar concluídas" />
+      </label>
+    </div>
+  )
+  const filterBadge = hidden > 0 ? <span className="tabular flex size-5 items-center justify-center rounded-full bg-highlight text-[11px] font-semibold text-highlight-foreground">{hidden}</span> : null
+
+  const filtros = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 gap-2 px-4" data-testid="calendar-filter">
+          <SlidersHorizontalIcon strokeWidth={1.75} /> Filtros
+          {filterBadge}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 gap-1 p-2">
+        {filterContent}
+      </PopoverContent>
+    </Popover>
   )
 
-  const main = (
+  const itemsView = (
+    <>
+      {effectiveView === "mes" ? (
+        <MonthGrid month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onOpenItem={openItem} onCreateOn={(key) => (isMobile ? setDay(key) : setCreating({ day: key }))} />
+      ) : null}
+      {effectiveView === "semana" ? (
+        isMobile ? (
+          <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} />
+        ) : (
+          <TimeGrid
+            days={weekDays}
+            todayKey={todayKey}
+            itemsOn={itemsOn}
+            nowIso={nowIso}
+            onOpenItem={openItem}
+            onSelectDay={(key) => {
+              setDay(key)
+              setView("dia")
+            }}
+            onCreate={setCreating}
+            onMoveEvent={moveEvent}
+            canDrag={canDrag}
+          />
+        )
+      ) : null}
+      {effectiveView === "dia" && !isMobile ? <TimeGrid days={[parseISO(day)]} todayKey={todayKey} itemsOn={itemsOn} nowIso={nowIso} onOpenItem={openItem} onCreate={setCreating} onMoveEvent={moveEvent} canDrag={canDrag} single /> : null}
+      {effectiveView === "agenda" && !isMobile ? <AgendaDays from={day} todayKey={todayKey} itemsOn={itemsOn} renderRow={rowOf} flat={isMobile} /> : null}
+    </>
+  )
+
+  const dayTitle = day === todayKey ? `Hoje · ${format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR })}` : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
+  const mobileTitle =
+    view === "mes"
+      ? format(parseISO(day), "MMMM 'de' yyyy", { locale: ptBR }).toLowerCase()
+      : view === "semana"
+        ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM", { locale: ptBR })}`.replace(/\./g, "")
+        : view === "dia"
+          ? format(parseISO(day), "EEE, d 'de' MMMM", { locale: ptBR }).toLowerCase()
+          : agendaTitle(day, todayKey)
+
+  const main = isMobile ? (
+    <div className="flex flex-col gap-4" data-testid="agenda-mobile">
+      <section aria-label="Agenda" data-testid="agenda-header-block" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-3">
+        <div className="flex h-11 items-center gap-2">
+          {searchOpen ? (
+            <>
+              <Input autoFocus type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar na agenda" placeholder="Buscar na agenda" className="h-11 min-w-0 flex-1 rounded-full" />
+              <Button variant="ghost" className="h-11" onClick={() => (setQuery(""), setSearchOpen(false))}>
+                Fechar
+              </Button>
+            </>
+          ) : (
+            <>
+              <h2 className="min-w-0 flex-1 truncate text-[18px] leading-7 font-semibold">Agenda</h2>
+              <Button variant="outline" size="icon" aria-label="Buscar na agenda" className="relative size-9 after:absolute after:-inset-1" onClick={() => setSearchOpen(true)}>
+                <SearchIcon strokeWidth={1.75} />
+              </Button>
+              <Button variant="outline" size="icon" aria-label={hidden > 0 ? `Filtros, ${hidden} ativos` : "Filtros"} data-testid="calendar-filter" className="relative size-9 after:absolute after:-inset-1" onClick={() => setFilterSheet(true)}>
+                <SlidersHorizontalIcon strokeWidth={1.75} />
+                {hidden > 0 ? <span className="tabular absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-highlight text-[10px] font-semibold text-highlight-foreground">{hidden}</span> : null}
+              </Button>
+            </>
+          )}
+        </div>
+        <PillTabs equal ariaLabel="Visão" items={MODE_ITEMS} value={view} onSelect={(item) => setView(item.id as View)} />
+      </section>
+      <section aria-label="Calendário" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
+        <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
+        {view === "mes" || view === "semana" ? itemsView : null}
+      </section>
+      <div className="flex flex-col gap-1 px-1" data-testid="agenda-below">
+        {view === "agenda" ? (
+          <AgendaDays from={day} todayKey={todayKey} itemsOn={itemsOn} renderRow={rowOf} flat={isMobile} />
+        ) : (
+          <>
+            <h3 data-testid="day-heading" className="text-[15px] leading-6 font-semibold">
+              {dayTitle}
+            </h3>
+            <DayGroups items={itemsOn(day)} day={day} renderRow={rowOf} onNewEvent={() => setCreating({ day })} flat />
+          </>
+        )}
+      </div>
+      <Drawer open={filterSheet} onOpenChange={setFilterSheet}>
+        <DrawerContent className="max-h-[80dvh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Filtros</DrawerTitle>
+            <DrawerDescription className="sr-only">Escolha o que aparece na agenda.</DrawerDescription>
+          </DrawerHeader>
+          <div className="scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filterContent}</div>
+        </DrawerContent>
+      </Drawer>
+    </div>
+  ) : (
     <BentoCard>
       <div className="flex flex-col gap-5">
-        {controls}
-
-        {effectiveView === "mes" ? (
-          <MonthGrid
-            month={parseISO(day)}
-            todayKey={todayKey}
-            selectedKey={day}
-            itemsOn={itemsOn}
-            onSelectDay={setDay}
-            onOpenItem={setSelected}
-            onCreateOn={(key) => setCreating({ day: key })}
-          />
-        ) : null}
-
-        {effectiveView === "semana" ? (
-          <>
-            <div className="hidden md:block">
-              <TimeGrid
-                days={weekDays}
-                todayKey={todayKey}
-                itemsOn={itemsOn}
-                nowIso={nowIso}
-                onOpenItem={setSelected}
-                onSelectDay={(key) => {
-                  setDay(key)
-                  setView("dia")
-                }}
-                onCreate={setCreating}
-                onMoveEvent={moveEvent}
-                canDrag={canDrag}
-              />
-            </div>
-            <div className="md:hidden">
-              <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} />
-              <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
-            </div>
-          </>
-        ) : null}
-
-        {effectiveView === "dia" ? (
-          <>
-            <div className="hidden md:block">
-              <TimeGrid
-                days={[parseISO(day)]}
-                todayKey={todayKey}
-                itemsOn={itemsOn}
-                nowIso={nowIso}
-                onOpenItem={setSelected}
-                onCreate={setCreating}
-                onMoveEvent={moveEvent}
-                canDrag={canDrag}
-                single
-              />
-            </div>
-            <div className="md:hidden">
-              <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
-            </div>
-          </>
-        ) : null}
-
-        {effectiveView === "agenda" ? <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={setSelected} /> : null}
+        <CalendarToolbar
+         
+          trailing={filtros}
+          title={title}
+          onToday={() => setDay(todayKey)}
+          onShift={shift}
+          view={view}
+          onViewChange={setView}
+         
+        />
+        {itemsView}
       </div>
     </BentoCard>
   )
@@ -454,25 +727,46 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       <BentoCard title="Calendário">
         <MiniMonth month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(parseISO(day), n), "yyyy-MM-dd"))} />
       </BentoCard>
-      <BentoCard title={upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))}>
-        <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
+      <BentoCard title={dayTitle}>
+        <DayGroups items={itemsOn(day)} day={day} renderRow={rowOf} onNewEvent={() => setCreating({ day })} />
       </BentoCard>
-      {day !== todayKey ? (
-        <BentoCard title="Hoje">
-          <DayAgenda items={todayItems} onOpenItem={setSelected} />
-        </BentoCard>
-      ) : null}
     </>
   )
 
   return (
+    <LabelColorsProvider value={labels}>
     <div className="@container">
       <div className="grid min-w-0 grid-cols-1 gap-5 @min-[880px]:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] @min-[880px]:items-start">
         <div className="min-w-0">{main}</div>
         {/* From 880 px of content width (about a 1280 px screen with the sidebar open): the selected day and a mini month. */}
-        <aside className={cn("flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0", effectiveView === "mes" ? "" : "")}>{aside}</aside>
+        {isMobile ? null : <aside className="flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0">{aside}</aside>}
       </div>
 
+      <ResponsiveSheet open={Boolean(ask)} onOpenChange={(open) => !open && setAsk(null)} title="Excluir item que se repete" description={ask ? `“${ask.title}” se repete. O que excluir?` : undefined}>
+        <div className="flex flex-col gap-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11"
+            onClick={() => {
+              if (ask) deleteRow(ask, "occurrence")
+              setAsk(null)
+            }}
+          >
+            Só esta ocorrência
+          </Button>
+          <Button
+            type="button"
+            className="h-11"
+            onClick={() => {
+              if (ask) deleteRow(ask, "series")
+              setAsk(null)
+            }}
+          >
+            Toda a série
+          </Button>
+        </div>
+      </ResponsiveSheet>
       <EventDialog
         draft={creating}
         event={editing}
@@ -562,6 +856,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         onConfirm={confirmDelete}
       />
     </div>
+    </LabelColorsProvider>
   )
 }
 
@@ -647,7 +942,7 @@ export function MonthGrid({
                   onDragStart={(e) => e.dataTransfer.setData("application/x-organizzou-task", item.id)}
                   onClick={() => onOpenItem(item)}
                   style={itemStyle(item)}
-                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-2 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(), item.highlight && HIGHLIGHT)}
                 >
                   <ItemIcon kind={item.kind} />
                   <span className="truncate">{item.title}</span>
@@ -656,8 +951,8 @@ export function MonthGrid({
               {list.length > 3 ? (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button type="button" className="self-start rounded-md px-1 text-xs leading-4 text-muted-foreground underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-                      +{list.length - 3} mais
+                    <button type="button" data-more-pill aria-label={`Mais ${list.length - 3} itens`} className="tabular relative inline-flex h-5 self-start items-center rounded-full bg-muted px-2 text-xs leading-4 text-foreground outline-none after:absolute after:-inset-y-1 after:inset-x-0 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+                      +{list.length - 3}
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-72 gap-1 p-2">
@@ -665,7 +960,7 @@ export function MonthGrid({
                       {format(date, "EEEE, d 'de' MMMM", { locale: ptBR })}
                     </p>
                     {list.map((item) => (
-                      <button key={item.key} type="button" onClick={() => onOpenItem(item)} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <button key={item.key} type="button" data-more-item onClick={() => onOpenItem(item)} style={itemStyle(item)} className={cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone())}>
                         <span className="tabular w-12 shrink-0 text-[13px] text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
                         <span className="truncate">{item.title}</span>
                       </button>
@@ -768,7 +1063,6 @@ export function DayStrip({
     <div className="mb-4 grid grid-cols-7 gap-1" role="group" aria-label="Dias da semana">
       {days.map((date) => {
         const key = format(date, "yyyy-MM-dd")
-        const count = itemsOn(key).length
         return (
           <button
             key={key}
@@ -782,7 +1076,11 @@ export function DayStrip({
           >
             <span className="text-[11px] leading-4 uppercase">{format(date, "EEE", { locale: ptBR }).slice(0, 3)}</span>
             <span className={cn("tabular text-[15px] font-semibold", key === todayKey && key !== selectedKey && "underline underline-offset-4")}>{format(date, "d")}</span>
-            <span aria-hidden className={cn("size-1.5 rounded-full", count > 0 ? "bg-current" : "bg-transparent")} />
+            <span aria-hidden data-dots className="flex h-1.5 items-center gap-0.5">
+              {itemsOn(key).slice(0, 3).map((item) => (
+                <span key={item.key} className={cn("size-1.5 rounded-full", !itemColor(item) && "bg-current")} style={itemColor(item) ? { backgroundColor: itemColor(item)! } : undefined} />
+              ))}
+            </span>
           </button>
         )
       })}
@@ -790,56 +1088,117 @@ export function DayStrip({
   )
 }
 
-function DayAgenda({ items, onOpenItem }: { items: AgendaItem[]; onOpenItem: (item: AgendaItem) => void }) {
-  if (items.length === 0) {
-    return <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado para este dia.</p>
+const GROUPS: { kind: AgendaKind; label: string; icon: LucideIcon }[] = [
+  { kind: "task", label: "Tarefas", icon: SquareCheckIcon },
+  { kind: "event", label: "Eventos", icon: CalendarDaysIcon },
+  { kind: "workout", label: "Treinos", icon: DumbbellIcon },
+  { kind: "study", label: "Estudos", icon: BookOpenIcon },
+]
+const GROUPS_KEY = "organizzou:agenda-groups"
+
+/**
+ * The selected day, VIEW mode: collapsible groups by calendar (chevron, name, count; no "+" and no ⋯), the shared card anatomy
+ * (leading icon, one-line title, clock + time, place, left color bar, tinted) and ONE dashed "Novo evento…" pill at the end.
+ * `flat` (phones/tablets): no surface around it, the groups sit on the page background.
+ */
+function DayGroups({ items, day, renderRow, onNewEvent, flat = false }: { items: AgendaItem[]; day: string; renderRow: (item: AgendaItem) => React.ReactNode; onNewEvent: () => void; flat?: boolean }) {
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    try {
+      // localStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaved(JSON.parse(window.localStorage.getItem(GROUPS_KEY) ?? "{}") as Record<string, boolean>)
+    } catch {
+      setSaved({})
+    }
+  }, [])
+  const toggle = (kind: string, open: boolean) => {
+    const next = { ...saved, [kind]: !open }
+    setSaved(next)
+    try {
+      window.localStorage.setItem(GROUPS_KEY, JSON.stringify(next))
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
   }
   return (
-    <div className="flex flex-col">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          onClick={() => onOpenItem(item)}
-          className="flex min-h-14 items-center gap-4 border-b border-border py-3 text-left outline-none last:border-b-0 focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
-          <span aria-hidden className={cn("h-8 w-1 shrink-0 rounded-full", getSwatch(item.swatch).fill)} />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="flex items-center gap-2 text-[15px] leading-6">
-              <ItemIcon kind={item.kind} className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.title}</span>
-            </span>
-            {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
-          </span>
-        </button>
-      ))}
+    <div data-testid="day-card" data-day={day} className={cn("flex flex-col", flat && "gap-0")}>
+      {items.length === 0 ? <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nada para este dia.</p> : null}
+      {GROUPS.map(({ kind, label }) => {
+        const list = items.filter((i) => i.kind === kind)
+        const open = saved[kind] ?? list.length > 0
+        return (
+          <section key={kind} data-group={kind} aria-label={label} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
+            <GroupHeader label={label} count={list.length} open={open} onToggle={() => toggle(kind, open)} />
+            <Collapse open={open}>
+              <div data-group-rows className="flex flex-col gap-2 pb-2">{list.map((item) => renderRow(item))}</div>
+            </Collapse>
+          </section>
+        )
+      })}
+      <button type="button" data-add-task-pill onClick={onNewEvent} className="mt-1 flex h-11 w-full items-center gap-2 rounded-full border border-dashed border-border px-4 text-[14px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
+        Novo evento…
+      </button>
     </div>
   )
 }
 
-/** Phones: "Agenda" tab, the next days one after the other like Google Calendar's schedule view. */
-function UpcomingList({
-  from,
-  items,
-  itemsOn,
-  onOpenItem,
-}: {
-  from: string
-  items: AgendaItem[]
-  itemsOn: (key: string) => AgendaItem[]
-  onOpenItem: (item: AgendaItem) => void
-}) {
-  const days = Array.from({ length: 21 }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => itemsOn(key).length > 0)
-  if (items.length === 0 || days.length === 0) return <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado nos próximos dias.</p>
+const DAYS_KEY = "organizzou:agenda-days"
+
+/**
+ * Agenda mode: the next 30 days, one collapsible header per day with items ("Hoje · qua, 4 nov"), compact rows inside in chronological
+ * order (all-day first). Today starts open and the rest closed; the toggles last for the session. `flat` (phones/tablets): the rows of
+ * an expanded day live in one surface container.
+ */
+function AgendaDays({ from, todayKey, itemsOn, renderRow, flat }: { from: string; todayKey: string; itemsOn: (key: string) => AgendaItem[]; renderRow: (item: AgendaItem) => React.ReactNode; flat: boolean }) {
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    try {
+      // sessionStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaved(JSON.parse(window.sessionStorage.getItem(DAYS_KEY) ?? "{}") as Record<string, boolean>)
+    } catch {
+      setSaved({})
+    }
+  }, [])
+  const persist = (next: Record<string, boolean>) => {
+    setSaved(next)
+    try {
+      window.sessionStorage.setItem(DAYS_KEY, JSON.stringify(next))
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
+  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => itemsOn(key).length > 0)
+  if (days.length === 0) return <p data-testid="agenda-empty" className="py-4 text-[15px] leading-6 text-muted-foreground">Nada nos próximos {AGENDA_DAYS} dias.</p>
+  const isOpen = (key: string) => saved[key] ?? key === todayKey
+  const allOpen = days.every(isOpen)
+  const label = (key: string) => {
+    const text = format(parseISO(key), "EEE, d MMM", { locale: ptBR }).replace(/\./g, "").toLowerCase()
+    return key === todayKey ? `Hoje · ${text}` : text
+  }
   return (
-    <div className="flex flex-col gap-4">
-      {days.map((key) => (
-        <section key={key} aria-label={key}>
-          <h3 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{format(parseISO(key), "EEEE, d 'de' MMMM", { locale: ptBR })}</h3>
-          <DayAgenda items={itemsOn(key)} onOpenItem={onOpenItem} />
-        </section>
-      ))}
+    <div data-testid="agenda-list" className="flex flex-col">
+      <div className="flex justify-end">
+        <Button type="button" variant="ghost" data-testid="agenda-toggle-all" className="h-9 px-3 text-[13px] text-muted-foreground" onClick={() => persist(Object.fromEntries(days.map((key) => [key, !allOpen])))}>
+          {allOpen ? "Recolher tudo" : "Expandir tudo"}
+        </Button>
+      </div>
+      {days.map((key) => {
+        const list = itemsOn(key)
+        const open = isOpen(key)
+        return (
+          <section key={key} data-agenda-day={key} aria-label={label(key)} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
+            <GroupHeader label={label(key)} count={list.length} open={open} onToggle={() => persist({ ...saved, [key]: !open })} />
+            <Collapse open={open}>
+              <div data-group-rows className="flex flex-col gap-2 pb-2">
+                {list.map((item) => renderRow(item))}
+              </div>
+            </Collapse>
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -997,7 +1356,7 @@ export function TimeGrid({
                   data-agenda-item={item.id}
                   onClick={() => onOpenItem(item)}
                   style={itemStyle(item)}
-                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(), item.highlight && HIGHLIGHT)}
                 >
                   <ItemIcon kind={item.kind} />
                   <span className="truncate">{item.title}</span>
@@ -1076,7 +1435,7 @@ export function TimeGrid({
                     <div
                       key={item.key}
                       data-agenda-item={item.id}
-                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(item), moving && "z-30 opacity-80 ring-2 ring-foreground/40", item.highlight && HIGHLIGHT)}
+                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(), moving && "z-30 opacity-80 ring-2 ring-foreground/40", item.highlight && HIGHLIGHT)}
                       style={{ ...itemStyle(item), top, height, left: `calc(${(column / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
                     >
                       <button
@@ -1122,7 +1481,7 @@ export function TimeGrid({
                 {/* Ghost of an event being moved into this column. */}
                 {drag?.mode === "move" && drag.key === key && !timed.some((t) => t.item.key === drag.item.key) ? (
                   <div
-                    className={cn("pointer-events-none absolute inset-x-1 z-30 rounded-lg px-2 py-1 text-xs leading-4 opacity-80 ring-2 ring-foreground/40", itemTone(drag.item))}
+                    className={cn("pointer-events-none absolute inset-x-1 z-30 rounded-lg px-2 py-1 text-xs leading-4 opacity-80 ring-2 ring-foreground/40", itemTone())}
                     style={{ top: ((drag.top - HOUR_START * 60) / 60) * ROW_HEIGHT, height: Math.max(24, (drag.durationMin / 60) * ROW_HEIGHT - 2) }}
                   >
                     {drag.item.title}
@@ -1181,7 +1540,9 @@ function EventForm({
   const [category, setCategory] = useState(event?.category ?? "")
   const [location, setLocation] = useState(event?.location ?? "")
   const [notes, setNotes] = useState(event?.description ?? "")
-  const [swatch, setSwatch] = useState<SwatchId>(event?.swatch ?? "neutro")
+  const labels = useLabelColors()
+  // The shared ColorPicker: a color saved locally (the new defaults and custom colors), else the legacy swatch the event was saved with.
+  const [color, setColor] = useState<ColorValue>(event ? (labels.colorOf("event", event.id) ?? (event.swatch !== "neutro" ? event.swatch : null)) : null)
   const [repeat, setRepeat] = useState<string>(REPEAT_OPTIONS.find((o) => o.rrule === (event?.rrule ?? null))?.value ?? "none")
   const [reminder, setReminder] = useState<string>(REMINDER_OPTIONS.find((o) => o.minutes === (event?.reminder_offsets[0] ?? null))?.value ?? "none")
 
@@ -1195,9 +1556,13 @@ function EventForm({
         if (invalid) return
         const stamp = new Date().toISOString()
         const minutes = REMINDER_OPTIONS.find((o) => o.value === reminder)?.minutes ?? null
+        const id = event?.id ?? newId()
+        labels.setColor("event", id, color)
+        // The column only accepts the legacy swatches; the rest of the colors live in the label store until the migration is applied.
+        const column = (color && ["lima", "lima-verso", "tinta-verso", "grafite", "papel"].includes(color) ? color : "neutro") as SwatchId
         onSave(
           {
-            id: event?.id ?? newId(),
+            id,
             user_id: event?.user_id ?? "00000000-0000-4000-8000-000000000001",
             title: title.trim(),
             starts_at: toDueIso(date, allDay ? "00:00" : start, TZ),
@@ -1206,7 +1571,7 @@ function EventForm({
             description: notes.trim() || null,
             location: location.trim() || null,
             category: category.trim() || null,
-            swatch,
+            swatch: column,
             rrule: REPEAT_OPTIONS.find((o) => o.value === repeat)?.rrule ?? null,
             reminder_offsets: minutes ? [minutes] : [],
             created_at: event?.created_at ?? stamp,
@@ -1293,8 +1658,9 @@ function EventForm({
         <Textarea id="event-notes" value={notes} maxLength={1000} placeholder="Detalhes, links, o que levar" onChange={(e) => setNotes(e.target.value)} />
       </div>
       <div className="flex flex-col gap-2">
-        <Label>Cor</Label>
-        <SwatchPicker value={swatch} onChange={setSwatch} />
+        <Label>Cor do evento{resolveHex(color) ? <span className="ml-2 inline-block size-2 rounded-full align-middle ring-1 ring-foreground/25" style={{ backgroundColor: resolveHex(color)! }} /> : null}</Label>
+        <ColorPicker label="Cor do evento" value={color} onChange={setColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
+        <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão e no calendário.</p>
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>

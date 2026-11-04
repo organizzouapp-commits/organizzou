@@ -51,16 +51,23 @@ export type BillStatus = "paid" | "overdue" | "soon" | "upcoming"
 
 export type BillView = { bill: RecurringBillRow; status: BillStatus; daysLeft: number; dueOn: string }
 
-/** Where a recurring bill stands in the current month. */
-export function billStatus(bill: RecurringBillRow, today: string): BillView {
-  const month = monthOf(today)
+/**
+ * Where a recurring bill stands in `month` (a "yyyy-MM"; the current one by default). The storage is unchanged: only the last month paid is
+ * kept, so a month is paid when it is not after that one. An unpaid month that is over is overdue; a later month is just upcoming.
+ */
+export function billStatusIn(bill: RecurringBillRow, month: string, today: string): BillView {
   const dueOn = `${month}-${String(bill.due_day).padStart(2, "0")}`
   const daysLeft = Math.round((parseISO(dueOn).getTime() - parseISO(today).getTime()) / 86_400_000)
   let status: BillStatus = "upcoming"
-  if (bill.last_paid_month === month) status = "paid"
+  if (bill.last_paid_month && bill.last_paid_month >= month) status = "paid"
   else if (daysLeft < 0) status = "overdue"
   else if (daysLeft <= 5) status = "soon"
   return { bill, status, daysLeft, dueOn }
+}
+
+/** Where a recurring bill stands in the current month. */
+export function billStatus(bill: RecurringBillRow, today: string): BillView {
+  return billStatusIn(bill, monthOf(today), today)
 }
 
 export function monthlyFixedTotal(bills: RecurringBillRow[]) {

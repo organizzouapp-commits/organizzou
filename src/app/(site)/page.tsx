@@ -1,5 +1,4 @@
 import { ChevronRightIcon } from "lucide-react"
-import { getImageProps } from "next/image"
 import Link from "next/link"
 
 import { CursorGlow } from "@/components/site/cursor-glow"
@@ -20,23 +19,14 @@ const link =
   "rounded-sm underline decoration-transparent underline-offset-4 outline-none transition-[text-decoration-color,text-underline-offset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:decoration-current hover:underline-offset-[6px] focus-visible:decoration-current focus-visible:underline-offset-[6px] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
 
 export default function ComingSoonPage() {
-  // Same photo as the auth screen, art-directed: phones only download the mobile image.
-  const base = { alt: "", fill: true, priority: true, sizes: "100vw" } as const
-  const {
-    props: { srcSet: desktopSrcSet, ...desktopRest },
-  } = getImageProps({ ...base, src: "/images/auth-background.png" })
-  const {
-    props: { srcSet: mobileSrcSet },
-  } = getImageProps({ ...base, src: "/images/auth-background-mobile.png" })
-  // The Next.js dev indicator sits bottom-left in development only: keep the footer links clear of it.
+  // Same photo as the auth screen, art-directed: phones only download the mobile image (static WebP, no image optimizer involved).
   const dev = process.env.NODE_ENV === "development"
 
   return (
     <div className="relative flex min-h-dvh flex-col">
       <picture>
-        <source media="(max-width: 767px)" srcSet={mobileSrcSet} />
-        <source media="(min-width: 768px)" srcSet={desktopSrcSet} />
-        <img {...desktopRest} id="site-bg" alt="" className="-z-10 object-cover object-center" />
+        <source media="(max-width: 767px)" srcSet="/images/auth-background-mobile.webp" />
+        <img src="/images/auth-background.webp" id="site-bg" alt="" fetchPriority="high" decoding="async" className="absolute inset-0 -z-10 size-full object-cover object-center" />
       </picture>
       <noscript>
         <style>{"#site-reveal{opacity:1!important}"}</style>

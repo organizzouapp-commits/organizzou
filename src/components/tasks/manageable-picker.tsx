@@ -41,6 +41,8 @@ type ManageablePickerProps = {
   onReorder?: (ids: string[]) => void
   /** Shown in the delete confirmation: what happens to the tasks that use the item. */
   deleteNote?: string
+  /** What the items are used by, singular and plural, in the delete confirmation (default: tarefa / tarefas). */
+  unit?: [string, string]
 }
 
 /** The color of a row as a 28 px circle (44 px hit area) that opens the shared ColorPicker. */
@@ -259,7 +261,7 @@ export function ManageablePicker(props: ManageablePickerProps) {
         open={Boolean(toDelete)}
         onOpenChange={(open) => !open && setToDelete(null)}
         title={`Excluir ${noun}?`}
-        description={toDelete ? (usage(toDelete.id) > 0 ? `“${toDelete.label}” está em ${usage(toDelete.id)} ${usage(toDelete.id) === 1 ? "tarefa" : "tarefas"}. ${props.deleteNote ?? "Ela será removida delas."}` : `“${toDelete.label}” não está em nenhuma tarefa.`) : ""}
+        description={toDelete ? (usage(toDelete.id) > 0 ? `“${toDelete.label}” está em ${usage(toDelete.id)} ${usage(toDelete.id) === 1 ? (props.unit?.[0] ?? "tarefa") : (props.unit?.[1] ?? "tarefas")}. ${props.deleteNote ?? "Ela será removida delas."}` : `“${toDelete.label}” não está em nenhum${props.unit ? " " + props.unit[0] : "a tarefa"}.`) : ""}
         onConfirm={() => {
           if (toDelete) onDelete(toDelete.id)
           setToDelete(null)

@@ -3,7 +3,6 @@
 import { forwardRef, useRef, useState } from "react"
 import {
   ArrowLeftIcon,
-  ArrowUpDownIcon,
   CalendarDaysIcon,
   ChevronDownIcon,
   ListIcon,
@@ -27,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -47,6 +45,7 @@ import { cn } from "@/lib/utils"
 import type { CalendarViewId } from "@/components/calendar/agenda-screen"
 import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { InlineInput } from "./inline-input"
+import { ExpandingSearch, SearchField, ToolbarSort } from "./toolbar-controls"
 import { dashedPillClass, PillTabs } from "./pill-tabs"
 import type { GroupBy } from "./list-view"
 import { useLabelColors } from "./label-colors-context"
@@ -107,21 +106,7 @@ function toggle<T>(values: T[], value: T) {
 }
 
 function SortSelect({ sort, onSortChange, className }: { sort: SortKey; onSortChange: (sort: SortKey) => void; className?: string }) {
-  return (
-    <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)}>
-      <SelectTrigger aria-label="Ordenar" className={cn("w-auto min-w-0 gap-2 rounded-full", className)}>
-        <ArrowUpDownIcon aria-hidden strokeWidth={1.75} className="size-4" />
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-          <SelectItem key={key} value={key}>
-            {SORT_LABELS[key]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
+  return <ToolbarSort value={sort} onChange={onSortChange} className={className} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ id: key, label: SORT_LABELS[key] }))} />
 }
 
 function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort: boolean }) {
@@ -208,36 +193,6 @@ function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort:
     </div>
   )
 }
-
-/** Pill search, the same treatment as the header's search (radius 999, card background, border, 15px text, icon at 16px). */
-export const SearchField = forwardRef<HTMLInputElement, { value: string; onChange: (value: string) => void; className?: string; onFocus?: () => void; onBlur?: () => void; onEscape?: () => void; hint?: boolean }>(function SearchField(
-  { value, onChange, className, onFocus, onBlur, onEscape, hint },
-  ref
-) {
-  return (
-    <div className={cn("relative min-w-0", className)}>
-      <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-4 size-[18px] -translate-y-1/2 text-muted-foreground" />
-      <Input
-        ref={ref}
-        type="search"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Buscar tarefas"
-        aria-label="Buscar tarefas"
-        onFocus={onFocus}
-        onBlur={onBlur}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation()
-            onEscape?.()
-          }
-        }}
-        className="h-11 rounded-full border-border bg-card pr-10 pl-11 text-[15px] md:h-10 dark:bg-card"
-      />
-      {hint && !value ? <kbd aria-hidden className="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded-md border border-border px-1.5 text-[12px] leading-5 text-muted-foreground md:block">/</kbd> : null}
-    </div>
-  )
-})
 
 const MODE_LABELS = [
   { id: "mes", label: "Mês" },
@@ -451,14 +406,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
       <div className="order-last w-full min-[1280px]:order-none min-[1280px]:w-auto min-[1280px]:min-w-0 min-[1280px]:flex-1">{chips}</div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {/* Local filter only; the header search stays global. The icon expands into the pill ("/" focuses it). */}
-        <div className="flex items-center">
-          <Button variant="outline" size="icon" className={cn("size-10 rounded-full", searchOpen && "hidden")} aria-label="Buscar tarefas" onClick={() => setSearchOpen(true)}>
-            <SearchIcon strokeWidth={1.75} />
-          </Button>
-          <div className={cn("relative transition-[width] duration-[400ms] motion-reduce:transition-none", "ease-[cubic-bezier(0.2,0.8,0.2,1)]", searchOpen ? "w-56" : "w-0 overflow-hidden")}>
-            <SearchField ref={searchRef} hint value={filters.query} onChange={(query) => onFiltersChange({ ...filters, query })} onFocus={() => setSearchOpen(true)} onBlur={() => !filters.query && setSearchOpen(false)} onEscape={() => (onFiltersChange({ ...filters, query: "" }), setSearchOpen(false))} className="w-56" />
-          </div>
-        </div>
+        <ExpandingSearch ref={searchRef} hint label="Buscar tarefas" value={filters.query} onChange={(query) => onFiltersChange({ ...filters, query })} />
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="h-10 shrink-0 rounded-full px-4">

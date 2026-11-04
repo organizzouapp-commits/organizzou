@@ -1,5 +1,5 @@
-import { PageSkeleton } from "@/components/organizzou/PageSkeleton"
+import { FinanceSkeleton } from "@/components/finance/finance-skeleton"
 
 export default function Loading() {
-  return <PageSkeleton layout="bento" />
+  return <FinanceSkeleton />
 }

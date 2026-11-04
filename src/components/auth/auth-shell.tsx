@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { getImageProps } from "next/image"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 
@@ -406,24 +405,15 @@ export function AuthShell() {
 
   const sheetClosedOnPhone = below && !sheetOpen
 
-  // Background art direction (public/images/auth-background*.png), optimized by next/image.
-  const imageBase = { alt: "", fill: true, priority: true, sizes: "100vw" } as const
-  const {
-    props: { srcSet: desktopSrcSet, ...desktopRest },
-  } = getImageProps({ ...imageBase, src: "/images/auth-background.png" })
-  const {
-    props: { srcSet: mobileSrcSet },
-  } = getImageProps({ ...imageBase, src: "/images/auth-background-mobile.png" })
-  const desktopBackground = { srcSet: desktopSrcSet, rest: desktopRest }
-  const mobileBackground = { srcSet: mobileSrcSet }
+  // Background art direction (public/images/auth-background*.webp): static, already optimized files served as they are, so the photo
+  // never depends on the image optimizer of the host.
 
   return (
     <div className="auth-root relative min-h-dvh lg:h-dvh lg:overflow-hidden" data-intro={intro ? "" : undefined}>
       {/* Full-screen photo behind everything (public/images/auth-background.png). */}
       <picture>
-        <source media="(max-width: 767px)" srcSet={mobileBackground.srcSet} />
-        <source media="(min-width: 768px)" srcSet={desktopBackground.srcSet} />
-        <img {...desktopBackground.rest} alt="" className="-z-10 object-cover object-center" />
+        <source media="(max-width: 767px)" srcSet="/images/auth-background-mobile.webp" />
+        <img src="/images/auth-background.webp" alt="" fetchPriority="high" decoding="async" className="absolute inset-0 -z-10 size-full object-cover object-center" />
       </picture>
 
       {/* Solid so it stays visible over the photo: Tinta with a Lima icon in both themes; Lima with a Tinta icon on hover. */}

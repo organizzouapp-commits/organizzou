@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
+import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, BookOpenIcon, CalendarClockIcon, CalendarDaysIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, DumbbellIcon, EllipsisIcon, ExternalLinkIcon, MapPinIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -43,6 +43,12 @@ export type TaskActions = {
 
 type Density = "card" | "row"
 
+/**
+ * The Agenda page renders every item (tasks, events, treinos, estudos) with this same card. `agenda` switches on: the type icon and the
+ * "Dia todo" / "11:00 – 11:30" text (plus the place) in the date row, the two-item menu (Abrir, Excluir), swipe left = Excluir, and no rename.
+ */
+export type AgendaCardInfo = { kind: "task" | "event" | "workout" | "study"; timeText: string; place?: string }
+
 type TaskCardBodyProps = {
   task: TaskView
   tags: TagRow[]
@@ -61,6 +67,9 @@ type TaskCardBodyProps = {
   anchor?: boolean
   /** "full": date (and time). "time": only the time, for a day list where the day is already selected. */
   dueMode?: "full" | "time"
+  agenda?: AgendaCardInfo
+  /** The color the card shows when it does not come from the task itself (events, treinos, estudos). */
+  colorOverride?: ColorValue
 }
 
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
@@ -68,7 +77,7 @@ const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 export const CHECK_CLASS = "size-5 after:-inset-3 [&_svg]:size-3"
 
 /** The ⋯ menu: the ONE trigger of a card (32 px visual, 44 px hit area). */
-function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void; onRename: () => void }) {
+function ActionsMenu({ task, actions, open, onOpenChange, onRename, agenda }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void; onRename: () => void; agenda?: AgendaCardInfo }) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -78,9 +87,23 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
       </DropdownMenuTrigger>
       {/* Never under the bottom nav or the assistant button on phones (96px), and it scrolls inside when the screen is short. */}
       <DropdownMenuContent align="end" collisionPadding={{ top: 80, bottom: 96, left: 16, right: 16 }} className="max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-52 overflow-y-auto rounded-2xl p-2">
+        {agenda ? (
+          <>
+            <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.open}>
+              <ExternalLinkIcon strokeWidth={1.75} /> Abrir
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.remove}>
+              <Trash2Icon strokeWidth={1.75} /> Excluir
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        {agenda ? null : (
         <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={onRename}>
           <TextCursorInputIcon strokeWidth={1.75} /> Renomear
         </DropdownMenuItem>
+        )}
+        {agenda ? null : (<>
         <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.duplicate}>
           <CopyIcon strokeWidth={1.75} /> Duplicar
         </DropdownMenuItem>
@@ -106,6 +129,7 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
         <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.remove}>
           <Trash2Icon strokeWidth={1.75} /> Excluir tarefa
         </DropdownMenuItem>
+        </>)}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -113,13 +137,14 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
 
 const SWIPE_RIGHT = 72
 const PANEL = 68
-const SWIPE_LEFT_OPEN = PANEL * 3
+const DELETE_PANEL = 96
 
 /**
  * Touch only: swipe right completes, swipe left reveals three 68 px actions (Adiar 1 h, Amanhã, Mover). A long press starts a drag
  * (never a menu). Mouse and keyboard users have the ⋯ menu.
  */
-function SwipeShell({ task, actions, children, className }: { task: TaskView; actions: TaskActions; children: React.ReactNode; className?: string }) {
+function SwipeShell({ task, actions, children, className, deleteOnly }: { task: TaskView; actions: TaskActions; children: React.ReactNode; className?: string; deleteOnly?: boolean }) {
+  const SWIPE_LEFT_OPEN = deleteOnly ? DELETE_PANEL : PANEL * 3
   const [open, setOpen] = useState(false)
   const [dx, setDx] = useState(0)
   const [dragging, setDragging] = useState(false)
@@ -162,6 +187,12 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
         <CheckIcon strokeWidth={1.75} className="mr-2 size-5" /> {done ? "Reabrir" : "Concluir"}
       </div>
       <div aria-hidden={!open} className="absolute inset-y-0 right-0 flex md:hidden" style={{ width: SWIPE_LEFT_OPEN }}>
+        {deleteOnly ? (
+          <button type="button" data-swipe-delete data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.remove)} className={cn(panel, "w-full bg-foreground/22")}>
+            <Trash2Icon aria-hidden strokeWidth={1.75} className="size-5" /> Excluir
+          </button>
+        ) : null}
+        {deleteOnly ? null : (<>
         <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.postpone1h)} className={cn(panel, "w-[68px] bg-foreground/10")}>
           <ClockIcon aria-hidden strokeWidth={1.75} className="size-5" /> Adiar 1 h
         </button>
@@ -171,6 +202,7 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
         <button type="button" data-pill-exempt tabIndex={open ? 0 : -1} onClick={act(actions.schedule ?? actions.move)} className={cn(panel, "w-[68px] bg-foreground/22")}>
           {actions.schedule ? <CalendarClockIcon aria-hidden strokeWidth={1.75} className="size-5" /> : <ArrowRightIcon aria-hidden strokeWidth={1.75} className="size-5" />} {actions.schedule ? "Data…" : "Mover"}
         </button>
+        </>)}
       </div>
       <div
         onPointerDown={(e) => {
@@ -208,7 +240,7 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
  * Meta row: date/time, priority chip, category chip, tag chips (at most 3 chips, then "+N"), counters pushed to the right edge.
  * The whole card opens the task through a stretched link on the title (the check and ⋯ sit above it).
  */
-export function TaskCardBody({ task, tags, now, timeZone, actions, density = "card", className, inert, selecting, selected, onSelect, anchor, dueMode = "full" }: TaskCardBodyProps) {
+export function TaskCardBody({ task, tags, now, timeZone, actions, density = "card", className, inert, selecting, selected, onSelect, anchor, dueMode = "full", agenda, colorOverride }: TaskCardBodyProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const openTimer = useRef<number | undefined>(undefined)
@@ -216,7 +248,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
   const isMobile = useIsMobile()
   const labels = useLabelColors()
   const { compact, toggle: toggleCompact } = useCompactLabels()
-  const taskColor = taskColorOf(labels.state, task)
+  const taskColor = colorOverride !== undefined ? colorOverride : taskColorOf(labels.state, task)
   const colorHex = resolveHex(taskColor)
   const done = Boolean(task.completed_at)
   const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
@@ -228,11 +260,11 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
   const shownChips = chips.slice(0, limit)
   const hiddenChips = chips.slice(limit)
   const hasCounters = task.checklistTotal > 0 || task.commentCount > 0 || task.attachmentCount > 0
-  const hasDue = Boolean(task.due_at) && (dueMode === "full" || task.due_has_time)
-  const hasMeta = hasDue || chips.length > 0 || hasCounters
+  const hasDue = !agenda && Boolean(task.due_at) && (dueMode === "full" || task.due_has_time)
+  const hasMeta = hasDue || Boolean(agenda) || chips.length > 0 || hasCounters
   // Counters sit at the bottom-right corner: on the labels row when there are labels, else on the date row, else on a row of their own.
   const countersOnLabels = hasCounters && chips.length > 0
-  const hasDateRow = hasDue || (hasCounters && !countersOnLabels && chips.length === 0)
+  const hasDateRow = hasDue || Boolean(agenda) || (hasCounters && !countersOnLabels && chips.length === 0)
 
   const body = (
     <div
@@ -240,7 +272,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       data-task-id={anchor ? task.id : undefined}
       data-selected={selected ? "" : undefined}
       onKeyDown={(e) => {
-        if (e.key === "F2" && !inert && !selecting && !renaming) {
+        if (e.key === "F2" && !agenda && !inert && !selecting && !renaming) {
           e.preventDefault()
           setRenaming(true)
         }
@@ -290,7 +322,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
             openTimer.current = window.setTimeout(actions.open, 220)
           }}
           onDoubleClick={(e) => {
-            if (selecting || isMobile) return
+            if (agenda || selecting || isMobile) return
             e.preventDefault()
             window.clearTimeout(openTimer.current)
             setRenaming(true)
@@ -308,7 +340,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       <div data-task-actions className="relative z-10 flex h-5 items-center justify-end gap-1" onPointerDown={(e) => e.stopPropagation()}>
         {inert ? null : (
           <>
-            <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} onRename={() => setRenaming(true)} />
+            <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} onRename={() => setRenaming(true)} agenda={agenda} />
           </>
         )}
       </div>
@@ -317,6 +349,21 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
           {/* Row 2: date/time (and the counters when there are no labels). */}
           {hasDateRow ? (
             <div data-meta-row className="flex min-w-0 items-center gap-2">
+              {agenda ? (
+                <span data-agenda-when className="tabular flex h-6 min-w-0 items-center gap-1.5 text-[13px] leading-5 text-muted-foreground">
+                  {agenda.kind === "event" ? <CalendarDaysIcon aria-hidden data-type-icon="event" strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
+                  {agenda.kind === "workout" ? <DumbbellIcon aria-hidden data-type-icon="workout" strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
+                  {agenda.kind === "study" ? <BookOpenIcon aria-hidden data-type-icon="study" strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
+                  <ClockIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
+                  <span className="shrink-0">{agenda.timeText}</span>
+                  {agenda.place ? (
+                    <>
+                      <MapPinIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
+                      <span className="truncate">{agenda.place}</span>
+                    </>
+                  ) : null}
+                </span>
+              ) : null}
               {hasDue ? <DueLabel task={task} now={now} timeZone={timeZone} mode={dueMode} className="h-6" /> : null}
               {hasCounters && chips.length === 0 ? <TaskCounters task={task} className="ml-auto h-6" /> : null}
             </div>
@@ -356,7 +403,7 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
 
   if (inert || selecting) return body
   return (
-    <SwipeShell task={task} actions={actions} className={density === "card" ? "rounded-[14px]" : undefined}>
+    <SwipeShell task={task} actions={actions} deleteOnly={Boolean(agenda)} className={density === "card" ? "rounded-[14px]" : undefined}>
       {body}
     </SwipeShell>
   )

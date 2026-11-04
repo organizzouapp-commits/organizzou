@@ -6,7 +6,7 @@ import { ptBR } from "date-fns/locale"
 import { CalendarClockIcon, ChevronDownIcon } from "lucide-react"
 
 import { BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
-import { CalendarToolbar, DayStrip, MiniMonth, MonthGrid, TimeGrid, type CalendarViewId } from "@/components/calendar/agenda-screen"
+import { AGENDA_DAYS, agendaTitle, CalendarToolbar, DayStrip, MiniMonth, MonthGrid, TimeGrid, type CalendarViewId } from "@/components/calendar/agenda-screen"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -44,7 +44,6 @@ type CalendarViewProps = ViewProps & {
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 /** "Sem data" is shown as the last group of the day, through the same group component as the lists (a pseudo list). */
 const UNDATED_ID = "__undated__"
-const NO_FILTER = { label: "", content: null }
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const lower = (text: string) => text.toLowerCase()
 
@@ -112,7 +111,7 @@ function Cards({ tasks, props, actionsOf, dueMode }: CardsProps & { tasks: TaskV
 
 /** Agenda view: the next 30 days, one collapsible header per day with tasks ("qua, 4 nov · 3"): today open, the rest closed. */
 function AgendaList({ from, byDay, todayKey, props, actionsOf, isOpen, toggle }: CardsProps & { from: string; byDay: (key: string) => TaskView[]; todayKey: string; isOpen: (id: string, fallback?: boolean) => boolean; toggle: (id: string, fallback?: boolean) => void }) {
-  const days = Array.from({ length: 30 }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => byDay(key).length > 0)
+  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => byDay(key).length > 0)
   if (days.length === 0) return <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nenhuma tarefa nos próximos 30 dias.</p>
   return (
     <div data-testid="agenda-list" className="flex flex-col">
@@ -302,9 +301,9 @@ export function CalendarView(props: CalendarViewProps) {
         ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM yyyy", { locale: ptBR })}`
         : view === "dia"
           ? upperFirst(format(selected, "EEEE, d 'de' MMMM", { locale: ptBR }))
-          : `Próximos 30 dias`
+          : agendaTitle(day, todayKey)
   function shift(direction: -1 | 1) {
-    const next = view === "mes" ? addMonths(selected, direction) : view === "semana" ? addWeeks(selected, direction) : view === "dia" ? addDays(selected, direction) : addDays(selected, 30 * direction)
+    const next = view === "mes" ? addMonths(selected, direction) : view === "semana" ? addWeeks(selected, direction) : view === "dia" ? addDays(selected, direction) : addDays(selected, AGENDA_DAYS * direction)
     setDay(format(next, "yyyy-MM-dd"))
   }
   const swipe = useSwipe((direction) => shift(direction))
@@ -325,7 +324,7 @@ export function CalendarView(props: CalendarViewProps) {
   // ---- creating
   const quickAt = (key: string, time: string | null, anchor?: DOMRect) => setQuick({ anchor: anchor ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 1, 1), day: key, time })
 
-  const toolbar = <CalendarToolbar tasksDesktop title={title} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
+  const toolbar = <CalendarToolbar title={title} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
 
   const common: CardsProps = { props, actionsOf: schedulable, dueMode: "time" }
   const dayHeading = (
@@ -409,12 +408,12 @@ export function CalendarView(props: CalendarViewProps) {
           ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM", { locale: ptBR })}`.replace(/\./g, "")
           : view === "dia"
             ? `${lower(format(selected, "EEEE", { locale: ptBR })).split("-")[0]}, ${format(selected, "d 'de' MMMM", { locale: ptBR })}`.toLowerCase()
-            : "Próximos 30 dias"
+            : agendaTitle(day, todayKey)
     return (
       <div data-testid="tasks-calendar" className="flex flex-col gap-4">
         {/* The solid card holds only the toolbar and the month grid / week strip; the lists below sit flat on the page background. */}
         <section aria-label="Agenda" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4" {...swipe}>
-          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
+          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
           {view === "mes" ? monthGrid : null}
           {view === "semana" ? <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} /> : null}
         </section>

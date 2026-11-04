@@ -37,6 +37,13 @@ export type AgendaItem = {
   /** Briefly highlighted (a task that was just created). */
   highlight?: boolean
   detail?: string
+  /** `detail` is a location (events): shown with a pin. */
+  place?: boolean
+  /** Plain text the card shows: an event's location and category, a treino's or estudo's kind. */
+  location?: string
+  category?: string
+  /** A completed task. */
+  done?: boolean
   /** Only events created in the Agenda can be edited or deleted there. */
   editable: boolean
 }

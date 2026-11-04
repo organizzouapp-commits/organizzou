@@ -20,6 +20,9 @@ type AddTaskPillProps = {
   className?: string
   /** Changing this number opens the composer (the group header's "+"). */
   openSignal?: number
+  /** The field's accessible name and placeholder once open (Finanças reuses the pill for "Adicionar lançamento…"). */
+  inputLabel?: string
+  placeholder?: string
 }
 
 /**
@@ -27,7 +30,7 @@ type AddTaskPillProps = {
  * pill of the same size. Enter saves and keeps the field open for the next one, Esc discards, leaving the field saves, and pasting several
  * lines creates one task per line.
  */
-export function AddTaskPill({ label = "Adicionar tarefa…", onAdd, onPress, className, openSignal = 0 }: AddTaskPillProps) {
+export function AddTaskPill({ label = "Adicionar tarefa…", onAdd, onPress, className, openSignal = 0, inputLabel = "Título da nova tarefa", placeholder = "Título da tarefa" }: AddTaskPillProps) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     // The signal is an event from the parent (a button press), so it has to be mirrored into state.
@@ -39,7 +42,7 @@ export function AddTaskPill({ label = "Adicionar tarefa…", onAdd, onPress, cla
     return (
       <button type="button" data-add-task-pill className={cn(ADD_PILL, className)} onClick={() => (onAdd ? setOpen(true) : onPress?.())}>
         <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
-        {label}
+        <span className="min-w-0 truncate">{label}</span>
       </button>
     )
   }
@@ -49,8 +52,8 @@ export function AddTaskPill({ label = "Adicionar tarefa…", onAdd, onPress, cla
       multiline
       keepOpen
       maxLength={200}
-      ariaLabel="Título da nova tarefa"
-      placeholder="Título da tarefa"
+      ariaLabel={inputLabel}
+      placeholder={placeholder}
       className={cn("w-full", className)}
       inputClassName="h-11 min-h-11 rounded-full border border-dashed border-foreground/60 bg-foreground/8 px-4 py-2.5 text-[14px] md:h-10 md:min-h-10 md:py-2"
       onCommit={onAdd}

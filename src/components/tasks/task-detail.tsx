@@ -819,7 +819,7 @@ function DetailBody({
           {resolveHex(taskColor) ? <ColorDot color={taskColor} /> : null}
         </span>
         <ColorPicker label="Cor da tarefa" value={taskColor} onChange={setTaskColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
-        <p className="px-1 text-[12px] leading-4 text-muted-foreground">Aparece no cartão, na Agenda e no Calendário.</p>
+        <p className="px-1 text-[12px] leading-4 text-muted-foreground">Aparece no cartão e no calendário.</p>
       </div>
     </div>
   )

@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 
 import { FinancasScreen } from "@/components/finance/financas-screen"
-import { ScreenSkeleton } from "@/components/mock/screen-skeleton"
+import { FinanceSkeleton } from "@/components/finance/finance-skeleton"
 import { WithNow } from "@/components/mock/with-now"
 import { loadFinance } from "@/features/persist/load"
 
@@ -15,7 +15,7 @@ async function FinanceData({ nowIso }: { nowIso: string }) {
 
 export default function FinancasPage() {
   return (
-    <Suspense fallback={<ScreenSkeleton />}>
+    <Suspense fallback={<FinanceSkeleton />}>
       <WithNow>{(nowIso) => <FinanceData nowIso={nowIso} />}</WithNow>
     </Suspense>
   )
