@@ -22,6 +22,7 @@ import { formatBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 import { useFinance, type TxSort } from "./context"
+import { ScrollRow } from "./scroll-row"
 import { BentoCard, BentoStat, CategoryDonut, SegmentedPills } from "./bento"
 import { derive, variation } from "./derive"
 import { CardStack, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, MoneyText } from "./parts"
@@ -50,11 +51,11 @@ function useTxCounts() {
   return { all: base.length, in: base.filter((t) => t.kind === "in").length, out: base.filter((t) => t.kind === "out").length, categories }
 }
 
-export function KindPills() {
+export function KindPills({ className }: { className?: string }) {
   const f = useFinance()
   const counts = useTxCounts()
   const items = KIND_ITEMS.map((i) => ({ ...i, count: counts[i.id as "all" | "in" | "out"] })) as { id: "all" | "in" | "out"; label: string; count: number }[]
-  return <SegmentedPills ariaLabel="Filtrar por tipo" items={items} value={f.filters.kind} onChange={(kind) => f.setFilters({ kind })} />
+  return <SegmentedPills ariaLabel="Filtrar por tipo" items={items} value={f.filters.kind} onChange={(kind) => f.setFilters({ kind })} className={className} />
 }
 
 /** The picker of categories (ManageablePicker with "Gerenciar" / "+ Adicionar"), as a dialog on desktop and a sheet on phones. */
@@ -231,18 +232,44 @@ function FiltersPopover() {
   )
 }
 
-/** Desktop: ONE solid card like the Tarefas toolbar. Row 1 the quick add, row 2 the kinds, the categories (own row below 1100px) and the search, Filtros and Ordem. */
+function EditCategoriesButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" aria-label="Editar categorias" data-edit-categories onClick={onClick} className={dashedPillClass}>
+      <PencilIcon aria-hidden strokeWidth={1.75} className="size-4" /> Editar
+    </button>
+  )
+}
+
+/** The category pills in a scrollable row; with `pinnedEdit` the dashed Editar pill stays outside the scroller, at its end. */
+function CategoryScroller({ onMore, pinnedEdit, className }: { onMore: () => void; pinnedEdit: boolean; className?: string }) {
+  const f = useFinance()
+  const counts = useTxCounts()
+  return (
+    <ScrollRow className={className} pinned={pinnedEdit ? <EditCategoriesButton onClick={onMore} /> : undefined}>
+      <PillTabs
+        kind="toggles"
+        className="h-9 pr-1"
+        ariaLabel="Filtrar por categoria"
+        items={f.categories.map((c) => ({ id: c.id, label: c.name, count: counts.categories.get(c.id) ?? 0 }))}
+        isOn={(i) => f.filters.category === i.id}
+        onSelect={(i) => f.setFilters({ category: f.filters.category === i.id ? "all" : i.id })}
+        trailing={pinnedEdit ? undefined : <EditCategoriesButton onClick={onMore} />}
+      />
+    </ScrollRow>
+  )
+}
+
+/** Desktop: ONE solid card like the Tarefas toolbar. Row 1 the quick add; row 2 the kinds, a divider, the scrolling category pills and the search, Filtros and Ordem. Below 760px of card the pills take a line of their own. */
 function TransactionsToolbar() {
   const f = useFinance()
   const [picker, setPicker] = useState(false)
   return (
     <div data-testid="transactions-toolbar" className="@container flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:p-5">
       <QuickAdd />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
         <KindPills />
-        <div className="order-last w-full min-w-0 @[1100px]:order-none @[1100px]:w-auto @[1100px]:flex-1">
-          <CategoryPills onMore={() => setPicker(true)} />
-        </div>
+        <span aria-hidden className="hidden h-5 w-px shrink-0 bg-border @[760px]:block" />
+        <CategoryScroller pinnedEdit onMore={() => setPicker(true)} className="order-last w-full @[760px]:order-none @[760px]:w-auto @[760px]:flex-1" />
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <ExpandingSearch value={f.filters.query} onChange={(query) => f.setFilters({ query })} label="Buscar lançamentos" />
           <FiltersPopover />
@@ -254,14 +281,13 @@ function TransactionsToolbar() {
   )
 }
 
-/** Phones: the pill rows of the header card (kinds first, then the categories) in one scrolling line. */
+/** Phones: the header card's pill rows: the kinds on the first line, the categories on a second line that scrolls sideways (no scrollbar). */
 export function TransactionsFilterRow() {
   const [picker, setPicker] = useState(false)
   return (
-    <div data-testid="filter-row" className="scroll-soft -mx-1 flex items-center gap-2 overflow-x-auto px-1">
-      <KindPills />
-      <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-      <CategoryPills className="h-9 min-w-max overflow-visible pb-0" onMore={() => setPicker(true)} />
+    <div data-testid="filter-row" className="flex flex-col gap-2">
+      <KindPills className="w-fit max-w-full" />
+      <CategoryScroller pinnedEdit={false} onMore={() => setPicker(true)} />
       <CategoryPickerSheet open={picker} onOpenChange={setPicker} />
     </div>
   )
