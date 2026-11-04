@@ -37,6 +37,10 @@ export type AgendaItem = {
   /** Briefly highlighted (a task that was just created). */
   highlight?: boolean
   detail?: string
+  /** `detail` is a location (events): shown with a pin. */
+  place?: boolean
+  /** A completed task. */
+  done?: boolean
   /** Only events created in the Agenda can be edited or deleted there. */
   editable: boolean
 }

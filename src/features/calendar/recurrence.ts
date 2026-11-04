@@ -58,6 +58,7 @@ export function expandEvent(event: EventRow, from: Date, to: Date, timeZone: str
       allDay: event.all_day,
       swatch: event.swatch,
       detail: event.location ?? event.category ?? undefined,
+      place: Boolean(event.location),
       editable: true,
     })
   }

@@ -20,7 +20,6 @@ import {
   BookOpenIcon,
   CalendarDaysIcon,
   ChevronDownIcon,
-  ClockIcon,
   PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -36,6 +35,8 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { AgendaRow } from "./agenda-row"
+import { completeTask, deleteTask } from "@/features/tasks/actions"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
@@ -209,15 +210,38 @@ export type Draft = { day: string; start?: string; end?: string }
 export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_id: string; board_name: string; completed_at?: string | null }
 export type AgendaInitial = { events: EventRow[]; tasks: AgendaTask[]; plans: WorkoutPlanRow[]; deadlines: DeadlineRow[] }
 
-export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: AgendaInitial }) {
+/** The Agenda mode lists this many days; ‹ › step by the same amount. One constant for the Agenda page and Tarefas > Agenda. */
+export const AGENDA_DAYS = 30
+
+/** "Próximos 30 dias" on the current window, otherwise the range ("5 dez – 3 jan"). */
+export function agendaTitle(from: string, todayKey: string) {
+  if (from === todayKey) return `Próximos ${AGENDA_DAYS} dias`
+  const clean = (d: Date) => format(d, "d MMM", { locale: ptBR }).replace(/\./g, "")
+  return `${clean(parseISO(from))} – ${clean(addDays(parseISO(from), AGENDA_DAYS - 1))}`
+}
+
+/** What the page can do to a task: the real server actions by default (the fixture swaps them for in-memory ones). */
+export type AgendaTaskApi = {
+  complete: (id: string, done: boolean) => Promise<{ ok: boolean; error?: string }>
+  remove: (id: string) => Promise<{ ok: boolean; error?: string }>
+}
+const realTaskApi: AgendaTaskApi = {
+  complete: (id, done) => completeTask({ id, done }),
+  remove: (id) => deleteTask(id),
+}
+
+export function AgendaScreen({ nowIso, initial, taskApi = realTaskApi }: { nowIso: string; initial: AgendaInitial; taskApi?: AgendaTaskApi }) {
   const todayKey = dayOf(nowIso)
   const isMobile = useIsMobile()
   const [view, setView] = useState<View>("semana")
-  const [day, setDayState] = useState(() => {
-    // The selected day lives in the URL (?date=YYYY-MM-DD) so a reload or a shared link keeps it.
-    const wanted = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date")
-    return wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : todayKey
-  })
+  const [day, setDayState] = useState(todayKey)
+  useEffect(() => {
+    // The selected day lives in the URL (?date=YYYY-MM-DD) so a reload or a shared link keeps it. Read after mount, so the server and
+    // the first client render agree.
+    const wanted = new URLSearchParams(window.location.search).get("date")
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted)) setDayState(wanted)
+  }, [])
   const setDay = (next: string) => {
     setDayState(next)
     const url = new URL(window.location.href)
@@ -226,6 +250,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
     window.history.replaceState(null, "", url)
   }
   const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
+  const [tasks, setTasks] = useState(initial.tasks)
   const router = useRouter()
   const labels = useLabelColorsStore()
   const [kinds, setKinds] = useState<Set<AgendaKind>>(new Set(["event", "task", "workout", "study"]))
@@ -240,7 +265,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
 
   // One range covers every view: the month grid that contains the selected day (week and day views always fall inside it).
   const gridFrom = startOfWeek(startOfMonth(parseISO(day)))
-  const gridTo = addDays(endOfWeek(endOfMonth(parseISO(day))), 1)
+  const gridTo = addDays(new Date(Math.max(endOfWeek(endOfMonth(parseISO(day))).getTime(), addDays(parseISO(day), AGENDA_DAYS).getTime())), 1)
 
   // ------------------------------------------------ gather items from every module
   function collect(from: Date, to: Date): AgendaItem[] {
@@ -252,11 +277,11 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       }
     }
     if (kinds.has("task")) {
-      for (const task of initial.tasks) {
+      for (const task of tasks) {
         if (task.completed_at && !showDone) continue
         const start = new Date(task.due_at)
         if (start < from || start >= to) continue
-        items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, editable: false })
+        items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, done: Boolean(task.completed_at), editable: false })
       }
     }
     // Workout days come from the plans' weekdays and study dates from the exams and deliveries: all-day, because no hour was chosen.
@@ -277,14 +302,14 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => collect(gridFrom, gridTo), [events, kinds, day, nowIso, showDone, query, labels.state])
+  const items = useMemo(() => collect(gridFrom, gridTo), [events, tasks, kinds, day, nowIso, showDone, query, labels.state])
   const sortItems = (list: AgendaItem[]) => [...list].sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
   const itemsOn = (key: string) => sortItems(items.filter((item) => dayKey(item.start, TZ) === key))
 
   // --------------------------------------------------------------- navigation
   function shift(direction: -1 | 1) {
     const date = parseISO(day)
-    const next = view === "mes" ? addMonths(date, direction) : view === "semana" ? addWeeks(date, direction) : addDays(date, direction)
+    const next = view === "mes" ? addMonths(date, direction) : view === "semana" ? addWeeks(date, direction) : addDays(date, view === "agenda" ? AGENDA_DAYS * direction : direction)
     setDay(format(next, "yyyy-MM-dd"))
   }
 
@@ -296,7 +321,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       : view === "semana"
         ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM yyyy", { locale: ptBR })}`
         : view === "agenda"
-          ? "Próximos 21 dias"
+          ? agendaTitle(day, todayKey)
           : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
 
   function toggleKind(kind: AgendaKind) {
@@ -331,7 +356,63 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   usePrimaryAction("Novo evento", () => setCreating({ day }))
 
   const effectiveView: View = view
-  const taskBoard = new Map(initial.tasks.map((t) => [t.id, t.board_id]))
+  const taskBoard = new Map(tasks.map((t) => [t.id, t.board_id]))
+  /** Completes (or reopens) a task in place, with the undo toast. */
+  async function setTaskDone(id: string, done: boolean) {
+    const task = tasks.find((t) => t.id === id)
+    const previous = task?.completed_at ?? null
+    setTasks((current) => current.map((t) => (t.id === id ? { ...t, completed_at: done ? new Date().toISOString() : null } : t)))
+    const result = await taskApi.complete(id, done)
+    if (!result.ok) {
+      setTasks((current) => current.map((t) => (t.id === id ? { ...t, completed_at: previous } : t)))
+      toast.error(result.error ?? "Não consegui salvar.")
+      return
+    }
+    // "Desfazer" goes back to the opposite state explicitly (the screen may have re-rendered since).
+    toast(done ? "Tarefa concluída." : "Tarefa reaberta.", { duration: 8000, action: { label: "Desfazer", onClick: () => void setTaskDone(id, !done) } })
+  }
+  const toggleTask = (item: AgendaItem) => void setTaskDone(item.id, !tasks.find((t) => t.id === item.id)?.completed_at)
+
+  /** Deleting waits for the undo window (8 s): "Desfazer" puts the row back and nothing was deleted. */
+  const pendingDelete = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  function deleteTaskItem(item: AgendaItem) {
+    const task = tasks.find((t) => t.id === item.id)
+    if (!task) return
+    setTasks((current) => current.filter((t) => t.id !== task.id))
+    const timer = setTimeout(async () => {
+      pendingDelete.current.delete(task.id)
+      const result = await taskApi.remove(task.id)
+      if (!result.ok) {
+        setTasks((current) => [...current, task])
+        toast.error(result.error ?? "Não consegui excluir.")
+      }
+    }, 8000)
+    pendingDelete.current.set(task.id, timer)
+    toast("Tarefa excluída.", {
+      duration: 8000,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          clearTimeout(pendingDelete.current.get(task.id))
+          pendingDelete.current.delete(task.id)
+          setTasks((current) => (current.some((t) => t.id === task.id) ? current : [...current, task]))
+        },
+      },
+    })
+  }
+
+  const rowOf = (item: AgendaItem) => (
+    <AgendaRow
+      key={item.key}
+      item={item}
+      color={itemColor(item)}
+      time={item.allDay ? "Dia todo" : item.kind === "task" ? formatTime(item.start) : `${formatTime(item.start)} – ${formatTime(item.end)}`}
+      onOpen={openItem}
+      onToggle={toggleTask}
+      onDelete={deleteTaskItem}
+    />
+  )
+
   /** A task opens the SAME dialog (and URL) as in Tarefas; events, treinos and estudos open the event dialog. */
   function openItem(item: AgendaItem) {
     if (item.kind === "task") {
@@ -420,7 +501,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         )
       ) : null}
       {effectiveView === "dia" && !isMobile ? <TimeGrid days={[parseISO(day)]} todayKey={todayKey} itemsOn={itemsOn} nowIso={nowIso} onOpenItem={openItem} onCreate={setCreating} onMoveEvent={moveEvent} canDrag={canDrag} single /> : null}
-      {effectiveView === "agenda" && !isMobile ? <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={openItem} /> : null}
+      {effectiveView === "agenda" && !isMobile ? <AgendaDays from={day} todayKey={todayKey} itemsOn={itemsOn} renderRow={rowOf} flat={isMobile} /> : null}
     </>
   )
 
@@ -432,7 +513,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM", { locale: ptBR })}`.replace(/\./g, "")
         : view === "dia"
           ? format(parseISO(day), "EEE, d 'de' MMMM", { locale: ptBR }).toLowerCase()
-          : "Próximos 21 dias"
+          : agendaTitle(day, todayKey)
 
   const main = isMobile ? (
     <div className="flex flex-col gap-4" data-testid="agenda-mobile">
@@ -466,13 +547,13 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       </section>
       <div className="flex flex-col gap-1 px-1" data-testid="agenda-below">
         {view === "agenda" ? (
-          <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={openItem} />
+          <AgendaDays from={day} todayKey={todayKey} itemsOn={itemsOn} renderRow={rowOf} flat={isMobile} />
         ) : (
           <>
             <h3 data-testid="day-heading" className="text-[15px] leading-6 font-semibold">
               {dayTitle}
             </h3>
-            <DayGroups items={itemsOn(day)} day={day} onOpenItem={openItem} onNewEvent={() => setCreating({ day })} flat />
+            <DayGroups items={itemsOn(day)} day={day} renderRow={rowOf} onNewEvent={() => setCreating({ day })} flat />
           </>
         )}
       </div>
@@ -510,7 +591,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         <MiniMonth month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(parseISO(day), n), "yyyy-MM-dd"))} />
       </BentoCard>
       <BentoCard title={dayTitle}>
-        <DayGroups items={itemsOn(day)} day={day} onOpenItem={openItem} onNewEvent={() => setCreating({ day })} />
+        <DayGroups items={itemsOn(day)} day={day} renderRow={rowOf} onNewEvent={() => setCreating({ day })} />
       </BentoCard>
     </>
   )
@@ -845,34 +926,6 @@ export function DayStrip({
   )
 }
 
-function DayAgenda({ items, onOpenItem }: { items: AgendaItem[]; onOpenItem: (item: AgendaItem) => void }) {
-  if (items.length === 0) {
-    return <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado para este dia.</p>
-  }
-  return (
-    <div className="flex flex-col">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          onClick={() => onOpenItem(item)}
-          className="flex min-h-14 items-center gap-4 border-b border-border py-3 text-left outline-none last:border-b-0 focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
-          <span aria-hidden className={cn("h-8 w-1 shrink-0 rounded-full", !itemColor(item) && "bg-foreground/20")} style={itemColor(item) ? { backgroundColor: itemColor(item)! } : undefined} />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="flex items-center gap-2 text-[15px] leading-6">
-              <ItemIcon kind={item.kind} className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.title}</span>
-            </span>
-            {item.detail ? <span className="truncate text-[13px] leading-5 text-muted-foreground">{item.detail}</span> : null}
-          </span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
 const GROUPS: { kind: AgendaKind; label: string; icon: LucideIcon }[] = [
   { kind: "task", label: "Tarefas", icon: SquareCheckIcon },
   { kind: "event", label: "Eventos", icon: CalendarDaysIcon },
@@ -886,7 +939,7 @@ const GROUPS_KEY = "organizzou:agenda-groups"
  * (leading icon, one-line title, clock + time, place, left color bar, tinted) and ONE dashed "Novo evento…" pill at the end.
  * `flat` (phones/tablets): no surface around it, the groups sit on the page background.
  */
-function DayGroups({ items, day, onOpenItem, onNewEvent, flat = false }: { items: AgendaItem[]; day: string; onOpenItem: (item: AgendaItem) => void; onNewEvent: () => void; flat?: boolean }) {
+function DayGroups({ items, day, renderRow, onNewEvent, flat = false }: { items: AgendaItem[]; day: string; renderRow: (item: AgendaItem) => React.ReactNode; onNewEvent: () => void; flat?: boolean }) {
   const [saved, setSaved] = useState<Record<string, boolean>>({})
   useEffect(() => {
     try {
@@ -909,11 +962,11 @@ function DayGroups({ items, day, onOpenItem, onNewEvent, flat = false }: { items
   return (
     <div data-testid="day-card" data-day={day} className={cn("flex flex-col", flat && "gap-0")}>
       {items.length === 0 ? <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nada para este dia.</p> : null}
-      {GROUPS.map(({ kind, label, icon: Icon }) => {
+      {GROUPS.map(({ kind, label }) => {
         const list = items.filter((i) => i.kind === kind)
         const open = saved[kind] ?? list.length > 0
         return (
-          <section key={kind} data-group={kind} aria-label={label} className="flex flex-col">
+          <section key={kind} data-group={kind} aria-label={label} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
             <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(kind, open)} className="-ml-2 flex h-11 w-fit max-w-full items-center gap-2 rounded-full px-2 text-left text-[15px] font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
               <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
               <span className="truncate">{label}</span>
@@ -921,36 +974,7 @@ function DayGroups({ items, day, onOpenItem, onNewEvent, flat = false }: { items
             </button>
             <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
               <div className="min-h-0 overflow-hidden">
-                <div className="flex flex-col gap-2 pb-2">
-                  {list.map((item) => {
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        data-day-item={item.id}
-                        data-kind={item.kind}
-                        onClick={() => onOpenItem(item)}
-                        style={itemStyle(item)}
-                        className="relative flex min-h-[64px] w-full items-start gap-3 rounded-[14px] border border-border py-2.5 pr-3 pl-4 text-left text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-[18px] shrink-0 text-muted-foreground" />
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate text-[15px] leading-5 font-semibold">{item.title}</span>
-                          <span className="tabular flex items-center gap-1 text-[13px] leading-5 text-muted-foreground">
-                            <ClockIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
-                            {item.allDay ? "Dia todo" : describeItemTime(item)}
-                          </span>
-                          {item.detail ? (
-                            <span className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-muted-foreground">
-                              {item.kind === "event" ? <MapPinIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
-                              <span className="truncate">{item.detail}</span>
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
+                <div data-group-rows className={cn("flex flex-col", flat ? "rounded-[16px] border border-border bg-card px-3" : "pb-1")}>{list.map((item) => renderRow(item))}</div>
               </div>
             </div>
           </section>
@@ -964,28 +988,67 @@ function DayGroups({ items, day, onOpenItem, onNewEvent, flat = false }: { items
   )
 }
 
-/** Phones: "Agenda" tab, the next days one after the other like Google Calendar's schedule view. */
-function UpcomingList({
-  from,
-  items,
-  itemsOn,
-  onOpenItem,
-}: {
-  from: string
-  items: AgendaItem[]
-  itemsOn: (key: string) => AgendaItem[]
-  onOpenItem: (item: AgendaItem) => void
-}) {
-  const days = Array.from({ length: 21 }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => itemsOn(key).length > 0)
-  if (items.length === 0 || days.length === 0) return <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nada marcado nos próximos dias.</p>
+const DAYS_KEY = "organizzou:agenda-days"
+
+/**
+ * Agenda mode: the next 30 days, one collapsible header per day with items ("Hoje · qua, 4 nov"), compact rows inside in chronological
+ * order (all-day first). Today starts open and the rest closed; the toggles last for the session. `flat` (phones/tablets): the rows of
+ * an expanded day live in one surface container.
+ */
+function AgendaDays({ from, todayKey, itemsOn, renderRow, flat }: { from: string; todayKey: string; itemsOn: (key: string) => AgendaItem[]; renderRow: (item: AgendaItem) => React.ReactNode; flat: boolean }) {
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    try {
+      // sessionStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaved(JSON.parse(window.sessionStorage.getItem(DAYS_KEY) ?? "{}") as Record<string, boolean>)
+    } catch {
+      setSaved({})
+    }
+  }, [])
+  const persist = (next: Record<string, boolean>) => {
+    setSaved(next)
+    try {
+      window.sessionStorage.setItem(DAYS_KEY, JSON.stringify(next))
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
+  const days = Array.from({ length: AGENDA_DAYS }, (_, i) => format(addDays(parseISO(from), i), "yyyy-MM-dd")).filter((key) => itemsOn(key).length > 0)
+  if (days.length === 0) return <p data-testid="agenda-empty" className="py-4 text-[15px] leading-6 text-muted-foreground">Nada nos próximos {AGENDA_DAYS} dias.</p>
+  const isOpen = (key: string) => saved[key] ?? key === todayKey
+  const allOpen = days.every(isOpen)
+  const label = (key: string) => {
+    const text = format(parseISO(key), "EEE, d MMM", { locale: ptBR }).replace(/\./g, "").toLowerCase()
+    return key === todayKey ? `Hoje · ${text}` : text
+  }
   return (
-    <div className="flex flex-col gap-4">
-      {days.map((key) => (
-        <section key={key} aria-label={key}>
-          <h3 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{format(parseISO(key), "EEEE, d 'de' MMMM", { locale: ptBR })}</h3>
-          <DayAgenda items={itemsOn(key)} onOpenItem={onOpenItem} />
-        </section>
-      ))}
+    <div data-testid="agenda-list" className="flex flex-col">
+      <div className="flex justify-end">
+        <Button type="button" variant="ghost" data-testid="agenda-toggle-all" className="h-9 px-3 text-[13px] text-muted-foreground" onClick={() => persist(Object.fromEntries(days.map((key) => [key, !allOpen])))}>
+          {allOpen ? "Recolher tudo" : "Expandir tudo"}
+        </Button>
+      </div>
+      {days.map((key) => {
+        const list = itemsOn(key)
+        const open = isOpen(key)
+        return (
+          <section key={key} data-agenda-day={key} aria-label={label(key)} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
+            <button type="button" data-group-header aria-expanded={open} onClick={() => persist({ ...saved, [key]: !open })} className="-ml-2 flex h-11 w-fit max-w-full items-center gap-2 rounded-full px-2 text-left text-[15px] font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+              <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
+              <span className="truncate">{label(key)}</span>
+              <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{list.length}</span>
+            </button>
+            <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
+              <div className="min-h-0 overflow-hidden">
+                <div data-group-rows className={cn("flex flex-col", flat ? "rounded-[16px] border border-border bg-card px-3" : "pb-1")}>
+                  {list.map((item) => renderRow(item))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }

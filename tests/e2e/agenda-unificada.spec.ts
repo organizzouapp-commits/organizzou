@@ -212,7 +212,8 @@ test.describe("day card (selected day only)", () => {
         for (const name of ["Tarefas", "Eventos", "Treinos", "Estudos"]) await expect(card.getByRole("region", { name })).toBeVisible()
         await expect(card.getByRole("region", { name: "Estudos" }).locator("[data-group-header]")).toContainText("0")
         await expect(card.getByRole("button", { name: /^Adicionar/ })).toHaveCount(0)
-        await expect(card.getByRole("button", { name: /Mais ações|Opções/ })).toHaveCount(0)
+        // The group headers carry no "+" or ⋯ (the rows have their own ⋯).
+        await expect(card.locator("[data-group-header] button")).toHaveCount(0)
         await expect(page.locator("[data-add-task-pill]")).toHaveCount(1)
         await expect(page.getByRole("button", { name: "Novo evento…" })).toBeVisible()
         if (label === "phone") expect(await card.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
@@ -234,6 +235,145 @@ test.describe("day card (selected day only)", () => {
       await dialog.getByRole("radio", { name: "Vermelho" }).click()
       await expect(dialog.getByText("Aparece no cartão e no calendário.", { exact: true })).toBeVisible()
       await expect(dialog.getByText(/Vermelho\./)).toHaveCount(0)
+    })
+  })
+})
+
+test.describe("compact AgendaRow and Agenda mode", () => {
+  for (const [label, size] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]] as const) {
+    test.describe(label, () => {
+      test.use({ viewport: size, hasTouch: label === "phone" })
+      test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
+
+      test("day-card groups keep their order and the rows are compact (no own surface, hairline dividers, 3px bar, one-line text)", async ({ page }) => {
+        await open(page)
+        const card = page.getByTestId("day-card")
+        expect(await card.locator("[data-group]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).toEqual(["Tarefas", "Eventos", "Treinos", "Estudos"])
+        const first = card.locator("[data-agenda-row]").first()
+        expect(await computed(first, "background-color")).toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+        expect(await computed(first, "border-top-width")).toBe("0px")
+        // Hairline between rows, none after the last of a group.
+        const eventRows = card.getByRole("region", { name: "Eventos" }).locator("[data-agenda-row]")
+        expect(await computed(eventRows.first(), "border-bottom-width")).toBe("1px")
+        expect(await computed(eventRows.last(), "border-bottom-width")).toBe("0px")
+        // 3px bar: neutral without color, the item color with one.
+        const barOf = (title: string) => card.locator("[data-agenda-row]").filter({ hasText: title }).locator("[data-row-bar]")
+        expect(Math.round((await barOf("Reunião de produto").boundingBox())!.width)).toBe(3)
+        expect(await computed(barOf("Reunião de produto"), "background-color")).not.toBe(await computed(barOf("Almoço com cliente"), "background-color"))
+        // One-line title and subtitle with ellipsis; subtitle = time · context.
+        const title = first.locator("[data-row-title]")
+        expect(await computed(title, "white-space")).toBe("nowrap")
+        expect(await computed(title, "text-overflow")).toBe("ellipsis")
+        await expect(first.locator("[data-row-subtitle]")).toHaveText(/^(Dia todo|\d{2}:\d{2}).*·.*Minhas tarefas/)
+        const dentist = card.locator("[data-agenda-row]").filter({ hasText: "Dentista" }).locator("[data-row-subtitle]")
+        await expect(dentist).toContainText("15:00 – 16:00")
+        await expect(dentist).toContainText("Clínica Sorriso")
+        await expect(page.locator("[data-time-col]")).toHaveCount(0)
+        await expect(card.locator("[data-label-badge]")).toHaveCount(0)
+      })
+
+      test("a task completes in place with undo; ⋯ menus per type; treinos only offer Abrir", async ({ page }) => {
+        await open(page)
+        const card = page.getByTestId("day-card")
+        const task = card.locator("[data-agenda-row]").filter({ hasText: "Comprar planta para a sala" })
+        await task.getByRole("checkbox", { name: "Concluir Comprar planta para a sala" }).click()
+        await expect(page.getByText("Tarefa concluída.")).toBeVisible()
+        await expect(card.locator("[data-agenda-row]").filter({ hasText: "Comprar planta para a sala" })).toHaveCount(0)
+        await page.getByRole("button", { name: "Desfazer" }).click()
+        await expect(card.locator("[data-agenda-row]").filter({ hasText: "Comprar planta para a sala" })).toHaveCount(1)
+
+        await card.locator("[data-agenda-row]").filter({ hasText: "Ligar para o contador" }).getByRole("button", { name: /^Mais ações/ }).click({ force: true })
+        await expect(page.getByRole("menuitem")).toHaveText([/Abrir/, /Concluir/, /Excluir tarefa/])
+        await page.keyboard.press("Escape")
+        await card.locator("[data-agenda-row][data-kind=workout]").getByRole("button", { name: /^Mais ações/ }).click({ force: true })
+        await expect(page.getByRole("menuitem")).toHaveText([/Abrir/])
+        await page.keyboard.press("Escape")
+        await expect(card.locator("[data-agenda-row][data-kind=workout] [role=checkbox]")).toHaveCount(0)
+      })
+
+      if (label === "desktop") {
+        test("desktop: ⋯ shows on hover/focus; rows sit on the card surface (no nested box)", async ({ page }) => {
+          await open(page)
+          const row = page.getByTestId("day-card").locator("[data-agenda-row]").first()
+          const more = row.getByRole("button", { name: /^Mais ações/ })
+          expect(Number(await computed(more, "opacity"))).toBe(0)
+          await row.hover()
+          await expect.poll(async () => Number(await computed(more, "opacity"))).toBe(1)
+          const rows = page.getByTestId("day-card").locator("[data-group-rows]").first()
+          expect(await computed(rows, "background-color")).toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+          expect(await computed(rows, "border-top-width")).toBe("0px")
+        })
+      } else {
+        test("phone: ⋯ always visible; header transparent, rows in ONE surface container; collapsed groups leave no blank strip", async ({ page }) => {
+          await open(page)
+          const card = page.getByTestId("day-card")
+          const more = card.locator("[data-agenda-row]").first().getByRole("button", { name: /^Mais ações/ })
+          await expect.poll(async () => Number(await computed(more, "opacity"))).toBe(1)
+          expect(await computed(card.locator("[data-group-header]").first(), "background-color")).toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+          const container = card.getByRole("region", { name: "Tarefas" }).locator("[data-group-rows]")
+          expect(await computed(container, "border-top-width")).toBe("1px")
+          expect(await computed(container, "background-color")).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+          expect(parseFloat(await computed(container, "border-top-left-radius"))).toBe(16)
+          expect(Math.round((await card.getByRole("region", { name: "Estudos" }).boundingBox())!.height)).toBeLessThanOrEqual(52)
+          await card.getByRole("region", { name: "Tarefas" }).locator("[data-group-header]").click()
+          await page.waitForTimeout(600)
+          expect(Math.round((await card.getByRole("region", { name: "Tarefas" }).boundingBox())!.height)).toBeLessThanOrEqual(52)
+        })
+      }
+
+      test("Agenda mode: Próximos 30 dias, collapsible days (today open), compact rows in order, Recolher/Expandir tudo, ±30 days", async ({ page }) => {
+        await open(page)
+        await page.getByRole("tab", { name: "Agenda", exact: true }).click()
+        await expect(page.getByTestId("calendar-title").or(page.getByRole("button", { name: "Ir para hoje" }))).toHaveText("Próximos 30 dias")
+        const days = page.locator("[data-agenda-day]")
+        expect(await days.count()).toBeGreaterThan(2)
+        expect(await days.locator("[data-group-header] span").evaluateAll((els) => els.map((e) => e.textContent))).not.toContain("0")
+        const today = days.first()
+        await expect(today.locator("[data-group-header]")).toHaveAttribute("aria-expanded", "true")
+        await expect(today.locator("[data-group-header]")).toContainText("Hoje ·")
+        await expect(days.nth(1).locator("[data-group-header]")).toHaveAttribute("aria-expanded", "false")
+        await expect(page.locator("[data-time-col]")).toHaveCount(0)
+        // Rows: all-day first, then chronological.
+        const subs = await today.locator("[data-row-subtitle]").evaluateAll((els) => els.map((e) => (e.textContent ?? "").trim().slice(0, 8)))
+        const allDay = subs.filter((t) => t.startsWith("Dia todo")).length
+        expect(subs.slice(0, allDay).every((t) => t.startsWith("Dia todo"))).toBe(true)
+        const times = subs.slice(allDay).map((t) => t.slice(0, 5))
+        expect([...times].sort()).toEqual(times)
+        // Keyboard toggle.
+        const second = days.nth(1).locator("[data-group-header]")
+        await second.focus()
+        await page.keyboard.press("Enter")
+        await expect(second).toHaveAttribute("aria-expanded", "true")
+        // Expandir tudo / Recolher tudo; the session remembers it across a reload.
+        const all = page.getByTestId("agenda-toggle-all")
+        await expect(all).toHaveText("Expandir tudo")
+        await all.click()
+        await expect(all).toHaveText("Recolher tudo")
+        await page.reload()
+        await page.getByRole("tab", { name: "Agenda", exact: true }).click()
+        await expect(page.locator("[data-agenda-day]").nth(2).locator("[data-group-header]")).toHaveAttribute("aria-expanded", "true", { timeout: 60000 })
+        await page.getByTestId("agenda-toggle-all").click()
+        await expect(page.locator("[data-agenda-day]").first().locator("[data-group-header]")).toHaveAttribute("aria-expanded", "false")
+        // ‹ › step 30 days and the title shows the range.
+        await page.getByRole("button", { name: "Próximo", exact: true }).click()
+        const title = page.getByTestId("calendar-title")
+        await expect(title).toHaveText(/^\d{1,2} \p{L}{3} – \d{1,2} \p{L}{3}$/u)
+        await title.click()
+        await expect(title).toHaveText("Próximos 30 dias")
+      })
+    })
+  }
+
+  test.describe("Tarefas > Agenda view", () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+    test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
+    test("says Próximos 30 dias and still renders the full TaskCard", async ({ page }) => {
+      await page.goto("/design-system/tarefas?view=agenda")
+      await expect(page.getByTestId("calendar-title")).toBeVisible({ timeout: 60000 })
+      await page.getByRole("tab", { name: "Agenda", exact: true }).last().click()
+      await expect(page.getByTestId("calendar-title")).toHaveText("Próximos 30 dias")
+      await expect(page.getByTestId("agenda-list").locator("[data-task-id]").first()).toBeVisible()
+      await expect(page.getByTestId("agenda-list").locator("[data-agenda-row]")).toHaveCount(0)
     })
   })
 })
