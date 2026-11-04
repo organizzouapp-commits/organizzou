@@ -1023,7 +1023,7 @@ function DetailBody({
   const titleId = "task-detail-title"
   const checkbox = (
     <span className="flex size-11 shrink-0 items-center justify-center md:size-7">
-      <Checkbox checked={done} onCheckedChange={() => onToggleComplete(task)} aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`} className="size-6 after:-inset-x-3 after:-inset-y-3" />
+      <Checkbox checked={done} onCheckedChange={() => onToggleComplete(task)} aria-label={done ? `Reabrir ${task.title}` : `Concluir ${task.title}`} className="size-5 after:-inset-3 [&_svg]:size-3" />
     </span>
   )
 
@@ -1130,7 +1130,7 @@ function ChecklistRow({ item, onToggle, onRename, onRemove, onEnter }: { item: C
   return (
     <li className="flex min-h-11 items-center gap-3" data-testid="checklist-row">
       <span className="flex size-11 shrink-0 items-center justify-center md:size-7">
-        <Checkbox checked={item.done} onCheckedChange={onToggle} aria-label={`Marcar ${item.text}`} className="size-5 after:-inset-3" />
+        <Checkbox checked={item.done} onCheckedChange={onToggle} aria-label={`Marcar ${item.text}`} className="size-5 after:-inset-3 [&_svg]:size-3" />
       </span>
       <input
         ref={input}

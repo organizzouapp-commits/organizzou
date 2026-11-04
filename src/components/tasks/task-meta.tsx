@@ -1,6 +1,6 @@
-import { CalendarIcon, FlagIcon, MessageSquareIcon, PaperclipIcon, SquareCheckIcon, TriangleAlertIcon } from "lucide-react"
+import { CalendarIcon, ClockIcon, FlagIcon, MessageSquareIcon, PaperclipIcon, SquareCheckIcon, TriangleAlertIcon } from "lucide-react"
 
-import { dayDiff, formatDue, isOverdue } from "@/lib/dates"
+import { dayDiff, formatDue, isOverdue, splitDue } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { colorLabel, resolveHex, tintStyle, type ColorValue } from "@/features/tasks/colors"
 import { isTopHalf, priorityOf } from "@/features/tasks/priorities"
@@ -28,14 +28,14 @@ export function LabelBadge({ name, color, className }: { name: string; color: Co
   const hex = resolveHex(color)
   if (!hex) {
     return (
-      <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)}>
+      <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-[12px] leading-4 font-medium text-muted-foreground", className)}>
         <NeutralDot />
         <span className="truncate">{name}</span>
       </span>
     )
   }
   return (
-    <span data-label-badge={hex} title={colorLabel(color)} style={tintStyle(hex)} className={cn("inline-flex h-5 min-w-0 items-center gap-1.5 rounded-full border px-2 text-[12px] leading-4 font-medium text-foreground", className)}>
+    <span data-label-badge={hex} title={colorLabel(color)} style={tintStyle(hex)} className={cn("inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border px-2 text-[12px] leading-4 font-medium text-foreground", className)}>
       <ColorDot color={color} />
       <span className="truncate">{name}</span>
     </span>
@@ -89,19 +89,31 @@ type DueLabelProps = {
   now: Date
   timeZone: string
   className?: string
+  /** "time": only the clock time (the day is already selected on screen); nothing for an all-day task. */
+  mode?: "full" | "time"
 }
 
 /**
  * Due date, first thing of the meta line, icon + text (never color alone): today = foreground 600, later = muted, overdue = alert
  * icon + "atrasada há …" in foreground 500. No border, no chip.
  */
-export function DueLabel({ task, now, timeZone, className }: DueLabelProps) {
+export function DueLabel({ task, now, timeZone, className, mode = "full" }: DueLabelProps) {
   if (!task.due_at) return null
+  if (mode === "time") {
+    const time = task.due_has_time ? splitDue(task.due_at, true, timeZone).time : null
+    if (!time) return null
+    return (
+      <span data-due-time className={cn("tabular inline-flex items-center gap-1 text-[13px] leading-5 text-muted-foreground", className)}>
+        <ClockIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
+        {time}
+      </span>
+    )
+  }
   const overdue = !task.completed_at && isOverdue(task, now, timeZone)
   const today = !overdue && !task.completed_at && dayDiff(task.due_at, now, timeZone) === 0
   const Icon = overdue ? TriangleAlertIcon : CalendarIcon
   return (
-    <span className={cn("tabular inline-flex items-center gap-1 text-[13px] leading-5", overdue ? "font-medium text-foreground" : today ? "font-semibold text-foreground" : "text-muted-foreground", className)}>
+    <span data-due-label className={cn("tabular inline-flex items-center gap-1 text-[13px] leading-5", overdue ? "font-medium text-foreground" : today ? "font-semibold text-foreground" : "text-muted-foreground", className)}>
       <Icon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
       {overdue ? `${overdueText(task.due_at, now)} · ${formatDue(task, now, timeZone)}` : formatDue(task, now, timeZone)}
     </span>
@@ -116,10 +128,10 @@ export function TaskCounters({ task, className }: { task: TaskView; className?: 
   if (task.attachmentCount > 0) items.push({ key: "files", icon: PaperclipIcon, text: String(task.attachmentCount), label: `${task.attachmentCount} anexos` })
   if (items.length === 0) return null
   return (
-    <span className={cn("inline-flex items-center gap-3", className)}>
+    <span data-task-counters className={cn("inline-flex flex-none items-center gap-2.5", className)}>
       {items.map(({ key, icon: Icon, text, label }) => (
         <span key={key} title={label} className="tabular inline-flex items-center gap-1 text-[13px] leading-5 text-muted-foreground">
-          <Icon aria-hidden strokeWidth={1.75} className="size-3.5" />
+          <Icon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
           {text}
           <span className="sr-only">{label}</span>
         </span>
