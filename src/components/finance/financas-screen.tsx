@@ -377,7 +377,6 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     openAccountManager: () => setManagerOpen(true),
     saveLimits,
     openNewAccount: () => setAccountDialog({ row: null }),
-    openTransfer: () => toast("Transferências entre contas ainda não estão disponíveis."),
     openLimits: () => setLimitsOpen(true),
   }
 

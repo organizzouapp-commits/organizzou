@@ -135,13 +135,11 @@ test.describe("desktop 1440", () => {
     const row3 = await Promise.all(["spending-card", "accounts-card", "goals-card"].map((id) => box(page.getByTestId(id))))
     expect(new Set(row3.map((b) => Math.round(b.y))).size).toBe(1)
     expect(new Set(row3.map((b) => Math.round(b.height))).size).toBe(1)
-    // Hero: Transferir (Tinta pill, Lima text) and Pagar conta.
+    // Hero: no buttons any more, only the arrow circle and the balance chart.
     const heroEl = grid.locator("[data-hero-card]")
-    await expect(heroEl.getByRole("button", { name: "Transferir" })).toBeVisible()
-    expect(await contrast(page, await computed(heroEl.getByRole("button", { name: "Transferir" }), "color"), await computed(heroEl.getByRole("button", { name: "Transferir" }), "background-color"))).toBeGreaterThan(4.5)
-    expect(parseFloat(await computed(heroEl.getByRole("button", { name: "Pagar conta" }), "border-top-left-radius"))).toBeGreaterThan(100)
-    await heroEl.getByRole("button", { name: "Transferir" }).click()
-    await expect(page.getByText(/Transferências entre contas/)).toBeVisible()
+    await expect(heroEl.getByRole("button", { name: "Transferir" })).toHaveCount(0)
+    await expect(heroEl.getByRole("button", { name: "Pagar conta" })).toHaveCount(0)
+    await expect(heroEl.getByTestId("balance-chart")).toBeVisible()
     // Four stats, cents dimmed to 50%.
     const tiles = page.getByTestId("stat-grid").locator("[data-bento-stat]")
     await expect(tiles).toHaveText([/Entradas/, /Saídas/, /Saldo do mês/, /Fixas a pagar/])
@@ -612,6 +610,65 @@ test.describe("desktop 1440", () => {
     expect(new Set(bars.map((b) => b[1])).size).toBe(1)
   })
 
+  test("Saldo total: evolution + composition chart with a negative account, month by click and keyboard, legend isolate", async ({ page }) => {
+    await open(page)
+    // Make Carteira negative: its Farmácia expense grows past the balance (R$ 300 opening).
+    await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
+    await page.locator("[data-day-group] [data-group-header][aria-expanded=false]").evaluateAll((els) => els.forEach((e) => (e as HTMLElement).click()))
+    await page.locator("[data-transaction]").filter({ hasText: "Farmácia" }).locator("[data-item-title]").click()
+    const dialog = page.getByRole("dialog")
+    await dialog.getByLabel("Valor", { exact: true }).fill("900")
+    await dialog.getByRole("button", { name: "Salvar" }).click()
+    await page.getByRole("tab", { name: "Visão geral", exact: true }).click()
+
+    const hero = page.locator("[data-hero-card]")
+    const chart = hero.getByTestId("balance-chart")
+    await expect(chart).toBeVisible()
+    const months = chart.locator("[data-month]")
+    await expect(months).toHaveCount(6)
+    await expect(months.last()).toHaveAttribute("aria-pressed", "true")
+    // Four accounts, one of them below the baseline; a total dot per month.
+    const lastCol = months.last()
+    await expect(lastCol.locator("[data-segment]:not([data-negative])")).toHaveCount(3)
+    await expect(lastCol.locator("[data-segment][data-negative]")).toHaveCount(1)
+    await expect(chart.locator("[data-total-dot]")).toHaveCount(6)
+    await expect(chart.getByTestId("balance-plot")).toHaveAttribute("aria-label", /Saldo total em .*: .*composto por .*Carteira − R\$/)
+    // Legend: swatch, name, value and % for the selected month; the negative one has no %.
+    const legend = chart.getByTestId("balance-legend").locator("li")
+    await expect(legend).toHaveCount(4)
+    await expect(legend.filter({ hasText: "Carteira" })).toContainText("− R$")
+    await expect(legend.filter({ hasText: "Carteira" })).not.toContainText("%")
+    await expect(legend.filter({ hasText: "Poupança" })).toContainText("%")
+    const before = await chart.getByTestId("balance-legend-month").textContent()
+    // Month by click, then by keyboard: tooltip, legend month and the plot's label follow.
+    await months.nth(1).click()
+    await expect(months.nth(1)).toHaveAttribute("aria-pressed", "true")
+    await expect(chart.getByTestId("balance-tooltip")).toContainText("Nubank")
+    await expect(chart.getByTestId("balance-tooltip")).toContainText("Carteira")
+    await expect(chart.getByTestId("balance-legend-month")).not.toHaveText(before!)
+    await months.nth(1).focus()
+    await page.keyboard.press("ArrowRight")
+    await expect(months.nth(2)).toHaveAttribute("aria-pressed", "true")
+    await expect(months.nth(2)).toBeFocused()
+    await page.keyboard.press("End")
+    await expect(months.last()).toHaveAttribute("aria-pressed", "true")
+    await expect(chart.getByTestId("balance-legend-month")).toHaveText(before!)
+    // Isolate an account: its segments stay, the others fade; again to undo.
+    const nubank = chart.locator("[data-legend-account]").filter({ hasText: "Nubank" })
+    await nubank.click()
+    await expect(nubank).toHaveAttribute("aria-pressed", "true")
+    const opacities = await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-segment"), getComputedStyle(e).opacity]))
+    expect(new Set(opacities.map((o) => o[1]))).toEqual(new Set(["0.18", "1"]))
+    await nubank.click()
+    await expect(nubank).toHaveAttribute("aria-pressed", "false")
+    expect(new Set(await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => getComputedStyle(e).opacity)))).toEqual(new Set(["1"]))
+    // Row 1 stretches: the hero, the stat grid and the budget share one height.
+    const heights = await Promise.all([hero, page.getByTestId("stat-grid"), page.getByTestId("budget-card")].map(async (l) => Math.round((await l.boundingBox())!.height)))
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(2)
+    expect(heights[0]).toBeGreaterThan(300)
+    expect(await noCardOverflow(page)).toEqual([])
+  })
+
   test("dialogs on desktop: modal radius 20, Esc, Enter submits, inline message", async ({ page }) => {
     await open(page, "Lançamentos")
     const main = page.getByTestId("transactions-main")
@@ -711,6 +768,52 @@ for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { wid
         const income = page.locator("[data-money][data-tone=in]").first()
         const card = income.locator("xpath=ancestor::div[contains(@class,'rounded-[14px]')][1]")
         expect(await contrast(page, await computed(income, "color"), await computed(card, "background-color"))).toBeGreaterThan(4.5)
+      })
+    })
+  }
+}
+
+for (const theme of ["dark", "light"]) {
+  for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { width: 390, height: 844 }], ["430", { width: 430, height: 932 }]] as const) {
+    test.describe(`phone ${label} ${theme} (round 3)`, () => {
+      test.use({ viewport: size, hasTouch: true })
+      test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!, theme))
+
+      test("Nova meta is the dashed add pill (44px circle below 420px) and the Saldo total card has chart, legend and no buttons", async ({ page }) => {
+        await open(page, "Metas", true)
+        const pill = page.getByRole("button", { name: "Nova meta" })
+        expect(await computed(pill, "border-top-style")).toBe("dashed")
+        expect(parseFloat(await computed(pill, "border-top-left-radius"))).toBeGreaterThan(100)
+        const box = (await pill.boundingBox())!
+        if (size.width < 420) {
+          expect(Math.round(box.width)).toBe(44)
+          expect(Math.round(box.height)).toBe(44)
+        } else {
+          expect(Math.round(box.height)).toBe(36)
+          await expect(pill).toContainText("Nova meta")
+        }
+        // Not Lima: its fill is the translucent foreground, never the highlight color.
+        expect(await computed(pill, "background-color")).not.toBe(await computed(page.locator("[data-hero-card]"), "background-color"))
+        await page.getByRole("tab", { name: "Geral", exact: true }).click()
+        const hero = page.locator("[data-hero-card]")
+        await expect(hero.getByRole("button", { name: /Transferir|Pagar conta/ })).toHaveCount(0)
+        const chart = hero.getByTestId("balance-chart")
+        await expect(chart).toBeVisible()
+        const plot = (await chart.getByTestId("balance-plot").boundingBox())!
+        expect(plot.height).toBeGreaterThanOrEqual(120)
+        expect(plot.height).toBeLessThanOrEqual(150)
+        await chart.locator("[data-month]").first().tap()
+        await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
+        await expect(chart.getByTestId("balance-tooltip")).toBeVisible()
+        expect(await noPageScroll(page)).toBe(true)
+        expect(await noCardOverflow(page)).toEqual([])
+        // Legend in two columns when there is room, one on the narrowest phones.
+        const items = await chart.getByTestId("balance-legend").locator("li").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().left))).size)
+        expect(items).toBe(size.width >= 390 ? 2 : 1)
+        // The 2x2 tiles keep equal heights per row.
+        const tiles = await page.getByTestId("stat-grid").locator("[data-bento-stat]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().top), Math.round(e.getBoundingClientRect().height)]))
+        expect(tiles[0][1]).toBe(tiles[1][1])
+        expect(tiles[2][1]).toBe(tiles[3][1])
       })
     })
   }

@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowDownRightIcon, ArrowLeftRightIcon, ArrowUpRightIcon, CircleAlertIcon, PlusIcon, ReceiptIcon, ScaleIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowDownRightIcon, ArrowUpRightIcon, CircleAlertIcon, PlusIcon, ReceiptIcon, ScaleIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { balanceHistory } from "@/features/finance/history"
 import { monthlySeries } from "@/features/finance/stats"
 import { formatBalance, formatBRL, formatReais } from "@/lib/money"
 import { cn } from "@/lib/utils"
@@ -15,9 +16,10 @@ import { BillMini } from "./bill-mini"
 import { useFinance } from "./context"
 import { derive, variation } from "./derive"
 import { AccountMenu } from "./accounts"
+import { BalanceChart } from "./balance-chart"
 import { accountIcon, accountIconKey } from "./dialogs"
 import { GoalRing, useGoalSets } from "./goals"
-import { AddPill, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, HeroPill, MoneyText, ProgressBar, StatusChip, useCategoryColor } from "./parts"
+import { AddPill, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, MoneyText, ProgressBar, StatusChip, useCategoryColor } from "./parts"
 import { accountBalance } from "@/features/finance/stats"
 import type { AccountRow } from "@/features/finance/types"
 
@@ -26,6 +28,7 @@ import type { AccountRow } from "@/features/finance/types"
 export function BalanceHero() {
   const f = useFinance()
   const d = derive(f)
+  const history = useMemo(() => balanceHistory(f.accounts, f.transactions, f.month, 6), [f.accounts, f.transactions, f.month])
   return (
     <HeroCard
       label="Saldo total"
@@ -34,16 +37,10 @@ export function BalanceHero() {
       support={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"} · ${formatBalance(d.month.surplus)} no mês`}
       onArrow={() => f.goTab("lancamentos")}
       arrowLabel="Ver lançamentos"
-      className="h-full justify-between md:min-h-[252px]"
-      actions={
-        <>
-          <HeroPill primary onClick={f.openTransfer}>
-            <ArrowLeftRightIcon aria-hidden strokeWidth={1.75} className="size-4" /> Transferir
-          </HeroPill>
-          <HeroPill onClick={() => f.goTab("fixas")}>Pagar conta</HeroPill>
-        </>
-      }
-    />
+      className="h-full"
+    >
+      <BalanceChart key={f.month} history={history} className="mt-2" />
+    </HeroCard>
   )
 }
 

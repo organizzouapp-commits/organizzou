@@ -84,8 +84,6 @@ export type Finance = {
   openAccountManager: () => void
   saveLimits: (limits: Record<string, number | null>) => void
   openNewAccount: () => void
-  /** Moving money between accounts is not built yet; the Transferir pill says so. */
-  openTransfer: () => void
   openLimits: () => void
 }
 

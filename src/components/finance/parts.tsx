@@ -198,7 +198,6 @@ export function HeroCard({
   density = "default",
   support,
   children,
-  actions,
   progress,
   captions,
   footer,
@@ -217,7 +216,6 @@ export function HeroCard({
   /** The helper line right under the value. */
   support?: string
   children?: React.ReactNode
-  actions?: React.ReactNode
   progress?: { value: number; label: string }
   /** Two small labels under the bar, left and right. */
   captions?: [string, string]
@@ -256,23 +254,7 @@ export function HeroCard({
       ) : null}
       {children}
       {footer ? <span className={cn("text-highlight-foreground/75", compact ? "text-[11px] leading-4" : "text-[13px] leading-5")}>{footer}</span> : null}
-      {actions ? <div className="mt-auto flex flex-wrap gap-2 pt-1">{actions}</div> : null}
     </section>
-  )
-}
-
-/** The pills of a hero with actions: primary = Tinta with Lima text, secondary = outline. */
-export function HeroPill({ primary = false, className, ...props }: React.ComponentProps<"button"> & { primary?: boolean }) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={cn(
-        "inline-flex h-11 items-center justify-center gap-1.5 rounded-full px-4 text-[14px] leading-5 font-semibold outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-10",
-        primary ? "bg-palette-tinta text-palette-lima hover:bg-palette-tinta/90" : "border border-highlight-foreground/40 text-highlight-foreground hover:bg-highlight-foreground/10",
-        className
-      )}
-    />
   )
 }
 
