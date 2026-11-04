@@ -31,14 +31,24 @@ function readFolded(): Record<string, boolean> {
 
 const PRIORITY_ORDER: Priority[] = ["high", "medium", "low", "none"]
 
-/** Collapsing = the body shrinks to nothing (0.4 s, instant under reduced motion) and leaves the header only. */
+/**
+ * Collapsing = the body shrinks to height 0 (0.4 s, instant under reduced motion) and is hidden afterwards, leaving the header only:
+ * a collapsed group has no padding, margin, border or min-height of its own (the spacing between groups lives on the section).
+ */
 function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
-    <div inert={!open} className={cn("grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+    <div
+      inert={!open}
+      data-collapse={open ? "open" : "closed"}
+      className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}
+    >
       <div className="min-h-0 overflow-hidden">{children}</div>
     </div>
   )
 }
+
+/** Phones: 8px under a collapsed group, 16px under an expanded one (none after the last). Desktop keeps the container gap. */
+const groupSpacing = (mobile: boolean, open: boolean) => (mobile ? cn("flex flex-col last:mb-0", open ? "mb-4" : "mb-2") : "flex flex-col gap-1")
 
 function Row({ task, props, mobile }: { task: TaskView; props: ViewProps; mobile: boolean }) {
   return (
@@ -70,8 +80,8 @@ function ListGroup({ list, index, total, tasks, props, mobile }: { list: ListRow
   const [signal, setSignal] = useState(0)
   const open = !props.collapsed(list)
   return (
-    <section data-group={list.id} aria-label={list.name} className="flex flex-col gap-1">
-      <div className={cn("flex items-center gap-1 pl-1", mobile ? "-ml-2 min-h-[52px]" : "-ml-2 min-h-11")}>
+    <section data-group={list.id} aria-label={list.name} className={groupSpacing(mobile, open)}>
+      <div data-group-header className="-ml-2 flex h-11 items-center gap-1 pl-1">
         <button type="button" aria-expanded={open} aria-label={`${open ? "Recolher" : "Expandir"} ${list.name}`} onClick={() => props.onToggleCollapse(list)} className={cn("flex size-11 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50", cardHover)}>
           <Chevron open={open} />
         </button>
@@ -140,7 +150,7 @@ export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boole
         : []
 
   return (
-    <div className={cn("flex flex-col", mobile ? "gap-6" : "gap-4")}>
+    <div className={cn("flex flex-col", !mobile && "gap-4")}>
       {byList && props.lists.length === 0 ? (
         <EmptyState
           icon={SquareCheckIcon}
@@ -158,8 +168,8 @@ export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boole
         : groups.map((group) => {
             const open = !isFolded(group.id)
             return (
-              <section key={group.id} data-group={group.id} aria-label={group.label} className="flex flex-col gap-1">
-                <button type="button" aria-expanded={open} onClick={() => toggle(group.id)} className={cn("-ml-2 flex w-full items-center gap-2 rounded-full px-2 text-left", mobile ? "min-h-[52px]" : "min-h-11", cardHover)}>
+              <section key={group.id} data-group={group.id} aria-label={group.label} className={groupSpacing(mobile, open)}>
+                <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(group.id)} className={cn("-ml-2 flex h-11 w-full items-center gap-2 rounded-full px-2 text-left", cardHover)}>
                   <Chevron open={open} />
                   <h3 className={overline}>{group.label}</h3>
                   <span className={countPill}>{group.tasks.length}</span>
