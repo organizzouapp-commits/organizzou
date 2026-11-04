@@ -10,21 +10,32 @@ export type ColorValue = string | null
 export type LabelKind = "priority" | "tag" | "category" | "task"
 
 export const HEX_RE = /^#[0-9a-fA-F]{6}$/
-export const MAX_CUSTOM_COLORS = 5
+export const MAX_CUSTOM_COLORS = 8
 
-export type BuiltInColor = { id: string; label: string; hex: string }
+export type BuiltInColor = { id: string; label: string; /** A CSS color: a theme token for the defaults, a hex for legacy swatches. */ hex: string; /** Ink for a check on top of the fill. */ ink: "light" | "dark" }
 
-/** The default swatches, in picker order ("Sem cor" is the ring before them and has no entry). */
+/** The five default label colors, in picker order ("Sem cor" is the ring before them and has no entry). Tokens differ per theme (globals.css). */
 export const BUILT_IN_COLORS: BuiltInColor[] = [
-  { id: "cinza", label: "Cinza", hex: "#8C917F" },
-  { id: "lima", label: "Lima", hex: "#DBFD00" },
-  { id: "lima-verso", label: "Lima verso", hex: "#8FA800" },
-  { id: "tinta-verso", label: "Tinta verso", hex: "#4B5A00" },
-  { id: "grafite", label: "Grafite", hex: "#1A1D12" },
-  { id: "papel", label: "Papel", hex: "#F6F7F0" },
+  { id: "vermelho", label: "Vermelho", hex: "var(--label-red)", ink: "light" },
+  { id: "amarelo", label: "Amarelo", hex: "var(--label-yellow)", ink: "dark" },
+  { id: "azul", label: "Azul", hex: "var(--label-blue)", ink: "light" },
+  { id: "laranja", label: "Laranja", hex: "var(--label-orange)", ink: "dark" },
+  { id: "verde", label: "Verde", hex: "var(--label-green)", ink: "dark" },
 ]
 
-/** Swatch ids the `tasks.swatch` column accepts (its CHECK constraint); "cinza" and custom hex stay local. */
+/** Swatches earlier versions stored. They keep rendering (the picker lists them after the defaults, like saved custom colors); never wiped. */
+export const LEGACY_COLORS: BuiltInColor[] = [
+  { id: "cinza", label: "Cinza", hex: "#8C917F", ink: "dark" },
+  { id: "lima", label: "Lima", hex: "#DBFD00", ink: "dark" },
+  { id: "lima-verso", label: "Lima verso", hex: "#8FA800", ink: "dark" },
+  { id: "tinta-verso", label: "Tinta verso", hex: "#4B5A00", ink: "light" },
+  { id: "grafite", label: "Grafite", hex: "#1A1D12", ink: "light" },
+  { id: "papel", label: "Papel", hex: "#F6F7F0", ink: "dark" },
+]
+
+const ALL_COLORS = [...BUILT_IN_COLORS, ...LEGACY_COLORS]
+
+/** Swatch ids the `tasks.swatch` column accepts today (its CHECK constraint); the five defaults, "cinza" and custom hex stay local until 20261106000001 is applied. */
 const COLUMN_SWATCHES = new Set(["lima", "lima-verso", "tinta-verso", "grafite", "papel"])
 
 export const isHex = (value: string | null | undefined): value is string => Boolean(value) && HEX_RE.test(value as string)
@@ -33,17 +44,17 @@ export const normalizeHex = (value: string) => value.trim().toUpperCase()
 export function resolveHex(value: ColorValue): string | null {
   if (!value) return null
   if (isHex(value)) return normalizeHex(value)
-  return BUILT_IN_COLORS.find((c) => c.id === value)?.hex ?? null
+  return ALL_COLORS.find((c) => c.id === value)?.hex ?? null
 }
 
 export function colorLabel(value: ColorValue): string {
   if (!value) return "Sem cor"
-  return BUILT_IN_COLORS.find((c) => c.id === value)?.label ?? normalizeHex(value)
+  return ALL_COLORS.find((c) => c.id === value)?.label ?? normalizeHex(value)
 }
 
 export type LabelColorState = {
   colors: Record<LabelKind, Record<string, ColorValue>>
-  /** Colors the person saved from the custom panel (at most 5). */
+  /** Colors the person saved from the custom panel (at most 8). */
   custom: string[]
 }
 
@@ -52,6 +63,19 @@ export const EMPTY_LABEL_COLORS: LabelColorState = { colors: { priority: {}, tag
 export type LabelColorRepo = {
   load(): LabelColorState
   save(state: LabelColorState): void
+}
+
+/** Ink of a check over a color: the swatch ink for ids, computed from luminance for hex. */
+export function inkFor(value: ColorValue): "light" | "dark" {
+  const known = ALL_COLORS.find((c) => c.id === value)
+  if (known) return known.ink
+  if (!value || !isHex(value)) return "dark"
+  const n = parseInt(value.slice(1), 16)
+  const lin = (v: number) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255) > 0.4 ? "dark" : "light"
 }
 
 const STORAGE_KEY = "organizzou:tarefas-colors"

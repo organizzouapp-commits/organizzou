@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { colorLabel, columnSwatchFor, EMPTY_LABEL_COLORS, MAX_CUSTOM_COLORS, parseLabelColors, resolveHex, taskColorOf, withColor, withCustom, withoutCustom } from "./colors"
+import { BUILT_IN_COLORS, colorLabel, columnSwatchFor, EMPTY_LABEL_COLORS, MAX_CUSTOM_COLORS, parseLabelColors, resolveHex, taskColorOf, withColor, withCustom, withoutCustom } from "./colors"
 
 describe("label colors", () => {
   it("resolves swatch ids and hex, and nothing else", () => {
     expect(resolveHex("lima")).toBe("#DBFD00")
+    expect(resolveHex("vermelho")).toBe("var(--label-red)")
+    expect(colorLabel("verde")).toBe("Verde")
+    expect(BUILT_IN_COLORS.map((c) => c.id)).toEqual(["vermelho", "amarelo", "azul", "laranja", "verde"])
     expect(resolveHex("#abcdef")).toBe("#ABCDEF")
     expect(resolveHex("red")).toBeNull()
     expect(resolveHex(null)).toBeNull()
@@ -19,10 +22,10 @@ describe("label colors", () => {
     expect(withColor(a, "tag", "t1", null).colors.tag).toEqual({})
   })
 
-  it("keeps at most 5 distinct, valid custom colors", () => {
+  it("keeps at most 8 distinct, valid custom colors", () => {
     let state = EMPTY_LABEL_COLORS
-    for (const hex of ["#111111", "#222222", "#222222", "#333333", "#444444", "#555555", "#666666", "nope"]) state = withCustom(state, hex)
-    expect(state.custom).toEqual(["#111111", "#222222", "#333333", "#444444", "#555555"])
+    for (const hex of ["#111111", "#222222", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777", "#888888", "#999999", "nope"]) state = withCustom(state, hex)
+    expect(state.custom).toEqual(["#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777", "#888888"])
     expect(state.custom).toHaveLength(MAX_CUSTOM_COLORS)
     expect(withoutCustom(state, "#222222").custom).not.toContain("#222222")
   })
@@ -44,6 +47,7 @@ describe("label colors", () => {
   it("only palette swatches go to the tasks.swatch column", () => {
     expect(columnSwatchFor("lima")).toBe("lima")
     expect(columnSwatchFor("cinza")).toBe("neutro")
+    expect(columnSwatchFor("vermelho")).toBe("neutro")
     expect(columnSwatchFor("#123456")).toBe("neutro")
     expect(columnSwatchFor(null)).toBe("neutro")
   })

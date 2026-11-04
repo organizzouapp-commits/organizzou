@@ -50,6 +50,11 @@
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-fold: var(--brand-fold);
+  --color-label-red: var(--label-red);
+  --color-label-yellow: var(--label-yellow);
+  --color-label-blue: var(--label-blue);
+  --color-label-orange: var(--label-orange);
+  --color-label-green: var(--label-green);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
   --ease-organizzou: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -108,6 +113,12 @@
   --brand-fold: oklch(0.439 0.104 120.2); /* Tinta verso #4B5A00 */
   --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  /* User-label colors (tasks, tags, categories, priorities): an allowed exception to "no red/green" and "Lima only accent"; UI chrome keeps the old rules. Light theme: each >= 3:1 on Papel. */
+  --label-red: #D6343A;
+  --label-yellow: #A87400;
+  --label-blue: #2C6FDB;
+  --label-orange: #C85A0A;
+  --label-green: #1F8A36;
 }
 
 /* ---------- Modo escuro (padrÃ£o) ---------- */
@@ -149,6 +160,12 @@
   --brand-fold: oklch(0.688 0.163 119.8); /* Lima verso #8FA800 */
   --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
+  /* User-label colors, dark theme: each >= 3:1 on Grafite and Tinta. */
+  --label-red: #E5484D;
+  --label-yellow: #FFC53D;
+  --label-blue: #3E8BFF;
+  --label-orange: #FF8A3D;
+  --label-green: #3FB950;
 }
 
 @layer base {

@@ -47,7 +47,7 @@ import type { AttachmentRow, ChecklistItemRow, CommentRow, ListRow, TagRow, Task
 import { dayKey, splitDue, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
 import { ColorPicker } from "@/components/organizzou/ColorPicker"
-import { colorLabel, columnSwatchFor, resolveHex, taskColorOf, type ColorValue } from "@/features/tasks/colors"
+import { columnSwatchFor, resolveHex, taskColorOf, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 
 import { useLabelColors } from "./label-colors-context"
@@ -94,7 +94,6 @@ type TaskDetailProps = {
   onDelete: (task: TaskView) => void
 }
 
-const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase"
 
 function formatSize(bytes: number | null) {
@@ -377,7 +376,6 @@ function DetailBody({
   const [uploading, setUploading] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [removeFile, setRemoveFile] = useState<AttachmentRow | null>(null)
-  const [moreOptions, setMoreOptions] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const taskRef = useRef(task)
   useEffect(() => {
@@ -687,18 +685,6 @@ function DetailBody({
 
   const properties = (
     <div className={cn(desktop ? "flex flex-col gap-4" : "divide-y divide-border overflow-hidden rounded-[14px] bg-foreground/4")} data-testid="properties">
-      <Property label="Lista" icon={LayoutListIcon} value={list?.name ?? "—"} desktop={desktop}>
-        {(close) => (
-          <OptionList
-            options={lists.map((l) => ({ id: l.id, label: l.name }))}
-            value={task.list_id}
-            onPick={(id) => {
-              if (id !== task.list_id) onMoveToList(task, id)
-              close()
-            }}
-          />
-        )}
-      </Property>
       <Property label="Quadro" icon={ListIcon} value={boardName} desktop={desktop}>
         {(close) => (
           <OptionList
@@ -706,6 +692,18 @@ function DetailBody({
             value={boardId}
             onPick={(id) => {
               if (id !== boardId) onMoveToBoard(task, id)
+              close()
+            }}
+          />
+        )}
+      </Property>
+      <Property label="Lista" icon={LayoutListIcon} value={list?.name ?? "—"} desktop={desktop}>
+        {(close) => (
+          <OptionList
+            options={lists.map((l) => ({ id: l.id, label: l.name }))}
+            value={task.list_id}
+            onPick={(id) => {
+              if (id !== task.list_id) onMoveToList(task, id)
               close()
             }}
           />
@@ -766,55 +764,45 @@ function DetailBody({
           ))}
         </ul>
       ) : null}
-      <div className={desktop ? "" : "px-4 py-1"}>
-        <button type="button" aria-expanded={moreOptions} onClick={() => setMoreOptions((v) => !v)} className="flex min-h-11 w-full items-center gap-2 rounded-full px-3 text-left text-[15px] text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", EASE, !moreOptions && "-rotate-90")} />
-          Mais opções
-        </button>
-        {moreOptions ? (
-          <div className="flex flex-col gap-3 pb-3">
-            <Property label="Categoria" icon={TagIcon} value={category.trim() || <span className="text-muted-foreground">Sem categoria</span>} desktop={desktop}>
-              {(close) => (
-                <ManageablePicker
-                  noun="categoria"
-                  kind="category"
-                  fixed={{ id: "none", label: "Sem categoria" }}
-                  items={categoriesWithCurrent.map((c) => ({ id: c, label: c }))}
-                  selected={category.trim() ? [category.trim()] : []}
-                  onSelect={(id) => {
-                    const next = id === "none" ? "" : id
-                    setCategory(next)
-                    void patch({ category: next || null })
-                    close()
-                  }}
-                  onCreate={(name) => {
-                    setCategory(name)
-                    void patch({ category: name })
-                    close()
-                    return name
-                  }}
-                  onRename={(from, to) => {
-                    if (category.trim() === from) setCategory(to)
-                    taxonomy.categories.rename(from, to)
-                  }}
-                  onDelete={(name) => {
-                    if (category.trim() === name) setCategory("")
-                    taxonomy.categories.remove(name)
-                  }}
-                  usage={taxonomy.categories.usage}
-                />
-              )}
-            </Property>
-            <div className="flex flex-col gap-1.5">
-              <span className={cn(overline, "flex items-center gap-2")}>
-                Cor da tarefa
-                {resolveHex(taskColor) ? <ColorDot color={taskColor} /> : null}
-              </span>
-              <ColorPicker label="Cor da tarefa" value={taskColor} onChange={setTaskColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
-              <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão, na Agenda e no Calendário. {colorLabel(taskColor)}.</p>
-            </div>
-          </div>
-        ) : null}
+      <Property label="Categoria" icon={TagIcon} value={category.trim() || <span className="text-muted-foreground">Sem categoria</span>} desktop={desktop}>
+        {(close) => (
+          <ManageablePicker
+            noun="categoria"
+            kind="category"
+            fixed={{ id: "none", label: "Sem categoria" }}
+            items={categoriesWithCurrent.map((c) => ({ id: c, label: c }))}
+            selected={category.trim() ? [category.trim()] : []}
+            onSelect={(id) => {
+              const next = id === "none" ? "" : id
+              setCategory(next)
+              void patch({ category: next || null })
+              close()
+            }}
+            onCreate={(name) => {
+              setCategory(name)
+              void patch({ category: name })
+              close()
+              return name
+            }}
+            onRename={(from, to) => {
+              if (category.trim() === from) setCategory(to)
+              taxonomy.categories.rename(from, to)
+            }}
+            onDelete={(name) => {
+              if (category.trim() === name) setCategory("")
+              taxonomy.categories.remove(name)
+            }}
+            usage={taxonomy.categories.usage}
+          />
+        )}
+      </Property>
+      <div className={cn("flex flex-col gap-1.5", !desktop && "px-4 py-3")} data-testid="task-color-block">
+        <span className={cn(overline, "flex items-center gap-2")}>
+          Cor da tarefa
+          {resolveHex(taskColor) ? <ColorDot color={taskColor} /> : null}
+        </span>
+        <ColorPicker label="Cor da tarefa" value={taskColor} onChange={setTaskColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
+        <p className="px-1 text-[12px] leading-4 text-muted-foreground">Aparece no cartão, na Agenda e no Calendário.</p>
       </div>
     </div>
   )

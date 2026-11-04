@@ -6,13 +6,13 @@ import { CheckIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { BUILT_IN_COLORS, colorLabel, HEX_RE, MAX_CUSTOM_COLORS, normalizeHex, resolveHex, type ColorValue } from "@/features/tasks/colors"
+import { BUILT_IN_COLORS, colorLabel, HEX_RE, inkFor, MAX_CUSTOM_COLORS, normalizeHex, resolveHex, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 
 type ColorPickerProps = {
   value: ColorValue
   onChange: (value: ColorValue) => void
-  /** Custom colors the person saved (at most 5); they follow the built-in swatches in the same row. */
+  /** Custom colors the person saved (at most 8); they follow the built-in swatches in the same row. */
   custom: string[]
   /** Returns false when the color could not be saved (already there, or the 5 slots are taken). */
   onSaveCustom: (hex: string) => boolean
@@ -23,18 +23,7 @@ type ColorPickerProps = {
 
 const SWATCH = "relative flex size-7 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-2 focus-visible:ring-3 focus-visible:ring-ring/50"
 
-/** A check that stays readable on any fill: dark ink on light colors, light ink on dark ones. */
-function checkTone(hex: string) {
-  const n = parseInt(hex.slice(1), 16)
-  const lin = (v: number) => {
-    const c = v / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }
-  const luminance = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
-  return luminance > 0.4 ? "text-palette-tinta" : "text-palette-papel"
-}
-
-function Swatch({ hex, label, selected, ring, onSelect }: { hex: string | null; label: string; selected: boolean; ring?: boolean; onSelect: () => void }) {
+function Swatch({ hex, ink, label, selected, ring, onSelect }: { hex: string | null; ink?: "light" | "dark"; label: string; selected: boolean; ring?: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -47,13 +36,13 @@ function Swatch({ hex, label, selected, ring, onSelect }: { hex: string | null; 
       className={cn(SWATCH, selected && "outline-2 outline-offset-2 outline-foreground")}
     >
       <span aria-hidden className={cn("size-7 rounded-full", ring ? "border-2 border-foreground/50" : "ring-1 ring-foreground/25")} style={hex ? { backgroundColor: hex } : undefined} />
-      {selected ? <CheckIcon aria-hidden strokeWidth={2} className={cn("absolute size-4", hex ? checkTone(hex) : "text-foreground")} /> : null}
+      {selected ? <CheckIcon aria-hidden strokeWidth={2} className={cn("absolute size-4", hex ? (ink === "light" ? "text-palette-papel" : "text-palette-tinta") : "text-foreground")} /> : null}
     </button>
   )
 }
 
 /** A saved color: long press (or right click) offers to remove it. */
-function CustomSwatch({ hex, selected, onSelect, onRemove }: { hex: string; selected: boolean; onSelect: () => void; onRemove: () => void }) {
+function CustomSwatch({ hex, id, selected, onSelect, onRemove }: { hex: string; id: string; selected: boolean; onSelect: () => void; onRemove?: () => void }) {
   const [menu, setMenu] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   const fired = useRef(false)
@@ -66,18 +55,18 @@ function CustomSwatch({ hex, selected, onSelect, onRemove }: { hex: string; sele
           onPointerDown={() => {
             fired.current = false
             window.clearTimeout(timer.current)
-            timer.current = window.setTimeout(() => ((fired.current = true), setMenu(true)), 550)
+            if (onRemove) timer.current = window.setTimeout(() => ((fired.current = true), setMenu(true)), 550)
           }}
           onPointerUp={() => window.clearTimeout(timer.current)}
           onPointerLeave={() => window.clearTimeout(timer.current)}
-          onContextMenu={(e) => (e.preventDefault(), setMenu(true))}
+          onContextMenu={(e) => onRemove && (e.preventDefault(), setMenu(true))}
         >
-          <Swatch hex={hex} label={`Cor ${hex}`} selected={selected} onSelect={() => !fired.current && onSelect()} />
+          <Swatch hex={resolveHex(id)} ink={inkFor(id)} label={colorLabel(id)} selected={selected} onSelect={() => !fired.current && onSelect()} />
         </span>
       </PopoverAnchor>
       <PopoverContent className="w-auto rounded-2xl p-2" align="start">
-        <Button type="button" variant="ghost" className="h-11 gap-2 px-4" onClick={() => (setMenu(false), onRemove())}>
-          <Trash2Icon strokeWidth={1.75} /> Remover cor {hex}
+        <Button type="button" variant="ghost" className="h-11 gap-2 px-4" onClick={() => (setMenu(false), onRemove?.())}>
+          <Trash2Icon strokeWidth={1.75} /> Remover cor {colorLabel(id)}
         </Button>
       </PopoverContent>
     </Popover>
@@ -120,7 +109,7 @@ function CustomPanel({ full, onSave }: { full: boolean; onSave: (hex: string) =>
           </div>
         </div>
         <p id="hex-hint" className={cn("text-[13px] leading-5", valid ? "text-muted-foreground" : "font-medium text-foreground")}>
-          {full ? `Você já salvou ${MAX_CUSTOM_COLORS} cores. Remova uma (segure) para salvar outra.` : valid ? "Formato #RRGGBB." : "Use o formato #RRGGBB."}
+          {full ? `Você já salvou ${MAX_CUSTOM_COLORS} cores. Remova uma (segure ou clique com o botão direito) para salvar outra.` : valid ? "Formato #RRGGBB." : "Use o formato #RRGGBB."}
         </p>
         <Button
           type="button"
@@ -138,32 +127,32 @@ function CustomPanel({ full, onSave }: { full: boolean; onSave: (hex: string) =>
 }
 
 /**
- * The one color picker of Tarefas: a single horizontal row that never wraps (it scrolls sideways when the container is narrow):
- * "Sem cor" ring, the built-in swatches, the person's saved colors and a "+" that opens the custom-color panel.
+ * The one color picker of Tarefas (tasks, tags, categories, priorities): a single row that never wraps (it scrolls sideways only
+ * when the container is narrower than the row): "Sem cor" ring, the five default colors, the person's saved colors (and a stored
+ * legacy color in use, so it still shows) and a "+" that opens the custom-color panel. 28 px circles, 8 px gap, 44 px hit area.
  */
 export function ColorPicker({ value, onChange, custom, onSaveCustom, onRemoveCustom, label = "Cor", className }: ColorPickerProps) {
+  const isDefault = BUILT_IN_COLORS.some((c) => c.id === value)
   const current = value ? (resolveHex(value) ?? null) : null
+  // A stored value that is neither a default nor saved (an old swatch, a hex from before) is listed after the saved colors.
+  const stray = value && !isDefault && current && !custom.includes(value) ? value : null
   return (
     <div role="radiogroup" aria-label={label} data-color-row className={cn("no-scrollbar flex min-h-11 flex-nowrap items-center gap-2 overflow-x-auto px-1.5 py-2", className)}>
       <Swatch hex={null} ring label="Sem cor" selected={!value} onSelect={() => onChange(null)} />
       {BUILT_IN_COLORS.map((color) => (
-        <Swatch key={color.id} hex={color.hex} label={colorLabel(color.id)} selected={value === color.id} onSelect={() => onChange(color.id)} />
+        <Swatch key={color.id} hex={color.hex} ink={color.ink} label={color.label} selected={value === color.id} onSelect={() => onChange(color.id)} />
       ))}
       {custom.map((hex) => (
-        <CustomSwatch
-          key={hex}
-          hex={hex}
-          selected={Boolean(current) && current === hex && value !== null && !BUILT_IN_COLORS.some((c) => c.id === value)}
-          onSelect={() => onChange(hex)}
-          onRemove={() => onRemoveCustom(hex)}
-        />
+        <CustomSwatch key={hex} id={hex} hex={hex} selected={value !== null && current === normalizeHex(hex) && !isDefault} onSelect={() => onChange(hex)} onRemove={() => onRemoveCustom(hex)} />
       ))}
+      {stray ? <CustomSwatch key={stray} id={stray} hex={stray} selected onSelect={() => onChange(stray)} /> : null}
       <CustomPanel
         full={custom.length >= MAX_CUSTOM_COLORS}
         onSave={(hex) => {
-          const saved = onSaveCustom(hex)
-          if (saved) onChange(normalizeHex(hex))
-          return saved
+          const value = normalizeHex(hex)
+          const saved = onSaveCustom(value)
+          if (saved || custom.includes(value)) onChange(value)
+          return saved || custom.includes(value)
         }}
       />
     </div>
