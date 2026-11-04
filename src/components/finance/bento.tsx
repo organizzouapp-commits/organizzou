@@ -212,39 +212,58 @@ export function useSegmentColors(segments: DonutSegment[]) {
   return segments.map((s, i) => resolveHex(colors.colorOf("category", s.id)) ?? FALLBACK[i % FALLBACK.length])
 }
 
-/** A multi-segment donut (132px, 16px stroke, rounded caps) in the categories' own colors, the total and the count in the middle. `side`: legend beside it (it drops below on narrow cards); `stacked`: donut centered and a full-width legend below with a percentage column. */
+/** The arcs of a donut: positive values only, biggest first, a 2.5° gap between neighbours and at least 1.5% of the ring for a tiny slice (the rest shrinks to make room). Pure, so it can be tested. */
+export function donutArcs(values: number[], circumference: number) {
+  const positive = values.map((value, index) => ({ value, index })).filter((v) => v.value > 0)
+  const total = positive.reduce((sum, v) => sum + v.value, 0)
+  if (total === 0) return []
+  const lens = positive.map((v) => Math.max(v.value / total, 0.015))
+  const sum = lens.reduce((a, b) => a + b, 0)
+  const gap = positive.length > 1 ? (2.5 / 360) * circumference : 0
+  let cursor = 0
+  return positive.map((v, i) => {
+    const len = (lens[i] / sum) * circumference
+    const arc = { index: v.index, dash: Math.max(0.5, len - gap), offset: cursor + gap / 2, share: v.value / total }
+    cursor += len
+    return arc
+  })
+}
+
+/**
+ * A multi-segment donut (136px, 16px stroke, butt caps, 12 o'clock start) in the categories' own colors, biggest first like its legend. The
+ * total (scaled down when long) and the count sit inside the inner diameter. `side`: legend beside it (it drops below on narrow cards);
+ * `stacked`: donut centered and a full-width legend below with a percentage column.
+ */
 export function CategoryDonut({ segments, label, variant = "side", unit = ["lançamento", "lançamentos"], className }: { segments: DonutSegment[]; label: string; variant?: "side" | "stacked"; unit?: [string, string]; className?: string }) {
-  const total = segments.reduce((sum, s) => sum + s.value, 0)
-  const count = segments.reduce((sum, s) => sum + (s.count ?? 0), 0)
-  const colors = useSegmentColors(segments)
+  const sorted = segments.filter((s) => s.value > 0).sort((a, b) => b.value - a.value)
+  const total = sorted.reduce((sum, s) => sum + s.value, 0)
+  const count = sorted.reduce((sum, s) => sum + (s.count ?? 0), 0)
+  const colors = useSegmentColors(sorted)
   const r = 44
   const c = 2 * Math.PI * r
-  const caps = segments.length > 1 ? 10 : 0
-  let offset = 0
+  const arcs = donutArcs(sorted.map((s) => s.value), c)
   const stacked = variant === "stacked"
+  const totalText = `R$ ${Math.round(total / 100).toLocaleString("pt-BR")}`
+  const size = totalText.length <= 8 ? "text-[16px]" : totalText.length <= 10 ? "text-[14px]" : "text-[12px]"
   return (
     <div data-testid="category-donut" data-variant={variant} className={cn("@container w-full", className)}>
       <div className={cn("flex flex-col items-center gap-4", !stacked && "@[320px]:flex-row @[320px]:gap-5")}>
-        <div role="img" aria-label={`${label}: ${segments.map((s) => `${s.name} ${formatBRL(s.value)}`).join(", ") || "sem dados"}`} className="relative size-[132px] shrink-0">
-          <svg viewBox="0 0 120 120" className="size-full -rotate-90">
+        <div role="img" aria-label={`${label}: ${sorted.map((s) => `${s.name} ${formatBRL(s.value)}`).join(", ") || "sem dados"}`} className="relative size-[136px] shrink-0">
+          <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden>
             <circle cx="60" cy="60" r={r} fill="none" strokeWidth="16" className="stroke-muted" />
-            {total > 0
-              ? segments.map((s, i) => {
-                  const len = (s.value / total) * c
-                  const dash = Math.max(0.01, len - caps * 2)
-                  const el = <circle key={s.id} data-segment={s.id} cx="60" cy="60" r={r} fill="none" strokeWidth="16" strokeLinecap={caps ? "round" : "butt"} stroke={colors[i]} strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-(offset + caps)} />
-                  offset += len
-                  return el
-                })
-              : null}
+            {arcs.map((a) => (
+              <circle key={sorted[a.index].id} data-segment={sorted[a.index].id} data-share={a.share.toFixed(4)} cx="60" cy="60" r={r} fill="none" strokeWidth="16" strokeLinecap="butt" stroke={colors[a.index]} strokeDasharray={`${a.dash} ${c - a.dash}`} strokeDashoffset={-a.offset} />
+            ))}
           </svg>
           <span className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span data-donut-total className="tabular text-[16px] leading-6 font-semibold">{`R$ ${Math.round(total / 100).toLocaleString("pt-BR")}`}</span>
-            <span className="text-[11px] leading-4 text-muted-foreground">{count ? `${count} ${count === 1 ? unit[0] : unit[1]}` : "Total"}</span>
+            <span className="flex w-[78px] flex-col items-center">
+              <span data-donut-total className={cn("tabular leading-6 font-semibold whitespace-nowrap", size)}>{totalText}</span>
+              <span className="text-[11px] leading-4 whitespace-nowrap text-muted-foreground">{count ? `${count} ${count === 1 ? unit[0] : unit[1]}` : "Total"}</span>
+            </span>
           </span>
         </div>
         <ul className={cn("flex min-w-0 flex-col self-stretch", !stacked && "@[320px]:flex-1 @[320px]:justify-center")}>
-          {segments.map((s, i) => (
+          {sorted.map((s, i) => (
             <li key={s.id} data-legend={s.id} className={cn("grid h-7 min-w-0 items-center gap-2 text-[13px] leading-5", stacked ? "grid-cols-[10px_minmax(0,1fr)_auto_40px]" : "grid-cols-[10px_minmax(0,1fr)_auto]")}>
               <span aria-hidden className="size-2.5 rounded-full" style={{ backgroundColor: colors[i] }} />
               <span className="truncate">{s.name}</span>
@@ -252,7 +271,7 @@ export function CategoryDonut({ segments, label, variant = "side", unit = ["lan�
               {stacked ? <span className="tabular text-right text-muted-foreground">{total ? Math.round((s.value / total) * 100) : 0}%</span> : null}
             </li>
           ))}
-          {segments.length === 0 ? <li className="text-[13px] leading-5 text-muted-foreground">Sem dados neste mês.</li> : null}
+          {sorted.length === 0 ? <li className="text-[13px] leading-5 text-muted-foreground">Sem dados neste mês.</li> : null}
         </ul>
       </div>
     </div>
