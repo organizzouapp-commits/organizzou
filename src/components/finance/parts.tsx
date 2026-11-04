@@ -2,6 +2,7 @@
 
 import { Children } from "react"
 import {
+  ArrowUpRightIcon,
   BanknoteIcon,
   CarIcon,
   ChevronLeftIcon,
@@ -185,18 +186,69 @@ export function StatTile({ icon: Icon, label, children, helper, compact = false,
 }
 
 /**
- * The Lima card for the key number of a screen. Lima surface, Tinta text, in both themes. `actions` adds two pills at the bottom
- * (the primary one is Tinta with Lima text); `progress` adds the hatched bar (Tinta on Lima).
+ * The Lima card for the key number of a screen (Lima surface, Tinta text, in both themes): an uppercase label with a translucent arrow
+ * circle, the value (cents dimmed by the caller), a helper line, the hatched bar (Tinta on Lima) with two small captions, a line under
+ * the bar, and optional action pills at the bottom.
  */
-export function HeroCard({ label, value, support, children, actions, progress, className }: { label: string; value: React.ReactNode; support?: string; children?: React.ReactNode; actions?: React.ReactNode; progress?: { value: number; label: string }; className?: string }) {
+export function HeroCard({
+  label,
+  value,
+  size = "md",
+  support,
+  children,
+  actions,
+  progress,
+  captions,
+  footer,
+  onArrow,
+  arrowLabel,
+  className,
+}: {
+  label: string
+  value: React.ReactNode
+  /** "md" 36px, "lg" 44px (the balance). */
+  size?: "md" | "lg"
+  /** The helper line right under the value. */
+  support?: string
+  children?: React.ReactNode
+  actions?: React.ReactNode
+  progress?: { value: number; label: string }
+  /** Two small labels under the bar, left and right. */
+  captions?: [string, string]
+  /** The line under the bar (goals, bills). */
+  footer?: string
+  onArrow?: () => void
+  arrowLabel?: string
+  className?: string
+}) {
   return (
-    <section aria-label={label} data-hero-card className={cn("flex min-w-0 flex-col gap-2 rounded-[20px] bg-highlight p-5 text-highlight-foreground", className)}>
-      <span className="text-[13px] leading-5 font-medium text-highlight-foreground/75">{label}</span>
-      <span className="tabular text-[30px] leading-9 font-semibold tracking-[-0.02em] whitespace-nowrap">{value}</span>
-      {progress ? <HatchedProgress value={progress.value} label={progress.label} tone="onLima" /> : null}
+    <section aria-label={label} data-hero-card className={cn("flex min-w-0 flex-col gap-3 rounded-[20px] bg-highlight p-5 text-highlight-foreground", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate text-[11px] leading-4 font-semibold tracking-[0.1em] uppercase">{label}</span>
+        {onArrow ? (
+          <button type="button" data-hero-arrow aria-label={arrowLabel ?? `Abrir ${label}`} onClick={onArrow} className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-highlight-foreground/10 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:-inset-1 hover:bg-highlight-foreground/20 focus-visible:ring-3 focus-visible:ring-highlight-foreground/40 motion-reduce:transition-none">
+            <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-[18px]" />
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className={cn("tabular text-[36px] leading-[44px] font-semibold tracking-[-0.02em] whitespace-nowrap", size === "lg" && "md:text-[44px] md:leading-[52px]")}>{value}</span>
+        {support ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{support}</span> : null}
+      </div>
+      {progress ? (
+        <div className="flex flex-col gap-1.5">
+          <HatchedProgress value={progress.value} label={progress.label} tone="onLima" className="h-3" />
+          {captions ? (
+            <div className="tabular flex justify-between text-[11px] leading-4 text-highlight-foreground/70">
+              <span>{captions[0]}</span>
+              <span>{captions[1]}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {children}
-      {support ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{support}</span> : null}
-      {actions ? <div className="mt-2 flex flex-wrap gap-2">{actions}</div> : null}
+      {footer ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{footer}</span> : null}
+      {actions ? <div className="mt-auto flex flex-wrap gap-2 pt-1">{actions}</div> : null}
     </section>
   )
 }

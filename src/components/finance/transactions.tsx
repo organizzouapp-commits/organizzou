@@ -252,7 +252,10 @@ export function SpendHero() {
       label="Saídas do mês"
       value={<MoneyText cents={d.month.expense} dimDecimals />}
       progress={{ value: pct, label: "Saídas do mês contra o orçamento" }}
+      captions={["R$ 0", d.budget ? `limite R$ ${Math.round(d.budget / 100).toLocaleString("pt-BR")}` : "sem limite"]}
       support={d.budget ? `${Math.round(pct)}% do orçamento de ${formatBRL(d.budget)}` : "Defina limites para acompanhar o orçamento"}
+      onArrow={f.openLimits}
+      arrowLabel="Editar limites do orçamento"
     />
   )
 }
