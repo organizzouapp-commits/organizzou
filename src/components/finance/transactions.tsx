@@ -278,9 +278,11 @@ export function TransactionStats({ compact = false }: { compact?: boolean }) {
 function SpendDonut() {
   const f = useFinance()
   const d = derive(f)
-  const segments = d.categories.filter((c) => c.spent > 0).map((c) => ({ id: c.category.id, name: c.category.name, value: c.spent }))
+  const counts = new Map<string, number>()
+  for (const t of f.transactions) if (t.kind === "out" && t.occurred_on.slice(0, 7) === f.month && t.category_id) counts.set(t.category_id, (counts.get(t.category_id) ?? 0) + 1)
+  const segments = d.categories.filter((c) => c.spent > 0).map((c) => ({ id: c.category.id, name: c.category.name, value: c.spent, count: counts.get(c.category.id) ?? 0 }))
   return (
-    <BentoCard title="Por categoria" subtitle="onde as saídas do mês foram" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
+    <BentoCard title="Por categoria" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
       <CategoryDonut segments={segments} label="Saídas por categoria" />
     </BentoCard>
   )

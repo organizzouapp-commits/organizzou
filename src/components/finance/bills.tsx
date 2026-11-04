@@ -140,12 +140,16 @@ function Lists({ day, onDay }: { day: number | null; onDay: (day: number | null)
 function ByCategory() {
   const f = useFinance()
   const d = derive(f)
-  const sums = new Map<string, number>()
-  for (const v of d.views) sums.set(v.bill.category_id ?? "none", (sums.get(v.bill.category_id ?? "none") ?? 0) + v.bill.amount_cents)
-  const segments = [...sums.entries()].map(([id, value]) => ({ id, name: f.categoryName(id === "none" ? null : id), value })).sort((a, b) => b.value - a.value)
+  const sums = new Map<string, { value: number; count: number }>()
+  for (const v of d.views) {
+    const key = v.bill.category_id ?? "none"
+    const current = sums.get(key) ?? { value: 0, count: 0 }
+    sums.set(key, { value: current.value + v.bill.amount_cents, count: current.count + 1 })
+  }
+  const segments = [...sums.entries()].map(([id, { value, count }]) => ({ id, name: f.categoryName(id === "none" ? null : id), value, count })).sort((a, b) => b.value - a.value)
   return (
-    <BentoCard title="Fixas por categoria" subtitle="quanto cada tipo pesa no mês">
-      <CategoryDonut segments={segments} label="Fixas por categoria" legend="side" />
+    <BentoCard title="Fixas por categoria" onArrow={() => f.openNewBill()} arrowLabel="Nova conta fixa">
+      <CategoryDonut segments={segments} label="Fixas por categoria" variant="stacked" unit={["conta", "contas"]} />
     </BentoCard>
   )
 }

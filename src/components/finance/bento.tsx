@@ -159,7 +159,7 @@ export function CashflowChart({ data, selected, onSelect, ariaLabel, className }
   )
 }
 
-export type DonutSegment = { id: string; name: string; value: number }
+export type DonutSegment = { id: string; name: string; value: number; count?: number }
 
 const FALLBACK = ["var(--chart-1)", "var(--chart-3)", "var(--chart-5)", "var(--chart-4)", "var(--chart-2)"]
 
@@ -169,43 +169,49 @@ export function useSegmentColors(segments: DonutSegment[]) {
   return segments.map((s, i) => resolveHex(colors.colorOf("category", s.id)) ?? FALLBACK[i % FALLBACK.length])
 }
 
-/** A multi-segment donut in the categories' own colors, the total in the middle, and a legend beside it or below it. */
-export function CategoryDonut({ segments, label, legend = "below", className }: { segments: DonutSegment[]; label: string; legend?: "side" | "below"; className?: string }) {
+/** A multi-segment donut (132px, 16px stroke, rounded caps) in the categories' own colors, the total and the count in the middle. `side`: legend beside it (it drops below on narrow cards); `stacked`: donut centered and a full-width legend below with a percentage column. */
+export function CategoryDonut({ segments, label, variant = "side", unit = ["lançamento", "lançamentos"], className }: { segments: DonutSegment[]; label: string; variant?: "side" | "stacked"; unit?: [string, string]; className?: string }) {
   const total = segments.reduce((sum, s) => sum + s.value, 0)
+  const count = segments.reduce((sum, s) => sum + (s.count ?? 0), 0)
   const colors = useSegmentColors(segments)
   const r = 44
   const c = 2 * Math.PI * r
+  const caps = segments.length > 1 ? 10 : 0
   let offset = 0
+  const stacked = variant === "stacked"
   return (
-    <div data-testid="category-donut" className={cn("flex gap-4", legend === "side" ? "flex-row items-center" : "flex-col items-center", className)}>
-      <div role="img" aria-label={`${label}: ${segments.map((s) => `${s.name} ${formatBRL(s.value)}`).join(", ") || "sem dados"}`} className="relative size-[148px] shrink-0">
-        <svg viewBox="0 0 120 120" className="size-full -rotate-90">
-          <circle cx="60" cy="60" r={r} fill="none" strokeWidth="16" className="stroke-muted" />
-          {total > 0
-            ? segments.map((s, i) => {
-                const len = (s.value / total) * c
-                const dash = Math.max(0, len - (segments.length > 1 ? 2 : 0))
-                const el = <circle key={s.id} data-segment={s.id} cx="60" cy="60" r={r} fill="none" strokeWidth="16" stroke={colors[i]} strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-offset} />
-                offset += len
-                return el
-              })
-            : null}
-        </svg>
-        <span className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-[11px] leading-4 text-muted-foreground">Total</span>
-          <MoneyText cents={total} dimDecimals className="text-[12px] leading-4 font-semibold" />
-        </span>
+    <div data-testid="category-donut" data-variant={variant} className={cn("@container w-full", className)}>
+      <div className={cn("flex flex-col items-center gap-4", !stacked && "@[320px]:flex-row @[320px]:gap-5")}>
+        <div role="img" aria-label={`${label}: ${segments.map((s) => `${s.name} ${formatBRL(s.value)}`).join(", ") || "sem dados"}`} className="relative size-[132px] shrink-0">
+          <svg viewBox="0 0 120 120" className="size-full -rotate-90">
+            <circle cx="60" cy="60" r={r} fill="none" strokeWidth="16" className="stroke-muted" />
+            {total > 0
+              ? segments.map((s, i) => {
+                  const len = (s.value / total) * c
+                  const dash = Math.max(0.01, len - caps * 2)
+                  const el = <circle key={s.id} data-segment={s.id} cx="60" cy="60" r={r} fill="none" strokeWidth="16" strokeLinecap={caps ? "round" : "butt"} stroke={colors[i]} strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-(offset + caps)} />
+                  offset += len
+                  return el
+                })
+              : null}
+          </svg>
+          <span className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span data-donut-total className="tabular text-[16px] leading-6 font-semibold">{`R$ ${Math.round(total / 100).toLocaleString("pt-BR")}`}</span>
+            <span className="text-[11px] leading-4 text-muted-foreground">{count ? `${count} ${count === 1 ? unit[0] : unit[1]}` : "Total"}</span>
+          </span>
+        </div>
+        <ul className={cn("flex min-w-0 flex-col self-stretch", !stacked && "@[320px]:flex-1 @[320px]:justify-center")}>
+          {segments.map((s, i) => (
+            <li key={s.id} data-legend={s.id} className={cn("grid h-7 min-w-0 items-center gap-2 text-[13px] leading-5", stacked ? "grid-cols-[10px_minmax(0,1fr)_auto_40px]" : "grid-cols-[10px_minmax(0,1fr)_auto]")}>
+              <span aria-hidden className="size-2.5 rounded-full" style={{ backgroundColor: colors[i] }} />
+              <span className="truncate">{s.name}</span>
+              <span className="tabular text-right whitespace-nowrap">{formatBRL(s.value)}</span>
+              {stacked ? <span className="tabular text-right text-muted-foreground">{total ? Math.round((s.value / total) * 100) : 0}%</span> : null}
+            </li>
+          ))}
+          {segments.length === 0 ? <li className="text-[13px] leading-5 text-muted-foreground">Sem dados neste mês.</li> : null}
+        </ul>
       </div>
-      <ul className="flex min-w-0 flex-1 flex-col gap-1.5 self-stretch">
-        {segments.map((s, i) => (
-          <li key={s.id} data-legend={s.id} className="flex min-w-0 items-center gap-2 text-[13px] leading-5">
-            <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: colors[i] }} />
-            <span className="min-w-0 flex-1 truncate">{s.name}</span>
-            <span className="tabular shrink-0 text-muted-foreground">{total ? Math.round((s.value / total) * 100) : 0}%</span>
-          </li>
-        ))}
-        {segments.length === 0 ? <li className="text-[13px] leading-5 text-muted-foreground">Sem dados neste mês.</li> : null}
-      </ul>
     </div>
   )
 }
