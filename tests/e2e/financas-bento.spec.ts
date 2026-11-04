@@ -217,7 +217,7 @@ test.describe("desktop 1440", () => {
     expect(await side.getByTestId("category-donut").locator("[data-legend]").count()).toBeGreaterThan(2)
     // Segmented Todos | Entradas | Saídas.
     const seg = main.getByRole("group", { name: "Filtrar por tipo" })
-    await expect(seg.getByRole("button")).toHaveText(["Todos", "Entradas", "Saídas"])
+    await expect(seg.getByRole("button")).toHaveText([/^Todos\s*\d+$/, /^Entradas\s*\d+$/, /^Saídas\s*\d+$/])
     await seg.getByRole("button", { name: "Entradas" }).click()
     await expect(main.locator("[data-transaction]")).toHaveCount(1)
     await seg.getByRole("button", { name: "Todos" }).click()
@@ -246,7 +246,7 @@ test.describe("desktop 1440", () => {
     await page.keyboard.press("Escape")
   })
 
-  test("Contas fixas: hero with progress, stats, month timeline filters the list, Lista hides the timeline, Pagar + Desfazer", async ({ page }) => {
+  test("Contas fixas: hero with progress, stats, month timeline with Todos | Dia filtering the list, Pagar + Desfazer", async ({ page }) => {
     await open(page, "Contas fixas")
     const hero = page.locator("[data-hero-card]")
     await expect(hero.locator("[data-hatched]")).toHaveAttribute("aria-valuenow", /\d+/)
@@ -260,17 +260,25 @@ test.describe("desktop 1440", () => {
     const day = await withDot.getAttribute("data-day")
     await withDot.click()
     await expect(withDot).toHaveAttribute("aria-pressed", "true")
+    await expect(page.getByRole("group", { name: "Filtro da linha do mês" }).getByRole("button", { name: "Dia" })).toHaveAttribute("aria-pressed", "true")
     const badges = await page.getByTestId("bills-main").locator("[data-bill] [data-day-badge]").evaluateAll((els) => els.map((e) => e.textContent?.replace(/\D/g, "")))
     expect(badges.length).toBeGreaterThan(0)
     expect(badges.every((b) => b === day)).toBe(true)
-    await withDot.click()
+    // Todos | Dia: the timeline stays; "Dia" starts on today and an empty day says so.
+    const seg = page.getByRole("group", { name: "Filtro da linha do mês" })
+    await expect(seg.getByRole("button")).toHaveText(["Todos", "Dia"])
+    await seg.getByRole("button", { name: "Todos" }).click()
+    await expect(seg.getByRole("button", { name: "Todos" })).toHaveAttribute("aria-pressed", "true")
+    await seg.getByRole("button", { name: "Dia" }).click()
+    await expect(timeline.locator("[data-today]")).toHaveAttribute("aria-pressed", "true")
+    await expect(timeline).toBeVisible()
+    const empty = timeline.locator("[data-day]").filter({ hasNot: page.locator("[data-dot]") }).nth(2)
+    await empty.click()
+    await expect(page.getByTestId("bills-main")).toContainText("Nenhuma conta vence neste dia")
+    await expect(page.getByTestId("bills-main").getByRole("button", { name: "Nova conta fixa…" })).toBeVisible()
+    await seg.getByRole("button", { name: "Todos" }).click()
+    await expect(timeline.locator("[aria-pressed=true]")).toHaveCount(0)
     expect(await page.getByTestId("bills-main").locator("[data-bill]").count()).toBeGreaterThan(badges.length - 1)
-    // Lista | Linha.
-    const seg = page.getByRole("group", { name: "Modo de exibição" })
-    await seg.getByRole("button", { name: "Lista" }).click()
-    await expect(timeline).toHaveCount(0)
-    await seg.getByRole("button", { name: "Linha" }).click()
-    await expect(page.getByTestId("month-timeline")).toBeVisible()
     // Right column and groups.
     await expect(page.getByLabel("Fixas por categoria").locator("[data-segment]").first()).toBeVisible()
     await expect(page.getByLabel("Próximos vencimentos").locator("[data-next-due]")).toHaveCount(3)
@@ -305,7 +313,8 @@ test.describe("desktop 1440", () => {
     await expect(done.locator("[data-group-header]")).toHaveAttribute("aria-expanded", "false")
     await done.locator("[data-group-header]").click()
     await expect(done).toContainText("Meta alcançada")
-    await expect(done.getByRole("button", { name: "Guardar" })).toBeDisabled()
+    await expect(done.getByRole("button", { name: "Guardar" })).toHaveCount(0)
+    await expect(done.locator("[data-goal] [data-category-circle], [data-goal] svg:not([role=progressbar] svg)")).toHaveCount(0)
     // Create, edit.
     await page.getByText("Nova meta…").click()
     const dialog = page.getByRole("dialog")
@@ -327,9 +336,106 @@ test.describe("desktop 1440", () => {
     await expect(page.locator("[data-goal]").filter({ hasText: "Moto 0km" })).toContainText("R$ 500,00 de R$ 9.000,00")
   })
 
+  test("Lançamentos: ONE solid toolbar card (quick add, kinds, categories with Editar, search, Filtros, Ordem)", async ({ page }) => {
+    await open(page, "Lançamentos")
+    const bar = page.getByTestId("transactions-toolbar")
+    expect(parseFloat(await computed(bar, "border-top-left-radius"))).toBe(20)
+    expect(await computed(bar, "background-color")).not.toMatch(/rgba\(0, 0, 0, 0\)/)
+    expect(parseFloat(await computed(bar, "border-top-width"))).toBe(1)
+    await expect(bar.locator("[data-add-task-pill]")).toBeVisible()
+    await expect(bar.getByRole("group", { name: "Filtrar por tipo" })).toBeVisible()
+    const cats = bar.getByRole("group", { name: "Filtrar por categoria" })
+    await expect(cats.getByRole("button", { name: /^Mercado\s*\d+$/ })).toBeVisible()
+    await expect(cats.getByRole("button", { name: "Editar categorias" })).toBeVisible()
+    // Search circle expands inline and filters.
+    await bar.getByRole("button", { name: "Buscar lançamentos" }).click()
+    const search = bar.getByRole("searchbox", { name: "Buscar lançamentos" })
+    await search.fill("padaria")
+    await expect(page.getByTestId("transactions-main").locator("[data-transaction]")).toHaveCount(1)
+    await search.fill("")
+    // Filtros popover: kind and category, with a count badge.
+    await bar.getByRole("button", { name: /^Filtros/ }).click()
+    await page.getByRole("button", { name: "Saídas", exact: false }).last().click()
+    await expect(bar.getByRole("button", { name: /^Filtros/ })).toContainText("1")
+    await page.keyboard.press("Escape")
+    // Ordem: Data (default), Maior valor.
+    await bar.getByRole("combobox", { name: "Ordenar" }).click()
+    await page.getByRole("option", { name: "Maior valor" }).click()
+    await expect(bar.getByRole("combobox", { name: "Ordenar" })).toContainText("Maior valor")
+    // "Editar" opens the picker with Gerenciar / Adicionar.
+    await cats.getByRole("button", { name: "Editar categorias" }).click()
+    await expect(page.getByRole("dialog")).toContainText("Categorias")
+    await expect(page.getByRole("dialog").getByRole("button", { name: /Gerenciar/ })).toBeVisible()
+    await page.keyboard.press("Escape")
+  })
+
+  test("Lançamentos: the most recent day starts open, the others closed, and toggles are remembered", async ({ page }) => {
+    await open(page, "Lançamentos")
+    const groups = page.getByTestId("transactions-main").locator("[data-day-group]")
+    const headers = groups.locator("[data-group-header]")
+    expect(await groups.count()).toBeGreaterThan(2)
+    await expect(headers.first()).toHaveAttribute("aria-expanded", "true")
+    await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "false")
+    await expect(headers.nth(2)).toHaveAttribute("aria-expanded", "false")
+    await headers.nth(1).click()
+    await headers.first().click()
+    await page.getByRole("tab", { name: "Metas", exact: true }).click()
+    await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
+    await expect(headers.first()).toHaveAttribute("aria-expanded", "false")
+    await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true")
+  })
+
+  test("Metas: Destacar and drag reorder change the featured goal, the order survives a reload, Nova meta fills the next cell", async ({ page }) => {
+    await open(page, "Metas")
+    const featured = page.locator("[data-featured]")
+    await expect(featured).toContainText("Viagem de fim de ano")
+    // The dashed tile sits in the Em andamento grid, right after the last goal card, and not in Alcançadas.
+    const rows = page.locator("[data-group=active] [data-group-rows]")
+    await expect(rows.locator("[data-new-goal]")).toHaveCount(1)
+    await expect(page.locator("[data-group=done] [data-new-goal]")).toHaveCount(0)
+    await page.waitForTimeout(800)
+    const last = (await rows.locator("[data-goal]").last().boundingBox())!
+    const tile = (await rows.locator("[data-new-goal]").boundingBox())!
+    // The next cell of the grid: to the right of the last card, or the first cell of the next row.
+    expect(tile.x >= last.x + last.width - 2 || tile.y >= last.y + last.height - 2).toBe(true)
+    expect(tile.height).toBeGreaterThanOrEqual(200)
+    expect(parseFloat(await computed(rows.locator("[data-new-goal]"), "border-top-left-radius"))).toBe(20)
+    // Destacar (menu).
+    const reserva = page.locator("[data-goal]").filter({ hasText: "Reserva de emergência" })
+    await reserva.getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Destacar" }).click()
+    await expect(featured).toContainText("Reserva de emergência")
+    await page.reload()
+    await page.getByRole("tab", { name: "Metas", exact: true }).click()
+    await expect(page.locator("[data-featured]")).toContainText("Reserva de emergência")
+    // Keyboard reorder: Space picks up, an arrow moves, Space drops; the goal in the first slot is featured.
+    const apartamento = page.locator("[data-sortable-goal]").filter({ hasText: "Entrada do apartamento" })
+    const grip = apartamento.getByRole("button", { name: "Reordenar Entrada do apartamento" })
+    await grip.focus()
+    await page.keyboard.press("Space")
+    await page.waitForTimeout(250)
+    await page.keyboard.press("ArrowLeft")
+    await page.waitForTimeout(400)
+    await page.keyboard.press("ArrowLeft")
+    await page.waitForTimeout(400)
+    await page.keyboard.press("Space")
+    await expect(page.locator("[data-featured]")).toContainText("Entrada do apartamento")
+    await expect(page.locator("[role=status]").filter({ hasText: "posição" }).first()).toBeAttached()
+    // Mouse drag of a grip onto the first card.
+    const second = page.locator("[data-sortable-goal]").nth(1)
+    const g2 = (await second.getByRole("button", { name: /^Reordenar/ }).boundingBox())!
+    const first = (await page.locator("[data-sortable-goal]").first().boundingBox())!
+    await page.mouse.move(g2.x + g2.width / 2, g2.y + g2.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(first.x + 40, first.y + 40, { steps: 12 })
+    await page.mouse.up()
+    await expect(page.locator("[data-featured]")).not.toContainText("Entrada do apartamento")
+  })
+
   test("dialogs on desktop: modal radius 20, Esc, Enter submits, inline message", async ({ page }) => {
     await open(page, "Lançamentos")
     const main = page.getByTestId("transactions-main")
+    await main.getByRole("button", { name: "Buscar lançamentos" }).click()
     await main.getByRole("searchbox", { name: "Buscar lançamentos" }).fill("zzz")
     await main.getByRole("button", { name: "Novo lançamento" }).click()
     const dialog = page.getByRole("dialog")
@@ -419,6 +525,8 @@ for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { wid
         const pill = page.getByRole("tab", { name: "Geral", exact: true })
         expect(await contrast(page, await computed(pill, "color"), await computed(pill, "background-color"))).toBeGreaterThan(4.5)
         await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
+        // Only the latest day starts open; open them all to reach the income row.
+        await page.locator("[data-day-group] [data-group-header][aria-expanded=false]").evaluateAll((els) => els.forEach((e) => (e as HTMLElement).click()))
         await expect(page.locator("[data-money][data-tone=in]").first()).toBeVisible()
         const income = page.locator("[data-money][data-tone=in]").first()
         const card = income.locator("xpath=ancestor::div[contains(@class,'rounded-[14px]')][1]")
@@ -435,7 +543,7 @@ test.describe("phone behaviors", () => {
   test("Visão geral: order of cards, 2x2 stats, chart month by tap, Pagar, Últimas movimentações", async ({ page }) => {
     await open(page)
     const order = await page.locator("[data-testid=overview-grid] > section[aria-label]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
-    expect(order).toEqual(["Saldo total", "Contas e bancos", "Orçamento do mês", "Fluxo de caixa", "Para ficar de olho", "Metas", "Últimas movimentações"])
+    expect(order).toEqual(["Saldo total", "Contas e bancos", "Orçamento", "Fluxo de caixa", "Para ficar de olho", "Metas", "Últimas movimentações"])
     const tiles = await page.getByTestId("stat-grid").locator("[data-bento-stat]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top)]))
     expect(new Set(tiles.map((t) => t[0])).size).toBe(2)
     expect(new Set(tiles.map((t) => t[1])).size).toBe(2)
@@ -443,7 +551,7 @@ test.describe("phone behaviors", () => {
     const chart = page.getByTestId("cashflow-chart")
     await chart.locator("[data-month]").first().tap()
     await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
-    expect(Math.round((await chart.boundingBox())!.height)).toBe(170)
+    expect(Math.round((await chart.boundingBox())!.height)).toBe(210)
     const watch = page.getByTestId("watch-list")
     const bill = watch.locator("[data-bill]").filter({ hasText: "Energia elétrica" })
     const [title, amount, pill] = [await bill.locator("[data-item-title]").boundingBox(), await bill.locator("[data-money]").boundingBox(), await bill.getByRole("button", { name: "Pagar" }).boundingBox()]
@@ -457,7 +565,7 @@ test.describe("phone behaviors", () => {
     await expect(page.getByRole("tab", { name: "Lançamentos", exact: true })).toHaveAttribute("aria-selected", "true")
   })
 
-  test("Lançamentos: hero + 2 tiles, filter row scrolls, quick add under it, swipe left deletes, filter sheet with count", async ({ page }) => {
+  test("Lançamentos: header card with the filter row, hero + 2 tiles, quick add under them, swipe left deletes, filter sheet with count", async ({ page }) => {
     await open(page, "Lançamentos", true)
     await expect(page.locator("[data-hero-card]")).toContainText("Saídas do mês")
     await expect(page.getByTestId("transaction-tiles").locator("[data-bento-stat]")).toHaveCount(2)
@@ -465,6 +573,8 @@ test.describe("phone behaviors", () => {
     expect(await row.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
     expect(await row.evaluate((el) => el.className)).toContain("scroll-soft")
     expect(await noPageScroll(page)).toBe(true)
+    // The pill rows live in the solid header card, as in Minhas tarefas.
+    expect(await row.evaluate((el) => !!el.closest("[data-testid=financas-header-block]"))).toBe(true)
     const rowY = (await row.boundingBox())!.y
     expect((await page.locator("[data-add-task-pill]").first().boundingBox())!.y).toBeGreaterThan(rowY)
     const tx = page.locator("[data-transaction]").filter({ hasText: "Padaria da esquina" })
@@ -473,7 +583,7 @@ test.describe("phone behaviors", () => {
     await undoBtn(page).click()
     await expect(tx).toHaveCount(1)
     await page.getByRole("button", { name: "Filtros" }).click()
-    await page.getByRole("dialog").getByRole("button", { name: "Saídas", exact: true }).click()
+    await page.getByRole("dialog").getByRole("button", { name: /^Saídas/ }).click()
     await page.getByRole("dialog").getByRole("button", { name: "Ver lançamentos" }).click()
     await expect(page.getByRole("button", { name: "Filtros, 1 ativos" })).toBeVisible()
     await page.getByRole("button", { name: "Buscar lançamentos" }).click()
@@ -496,7 +606,7 @@ test.describe("phone behaviors", () => {
     const badges = await page.getByTestId("bills-main").locator("[data-bill] [data-day-badge]").evaluateAll((els) => els.map((e) => e.textContent?.replace(/\D/g, "")))
     expect(badges.length).toBeGreaterThan(0)
     expect(badges.every((b) => b === day)).toBe(true)
-    await withDot.tap()
+    await page.getByRole("group", { name: "Filtro da linha do mês" }).getByRole("button", { name: "Todos" }).tap()
     const bill = page.locator("[data-bill]").filter({ hasText: "Plano de saúde" })
     const [title, amount, pill] = [await bill.locator("[data-item-title]").boundingBox(), await bill.locator("[data-money]").boundingBox(), await bill.getByRole("button", { name: "Pagar" }).boundingBox()]
     expect(Math.abs(title!.y - amount!.y)).toBeLessThan(8)

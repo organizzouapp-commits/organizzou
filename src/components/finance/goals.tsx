@@ -295,7 +295,7 @@ function Achieved({ done, className }: { done: FinancialGoalRow[]; className: st
 export function NewGoalCard({ compact = false }: { compact?: boolean }) {
   const f = useFinance()
   return (
-    <button type="button" data-new-goal data-add-task-pill onClick={f.openNewGoal} className={cn("flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", compact ? "min-h-[72px] flex-row rounded-[14px] p-3" : "min-h-[200px] rounded-[20px] p-5")}>
+    <button type="button" data-new-goal data-add-task-pill onClick={f.openNewGoal} className={cn("flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", compact ? "min-h-[72px] flex-row rounded-[14px] p-3" : "min-h-[216px] rounded-[20px] p-5")}>
       <PlusIcon aria-hidden strokeWidth={1.75} className={compact ? "size-5" : "size-6"} />
       Nova meta…
     </button>
