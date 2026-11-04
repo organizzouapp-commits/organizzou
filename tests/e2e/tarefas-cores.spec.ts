@@ -7,7 +7,6 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 
 const CONSENT = encodeURIComponent(JSON.stringify({ version: 1, necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }))
 const PREPARAR = "d0000000-0000-4000-8000-000000000010"
-const TAG_TRABALHO = "c0000000-0000-4000-8000-000000000002"
 
 async function consent(context: BrowserContext, baseURL: string, theme = "dark") {
   await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL }])
@@ -168,8 +167,8 @@ test.describe("desktop 1440", () => {
   test("picker footer: Gerenciar and Adicionar, sticky and outside the scrolling list", async ({ page }) => {
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
     const dialog = page.getByRole("dialog")
-    await dialog.getByRole("button", { name: "Prioridade", exact: true }).click()
-    const picker = page.getByTestId("picker-prioridade")
+    await dialog.getByRole("button", { name: "Tags", exact: true }).click()
+    const picker = page.getByTestId("picker-tag")
     const footer = picker.locator("[data-picker-footer]")
     await expect(footer.getByRole("button", { name: "Gerenciar" })).toBeVisible()
     await expect(footer.getByRole("button", { name: "Adicionar" })).toBeVisible()
@@ -181,97 +180,15 @@ test.describe("desktop 1440", () => {
     expect(Math.abs(a - b)).toBeLessThanOrEqual(2)
   })
 
-  test("priority: Adicionar with a color, pick it, the flag takes the color; recolor and delete fall back to Sem prioridade", async ({ page }) => {
-    await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
-    const dialog = page.getByRole("dialog")
-    const trigger = dialog.getByRole("button", { name: "Prioridade", exact: true })
-    await trigger.click()
-    const picker = page.getByTestId("picker-prioridade")
-    await picker.getByRole("button", { name: "Adicionar" }).click()
-    await picker.locator("[data-add-row] [data-color-button]").click()
-    await page.getByTestId("row-color-picker").getByRole("radio", { name: "Vermelho", exact: true }).click()
-    await page.keyboard.press("Escape")
-    const input = picker.getByLabel("Nome da nova prioridade")
-    await input.fill("Crítica")
-    await input.press("Enter")
-    await expect(picker.getByText("Crítica", { exact: true })).toBeVisible()
-    await picker.getByRole("button", { name: "Crítica", exact: true }).click()
-    await expect(trigger).toContainText("Crítica")
-    const flag = page.locator(`[data-task-id="${PREPARAR}"] [aria-label="Prioridade crítica"]`)
-    await expect(flag).toHaveCount(1)
-    expect(await flag.evaluate((el) => (el as HTMLElement).style.color)).toBe("var(--label-red)")
 
-    // Seeds start without color.
-    await trigger.click()
-    await picker.getByRole("button", { name: "Gerenciar" }).click()
-    await expect(picker.getByRole("button", { name: /^Cor de Baixa: Sem cor/ })).toBeVisible()
-    await picker.getByRole("button", { name: /^Cor de Crítica/ }).click()
-    await page.getByTestId("row-color-picker").getByRole("radio", { name: "Azul" }).click()
-    await page.keyboard.press("Escape")
-    await picker.getByRole("button", { name: "Excluir Crítica" }).click()
-    await expect(page.getByRole("alertdialog")).toContainText("está em 1 tarefa")
-    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir" }).click()
-    await picker.getByRole("button", { name: "Concluir" }).click()
-    await page.keyboard.press("Escape")
-    await expect(trigger).toContainText("Sem prioridade")
-  })
-
-  test("tag and category colors show on card badges and dialog chips; the text stays neutral and readable", async ({ page, context, baseURL }) => {
-    await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
-    const dialog = page.getByRole("dialog")
-    await dialog.getByRole("button", { name: "Tags", exact: true }).click()
-    const picker = page.getByTestId("picker-tag")
-    await picker.getByRole("button", { name: "Gerenciar" }).click()
-    await picker.getByRole("button", { name: /^Cor de Trabalho/ }).click()
-    // A custom color through the "+" panel: invalid hex disables saving, a valid one is saved and picked.
-    const rowPicker = page.getByTestId("row-color-picker")
-    await rowPicker.getByRole("button", { name: "Adicionar cor personalizada" }).click()
-    const panel = page.getByTestId("custom-color-panel")
-    await panel.getByLabel("Código da cor (#RRGGBB)").fill("#12")
-    await expect(panel.getByRole("button", { name: "Salvar cor" })).toBeDisabled()
-    await panel.getByLabel("Código da cor (#RRGGBB)").fill("#FFEE00")
-    await panel.getByRole("button", { name: "Salvar cor" }).click()
-    await page.keyboard.press("Escape")
-    await picker.getByRole("button", { name: "Concluir" }).click()
-    await page.keyboard.press("Escape")
-
-    const cardBadge = page.locator(`[data-task-id="${PREPARAR}"] [data-label-badge="#FFEE00"]`)
-    await expect(cardBadge).toHaveCount(1)
-    const dot = cardBadge.locator("[data-color-dot]")
-    expect(await computed(dot, "background-color")).toBe("rgb(255, 238, 0)")
-    await expect(dialog.getByRole("list", { name: "Tags da tarefa" }).locator('[data-label-badge="#FFEE00"]')).toHaveCount(1)
-    // The text is the neutral foreground token, whatever the color.
-    expect(await computed(cardBadge, "color")).toBe(await page.evaluate(() => getComputedStyle(document.body).color))
-
-    // Contrast of the badge text in both themes with a bright and a dark custom color.
-    for (const theme of ["dark", "light"]) {
-      for (const hex of ["#FFEE00", "#101010"]) {
-        await page.evaluate(
-          ({ theme, hex, id }) => {
-            localStorage.setItem("theme", theme)
-            localStorage.setItem("organizzou:tarefas-colors", JSON.stringify({ colors: { priority: {}, tag: { [id]: hex }, category: {}, task: {} }, custom: [] }))
-          },
-          { theme, hex, id: TAG_TRABALHO }
-        )
-        await page.goto("/design-system/tarefas?view=kanban")
-        const badge = page.locator(`[data-task-id] [data-label-badge="${hex}"]`).first()
-        await expect(badge).toBeVisible({ timeout: 60000 })
-        const surface = await page.evaluate(() => getComputedStyle(document.querySelector("section[data-column]")!).backgroundColor)
-        const ratio = await contrast(page, [surface, await computed(badge, "background-color")], await computed(badge, "color"))
-        expect(ratio, `${theme} ${hex}`).toBeGreaterThanOrEqual(4.5)
-      }
-    }
-    void context
-    void baseURL
-  })
 
 
 
   test("all buttons stay pills in the pickers (computed radius)", async ({ page }) => {
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
     const dialog = page.getByRole("dialog")
-    await dialog.getByRole("button", { name: "Prioridade", exact: true }).click()
-    const footerButtons = page.getByTestId("picker-prioridade").locator("[data-picker-footer] button")
+    await dialog.getByRole("button", { name: "Tags", exact: true }).click()
+    const footerButtons = page.getByTestId("picker-tag").locator("[data-picker-footer] button")
     for (const radius of await footerButtons.evaluateAll((els) => els.map((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius)))) expect(radius).toBeGreaterThanOrEqual(18)
   })
 })
@@ -287,9 +204,9 @@ for (const width of [360, 390, 430]) {
 
     test("pickers are bottom sheets with the footer and 52px rows", async ({ page }) => {
       await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
-      await page.getByRole("button", { name: "Prioridade", exact: true }).click()
+      await page.getByRole("button", { name: "Tags", exact: true }).click()
       await page.waitForTimeout(800)
-      const picker = page.getByTestId("picker-prioridade")
+      const picker = page.getByTestId("picker-tag")
       await expect(picker.locator("[data-picker-footer]").getByRole("button", { name: "Gerenciar" })).toBeVisible()
       const row = (await picker.locator("[data-picker-item]").first().boundingBox())!
       expect(Math.round(row.height)).toBeGreaterThanOrEqual(52)

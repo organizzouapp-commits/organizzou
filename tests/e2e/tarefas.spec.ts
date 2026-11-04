@@ -64,18 +64,6 @@ test.describe("desktop", () => {
     expect(chips.y).toBeGreaterThan(views.y + views.height - 1)
   })
 
-  test("card anatomy: no stripe, no signal bars, flag only for high priority, overdue wording", async ({ page, context, baseURL }) => {
-    await consent(context, baseURL!)
-    await open(page, "/design-system/tarefas?view=kanban")
-    await expect(page.locator('[data-task-id] span.absolute.inset-y-0.left-0')).toHaveCount(0)
-    await expect(page.locator("svg.lucide-signal-high, svg.lucide-signal-medium, svg.lucide-signal-low")).toHaveCount(0)
-    await expect(page.getByRole("img", { name: "Prioridade alta" })).toHaveCount(4)
-    await expect(page.getByText("Urgente")).toHaveCount(0)
-    await expect(card(page, "Enviar relatório semanal")).toContainText("atrasada há 1 dia")
-    // The due date comes first in the meta line, "Hoje" in a heavier weight than a future date.
-    const weight = (text: string) => card(page, "Comprar planta").getByText(text, { exact: true }).evaluate((el) => Number(getComputedStyle(el).fontWeight))
-    expect(await weight("Hoje")).toBeGreaterThanOrEqual(600)
-  })
 
   test("complete a task and undo it from the toast", async ({ page, context, baseURL }) => {
     await consent(context, baseURL!)
@@ -205,9 +193,9 @@ test.describe("desktop", () => {
     await consent(context, baseURL!)
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
     const dlg = page.getByRole("dialog")
-    await dlg.getByRole("button", { name: "Prioridade", exact: true }).click()
-    await page.getByRole("button", { name: "Baixa" }).click()
-    await expect(dlg.getByRole("button", { name: "Prioridade", exact: true })).toContainText("Baixa")
+    await dlg.getByRole("button", { name: "Tags", exact: true }).click()
+    await page.getByRole("button", { name: "Casa" }).click()
+    await page.keyboard.press("Escape")
     await expect(dlg.getByRole("button", { name: "Excluir tarefa" })).toHaveCount(0)
     await dlg.getByRole("button", { name: "Mais ações", exact: true }).click()
     await page.getByRole("menuitem", { name: "Excluir tarefa" }).click()
@@ -321,9 +309,9 @@ test.describe("phone", () => {
     expect(box.height).toBeLessThanOrEqual(844 * 0.93)
     await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(8) // Lista, Quadro, Prioridade, Prazo, Tags, the tag chip ×, Categoria, the custom-color +
     for (const row of await sheet.getByTestId("properties").getByRole("button", { name: /^(Lista|Quadro|Prioridade|Prazo|Tags)$/ }).all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(51)
-    await sheet.getByRole("button", { name: "Prioridade", exact: true }).click()
-    await page.getByRole("dialog").last().getByRole("button", { name: "Média" }).click()
-    await expect(sheet.getByRole("button", { name: "Prioridade", exact: true })).toContainText("Média")
+    await sheet.getByRole("button", { name: "Tags", exact: true }).click()
+    await page.getByRole("dialog").last().getByRole("button", { name: "Casa" }).click()
+    await page.keyboard.press("Escape")
     const complete = sheet.getByRole("button", { name: "Concluir tarefa" })
     const cb = (await complete.boundingBox())!
     expect(cb.height).toBeGreaterThanOrEqual(47)

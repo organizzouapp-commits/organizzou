@@ -146,15 +146,6 @@ test.describe("task card geometry", () => {
     await context.close()
   })
 
-  test("meta row: date, priority, category and tags share a line; '+N' beyond three chips", async ({ browser, baseURL }) => {
-    const { context, page } = await setup(browser, baseURL!, 1440, 900)
-    await open(page)
-    const card = page.locator("[data-task-id]").filter({ hasText: "Revisar proposta" }).first()
-    const items = card.locator("[data-task-meta] > *")
-    const tops = await items.evaluateAll((els) => els.filter((e) => !e.hasAttribute("data-task-counters")).map((e) => Math.round(e.getBoundingClientRect().top)))
-    expect(new Set(tops).size).toBe(1)
-    await context.close()
-  })
 })
 
 test.describe("mobile header card", () => {

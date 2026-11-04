@@ -56,6 +56,7 @@ export function LabelChip({ name, color, compact, onToggle, className }: { name:
     <button
       type="button"
       data-label-chip
+      data-label-badge={hex ?? undefined}
       aria-pressed={compact}
       aria-label={`${toggleLabel}: ${name}`}
       title={name}

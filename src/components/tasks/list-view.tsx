@@ -76,7 +76,9 @@ const countPill = "tabular inline-flex h-5 min-w-5 items-center justify-center r
 const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase"
 
 /** One group per list of the quadro: the same lists, order and collapsed state as the Kanban. */
-export function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled, onAddTask, dueMode }: { list: ListRow; index: number; total: number; tasks: TaskView[]; props: ViewProps; mobile: boolean; dragEnabled: boolean; /** Where "+" and the dashed pill create the task themselves (the calendar prefills the day) instead of the inline composer. */ onAddTask?: (list: ListRow) => void; dueMode?: "full" | "time" }) {
+export function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled, onAddTask, dueMode, highlightId }: {
+  highlightId?: string | null
+  list: ListRow; index: number; total: number; tasks: TaskView[]; props: ViewProps; mobile: boolean; dragEnabled: boolean; /** Where "+" and the dashed pill create the task themselves (the calendar prefills the day) instead of the inline composer. */ onAddTask?: (list: ListRow) => void; dueMode?: "full" | "time" }) {
   const [editing, setEditing] = useState(false)
   const [signal, setSignal] = useState(0)
   const open = !props.collapsed(list)
@@ -88,6 +90,7 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
       disabled={!dragEnabled || props.selection.active}
       density={mobile ? "card" : "row"}
       dueMode={dueMode}
+      highlight={highlightId === task.id}
       task={task}
       tags={props.tags}
       now={props.now}

@@ -195,33 +195,6 @@ test.describe("desktop", () => {
     expect(parseFloat(await input.evaluate((el) => getComputedStyle(el).borderTopLeftRadius))).toBeGreaterThanOrEqual(20)
   })
 
-  test("shortcuts: create a custom one, hide a built-in, and both persist; delete the custom one", async ({ page }) => {
-    await open(page, "/design-system/tarefas?view=lista")
-    const chips = page.getByRole("group", { name: "Atalhos" })
-    await page.getByRole("button", { name: "Editar atalhos" }).click()
-    await page.getByRole("button", { name: "Novo atalho" }).click()
-    await page.getByLabel("Nome do atalho").fill("Só as altas")
-    await page.getByRole("dialog").getByRole("button", { name: "Alta", exact: true }).click()
-    await page.getByRole("button", { name: "Salvar atalho" }).click()
-    await expect(chips.getByRole("button", { name: /^Só as altas/ })).toBeVisible()
-    await chips.getByRole("button", { name: /^Só as altas/ }).click()
-    await expect(chips.getByRole("button", { name: /^Só as altas/ })).toHaveAttribute("aria-pressed", "true")
-
-    await page.getByRole("button", { name: "Editar atalhos" }).click()
-    await page.getByRole("switch", { name: "Mostrar Hoje" }).click()
-    await page.keyboard.press("Escape")
-    await expect(chips.getByRole("button", { name: /^Hoje/ })).toHaveCount(0)
-    await page.reload()
-    await expect(chips.getByRole("button", { name: /^Só as altas/ })).toBeVisible({ timeout: 60000 })
-    await expect(chips.getByRole("button", { name: /^Hoje/ })).toHaveCount(0)
-
-    await page.getByRole("button", { name: "Editar atalhos" }).click()
-    await page.getByRole("button", { name: "Excluir o atalho Só as altas" }).click()
-    await page.getByRole("switch", { name: "Mostrar Hoje" }).click()
-    await page.keyboard.press("Escape")
-    await expect(chips.getByRole("button", { name: /^Só as altas/ })).toHaveCount(0)
-    await expect(chips.getByRole("button", { name: /^Hoje/ })).toBeVisible()
-  })
 
   test("Lista shows the same lists in the same order, collapse is shared, and Agrupar por switches the grouping", async ({ page }) => {
     await open(page)
@@ -304,47 +277,6 @@ test.describe("desktop", () => {
     await expect(page).toHaveURL(/tarefa=/)
   })
 
-  test("priorities: create, pick (flag on the card), rename, reorder by keyboard, delete with fallback", async ({ page }) => {
-    await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
-    const dialog = page.getByRole("dialog")
-    const trigger = dialog.getByRole("button", { name: "Prioridade", exact: true })
-    const picker = () => page.getByTestId("picker-prioridade")
-    await trigger.click()
-    await picker().getByLabel("Buscar ou criar prioridade").fill("Crítica")
-    await picker().getByRole("button", { name: "Criar “Crítica”" }).click()
-    await picker().getByRole("button", { name: "Crítica", exact: true }).click()
-    await expect(trigger).toContainText("Crítica")
-    // Any priority shows a flag on the card (its name in the label), filled for the heavier half.
-    await expect(page.locator('[data-task-id="' + PREPARAR + '"] [aria-label="Prioridade crítica"]')).toHaveCount(1)
-
-    await trigger.click()
-    await picker().getByRole("button", { name: "Gerenciar" }).click()
-    await picker().getByRole("button", { name: "Crítica", exact: true }).click()
-    await picker().getByLabel("Nome: Crítica").fill("Máxima")
-    await picker().getByLabel("Nome: Crítica").press("Enter")
-    await expect(picker().locator('[data-picker-item]').last()).toContainText("Máxima")
-
-    // Reorder by keyboard: move Baixa one step down.
-    const handle = picker().getByRole("button", { name: "Reordenar Baixa" })
-    await handle.focus()
-    await page.keyboard.press("Space")
-    await page.waitForTimeout(200)
-    await page.keyboard.press("ArrowDown")
-    await page.waitForTimeout(200)
-    await page.keyboard.press("Space")
-    await expect.poll(async () => (await picker().locator("[data-picker-item]").allTextContents()).map((t) => t.trim()).slice(0, 2)).toEqual(["Média", "Baixa"])
-
-    // Deleting an unused one just goes; deleting the one in use says how many tasks and falls back to "Sem prioridade".
-    await picker().getByRole("button", { name: "Excluir Urgente" }).click()
-    await expect(page.getByRole("alertdialog")).toContainText("não está em nenhuma tarefa")
-    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir" }).click()
-    await picker().getByRole("button", { name: "Excluir Máxima" }).click()
-    await expect(page.getByRole("alertdialog")).toContainText("está em 1 tarefa")
-    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir" }).click()
-    await picker().getByRole("button", { name: "Concluir" }).click()
-    await page.keyboard.press("Escape")
-    await expect(trigger).toContainText("Sem prioridade")
-  })
 
   test("tags: create from the picker, chip with ×, rename and delete in Gerenciar", async ({ page }) => {
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)

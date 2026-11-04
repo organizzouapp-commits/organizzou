@@ -43,7 +43,7 @@ function Body({ list, taskCount, others, onCancel, onConfirm }: { list: ListRow;
               <SelectItem value={DELETE_TASKS}>Excluir {taskCount === 1 ? "a tarefa" : "as tarefas"} junto</SelectItem>
             </SelectContent>
           </Select>
-          {choice === DELETE_TASKS ? <p className="text-[13px] leading-5 text-muted-foreground">As tarefas serão apagadas. Essa ação não pode ser desfeita.</p> : null}
+          {choice === DELETE_TASKS ? <p className="text-[13px] leading-5 text-muted-foreground">As tarefas serão apagadas depois de 8 segundos; até lá dá para desfazer.</p> : null}
         </div>
       ) : (
         <p className="text-[15px] leading-6">A lista “{list.name}” está vazia e será apagada.</p>

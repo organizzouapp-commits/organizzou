@@ -76,32 +76,32 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
       </DropdownMenuTrigger>
       {/* Never under the bottom nav or the assistant button on phones (96px), and it scrolls inside when the screen is short. */}
       <DropdownMenuContent align="end" collisionPadding={{ top: 80, bottom: 96, left: 16, right: 16 }} className="max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-52 overflow-y-auto rounded-2xl p-2">
-        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={onRename}>
+        <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={onRename}>
           <TextCursorInputIcon strokeWidth={1.75} /> Renomear
         </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.duplicate}>
+        <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.duplicate}>
           <CopyIcon strokeWidth={1.75} /> Duplicar
         </DropdownMenuItem>
         {actions.schedule ? (
-          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.schedule}>
+          <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.schedule}>
             <CalendarClockIcon strokeWidth={1.75} /> Agendar…
           </DropdownMenuItem>
         ) : null}
         {actions.moveUp ? (
-          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveUp}>
+          <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveUp}>
             <ArrowUpIcon strokeWidth={1.75} /> Mover para cima
           </DropdownMenuItem>
         ) : null}
         {actions.moveDown ? (
-          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveDown}>
+          <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveDown}>
             <ArrowDownIcon strokeWidth={1.75} /> Mover para baixo
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.move}>
+        <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.move}>
           <ArrowRightIcon strokeWidth={1.75} /> Mover para…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.remove}>
+        <DropdownMenuItem className="min-h-12 shrink-0 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.remove}>
           <Trash2Icon strokeWidth={1.75} /> Excluir tarefa
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -346,9 +346,11 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
 type SortableTaskCardProps = Omit<TaskCardBodyProps, "className"> & {
   listId: string
   disabled: boolean
+  /** A task that was just created: ringed for ~1.2 s. */
+  highlight?: boolean
 }
 
-export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCardProps) {
+export function SortableTaskCard({ listId, disabled, highlight, ...body }: SortableTaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: body.task.id,
     data: { type: "task", listId },
@@ -363,9 +365,10 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
       style={style}
       data-task-id={body.task.id}
       data-dragging={isDragging ? "" : undefined}
+      data-highlight={highlight ? "" : undefined}
       {...attributes}
       {...listeners}
-      className={cn("relative snap-start touch-manipulation cursor-grab outline-none select-none [-webkit-touch-callout:none]", isDragging && "touch-none")}
+      className={cn("relative snap-start touch-manipulation cursor-grab outline-none select-none [-webkit-touch-callout:none]", isDragging && "touch-none", highlight && "rounded-[14px] ring-2 ring-primary")}
     >
       <div className={cn(isDragging && "opacity-0")}>
         <TaskCardBody {...body} />

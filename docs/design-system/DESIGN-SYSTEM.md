@@ -13,10 +13,9 @@ Tokens prontos: `organizzou-tokens.css` (mesclar em `src/app/globals.css`).
 2. **Paleta fechada de 6 cores.** Nenhuma outra cor entra no sistema. Bordas, textos secundários e fundos suaves
    são as mesmas cores com transparência.
 3. **Lima é o único destaque.** Ação principal, item ativo, progresso e foco. No máximo ~5–10% da tela.
-   **Exceção: cores de rótulo escolhidas pela pessoa.** Prioridades, tags, categorias e a cor de uma tarefa podem ter a cor que a
+   **Exceção: cores de rótulo escolhidas pela pessoa.** Tags, categorias e a cor de uma tarefa podem ter a cor que a
    pessoa escolher (swatches do sistema ou um `#RRGGBB` salvo por ela). Elas só aparecem como rótulo do dado (ponto de 8 px,
-   fundo da cor a 16% sobre a superfície com borda de 1 px a 30%, barra de 4 px à esquerda do cartão da tarefa, bandeira da
-   prioridade). **O texto do rótulo continua sempre no token neutro** (contraste nunca depende da cor escolhida) e o
+   fundo da cor a 16% sobre a superfície com borda de 1 px a 30%, barra de 4 px à esquerda do cartão da tarefa). **O texto do rótulo continua sempre no token neutro** (contraste nunca depende da cor escolhida) e o
    significado nunca vai só na cor (nome, ícone ou rótulo acessível junto). O chrome do app continua só com a paleta e o Lima.
    **As cinco cores de rótulo padrão** (`--label-red`, `--label-yellow`, `--label-blue`, `--label-orange`, `--label-green`) e as cores
    personalizadas da pessoa (até 8, `#RRGGBB`) formam as **cores de rótulo do usuário**: uma exceção permitida a "sem vermelho/verde" e a
@@ -78,7 +77,7 @@ Tokens (`globals.css`), um valor por tema:
 | `--label-orange` (Laranja) | `#FF8A3D` | `#C85A0A` |
 | `--label-green` (Verde) | `#3FB950` | `#1F8A36` |
 
-- **ColorPicker único** (tarefas, tags, categorias e prioridades; no diálogo da tarefa e em cada linha de Adicionar/Gerenciar): uma linha
+- **ColorPicker único** (tarefas, tags e categorias; no diálogo da tarefa e em cada linha de Adicionar/Gerenciar): uma linha
   que não quebra: [Sem cor (anel)] [Vermelho] [Amarelo] [Azul] [Laranja] [Verde] [+]. Círculos de 28 px, espaço de 8 px, área de toque de 44 px,
   selecionado = anel de 2 px + check, `aria-label` com o nome pt-BR. As cores salvas entram depois das padrão (máx. 8, removíveis por
   menu/clique longo); rola na horizontal só se estourar. "+" abre um painel compacto: `input type=color` + campo hex (`#RRGGBB`) + "Salvar cor".
@@ -394,27 +393,44 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 Um só componente (Kanban, Lista, Calendário, busca). Grade CSS: linha 1 = [check | título | ações], linha 2 = linha de meta.
 - Barra de cor: `left 8px`, 4 px, recuo de 12 px em cima e embaixo. Check de 20 px a 24 px da borda (12 px depois da barra); o recuo
   esquerdo é constante com ou sem barra. Título 15 px/600, `line-height` 20 px; o check fica num wrapper de 20 px alinhado à PRIMEIRA linha.
-- Ações no topo à direita, centradas na primeira linha: bandeira de prioridade (16 px, não interativa, só com prioridade) e o botão ⋯
-  (32 px visuais, 44 px de toque, ícone de 16 px). O ⋯ ocupa sempre o último slot, então não se move quando não há bandeira.
-- Linha de meta (flex, wrap, `column-gap 8`, `row-gap 6`, `margin-top 6`): data/hora (13 px, muted), chip de prioridade, chip de categoria, chips
-  de tags (24 px, 12 px, texto neutro; no máximo 3 chips e depois "+N") e os contadores (13 px, ícones de 14 px, espaço de 10 px) com
-  `margin-inline-start:auto`, alinhados à direita (a borda direita coincide com a do ⋯).
+- **Não existe bandeira de prioridade.** Prioridade virou tag (as tarefas que tinham prioridade ganharam uma tag com o mesmo nome e cor).
+- Título numa linha só (`white-space:nowrap`, reticências, `title` com o texto inteiro). Ação no topo à direita: só o botão ⋯ (32 px visuais, 44 px de
+  toque, ícone de 16 px), centrado na primeira linha.
+- Linha 2: data/hora à esquerda (13 px, muted) e os contadores (checklist, comentários, anexos; 13 px, ícones de 14 px, espaço de 10 px) na ponta direita da
+  MESMA linha (a borda direita coincide com a do ⋯). Sem data, a linha tem só os contadores.
+- Linha 3: etiquetas (categoria e tags; chips de 24 px, 12 px, texto neutro; no máximo 3 e depois "+N"), abaixo da data, quebrando se precisar.
+- **Etiquetas compactas:** tocar em qualquer chip alterna, para todos os cartões, entre o chip com nome e só o ponto de 10 px (até 6 pontos e "+N").
+  Cada ponto tem `role="img"` e `aria-label` com o nome; o alternador é um botão com `aria-pressed` ("Mostrar/Ocultar nomes das etiquetas").
+  Animação de 0,4 s; a escolha fica salva por pessoa.
+- Menu ⋯: Renomear, Duplicar, Mover para cima, Mover para baixo, Mover para… e, após um separador, Excluir tarefa (linhas de 48 px no celular, sem
+  encostar na barra inferior; "Agendar…" aparece só no calendário).
 - Toque: arrastar começa com pressão longa de 250 ms (tolerância 8 px); deslizar horizontalmente conclui/adia; não há menu por pressão longa.
   Alternativa acessível: ⋯ > Mover para cima / Mover para baixo / Mover para… (Quadro → Lista).
 
 ### 8.2 Cabeçalho de Tarefas no celular
 
 Cartão sólido (raio 20, padding 12, `margin-top 12`, linhas separadas por 8 px): linha 1 = nome do quadro (18 px/600, editável por toque) + chevron
-(32 px) + busca e "Filtrar e ordenar" (círculos de 36 px, toque de 44 px); linha 2 = controle segmentado só de ícones (Kanban = colunas, Lista,
-Calendário; 40 px, ícones de 20 px, `aria-label` + `title`); linha 3 = abas das listas / atalhos (36 px, 13 px, padding 10 px; rola com
-`scroll-snap` e mantém o ativo à vista; o lápis fica fixo no fim) e some em Calendário.
+(32 px) + busca e "Filtrar e ordenar" (círculos de 36 px, toque de 44 px); linha 2 = controle segmentado com ícone (18 px) + rótulo (13 px/600,
+espaço de 6 px) em 3 segmentos iguais de 40 px; linha 3 = abas das listas (a primeira é **Todas N**, com os pendentes do quadro) / atalhos (36 px, 13 px,
+padding 10 px; rola com `scroll-snap` e mantém o ativo à vista; o lápis fica fixo no fim). Em Calendário a linha 3 é o seletor Mês | Semana | Dia | Agenda.
+"Todas" empilha as listas com o mesmo componente de grupo da Lista (estado de recolhido compartilhado com Lista e Kanban); a última aba é lembrada por quadro.
+
+### 8.4 Toasts e desfazer
+
+Celular: largura `calc(100% − 32px)`, centralizado, **acima** da barra inferior e do botão do assistente (altura da barra + 16 px + safe area), nunca sobre o
+cabeçalho. Mensagem à esquerda (14 px) e ação "Desfazer" como pílula à direita (36 px visuais, 44 px de toque, texto `foreground`, borda de 1 px,
+foco visível). Toasts com ação duram 8 s, pausam ao tocar/passar o mouse e saem deslizando para o lado. Desktop: canto superior direito.
+Toda exclusão em Tarefas (cartão, diálogo, lista, quadro, tag, categoria, checklist, comentário, anexo, em massa) é **adiada**: some da tela na hora e só é
+apagada de verdade quando o toast fecha sem "Desfazer" (ou a página é fechada); desfazer só recoloca na tela, então nada se perde.
 
 ### 8.3 Calendário de Tarefas
 
-Espelha a Agenda usando os mesmos componentes (`CalendarToolbar`, `MonthGrid`, `TimeGrid`, `DayStrip`, `MiniMonth`): "Hoje", anterior/próximo, título
-do período, botão **Listas** (popover no desktop / folha no celular: uma linha por lista do quadro + "Mostrar concluídas") e Mês | Semana |
-Dia | Agenda. A última visão fica salva por pessoa (padrão: Semana no celular, Mês no desktop). Listas do dia: Sem horário, Manhã, Tarde, Noite e
-Sem data são grupos recolhíveis (44 px, chevron à esquerda, contagem; "Sem data" fecha por padrão). O horário fica dentro do cartão (sem coluna
+Espelha a Agenda usando os mesmos componentes (`CalendarToolbar`, `MonthGrid`, `TimeGrid`, `DayStrip`, `MiniMonth`). **Desktop:** "Hoje", anterior/próximo, título
+do período, botão **Listas** (popover: uma linha por lista + "Mostrar concluídas") e Mês | Semana | Dia | Agenda; lista do dia com Sem horário, Manhã, Tarde, Noite.
+**Celular:** o seletor de modo mora no cartão do cabeçalho; o cartão do calendário tem uma barra de 40 px ("Hoje" à esquerda, título, ‹ ›) e os
+filtros (Listas, Mostrar concluídas) ficam em "Filtrar e ordenar". Mês = grade com ponto + contagem; Semana = faixa com pílula Lima; as tarefas do dia
+ficam agrupadas pelas listas do quadro (mesmo componente da Lista; concluídas e vazias recolhidas; estado próprio), depois "Sem data · N"
+(recolhida). Agenda = grupos por data (hoje aberto) e "Sem data". A última visão fica salva por pessoa (padrão: Semana no celular, Mês no desktop). O horário fica dentro do cartão (sem coluna
 de horas). Criar: desktop = clique num dia/slot/linha "dia todo" abre um popover ancorado; celular = "+" do cabeçalho e o botão tracejado
 "+ Adicionar tarefa". A tarefa aparece na hora, com destaque de ~1,2 s, mesmo que um filtro a esconda (toast "Tarefa criada em …" + "Ver").
 

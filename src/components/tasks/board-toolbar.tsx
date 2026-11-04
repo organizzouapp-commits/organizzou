@@ -350,7 +350,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
     { id: "calendario", label: "Calendário", icon: CalendarDaysIcon },
   ]
   const viewTabs = (
-    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full p-0" : "")}>
+    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full gap-0 p-0" : "")}>
       {views.map(({ id, label, icon: Icon }) => {
         const on = props.view === id
         return (
@@ -364,7 +364,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
             data-view-tab={id}
             onClick={() => props.onViewChange(id)}
             className={cn(
-              "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
+              "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-1 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
               on ? "bg-foreground/14 font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >

@@ -517,6 +517,7 @@ export function CalendarView(props: CalendarViewProps) {
                   mobile
                   dragEnabled={false}
                   dueMode="time"
+                  highlightId={highlightId}
                   onAddTask={(target) => props.onCreate(target.id, day)}
                 />
               ))}
