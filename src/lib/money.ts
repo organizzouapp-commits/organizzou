@@ -25,6 +25,11 @@ export function parseBRL(input: string): number | null {
   return Math.round(value * 100)
 }
 
+/** Whole reais for dense cards: 41400 -> "R$ 414", 123456 -> "R$ 1.235". */
+export function formatReais(cents: number) {
+  return `R$ ${Math.round(cents / 100).toLocaleString("pt-BR")}`
+}
+
 /** Short form for chart axes: 1250000 -> "R$ 12,5 mil". */
 export function formatCompactBRL(cents: number) {
   const reais = cents / 100

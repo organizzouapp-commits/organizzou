@@ -90,22 +90,42 @@ export type CashflowMonth = { key: string; label: string; income: number; expens
 
 const HATCH = "repeating-linear-gradient(135deg, color-mix(in oklab, var(--foreground) 30%, transparent) 0 1.5px, transparent 1.5px 5px)"
 
+/** A "nice" axis: the step (500, 1.000, 2.500, 5.000, ...) and how many steps reach the tallest bar (cents in, cents out). */
+function niceAxis(maxCents: number) {
+  const reais = Math.max(1, maxCents / 100)
+  const steps = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000]
+  const step = steps.find((s) => reais / s <= 4) ?? 100000
+  const count = Math.max(1, Math.ceil(reais / step))
+  return { step: step * 100, count }
+}
+
+const tickLabel = (cents: number) => {
+  const reais = cents / 100
+  return reais >= 1000 ? `${(reais / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : String(reais)
+}
+
 /**
- * Paired bars per month (entradas / saídas). Months that are not selected are hatched gray; the selected one is Lima + light gray with a
- * tooltip (month, entradas, saídas). Tap, click, or the arrow keys select a month. The group has an aria-label summary.
+ * Paired bars per month (entradas / saídas) over a y-axis with dashed grid lines. Months that are not selected are hatched gray; the
+ * selected one is Lima + light gray with a light tooltip (Lima dot, month, entradas, saídas) and a bold label. Tap, click, or the arrow
+ * keys select a month. The group has an aria-label summary.
  */
 export function CashflowChart({ data, selected, onSelect, ariaLabel, className }: { data: CashflowMonth[]; selected: number; onSelect: (index: number) => void; ariaLabel: string; className?: string }) {
-  const max = Math.max(1, ...data.flatMap((m) => [m.income, m.expense]))
+  const { step, count } = niceAxis(Math.max(1, ...data.flatMap((m) => [m.income, m.expense])))
+  const axisMax = step * count
   const current = data[selected]
   const center = ((selected + 0.5) / data.length) * 100
+  const AXIS = 40
   return (
-    <div role="group" aria-label={ariaLabel} data-testid="cashflow-chart" className={cn("relative h-[170px] md:h-[190px]", className)}>
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 bottom-6 flex flex-col justify-between">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="border-t border-dashed border-border" />
+    <div role="group" aria-label={ariaLabel} data-testid="cashflow-chart" className={cn("relative h-[210px] md:h-[230px]", className)}>
+      <div aria-hidden className="pointer-events-none absolute right-0 bottom-6 top-16" style={{ left: 0 }}>
+        {Array.from({ length: count + 1 }, (_, i) => (
+          <div key={i} data-tick className="absolute inset-x-0 flex items-center gap-2" style={{ bottom: `${(i / count) * 100}%`, transform: "translateY(50%)" }}>
+            <span className="tabular w-8 shrink-0 text-right text-[11px] leading-4 text-muted-foreground">{i === 0 ? "0" : tickLabel(i * step)}</span>
+            <span className="flex-1 border-t border-dashed border-border" />
+          </div>
         ))}
       </div>
-      <div className="relative flex h-full">
+      <div className="absolute inset-y-0 right-0 flex" style={{ left: AXIS }}>
         {data.map((m, i) => {
           const on = i === selected
           return (
@@ -125,27 +145,30 @@ export function CashflowChart({ data, selected, onSelect, ariaLabel, className }
               }}
               className="relative flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              <span className="flex h-[calc(100%-24px)] w-full items-end justify-center gap-[3px] pt-12">
+              <span className="flex h-[calc(100%-24px)] w-full items-end justify-center gap-[3px] pt-16">
                 {([["income", m.income], ["expense", m.expense]] as const).map(([kind, value]) => (
                   <span
                     key={kind}
                     data-bar={kind}
                     className="w-[34%] max-w-4 rounded-t-md rounded-b-[3px] transition-[background-color,height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
                     style={{
-                      height: `${Math.max(value > 0 ? 3 : 0, (value / max) * 100)}%`,
+                      height: `${Math.max(value > 0 ? 2 : 0, (value / axisMax) * 100)}%`,
                       ...(on ? { backgroundColor: kind === "income" ? "var(--highlight)" : "color-mix(in oklab, var(--foreground) 22%, transparent)" } : { backgroundImage: HATCH, backgroundColor: "color-mix(in oklab, var(--foreground) 8%, transparent)" }),
                     }}
                   />
                 ))}
               </span>
-              <span className={cn("h-6 pt-1 text-[12px] leading-5", on ? "font-semibold" : "text-muted-foreground")}>{m.label}</span>
+              <span className={cn("h-6 pt-1 text-[12px] leading-5 capitalize", on ? "font-bold" : "text-muted-foreground")}>{m.label}</span>
             </button>
           )
         })}
       </div>
       {current ? (
-        <div data-testid="cashflow-tooltip" role="status" className="pointer-events-none absolute top-0 z-10 w-[172px] -translate-x-1/2 rounded-[12px] border border-border bg-popover px-3 py-2 text-popover-foreground" style={{ left: `clamp(86px, ${center}%, calc(100% - 86px))` }}>
-          <div className="text-[12px] leading-4 font-semibold capitalize">{current.label}</div>
+        <div data-testid="cashflow-tooltip" role="status" className="pointer-events-none absolute top-0 z-10 w-[172px] -translate-x-1/2 rounded-[12px] border border-border bg-popover px-3 py-2 text-popover-foreground" style={{ left: `clamp(${AXIS + 86}px, calc(${AXIS}px + (100% - ${AXIS}px) * ${center / 100}), calc(100% - 86px))` }}>
+          <div className="flex items-center gap-1.5 text-[12px] leading-4 font-semibold capitalize">
+            <span aria-hidden data-tooltip-dot className="size-2 rounded-full bg-highlight" />
+            {current.label}
+          </div>
           <div className="tabular flex justify-between gap-2 text-[12px] leading-5">
             <span className="text-muted-foreground">Entradas</span>
             <span className="whitespace-nowrap">{formatBRL(current.income)}</span>
@@ -156,6 +179,25 @@ export function CashflowChart({ data, selected, onSelect, ariaLabel, className }
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/** The budget ring: 128px, 14px stroke with round caps, Lima on a neutral track (Tinta on Papel), "20%" and "usado" inside. */
+export function BudgetRing({ value, label, className }: { value: number; label: string; className?: string }) {
+  const pct = Math.max(0, Math.min(100, Math.round(value)))
+  const r = 57
+  const c = 2 * Math.PI * r
+  return (
+    <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} data-budget-ring className={cn("relative size-32 shrink-0", className)}>
+      <svg viewBox="0 0 128 128" className="size-full -rotate-90">
+        <circle cx="64" cy="64" r={r} fill="none" strokeWidth="14" className="stroke-muted" />
+        {pct > 0 ? <circle cx="64" cy="64" r={r} fill="none" strokeWidth="14" strokeLinecap="round" className="stroke-primary transition-[stroke-dashoffset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} /> : null}
+      </svg>
+      <span className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="tabular text-[28px] leading-8 font-semibold">{pct}%</span>
+        <span className="text-[12px] leading-4 text-muted-foreground">usado</span>
+      </span>
     </div>
   )
 }
