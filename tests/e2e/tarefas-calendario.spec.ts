@@ -96,7 +96,7 @@ test.describe("desktop 1440", () => {
   test("Sem data tray lists undated tasks", async ({ browser, baseURL }) => {
     const { context, page } = await setup(browser, baseURL!, 1440)
     await open(page, "Semana")
-    await page.getByTestId("undated-tray").getByRole("button", { name: /Sem data/ }).click()
+    await page.getByTestId("undated-tray").getByRole("button", { name: "Expandir Sem data" }).click()
     await expect(page.getByTestId("undated-tray").locator("[data-task-id]").first()).toBeVisible()
     await context.close()
   })
@@ -132,7 +132,7 @@ test.describe("mobile 390", () => {
   test("the dashed pill creates a task on the selected day, shown at once and highlighted", async ({ browser, baseURL }) => {
     const { context, page } = await setup(browser, baseURL!, 390, 844)
     await open(page, "Dia")
-    await page.getByTestId("group-add-pill").first().click()
+    await page.locator("[data-add-task-pill]").first().click()
     const sheet = page.getByRole("dialog")
     await expect(sheet).toBeVisible()
     await sheet.getByLabel("Título").fill("Criada pelo pill")

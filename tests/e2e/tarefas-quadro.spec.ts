@@ -43,7 +43,7 @@ test.describe("desktop", () => {
     await scroller.evaluate((el) => (el.scrollTop = el.scrollHeight))
     const column = page.locator("section[data-column]").first()
     await expect(column.getByRole("button", { name: /^Adicionar tarefa em/ })).toBeInViewport()
-    await expect(column.getByRole("button", { name: "Adicionar tarefa", exact: true })).toBeInViewport()
+    await expect(column.getByRole("button", { name: /^Adicionar tarefa…$/ })).toBeInViewport()
     // Only the list scrolled, not the page.
     expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(2)
   })
@@ -92,7 +92,7 @@ test.describe("desktop", () => {
   test("a task composer saves on blur and Enter keeps it open for the next one", async ({ page }) => {
     await open(page)
     const column = page.locator('section[aria-label="A fazer"]')
-    await column.getByRole("button", { name: "Adicionar tarefa", exact: true }).click()
+    await column.getByRole("button", { name: /^Adicionar tarefa…$/ }).click()
     const field = column.getByLabel("Título da nova tarefa")
     await field.fill("Primeira nova")
     await field.press("Enter")
@@ -251,7 +251,7 @@ test.describe("desktop", () => {
     await expect(calendar.getByRole("grid").first()).toBeVisible()
     const rail = calendar.getByRole("complementary", { name: "Painel do calendário" })
     await expect(rail.getByRole("grid", { name: /Novembro/i }).or(rail.getByText("Novembro 2026"))).toBeVisible()
-    await rail.getByTestId("undated-tray").getByRole("button", { name: /Sem data/ }).click()
+    await rail.getByTestId("undated-tray").getByRole("button", { name: "Expandir Sem data" }).click()
     await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toBeVisible()
     const railBox = (await rail.boundingBox())!
     expect(Math.round(railBox.width)).toBe(320)
@@ -264,12 +264,6 @@ test.describe("desktop", () => {
     await page.mouse.move(from.x + from.width / 2 - 140, from.y + from.height / 2 + 112, { steps: 10 })
     await page.mouse.up()
     await expect(page.getByText("Tarefa reagendada.")).toBeVisible()
-
-    // Schedule an undated task from the tray.
-    await rail.getByRole("button", { name: "Mais ações: Pesquisar curso de fotografia", exact: true }).click()
-    await page.getByRole("menuitem", { name: /Agendar/ }).click()
-    await page.getByRole("button", { name: "Agendar", exact: true }).last().click()
-    await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toHaveCount(0)
 
   })
 

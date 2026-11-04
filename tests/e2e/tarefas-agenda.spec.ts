@@ -194,7 +194,7 @@ test.describe("7. desktop rail", () => {
     for (const name of ["A fazer", "Em andamento", "Concluído"]) await expect(rail.getByRole("heading", { name })).toBeVisible()
     await expect(rail.getByText(/^(Manhã|Tarde|Noite|Sem horário)$/)).toHaveCount(0)
     await expect(rail.getByTestId("day-lists").locator("[data-group]").last().locator("button[aria-expanded]").first()).toHaveAttribute("aria-expanded", "false")
-    const sem = rail.locator('[data-group="sem-data"] button[data-group-header]')
+    const sem = rail.locator('[data-group="__undated__"] [data-group-header] button[aria-expanded]')
     await expect(sem).toHaveAttribute("aria-expanded", "false")
     await sem.click()
     await expect(rail.getByTestId("undated-tray").locator("[data-task-id]").first()).toBeVisible()

@@ -142,7 +142,7 @@ test.describe("4. Calendário on phones", () => {
     await expect(page.locator("[data-now-divider]")).toHaveCount(0)
     await expect(lists.locator("[data-group] button[aria-expanded]").first()).toHaveAttribute("aria-expanded", "true")
     await expect(lists.locator("[data-group]").last().locator("button[aria-expanded]").first()).toHaveAttribute("aria-expanded", "false")
-    const sem = page.locator('[data-group="sem-data"] button[data-group-header]')
+    const sem = page.locator('[data-group="__undated__"] [data-group-header] button[aria-expanded]')
     await expect(sem).toHaveAttribute("aria-expanded", "false")
     await sem.click()
     await expect(sem).toHaveAttribute("aria-expanded", "true")
@@ -162,7 +162,7 @@ test.describe("4. Calendário on phones", () => {
     await expect(headers.first()).toHaveText(/\S+, \d{1,2} \S{3}\s*\d+/)
     await expect(headers.first()).toHaveAttribute("aria-expanded", "true")
     await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "false")
-    await expect(page.locator('[data-group="sem-data"] button[data-group-header]')).toHaveAttribute("aria-expanded", "false")
+    await expect(page.locator('[data-group="__undated__"] [data-group-header] button[aria-expanded]')).toHaveAttribute("aria-expanded", "false")
     await context.close()
   })
 

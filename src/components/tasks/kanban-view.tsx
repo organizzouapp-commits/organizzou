@@ -22,7 +22,7 @@ import type { ListRow, TaskView } from "@/features/tasks/types"
 
 import { InlineInput } from "./inline-input"
 import { ListMenu, ListName } from "./list-parts"
-import { QuickAdd } from "./quick-add"
+import { AddTaskPill } from "./quick-add"
 import { ALL_TAB } from "./kanban-tabs"
 import { ListView } from "./list-view"
 import { SortableTaskCard, TaskCardBody } from "./task-card"
@@ -159,8 +159,8 @@ function Column({ list, index, total, ids, taskById, props }: { list: ListRow; i
         </SortableContext>
         {ids.length === 0 ? <p className="px-2 py-6 text-center text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
       </div>
-      <div inert={collapsed} className="shrink-0 border-t border-border bg-card p-2">
-        <QuickAdd onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} />
+      <div inert={collapsed} className="shrink-0 border-t border-border bg-card px-3 pt-2 pb-3">
+        <AddTaskPill onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} />
       </div>
     </section>
   )
@@ -200,7 +200,7 @@ function MobileColumn({ list, index, total, ids, taskById, props }: { list: List
         </Button>
         <ListMenu list={list} index={index} total={total} count={ids.length} actions={props} onRename={() => setEditing(true)} />
       </header>
-      <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} className="h-11 rounded-full border border-dashed border-border" />
+      <AddTaskPill onAdd={(title) => props.onQuickAdd(list.id, title)} />
       <SortableContext items={shown} strategy={verticalListSortingStrategy}>
         {shown.map((id) => {
           const task = taskById.get(id)

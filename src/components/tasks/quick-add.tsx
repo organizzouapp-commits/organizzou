@@ -3,35 +3,44 @@
 import { useEffect, useState } from "react"
 import { PlusIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 import { InlineInput } from "./inline-input"
 
-type QuickAddProps = {
+/** The one look of every "Adicionar tarefa…" control: a full-width dashed pill, 44px on phones and 40px from 768px. */
+export const ADD_PILL =
+  "relative flex h-11 w-full items-center gap-2 rounded-full border border-dashed border-foreground/35 bg-foreground/5 px-4 text-left text-[14px] leading-5 font-semibold text-foreground/85 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:border-foreground/60 hover:bg-foreground/8 focus-visible:border-foreground/60 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-10"
+
+type AddTaskPillProps = {
   label?: string
-  onAdd: (title: string) => Promise<boolean>
+  /** Turns the pill into an input; Enter/blur commit (auto-commit rule), Esc cancels. */
+  onAdd?: (title: string) => Promise<boolean>
+  /** Instead of the input: just reacts to the press (the Agenda opens the new-task sheet prefilled with the day). */
+  onPress?: () => void
   className?: string
-  /** Changing this number opens the composer (the column header's "+"). */
+  /** Changing this number opens the composer (the group header's "+"). */
   openSignal?: number
 }
 
 /**
- * "Adicionar tarefa" row that turns into an input (auto-commit rule, see InlineInput). Enter saves and keeps the field open for
- * the next one, Esc discards, leaving the field saves, and pasting several lines creates one task per line.
+ * THE "Adicionar tarefa…" pill of Tarefas (Kanban lists, Lista groups, Agenda groups and rail, "Todas"). Clicking it swaps it for an input
+ * pill of the same size. Enter saves and keeps the field open for the next one, Esc discards, leaving the field saves, and pasting several
+ * lines creates one task per line.
  */
-export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSignal = 0 }: QuickAddProps) {
+export function AddTaskPill({ label = "Adicionar tarefa…", onAdd, onPress, className, openSignal = 0 }: AddTaskPillProps) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     // The signal is an event from the parent (a button press), so it has to be mirrored into state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (openSignal > 0) setOpen(true)
-  }, [openSignal])
+    if (openSignal > 0 && onAdd) setOpen(true)
+  }, [openSignal, onAdd])
 
-  if (!open) {
+  if (!open || !onAdd) {
     return (
-      <Button variant="ghost" className={`w-full justify-start text-muted-foreground ${className ?? ""}`} onClick={() => setOpen(true)}>
-        <PlusIcon strokeWidth={1.75} /> {label}
-      </Button>
+      <button type="button" data-add-task-pill className={cn(ADD_PILL, className)} onClick={() => (onAdd ? setOpen(true) : onPress?.())}>
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
+        {label}
+      </button>
     )
   }
 
@@ -42,7 +51,8 @@ export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSig
       maxLength={200}
       ariaLabel="Título da nova tarefa"
       placeholder="Título da tarefa"
-      className={className}
+      className={cn("w-full", className)}
+      inputClassName="h-11 min-h-11 rounded-full border border-dashed border-foreground/60 bg-foreground/8 px-4 py-2.5 text-[14px] md:h-10 md:min-h-10 md:py-2"
       onCommit={onAdd}
       onClose={() => setOpen(false)}
       onPasteLines={async (lines) => {
@@ -51,3 +61,6 @@ export function QuickAdd({ label = "Adicionar tarefa", onAdd, className, openSig
     />
   )
 }
+
+/** Kept for existing imports: the same pill. */
+export const QuickAdd = AddTaskPill

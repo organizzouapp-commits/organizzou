@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { ListMenu, ListName } from "./list-parts"
-import { QuickAdd } from "./quick-add"
+import { AddTaskPill } from "./quick-add"
 import { SortableTaskCard, TaskCardBody } from "./task-card"
 import { DRAG_OVERLAY_CLASS, hapticTick, TaskDragProvider, useDragHover, useTaskSensors } from "./task-dnd"
 import type { ViewProps } from "./types"
@@ -77,14 +77,27 @@ const countPill = "tabular inline-flex h-5 min-w-5 items-center justify-center r
 const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase"
 
 /** One group per list of the quadro: the same lists, order and collapsed state as the Kanban. */
-export function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled, onAddTask, dueMode, highlightId }: {
+export function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled, onAddTask, dueMode, highlightId, pseudo, nativeDrag }: {
   highlightId?: string | null
+  /** "Sem data": a group that is not a list (no rename, no list menu — its ⋯ slot stays reserved so the columns line up). */
+  pseudo?: boolean
+  /** Tasks can be dragged (HTML5) onto the desktop grid to schedule them. */
+  nativeDrag?: boolean
+ 
   list: ListRow; index: number; total: number; tasks: TaskView[]; props: ViewProps; mobile: boolean; dragEnabled: boolean; /** Where "+" and the dashed pill create the task themselves (the calendar prefills the day) instead of the inline composer. */ onAddTask?: (list: ListRow) => void; dueMode?: "full" | "time" }) {
   const [editing, setEditing] = useState(false)
   const [signal, setSignal] = useState(0)
   const open = !props.collapsed(list)
   const { setNodeRef } = useDroppable({ id: list.id, data: { type: "list" } })
-  const sortable = (task: TaskView) => (
+  const sortable = (task: TaskView) =>
+    nativeDrag ? (
+      <div key={task.id} draggable onDragStart={(e) => e.dataTransfer.setData("application/x-organizzou-task", task.id)}>
+        {card(task)}
+      </div>
+    ) : (
+      card(task)
+    )
+  const card = (task: TaskView) => (
     <SortableTaskCard
       key={task.id}
       listId={list.id}
@@ -118,12 +131,16 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
         <button type="button" aria-expanded={open} aria-label={`${open ? "Recolher" : "Expandir"} ${list.name}`} onClick={() => props.onToggleCollapse(list)} className={cn("flex size-11 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50", cardHover)}>
           <Chevron open={open} />
         </button>
-        <ListName list={list} actions={props} editing={editing} onEditingChange={setEditing} className="min-w-0" />
+        {pseudo ? (
+          <h3 className="min-w-0 flex-1 truncate px-2 text-[15px] leading-6 font-semibold">{list.name}</h3>
+        ) : (
+          <ListName list={list} actions={props} editing={editing} onEditingChange={setEditing} className="min-w-0" />
+        )}
         <span className={countPill}>{tasks.length}</span>
         <Button variant="ghost" size="icon" aria-label={`Adicionar tarefa em ${list.name}`} className="size-11 rounded-full md:size-9" onClick={() => (onAddTask ? onAddTask(list) : open ? setSignal((n) => n + 1) : props.onToggleCollapse(list))}>
           <PlusIcon strokeWidth={1.75} />
         </Button>
-        <ListMenu list={list} index={index} total={total} count={tasks.length} actions={props} onRename={() => setEditing(true)} />
+        {pseudo ? <span aria-hidden className="size-9 shrink-0 max-md:size-11" /> : <ListMenu list={list} index={index} total={total} count={tasks.length} actions={props} onRename={() => setEditing(true)} />}
       </div>
       <Collapse open={open}>
         <div className="flex flex-col gap-2 pt-1">
@@ -131,13 +148,7 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
             {tasks.map(sortable)}
           </SortableContext>
           {tasks.length === 0 ? <p className="px-2 py-2 text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
-          {onAddTask ? (
-            <Button type="button" variant="outline" data-testid="group-add-pill" className="h-11 w-full justify-start border-dashed text-muted-foreground" onClick={() => onAddTask(list)}>
-              <PlusIcon strokeWidth={1.75} /> Adicionar tarefa…
-            </Button>
-          ) : (
-            <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} className="h-11 rounded-full border border-dashed border-border" />
-          )}
+          {onAddTask ? <AddTaskPill onPress={() => onAddTask(list)} /> : <AddTaskPill onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} />}
         </div>
       </Collapse>
     </section>

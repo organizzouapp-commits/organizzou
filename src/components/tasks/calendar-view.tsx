@@ -42,6 +42,8 @@ type CalendarViewProps = ViewProps & {
 }
 
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+/** "Sem data" is shown as the last group of the day, through the same group component as the lists (a pseudo list). */
+const UNDATED_ID = "__undated__"
 const NO_FILTER = { label: "", content: null }
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const lower = (text: string) => text.toLowerCase()
@@ -107,30 +109,6 @@ function Cards({ tasks, props, actionsOf, dueMode }: CardsProps & { tasks: TaskV
   )
 }
 
-
-/** "Sem data · N": collapsed by default, tasks draggable onto the desktop grid, "Agendar…" in the menu. */
-function Undated({ tasks, props, actionsOf, isOpen, toggle, draggable }: CardsProps & { tasks: TaskView[]; isOpen: (id: string, fallback?: boolean) => boolean; toggle: (id: string, fallback?: boolean) => void; draggable?: boolean }) {
-  const open = isOpen("sem-data", false)
-  return (
-    <div data-testid="undated-tray">
-      <Group id="sem-data" label="Sem data" count={tasks.length} open={open} onToggle={() => toggle("sem-data", false)}>
-        {tasks.length === 0 ? <p className="px-1 py-2 text-[13px] leading-5 text-muted-foreground">Todas as tarefas têm data.</p> : null}
-        <div className="flex flex-col gap-2 pt-1 pb-2">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              draggable={draggable}
-              onDragStart={(e) => e.dataTransfer.setData("application/x-organizzou-task", task.id)}
-              className={cn("rounded-[14px]", props.highlightId === task.id && "ring-2 ring-primary")}
-            >
-              <TaskCardBody anchor task={task} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={actionsOf(task)} dueMode="time" selecting={props.selection.active} selected={props.selection.ids.has(task.id)} onSelect={() => props.selection.toggle(task.id)} />
-            </div>
-          ))}
-        </div>
-      </Group>
-    </div>
-  )
-}
 
 /** Agenda view: the next 30 days, one collapsible header per day with tasks ("qua, 4 nov · 3"): today open, the rest closed. */
 function AgendaList({ from, byDay, todayKey, props, actionsOf, isOpen, toggle }: CardsProps & { from: string; byDay: (key: string) => TaskView[]; todayKey: string; isOpen: (id: string, fallback?: boolean) => boolean; toggle: (id: string, fallback?: boolean) => void }) {
@@ -360,9 +338,33 @@ export function CalendarView(props: CalendarViewProps) {
   const dayTasks = tasksOn(day)
   const collapsedHere = (list: ListRow) => {
     const saved = prefs.open[`list:${list.id}`]
+    if (list.id === UNDATED_ID) return saved === undefined ? true : !saved
     return saved === undefined ? list.is_done_list || !dayTasks.some((t) => t.list_id === list.id) : !saved
   }
   const groupProps: ViewProps = { ...props, tasks: dayTasks, actionsFor: schedulable, collapsed: collapsedHere, onToggleCollapse: (list) => update((p) => ({ ...p, open: { ...p.open, [`list:${list.id}`]: collapsedHere(list) } })) }
+  const undatedList = { id: UNDATED_ID, name: "Sem data", is_done_list: false, board_id: "", position: 0, user_id: "", created_at: "", updated_at: "" } as ListRow
+  const undatedGroup = (
+    <div data-testid="undated-tray">
+      <ListGroup
+        pseudo
+        nativeDrag={!isMobile}
+        list={undatedList}
+        index={lists.length}
+        total={lists.length + 1}
+        tasks={undated}
+        props={{ ...groupProps, tasks: undated }}
+        mobile
+        dragEnabled={false}
+        dueMode="time"
+        highlightId={highlightId}
+        onAddTask={() => {
+          // An undated task in the first open list.
+          const target = lists.find((l) => !l.is_done_list) ?? lists[0]
+          if (target) props.onCreate(target.id)
+        }}
+      />
+    </div>
+  )
   const dayGroups = (
     <div data-testid="day-lists" className="flex flex-col">
       {lists.map((list, i) => (
@@ -380,9 +382,9 @@ export function CalendarView(props: CalendarViewProps) {
           onAddTask={(target) => props.onCreate(target.id, day)}
         />
       ))}
+      {undatedGroup}
     </div>
   )
-  const undatedSection = <Undated {...common} tasks={undated} isOpen={isOpen} toggle={toggle} draggable={!isMobile} />
 
   const monthGrid = (
     <MonthGrid
@@ -418,14 +420,16 @@ export function CalendarView(props: CalendarViewProps) {
         </section>
         <div data-testid="agenda-below" className="flex flex-col gap-1 px-1">
           {view === "agenda" ? (
-            <AgendaList {...common} from={day} byDay={tasksOn} todayKey={todayKey} isOpen={isOpen} toggle={toggle} />
+            <>
+              <AgendaList {...common} from={day} byDay={tasksOn} todayKey={todayKey} isOpen={isOpen} toggle={toggle} />
+              {undatedGroup}
+            </>
           ) : (
             <>
               {view !== "dia" ? dayHeading : null}
               {dayGroups}
             </>
           )}
-          {undatedSection}
         </div>
         <ScheduleSheet task={scheduling} open={Boolean(scheduling)} onOpenChange={(open) => !open && setScheduling(null)} todayKey={todayKey} timeZone={timeZone} onConfirm={confirmSchedule} />
       </div>
@@ -465,7 +469,6 @@ export function CalendarView(props: CalendarViewProps) {
             <MiniMonth month={selected} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(selected, n), "yyyy-MM-dd"))} />
           </BentoCard>
           <BentoCard title={upperFirst(format(selected, "EEEE, d 'de' MMMM", { locale: ptBR }))}>{dayGroups}</BentoCard>
-          <BentoCard>{undatedSection}</BentoCard>
         </aside>
       </div>
       <QuickAdd state={quick} props={props} onClose={() => setQuick(null)} />
