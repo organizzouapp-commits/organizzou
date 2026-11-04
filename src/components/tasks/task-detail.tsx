@@ -219,8 +219,14 @@ function Property({
   wide?: boolean
   children?: (close: () => void) => React.ReactNode
 }) {
-  const [open, setOpen] = useState(Boolean(defaultOpen))
+  const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
+  // A card's "+N" chip lands here: open after the panel has settled (opening during its focus handling would close it again).
+  useEffect(() => {
+    if (!defaultOpen) return
+    const timer = window.setTimeout(() => setOpen(true), 450)
+    return () => window.clearTimeout(timer)
+  }, [defaultOpen])
   if (readOnly || !children) {
     return desktop ? (
       <div className="flex flex-col gap-1.5">

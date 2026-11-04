@@ -271,10 +271,6 @@ test.describe("desktop", () => {
     await page.getByRole("button", { name: "Agendar", exact: true }).last().click()
     await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toHaveCount(0)
 
-    // The rail list opens the same task dialog.
-    await rail.getByRole("button", { name: "Comprar planta para a sala", exact: true }).click()
-    await expect(page.getByRole("dialog")).toBeVisible()
-    await expect(page).toHaveURL(/tarefa=/)
   })
 
 

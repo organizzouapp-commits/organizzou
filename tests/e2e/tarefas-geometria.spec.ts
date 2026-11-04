@@ -161,7 +161,7 @@ test.describe("mobile header card", () => {
       const tabs = page.locator("[data-view-tab]")
       await expect(tabs).toHaveCount(3)
       for (const t of await tabs.all()) {
-        await expect(t).toHaveAttribute("aria-label", /Kanban|Lista|Calendário/)
+        await expect(t).toHaveAttribute("aria-label", /Kanban|Lista|Agenda/)
         expect((await rect(t)).height).toBeGreaterThanOrEqual(32)
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)

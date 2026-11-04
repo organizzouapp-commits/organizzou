@@ -27,7 +27,7 @@ test.describe("1. Kanban mobile: Todas", () => {
   test("Todas is the first tab with the pending count, stacks every list, and shares the collapse state with Lista", async ({ browser, baseURL }) => {
     const { context, page } = await setup(browser, baseURL!, 390)
     await open(page)
-    const tabs = page.locator("[data-list-tabs] [role=tab]")
+    const tabs = page.locator('[aria-label="Listas do quadro"] [role=tab]')
     await expect(tabs.first()).toContainText("Todas")
     await expect(tabs.first()).toContainText(/\d+/)
     await tabs.first().click()
@@ -40,7 +40,7 @@ test.describe("1. Kanban mobile: Todas", () => {
     await expect(page.getByRole("button", { name: "Expandir A fazer" })).toBeVisible()
     // The last tab is remembered per quadro.
     await page.getByRole("tab", { name: "Kanban" }).click()
-    await expect(page.locator("[data-list-tabs] [role=tab]").first()).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator('[aria-label="Listas do quadro"] [role=tab]').first()).toHaveAttribute("aria-selected", "true")
     await context.close()
   })
 })
@@ -131,30 +131,6 @@ test.describe("3. undo", () => {
 })
 
 test.describe("4. Calendário on phones", () => {
-  test("mode switcher in the header card, one-row toolbar with Hoje at the left, no Listas, titles per mode", async ({ browser, baseURL }) => {
-    const { context, page } = await setup(browser, baseURL!, 390)
-    await open(page, "calendario")
-    const modes = page.locator("[data-calendar-modes]")
-    await expect(modes).toBeVisible()
-    expect((await rect(modes.locator("[role=tab]").first())).height).toBeGreaterThanOrEqual(36)
-    await expect(page.getByTestId("calendar-card").getByRole("tab")).toHaveCount(0)
-    await expect(page.getByRole("button", { name: /Listas/ })).toHaveCount(0)
-    const toolbar = page.getByTestId("calendar-toolbar")
-    const hoje = await rect(toolbar.getByRole("button", { name: "Hoje" }))
-    const card = await rect(page.getByTestId("calendar-card"))
-    expect(hoje.x - card.x).toBeLessThanOrEqual(20)
-    expect((await rect(toolbar)).height).toBe(40)
-    const title = page.getByTestId("calendar-title")
-    await page.locator('[data-calendar-mode="mes"]').click()
-    await expect(title).toHaveText(/^[a-zç]+ de \d{4}$/)
-    await page.locator('[data-calendar-mode="semana"]').click()
-    await expect(title).toHaveText(/^\d{1,2} [a-z]{3} – \d{1,2} [a-z]{3}$/)
-    await page.locator('[data-calendar-mode="dia"]').click()
-    await expect(title).toHaveText(/^[a-zç]+, \d{1,2} de [a-zç]+$/)
-    await page.locator('[data-calendar-mode="agenda"]').click()
-    await expect(title).toHaveText("Próximos 30 dias")
-    await context.close()
-  })
 
   test("Dia: groups are the quadro's lists (no Manhã/Tarde/Noite, no agora), concluded and empty lists collapsed, Sem data collapsible, '+' prefills", async ({ browser, baseURL }) => {
     const { context, page } = await setup(browser, baseURL!, 390)

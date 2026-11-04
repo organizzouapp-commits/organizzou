@@ -396,10 +396,10 @@ Um só componente (Kanban, Lista, Calendário, busca). Grade CSS: linha 1 = [che
 - **Não existe bandeira de prioridade.** Prioridade virou tag (as tarefas que tinham prioridade ganharam uma tag com o mesmo nome e cor).
 - Título numa linha só (`white-space:nowrap`, reticências, `title` com o texto inteiro). Ação no topo à direita: só o botão ⋯ (32 px visuais, 44 px de
   toque, ícone de 16 px), centrado na primeira linha.
-- Linha 2: data/hora à esquerda (13 px, muted) e os contadores (checklist, comentários, anexos; 13 px, ícones de 14 px, espaço de 10 px) na ponta direita da
-  MESMA linha (a borda direita coincide com a do ⋯). Sem data, a linha tem só os contadores.
-- Linha 3: etiquetas (categoria e tags; chips de 24 px, 12 px, texto neutro; no máximo 3 e depois "+N"), abaixo da data, quebrando se precisar.
-- **Etiquetas compactas:** tocar em qualquer chip alterna, para todos os cartões, entre o chip com nome e só o ponto de 10 px (até 6 pontos e "+N").
+- Linha 2: data/hora (13 px, muted). Última linha: etiquetas à esquerda (categoria e tags; chips de 24 px, 12 px, texto neutro; **no máximo 2** e depois um chip
+  "+N" que abre o diálogo já nas Tags) e os contadores (checklist, comentários, anexos; 13 px, ícones de 14 px, espaço de 10 px) no **canto inferior direito**
+  (a borda direita coincide com a do ⋯). Sem etiquetas, os contadores ficam na linha da data; sem data nem etiquetas, numa linha própria.
+- **Etiquetas compactas:** tocar em qualquer chip alterna, para todos os cartões, entre o chip com nome e só o ponto de 10 px (até 4 pontos e "+N").
   Cada ponto tem `role="img"` e `aria-label` com o nome; o alternador é um botão com `aria-pressed` ("Mostrar/Ocultar nomes das etiquetas").
   Animação de 0,4 s; a escolha fica salva por pessoa.
 - Menu ⋯: Renomear, Duplicar, Mover para cima, Mover para baixo, Mover para… e, após um separador, Excluir tarefa (linhas de 48 px no celular, sem
@@ -415,6 +415,13 @@ espaço de 6 px) em 3 segmentos iguais de 40 px; linha 3 = abas das listas (a pr
 padding 10 px; rola com `scroll-snap` e mantém o ativo à vista; o lápis fica fixo no fim). Em Calendário a linha 3 é o seletor Mês | Semana | Dia | Agenda.
 "Todas" empilha as listas com o mesmo componente de grupo da Lista (estado de recolhido compartilhado com Lista e Kanban); a última aba é lembrada por quadro.
 
+### 8.5 Pílulas (PillTabs) e rolagem
+
+Abas de lista (Kanban), atalhos (Lista) e o seletor de modo da Agenda usam o MESMO componente `PillTabs`: pílula neutra preenchida (sem contorno), 36 px, 13 px, padding de 12 px,
+contagem dentro, Lima só no ativo, espaço de 8 px, rolagem horizontal com `scroll-snap`; o último item é uma pílula tracejada ("+ Lista", "✎ Editar").
+Toda rolagem interna usa `.scroll-soft` (a mesma aparência do painel de notificações): trilho transparente, polegar fino e arredondado a ~28% do
+`foreground` (~48% ao passar o mouse), sem botões de seta, `overscroll-behavior: contain`, sem animação.
+
 ### 8.4 Toasts e desfazer
 
 Celular: largura `calc(100% − 32px)`, centralizado, **acima** da barra inferior e do botão do assistente (altura da barra + 16 px + safe area), nunca sobre o
@@ -423,7 +430,12 @@ foco visível). Toasts com ação duram 8 s, pausam ao tocar/passar o mouse e sa
 Toda exclusão em Tarefas (cartão, diálogo, lista, quadro, tag, categoria, checklist, comentário, anexo, em massa) é **adiada**: some da tela na hora e só é
 apagada de verdade quando o toast fecha sem "Desfazer" (ou a página é fechada); desfazer só recoloca na tela, então nada se perde.
 
-### 8.3 Calendário de Tarefas
+### 8.3 Agenda de Tarefas (antes "Calendário")
+
+A visão agora se chama **Agenda** (`?view=agenda`; `?view=calendario` continua abrindo). Sem botão "Hoje": clicar no título do período (ou `T` no desktop) volta para hoje.
+No desktop a barra tem só ‹ › + título e o seletor Mês | Semana | Dia | Agenda; "Nova tarefa" é o botão global do cabeçalho e as listas ficam no popover "Filtros".
+No celular o cartão sólido tem só a barra e a grade do mês/faixa da semana; os grupos do dia ficam abaixo, transparentes (como na Lista). Na lateral do desktop, o cartão do dia
+agrupa pelas listas do quadro. Lista no desktop (≥ 1024 px): um cartão por lista (raio 20, padding 12, cabeçalho de 48 px), com os cartões de tarefa dentro.
 
 Espelha a Agenda usando os mesmos componentes (`CalendarToolbar`, `MonthGrid`, `TimeGrid`, `DayStrip`, `MiniMonth`). **Desktop:** "Hoje", anterior/próximo, título
 do período, botão **Listas** (popover: uma linha por lista + "Mostrar concluídas") e Mês | Semana | Dia | Agenda; lista do dia com Sem horário, Manhã, Tarde, Noite.

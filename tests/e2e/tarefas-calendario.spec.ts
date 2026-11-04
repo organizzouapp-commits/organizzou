@@ -14,11 +14,16 @@ async function setup(browser: Browser, baseURL: string, width: number, height = 
   return { context, page }
 }
 
+const MODE_IDS: Record<string, string> = { "Mês": "mes", Semana: "semana", Dia: "dia", Agenda: "agenda" }
+/** The calendar mode: the pills of the header card on phones, the toolbar tabs on desktop. */
+const pickMode = (page: Page, name: string) =>
+  page.locator(`[data-calendar-mode="${MODE_IDS[name]}"]`).or(page.getByTestId("calendar-toolbar").getByRole("tab", { name })).first().click()
+
 async function open(page: Page, view?: string) {
   await page.goto("/design-system/tarefas?view=calendario")
   await expect(page.locator('button[aria-label^="Quadro:"]')).toBeVisible({ timeout: 60000 })
   await expect(page.getByTestId("calendar-toolbar")).toBeVisible()
-  if (view) await page.getByRole("tab", { name: view }).click()
+  if (view) await pickMode(page, view)
   await page.waitForTimeout(400)
 }
 
@@ -75,31 +80,16 @@ test.describe("desktop 1440", () => {
     await context.close()
   })
 
-  test("the toolbar 'Nova tarefa' opens the dialog pre-filled with the selected day and the task shows up", async ({ browser, baseURL }) => {
-    const { context, page } = await setup(browser, baseURL!, 1440)
-    await open(page, "Mês")
-    await page.getByRole("button", { name: "Nova tarefa" }).click()
-    const dialog = page.getByRole("dialog")
-    await expect(dialog).toBeVisible()
-    await dialog.getByLabel("Título").fill("Pelo botão")
-    await dialog.getByRole("button", { name: "Criar tarefa" }).click()
-    await expect(page.locator("[data-agenda-item]").filter({ hasText: "Pelo botão" }).first()).toBeVisible()
-    await context.close()
-  })
 
   test("all four views render with the Agenda toolbar; 'Listas' filters and 'Mostrar concluídas' is there", async ({ browser, baseURL }) => {
     const { context, page } = await setup(browser, baseURL!, 1440)
     await open(page)
     for (const view of ["Mês", "Semana", "Dia", "Agenda"]) {
-      await page.getByRole("tab", { name: view }).click()
+      await pickMode(page, view)
       await expect(page.getByTestId("calendar-title")).toBeVisible()
     }
-    await page.getByRole("tab", { name: "Mês" }).click()
-    const before = await page.locator("[data-agenda-item]").count()
-    await page.getByTestId("calendar-filter").click()
-    await expect(page.getByRole("switch", { name: "Mostrar concluídas" })).toBeVisible()
-    await page.getByRole("checkbox", { name: "A fazer" }).click()
-    await expect.poll(() => page.locator("[data-agenda-item]").count()).toBeLessThan(before)
+    await pickMode(page, "Mês")
+    // Listas and Mostrar concluídas live in the board's Filtros popover (covered in tarefas-agenda.spec.ts).
     await context.close()
   })
 
@@ -117,10 +107,10 @@ test.describe("mobile 390", () => {
     const { context, page } = await setup(browser, baseURL!, 390, 844)
     await open(page)
     for (const view of ["Mês", "Semana", "Dia", "Agenda"]) {
-      await page.getByRole("tab", { name: view }).click()
+      await pickMode(page, view)
       await expect(page.getByTestId("calendar-title")).toBeVisible()
     }
-    await page.getByRole("tab", { name: "Dia" }).click()
+    await pickMode(page, "Dia")
     await expect(page.locator("[data-time-col]")).toHaveCount(0)
     await expect(page.locator("[data-due-time]").first()).toBeVisible()
     // The card is full width: its left edge is the card's padding, not a time column.
@@ -133,7 +123,7 @@ test.describe("mobile 390", () => {
     const { context, page } = await setup(browser, baseURL!, 390, 844)
     await open(page, "Semana")
     await expect(page.getByRole("group", { name: "Dias da semana" }).getByRole("button")).toHaveCount(7)
-    await page.getByRole("tab", { name: "Mês" }).click()
+    await pickMode(page, "Mês")
     await expect(page.getByRole("grid", { name: "Calendário do mês" })).toBeVisible()
     await context.close()
   })
