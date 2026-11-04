@@ -300,7 +300,7 @@ test.describe("desktop 1440", () => {
     expect(await computed(featured, "background-color")).not.toMatch(/rgba\(0, 0, 0, 0\)/)
     await expect(featured.getByRole("progressbar")).toHaveAttribute("aria-valuenow", /\d+/)
     await expect(featured.locator("[data-sparkline]")).toHaveCount(0)
-    await expect(page.locator("[data-goal][data-done=false]")).toHaveCount(2)
+    await expect(page.locator("[data-goal][data-done=false]")).toHaveCount(3)
     // Featured Guardar: the sparkline appears (there is history now) and goes with Desfazer.
     await featured.getByRole("button", { name: "Guardar" }).click()
     await page.getByRole("dialog").getByLabel("Valor", { exact: true }).fill("100")
@@ -316,14 +316,14 @@ test.describe("desktop 1440", () => {
     await expect(done.getByRole("button", { name: "Guardar" })).toHaveCount(0)
     await expect(done.locator("[data-goal] [data-category-circle], [data-goal] svg:not([role=progressbar] svg)")).toHaveCount(0)
     // Create, edit.
-    await page.getByText("Nova meta…").click()
+    await page.getByRole("button", { name: "Nova meta" }).click()
     const dialog = page.getByRole("dialog")
     await dialog.getByLabel("Nome").fill("Moto nova")
     await dialog.getByLabel("Valor da meta").fill("9000")
     await dialog.getByRole("radio", { name: "Carro" }).click()
     await dialog.getByRole("button", { name: "Criar meta" }).click()
     const goal = page.locator("[data-goal]").filter({ hasText: "Moto nova" })
-    await expect(goal).toContainText("R$ 0,00 de R$ 9.000,00")
+    await expect(goal).toContainText(/R\$ 0,00\s*de R\$ 9\.000,00/)
     await goal.getByRole("button", { name: /^Ações de/ }).click()
     await page.getByRole("menuitem", { name: "Editar" }).click()
     await page.getByRole("dialog").getByLabel("Nome").fill("Moto 0km")
@@ -333,7 +333,7 @@ test.describe("desktop 1440", () => {
     await expect(page.getByRole("dialog")).toContainText("Faltam R$ 9.000,00 para chegar lá.")
     await page.getByRole("dialog").locator("[data-suggestion]").filter({ hasText: "R$ 500,00" }).click()
     await page.getByRole("dialog").getByRole("button", { name: "Guardar" }).click()
-    await expect(page.locator("[data-goal]").filter({ hasText: "Moto 0km" })).toContainText("R$ 500,00 de R$ 9.000,00")
+    await expect(page.locator("[data-goal]").filter({ hasText: "Moto 0km" })).toContainText(/R\$ 500,00\s*de R\$ 9\.000,00/)
   })
 
   test("Lançamentos: ONE solid toolbar card (quick add, kinds, categories with Editar, search, Filtros, Ordem)", async ({ page }) => {
@@ -346,7 +346,7 @@ test.describe("desktop 1440", () => {
     await expect(bar.getByRole("group", { name: "Filtrar por tipo" })).toBeVisible()
     const cats = bar.getByRole("group", { name: "Filtrar por categoria" })
     await expect(cats.getByRole("button", { name: /^Mercado\s*\d+$/ })).toBeVisible()
-    await expect(cats.getByRole("button", { name: "Editar categorias" })).toBeVisible()
+    await expect(bar.getByRole("button", { name: "Editar categorias" })).toBeVisible()
     // Search circle expands inline and filters.
     await bar.getByRole("button", { name: "Buscar lançamentos" }).click()
     const search = bar.getByRole("searchbox", { name: "Buscar lançamentos" })
@@ -363,7 +363,7 @@ test.describe("desktop 1440", () => {
     await page.getByRole("option", { name: "Maior valor" }).click()
     await expect(bar.getByRole("combobox", { name: "Ordenar" })).toContainText("Maior valor")
     // "Editar" opens the picker with Gerenciar / Adicionar.
-    await cats.getByRole("button", { name: "Editar categorias" }).click()
+    await bar.getByRole("button", { name: "Editar categorias" }).click()
     await expect(page.getByRole("dialog")).toContainText("Categorias")
     await expect(page.getByRole("dialog").getByRole("button", { name: /Gerenciar/ })).toBeVisible()
     await page.keyboard.press("Escape")
@@ -385,21 +385,14 @@ test.describe("desktop 1440", () => {
     await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true")
   })
 
-  test("Metas: Destacar and drag reorder change the featured goal, the order survives a reload, Nova meta fills the next cell", async ({ page }) => {
+  test("Metas: Destacar and drag reorder change the featured goal and the order survives a reload", async ({ page }) => {
     await open(page, "Metas")
     const featured = page.locator("[data-featured]")
     await expect(featured).toContainText("Viagem de fim de ano")
-    // The dashed tile sits in the Em andamento grid, right after the last goal card, and not in Alcançadas.
-    const rows = page.locator("[data-group=active] [data-group-rows]")
-    await expect(rows.locator("[data-new-goal]")).toHaveCount(1)
+    // "+ Nova meta" is the pill of the Em andamento header; there is no dashed tile in the grid or in Alcançadas.
+    await expect(page.locator("[data-group=active] [data-group-header]").locator("xpath=..").locator("[data-new-goal]")).toHaveCount(1)
+    await expect(page.locator("[data-group=active] [data-group-rows] [data-new-goal]")).toHaveCount(0)
     await expect(page.locator("[data-group=done] [data-new-goal]")).toHaveCount(0)
-    await page.waitForTimeout(800)
-    const last = (await rows.locator("[data-goal]").last().boundingBox())!
-    const tile = (await rows.locator("[data-new-goal]").boundingBox())!
-    // The next cell of the grid: to the right of the last card, or the first cell of the next row.
-    expect(tile.x >= last.x + last.width - 2 || tile.y >= last.y + last.height - 2).toBe(true)
-    expect(tile.height).toBeGreaterThanOrEqual(200)
-    expect(parseFloat(await computed(rows.locator("[data-new-goal]"), "border-top-left-radius"))).toBe(20)
     // Destacar (menu).
     const reserva = page.locator("[data-goal]").filter({ hasText: "Reserva de emergência" })
     await reserva.getByRole("button", { name: /^Ações de/ }).click()
@@ -430,6 +423,189 @@ test.describe("desktop 1440", () => {
     await page.mouse.move(first.x + 40, first.y + 40, { steps: 12 })
     await page.mouse.up()
     await expect(page.locator("[data-featured]")).not.toContainText("Entrada do apartamento")
+  })
+
+  test("Lançamentos: categories share the row of Todos | Entradas | Saídas, scroll with chevrons, Editar stays pinned", async ({ page }) => {
+    await open(page, "Lançamentos")
+    const bar = page.getByTestId("transactions-toolbar")
+    const kinds = bar.getByRole("group", { name: "Filtrar por tipo" })
+    const cats = bar.getByRole("group", { name: "Filtrar por categoria" })
+    const edit = bar.getByRole("button", { name: "Editar categorias" })
+    const [k, c, e] = [(await kinds.boundingBox())!, (await cats.boundingBox())!, (await edit.boundingBox())!]
+    expect(Math.abs(k.y + k.height / 2 - (c.y + c.height / 2))).toBeLessThan(6)
+    expect(c.x).toBeGreaterThan(k.x + k.width)
+    expect(e.x).toBeGreaterThanOrEqual(c.x + c.width - 2)
+    // No visible scrollbar: the pills row hides it.
+    expect(await cats.evaluate((el) => el.className)).toContain("no-scrollbar")
+    expect(await cats.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+    const right = bar.getByRole("button", { name: "Rolar categorias para a direita" })
+    await expect(right).toBeVisible()
+    await expect(bar.getByRole("button", { name: "Rolar categorias para a esquerda" })).toHaveCount(0)
+    await right.click()
+    await expect(bar.getByRole("button", { name: "Rolar categorias para a esquerda" })).toBeVisible()
+    expect(await cats.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+    // Mouse wheel scrolls it too, and the dashed pill is still in view.
+    await cats.hover()
+    await page.mouse.wheel(0, 200)
+    await expect(edit).toBeInViewport()
+    // The active pill is Lima and keeps its count.
+    const pill = cats.getByRole("button", { name: /^Mercado\s*\d+$/ })
+    await pill.scrollIntoViewIfNeeded()
+    await pill.click()
+    await expect(pill).toHaveAttribute("aria-pressed", "true")
+    expect(await computed(pill, "background-color")).not.toMatch(/rgba\(0, 0, 0, 0\)/)
+  })
+
+  test("category donut: segments add up, start at 12 o'clock, the center text fits inside the ring (Lançamentos and Contas fixas)", async ({ page }) => {
+    for (const [tab, scope] of [["Lançamentos", page.locator("aside")], ["Contas fixas", page.getByLabel("Fixas por categoria")]] as const) {
+      await open(page, tab)
+      const donut = scope.getByTestId("category-donut")
+      await expect(donut.locator("[data-segment]").first()).toBeVisible()
+      const shares = await donut.locator("[data-segment]").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-share"))))
+      expect(shares.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 2)
+      expect([...shares].sort((a, b) => b - a)).toEqual(shares)
+      // The legend is in the same order (biggest first) and the ring rotates -90°.
+      const legend = await donut.locator("[data-legend]").evaluateAll((els) => els.map((e) => e.getAttribute("data-legend")))
+      expect(legend).toEqual(await donut.locator("[data-segment]").evaluateAll((els) => els.map((e) => e.getAttribute("data-segment"))))
+      expect(await donut.locator("svg").evaluate((el) => getComputedStyle(el).rotate)).toBe("-90deg")
+      // Center text inside the inner diameter (136px ring, 16px stroke ≈ 82px inside).
+      const ring = (await donut.locator("[role=img]").boundingBox())!
+      const inner = ring.width * (1 - 32 / 120)
+      for (const el of await donut.locator("[role=img] span span").all()) {
+        const box = (await el.boundingBox())!
+        expect(box.width).toBeLessThanOrEqual(inner + 1)
+        expect(box.x).toBeGreaterThanOrEqual(ring.x + (ring.width - inner) / 2 - 1)
+        expect(box.x + box.width).toBeLessThanOrEqual(ring.x + (ring.width + inner) / 2 + 1)
+      }
+    }
+  })
+
+  test("the four top cards of Contas fixas and Metas share one row and exactly one height (168px)", async ({ page }) => {
+    for (const tab of ["Contas fixas", "Metas"] as const) {
+      await open(page, tab)
+      const cards = page.locator("[data-hero-card], [data-bento-stat]")
+      await expect(cards).toHaveCount(4)
+      const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ y: Math.round(r.y), h: Math.round(r.height) })))
+      expect(new Set(boxes.map((b) => b.y)).size).toBe(1)
+      expect(new Set(boxes.map((b) => b.h))).toEqual(new Set([168]))
+    }
+  })
+
+  test("Metas: + Nova meta is a Lima pill in the Em andamento header, goal cards share the full structure", async ({ page }) => {
+    await open(page, "Metas")
+    const header = page.locator("[data-group=active] [data-group-header]")
+    const pill = page.getByRole("button", { name: "Nova meta" })
+    await expect(page.locator("[data-new-goal]")).toHaveCount(1)
+    const [h, p] = [(await header.boundingBox())!, (await pill.boundingBox())!]
+    expect(Math.abs(h.y + h.height / 2 - (p.y + p.height / 2))).toBeLessThan(6)
+    expect(p.x).toBeGreaterThan(h.x + h.width)
+    expect(Math.round(p.height)).toBe(36)
+    expect(parseFloat(await computed(pill, "border-top-left-radius"))).toBeGreaterThan(100)
+    expect(await contrast(page, await computed(pill, "color"), await computed(pill, "background-color"))).toBeGreaterThan(4.5)
+    // Featured spans half of the grid, the others a quarter; the cards of a row share one height.
+    const cards = page.locator("[data-group=active] [data-goal]")
+    await expect(cards).toHaveCount(3)
+    const [a, b, c] = await Promise.all([0, 1, 2].map(async (i) => (await cards.nth(i).boundingBox())!))
+    expect(a.width / b.width).toBeGreaterThan(1.8)
+    expect(Math.abs(b.width - c.width)).toBeLessThan(2)
+    expect(Math.abs(a.height - b.height)).toBeLessThan(2)
+    expect(Math.abs(b.height - c.height)).toBeLessThan(2)
+    for (let i = 0; i < 3; i += 1) {
+      const card = cards.nth(i)
+      await expect(card.getByRole("progressbar")).toHaveCount(1)
+      await expect(card.getByRole("button", { name: /^Ações de/ })).toBeVisible()
+      await expect(card.getByRole("button", { name: "Guardar" })).toBeVisible()
+      await expect(card.locator("[data-sparkline], [data-spark-empty]")).toHaveCount(1)
+    }
+    // No history: the flat baseline and its caption; the compact ring is 80px.
+    await expect(cards.nth(1).locator("[data-spark-empty]")).toContainText("Sem aportes ainda")
+    expect(Math.round((await cards.nth(1).getByRole("progressbar").boundingBox())!.width)).toBe(80)
+    expect(Math.round((await cards.nth(0).getByRole("progressbar").boundingBox())!.width)).toBe(120)
+  })
+
+  test("Visão geral: Contas e bancos is manageable (edit, rename, archive, reorder, delete with and without lançamentos)", async ({ page }) => {
+    await open(page)
+    const card = page.getByTestId("accounts-card")
+    await expect(card.locator("[data-wallet]")).toHaveCount(4)
+    // Edit from the wallet: tap opens the dialog with the kind and color.
+    await card.locator("[data-wallet]").filter({ hasText: "Carteira" }).locator("[data-wallet-open]").click()
+    const dialog = page.getByRole("dialog")
+    await expect(dialog).toContainText("Editar conta")
+    await dialog.getByLabel("Nome").fill("Carteira de bolso")
+    await dialog.getByRole("radiogroup", { name: "Tipo da conta" }).getByRole("radio", { name: "Carteira" }).click()
+    await dialog.getByRole("radio", { name: "Lima verso" }).click()
+    await dialog.getByRole("button", { name: "Salvar" }).click()
+    await expect(card.locator("[data-wallet]").filter({ hasText: "Carteira de bolso" })).toHaveCount(1)
+    // Manager: rename inline, archive (hidden from the wallets and the totals), show archived, reactivate.
+    await card.getByRole("button", { name: "Gerenciar" }).click()
+    const manager = page.getByTestId("account-manager")
+    const row = manager.locator("[data-manager-account]").filter({ hasText: "Carteira de bolso" })
+    await row.getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Renomear" }).click()
+    const field = manager.getByRole("textbox", { name: /Novo nome/ })
+    await field.fill("Bolso")
+    await field.press("Enter")
+    await expect(manager.locator("[data-manager-account]").filter({ hasText: "Bolso" })).toHaveCount(1)
+    await manager.locator("[data-manager-account]").filter({ hasText: "Bolso" }).getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Arquivar" }).click()
+    await expect(manager.locator("[data-manager-account]").filter({ hasText: "Bolso" })).toHaveCount(0)
+    await manager.getByRole("switch", { name: "Mostrar arquivadas" }).click()
+    await expect(manager.locator("[data-manager-account]").filter({ hasText: "Bolso" })).toContainText("Arquivada")
+    await manager.locator("[data-manager-account]").filter({ hasText: "Bolso" }).getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Reativar" }).click()
+    // Reorder with the keyboard: the last account goes up.
+    const list = manager.locator("[data-manager-account]")
+    const names = async () => list.evaluateAll((els) => els.map((e) => e.querySelector("[data-account-name]")?.textContent))
+    const before = await names()
+    await list.last().getByRole("button", { name: /^Reordenar/ }).focus()
+    await page.keyboard.press("Space")
+    await page.waitForTimeout(250)
+    await page.keyboard.press("ArrowUp")
+    await page.waitForTimeout(400)
+    await page.keyboard.press("Space")
+    await expect.poll(names).not.toEqual(before)
+    // Delete one with no lançamentos: confirm + Desfazer (the card shows four wallets; the rest are one tap away in the manager).
+    await page.keyboard.press("Escape")
+    await card.getByRole("button", { name: "Adicionar conta…" }).click()
+    await page.getByRole("dialog").getByLabel("Nome").fill("Temporária")
+    await page.getByRole("dialog").getByRole("button", { name: "Adicionar conta" }).click()
+    await expect(card.getByRole("button", { name: /Ver todas as 5 contas/ })).toBeVisible()
+    await card.getByRole("button", { name: "Gerenciar" }).click()
+    const temp = () => page.getByTestId("account-manager").locator("[data-manager-account]").filter({ hasText: "Temporária" })
+    await expect(temp()).toHaveCount(1)
+    await temp().getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Excluir" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir conta" }).click()
+    await expect(temp()).toHaveCount(0)
+    // The manager is modal: close it to reach the toast, undo, and look again.
+    await page.keyboard.press("Escape")
+    await undoBtn(page).click()
+    await card.getByRole("button", { name: "Gerenciar" }).click()
+    await expect(temp()).toHaveCount(1)
+    await page.keyboard.press("Escape")
+    // An account with lançamentos: options (archive recommended, move, delete everything by typing the name).
+    await card.locator("[data-wallet]").filter({ hasText: "Nubank" }).getByRole("button", { name: /^Ações de/ }).click()
+    await page.getByRole("menuitem", { name: "Excluir" }).click()
+    const sheet = page.getByRole("dialog")
+    await expect(sheet).toContainText("Arquivar (recomendado)")
+    await sheet.getByRole("radio", { name: /Excluir conta e lançamentos/ }).click()
+    const confirm = sheet.getByRole("button", { name: "Excluir conta e lançamentos" })
+    await expect(confirm).toBeDisabled()
+    await sheet.getByRole("radio", { name: /Mover os lançamentos/ }).click()
+    await sheet.getByRole("combobox").click()
+    await page.getByRole("option", { name: "Itaú" }).first().click()
+    await sheet.getByRole("button", { name: "Mover e excluir" }).click()
+    await expect(card.locator("[data-wallet]").filter({ hasText: "Nubank" })).toHaveCount(0)
+  })
+
+  test("Visão geral: category icons are 44px with the bar and percentage aligned across rows", async ({ page }) => {
+    await open(page)
+    const rows = page.getByTestId("spending-card").locator("[data-category-card]")
+    const circles = await rows.locator("[data-category-circle]").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)))
+    expect(new Set(circles)).toEqual(new Set([44]))
+    const bars = await rows.locator("[role=progressbar]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().right)]))
+    expect(new Set(bars.map((b) => b[0])).size).toBe(1)
+    expect(new Set(bars.map((b) => b[1])).size).toBe(1)
   })
 
   test("dialogs on desktop: modal radius 20, Esc, Enter submits, inline message", async ({ page }) => {
@@ -572,8 +748,12 @@ test.describe("phone behaviors", () => {
     await expect(page.locator("[data-hero-card]")).toContainText("Saídas do mês")
     await expect(page.getByTestId("transaction-tiles").locator("[data-bento-stat]")).toHaveCount(2)
     const row = page.getByTestId("filter-row")
-    expect(await row.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
-    expect(await row.evaluate((el) => el.className)).toContain("scroll-soft")
+    const pills = row.locator("[data-pill-row]").first()
+    expect(await pills.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+    expect(await pills.evaluate((el) => el.className)).toContain("no-scrollbar")
+    // The kinds on the first line, the categories on a second one.
+    const [kinds, cats] = [(await row.getByRole("group", { name: "Filtrar por tipo" }).boundingBox())!, (await pills.boundingBox())!]
+    expect(cats.y).toBeGreaterThan(kinds.y + kinds.height - 2)
     expect(await noPageScroll(page)).toBe(true)
     // The pill rows live in the solid header card, as in Minhas tarefas.
     expect(await row.evaluate((el) => !!el.closest("[data-testid=financas-header-block]"))).toBe(true)
@@ -595,7 +775,7 @@ test.describe("phone behaviors", () => {
   test("Contas fixas: hero, two tiles, day chips filter the list, two-line cards with swipe", async ({ page }) => {
     await open(page, "Contas fixas", true)
     await expect(page.locator("[data-hero-card] [data-hatched]")).toHaveCount(1)
-    await expect(page.getByTestId("bill-stats").locator("[data-bento-stat]")).toHaveText([/Pagas/, /Atrasadas/])
+    await expect(page.getByTestId("bill-stats").locator("[data-bento-stat]")).toHaveText([/Pagas/, /A pagar/, /Atrasadas/])
     const timeline = page.getByTestId("month-timeline")
     const chip = timeline.locator("[data-day]").first()
     expect(Math.round((await chip.boundingBox())!.width)).toBe(44)
@@ -622,19 +802,19 @@ test.describe("phone behaviors", () => {
     await expect(bill).toHaveCount(1)
   })
 
-  test("Metas: hero, two tiles, dashed pill, featured card with a 44px Lima Guardar, compact rows with a circle +, achieved collapsed", async ({ page }) => {
+  test("Metas: 2x2 top cards, + Nova meta pill, stacked full goal cards with a 44px Lima Guardar, achieved collapsed", async ({ page }) => {
     await open(page, "Metas", true)
     await expect(page.locator("[data-hero-card] [data-hatched]")).toHaveCount(1)
-    await expect(page.getByTestId("goal-stats").locator("[data-bento-stat]")).toHaveCount(2)
-    await expect(page.getByText("Nova meta…")).toBeVisible()
+    await expect(page.getByTestId("goal-stats").locator("[data-bento-stat]")).toHaveCount(3)
+    await expect(page.getByRole("button", { name: "Nova meta" })).toBeVisible()
     const featured = page.locator("[data-featured]")
     const guardar = featured.getByRole("button", { name: "Guardar" })
     expect(Math.round((await guardar.boundingBox())!.height)).toBeGreaterThanOrEqual(44)
     const rows = page.locator("[data-group=active] [data-goal]:not([data-featured])")
     await expect(rows).toHaveCount(2)
     const ring = await rows.first().getByRole("progressbar").boundingBox()
-    expect(Math.round(ring!.width)).toBe(72)
-    const plus = await rows.first().getByRole("button", { name: /^Guardar em/ }).boundingBox()
+    expect(Math.round(ring!.width)).toBe(120)
+    const plus = await rows.first().getByRole("button", { name: "Guardar" }).boundingBox()
     expect(plus!.width).toBeGreaterThanOrEqual(44)
     await expect(page.locator("[data-group=done] [data-group-header]")).toHaveAttribute("aria-expanded", "false")
     expect(await noPageScroll(page)).toBe(true)

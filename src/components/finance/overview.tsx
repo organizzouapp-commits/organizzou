@@ -237,6 +237,11 @@ export function AccountsBento() {
           <Wallet key={a.id} account={a} />
         ))}
       </div>
+      {f.accounts.length > 4 ? (
+        <Button type="button" variant="ghost" size="sm" className="w-fit self-center" onClick={f.openAccountManager}>
+          Ver todas as {f.accounts.length} contas
+        </Button>
+      ) : null}
       <AddPill label="Adicionar conta…" onClick={f.openNewAccount} />
     </BentoCard>
   )

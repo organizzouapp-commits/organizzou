@@ -192,6 +192,7 @@ export function StatTile({ icon: Icon, label, children, helper, compact = false,
  */
 export function HeroCard({
   label,
+  shortLabel,
   value,
   size = "md",
   density = "default",
@@ -206,6 +207,8 @@ export function HeroCard({
   className,
 }: {
   label: string
+  /** The label on a half-width phone card (the accessible name stays `label`). */
+  shortLabel?: string
   value: React.ReactNode
   /** "md" 36px, "lg" 44px (the balance). */
   size?: "md" | "lg"
@@ -229,7 +232,7 @@ export function HeroCard({
   return (
     <section aria-label={label} data-hero-card data-density={density} className={cn("flex min-w-0 flex-col rounded-[20px] bg-highlight text-highlight-foreground", compact ? "gap-1.5 p-3" : dense ? "gap-2 p-5" : "gap-3 p-5", className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className={cn("truncate font-semibold tracking-[0.1em] uppercase", compact ? "text-[10px] leading-4 tracking-[0.08em]" : "text-[11px] leading-4")}>{label}</span>
+        <span className={cn("truncate font-semibold tracking-[0.1em] uppercase", compact ? "text-[10px] leading-4 tracking-[0.08em]" : "text-[11px] leading-4")}>{compact ? (shortLabel ?? label) : label}</span>
         {onArrow ? (
           <button type="button" data-hero-arrow aria-label={arrowLabel ?? `Abrir ${label}`} onClick={onArrow} className={cn("relative flex shrink-0 items-center justify-center rounded-full bg-highlight-foreground/10 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:-inset-1.5 hover:bg-highlight-foreground/20 focus-visible:ring-3 focus-visible:ring-highlight-foreground/40 motion-reduce:transition-none", compact ? "size-6" : dense ? "size-8" : "size-9")}>
             <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className={compact ? "size-3" : dense ? "size-4" : "size-[18px]"} />

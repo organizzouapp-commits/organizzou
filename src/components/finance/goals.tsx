@@ -64,6 +64,7 @@ export function GoalsHero({ compact = false }: { compact?: boolean }) {
   return (
     <HeroCard
       label="Guardado nas metas"
+      shortLabel="Guardado"
       density={compact ? "compact" : "dense"}
       value={<MoneyText cents={saved} dimDecimals />}
       progress={{ value: pct, label: "Guardado nas metas" }}
