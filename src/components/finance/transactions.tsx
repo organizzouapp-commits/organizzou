@@ -289,7 +289,8 @@ export function TransactionsMain() {
   const rows = useVisibleTransactions()
   const days = [...rows.reduce<Map<string, TransactionRow[]>>((map, t) => map.set(t.occurred_on, [...(map.get(t.occurred_on) ?? []), t]), new Map()).entries()].sort((a, b) => (f.filters.sort === "date-asc" ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0])))
   const groups = days.map(([day, list]) => [day, sortRows(list, f.filters.sort)] as const)
-  const currentMonth = f.today.slice(0, 7)
+  // The most recent day starts open and the others closed; what the person toggles is remembered for the session.
+  const latest = days.reduce((max, [day]) => (day > max ? day : max), "")
 
   return (
     <div className="flex flex-col gap-4" data-testid="transactions-main">
@@ -300,7 +301,7 @@ export function TransactionsMain() {
       ) : (
         <div className="flex flex-col">
           {groups.map(([day, list]) => {
-            const open = saved[day] ?? day.slice(0, 7) === currentMonth
+            const open = saved[day] ?? day === latest
             const net = list.reduce((sum, t) => sum + (t.kind === "in" ? t.amount_cents : -t.amount_cents), 0)
             return (
               <section key={day} data-day-group={day} aria-label={dayLabel(day, f.today)} className="flex flex-col">
