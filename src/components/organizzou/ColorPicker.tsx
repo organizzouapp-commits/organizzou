@@ -42,7 +42,7 @@ function Swatch({ hex, ink, label, selected, ring, onSelect }: { hex: string | n
 }
 
 /** A saved color: long press (or right click) offers to remove it. */
-function CustomSwatch({ hex, id, selected, onSelect, onRemove }: { hex: string; id: string; selected: boolean; onSelect: () => void; onRemove?: () => void }) {
+function CustomSwatch({ id, selected, onSelect, onRemove }: { id: string; selected: boolean; onSelect: () => void; onRemove?: () => void }) {
   const [menu, setMenu] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   const fired = useRef(false)
@@ -143,9 +143,9 @@ export function ColorPicker({ value, onChange, custom, onSaveCustom, onRemoveCus
         <Swatch key={color.id} hex={color.hex} ink={color.ink} label={color.label} selected={value === color.id} onSelect={() => onChange(color.id)} />
       ))}
       {custom.map((hex) => (
-        <CustomSwatch key={hex} id={hex} hex={hex} selected={value !== null && current === normalizeHex(hex) && !isDefault} onSelect={() => onChange(hex)} onRemove={() => onRemoveCustom(hex)} />
+        <CustomSwatch key={hex} id={hex} selected={value !== null && current === normalizeHex(hex) && !isDefault} onSelect={() => onChange(hex)} onRemove={() => onRemoveCustom(hex)} />
       ))}
-      {stray ? <CustomSwatch key={stray} id={stray} hex={stray} selected onSelect={() => onChange(stray)} /> : null}
+      {stray ? <CustomSwatch key={stray} id={stray} selected onSelect={() => onChange(stray)} /> : null}
       <CustomPanel
         full={custom.length >= MAX_CUSTOM_COLORS}
         onSave={(hex) => {

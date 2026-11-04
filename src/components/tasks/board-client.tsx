@@ -11,6 +11,10 @@ import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { format, parseISO } from "date-fns"
+import { ptBR } from "date-fns/locale"
+
+import type { CalendarViewId } from "@/components/calendar/agenda-screen"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { BoardApi } from "@/features/tasks/board-api"
@@ -83,7 +87,11 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [newTaskList, setNewTaskList] = useState<string | undefined>(undefined)
   /** Pre-filled due date of the "Nova tarefa" form (the calendar's selected day, plus a free hour when it is today). */
   const [newTaskDue, setNewTaskDue] = useState<{ day: string; time?: string } | undefined>(undefined)
-  const [calendarDay, setCalendarDay] = useState<string | null>(null)
+  const [calendarCtx, setCalendarCtx] = useState<{ day: string; view: CalendarViewId } | null>(null)
+  /** Typed in the calendar's quick add, handed to the full form by "Mais detalhes". */
+  const [newTaskTitle, setNewTaskTitle] = useState<string | undefined>(undefined)
+  /** The task just created: highlighted ~1.2 s and shown by the calendar even when a filter would hide it. */
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const [moveFor, setMoveFor] = useState<TaskView[] | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -223,16 +231,45 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     return true
   }
 
-  async function createFromDialog(input: NewTaskInput) {
+  /**
+   * Creates a task. It appears at once (optimistic, with a temporary id) and is highlighted for ~1.2 s; the server row replaces it.
+   * When the board's filters would hide it, it is still shown (calendar) and the toast says where it went, with "Ver".
+   */
+  async function createTask(input: NewTaskInput): Promise<TaskView | null> {
     const dueAt = input.dueDay ? toDueIso(input.dueDay, input.dueTime, timeZone) : null
+    const stamp = new Date().toISOString()
+    const tempId = `tmp-${Math.random().toString(36).slice(2)}`
+    const siblings = tasks.filter((t) => t.list_id === input.listId)
+    const draft: TaskView = {
+      id: tempId, board_id: boardId, list_id: input.listId, title: input.title, description: null, priority: input.priority, due_at: dueAt, due_has_time: Boolean(input.dueTime && dueAt),
+      completed_at: null, archived: false, position: (siblings.reduce((max, t) => Math.max(max, t.position), 0) || 0) + 1000, swatch: "neutro", category: null, user_id: "", created_at: stamp, updated_at: stamp,
+      tagIds: [], checklistTotal: 0, checklistDone: 0, commentCount: 0, attachmentCount: 0,
+    }
+    setTasks((current) => [...current, draft])
+    setHighlightId(tempId)
     const result = await api.createTask({ boardId, listId: input.listId, title: input.title, priority: input.priority as Priority, dueAt, dueHasTime: Boolean(input.dueTime) })
     if (!result.ok) {
+      setTasks((current) => current.filter((t) => t.id !== tempId))
+      setHighlightId((current) => (current === tempId ? null : current))
       toast.error(result.error)
-      return false
+      return null
     }
-    setTasks((current) => [...current, result.data])
-    toast.success("Tarefa criada.")
-    return true
+    const created = result.data
+    setTasks((current) => current.map((t) => (t.id === tempId ? created : t)))
+    setHighlightId(created.id)
+    window.setTimeout(() => setHighlightId((current) => (current === created.id ? null : current)), 1200)
+    const hiddenByFilters = applyFilters([created], filters, { now, timeZone }).length === 0
+    if (hiddenByFilters && view === "calendario") {
+      const label = created.due_at ? format(parseISO(dayKey(created.due_at, timeZone)), "EEEE, d 'de' MMMM", { locale: ptBR }) : "Sem data"
+      toast(`Tarefa criada em ${label.toLowerCase()}`, { action: { label: "Ver", onClick: () => setFilters(EMPTY_FILTERS) } })
+    } else {
+      toast.success("Tarefa criada.")
+    }
+    return created
+  }
+
+  async function createFromDialog(input: NewTaskInput) {
+    return Boolean(await createTask(input))
   }
 
   async function moveToList(listId: string, taskIds: string[]) {
@@ -696,7 +733,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   // "Nova tarefa" from the app header: pre-filled with this quadro and, on phones in Kanban, the list being looked at.
   usePrimaryAction("Nova tarefa", () => {
     setNewTaskList(view === "kanban" && isMobile ? (mobileList ?? lists[0]?.id) : undefined)
-    setNewTaskDue(view === "calendario" && isMobile && calendarDay ? { day: calendarDay, time: calendarDay === dayKey(now, timeZone) ? nextFreeHour() : undefined } : undefined)
+    // The calendar's selected day; a free hour only on today, in Semana or Dia.
+    const ctx = view === "calendario" ? calendarCtx : null
+    setNewTaskDue(ctx ? { day: ctx.day, time: ctx.day === dayKey(now, timeZone) && (ctx.view === "semana" || ctx.view === "dia") ? nextFreeHour() : undefined } : undefined)
+    setNewTaskTitle(undefined)
     setNewTaskOpen(true)
   })
 
@@ -796,9 +836,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     onQuickAdd: quickAdd,
     actionsFor,
     selection,
-    onCreate: (listId?: string, day?: string) => {
+    onCreate: (listId?: string, day?: string, time?: string, title?: string) => {
       setNewTaskList(listId)
-      setNewTaskDue(day ? { day } : undefined)
+      setNewTaskDue(day ? { day, time } : undefined)
+      setNewTaskTitle(title)
       setNewTaskOpen(true)
     },
     onRenameList: renameList,
@@ -899,7 +940,15 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           <ListView {...viewProps} groupBy={groupBy} isMobile={isMobile} dragEnabled={!filtering} onMoveTasks={(listId, ids) => void reorderTasks(listId, ids)} />
         </div>
       ) : (
-        <CalendarView {...viewProps} nowIso={nowIso} onDayChange={setCalendarDay} onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")} />
+        <CalendarView
+          {...viewProps}
+          tasks={highlightId && !visible.some((t) => t.id === highlightId) ? [...visible, ...tasks.filter((t) => t.id === highlightId)] : visible}
+          nowIso={nowIso}
+          onContextChange={setCalendarCtx}
+          onCreateTask={createTask}
+          highlightId={highlightId}
+          onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")}
+        />
       )}
       </div>
       </div>
@@ -941,7 +990,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           </Button>
         </DialogContent>
       </Dialog>
-      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} defaultListId={newTaskList} defaultDue={newTaskDue} now={now} timeZone={timeZone} onCreate={createFromDialog} />
+      <NewTaskDialog open={newTaskOpen} onOpenChange={setNewTaskOpen} lists={lists} defaultListId={newTaskList} defaultDue={newTaskDue} defaultTitle={newTaskTitle} now={now} timeZone={timeZone} onCreate={createFromDialog} />
       <MoveDialog
         open={Boolean(moveFor)}
         onOpenChange={(open) => !open && setMoveFor(null)}

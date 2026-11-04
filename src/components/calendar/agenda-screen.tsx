@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -58,7 +59,8 @@ import type { WorkoutPlanRow } from "@/features/workouts/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
-type View = "mes" | "semana" | "dia" | "agenda"
+export type CalendarViewId = "mes" | "semana" | "dia" | "agenda"
+type View = CalendarViewId
 
 const TZ = SP_TIMEZONE
 const HOUR_START = 6
@@ -110,7 +112,101 @@ function ItemIcon({ kind, className }: { kind: AgendaKind; className?: string })
 }
 
 function itemTone(item: AgendaItem) {
+  if (item.color) return "text-foreground border border-transparent"
   return item.swatch === "neutro" ? "bg-secondary text-secondary-foreground" : getSwatch(item.swatch).chip
+}
+
+/** A task with its own color: the color at 22% over the surface and a 1px border at 40%; the text stays the neutral foreground. */
+function itemStyle(item: AgendaItem): React.CSSProperties | undefined {
+  if (!item.color) return undefined
+  return { backgroundColor: `color-mix(in oklab, ${item.color} 22%, var(--card))`, borderColor: `color-mix(in oklab, ${item.color} 40%, transparent)` }
+}
+
+const HIGHLIGHT = "ring-2 ring-primary ring-offset-1 ring-offset-card"
+
+type ToolbarFilter = { label: string; /** e.g. "2/4" when something is filtered out. */ badge?: string; content: React.ReactNode }
+
+/**
+ * The calendar toolbar, shared by the Agenda and Tarefas > Calendário: "Hoje" pill, previous/next circles, the period title, a filter
+ * button ("Calendários" / "Listas": a popover on desktop, a bottom sheet on phones) and the Mês | Semana | Dia | Agenda switch.
+ */
+export function CalendarToolbar({
+  title,
+  onToday,
+  onShift,
+  view,
+  onViewChange,
+  filter,
+  agendaTabOnDesktop = false,
+  trailing,
+}: {
+  title: string
+  onToday: () => void
+  onShift: (direction: -1 | 1) => void
+  view: CalendarViewId
+  onViewChange: (view: CalendarViewId) => void
+  filter: ToolbarFilter
+  agendaTabOnDesktop?: boolean
+  trailing?: React.ReactNode
+}) {
+  const isMobile = useIsMobile()
+  const [sheet, setSheet] = useState(false)
+  const filterButton = (
+    <Button variant="outline" data-testid="calendar-filter" onClick={isMobile ? () => setSheet(true) : undefined}>
+      <LayersIcon strokeWidth={1.75} /> {filter.label}
+      {filter.badge ? <span className="tabular text-muted-foreground">{filter.badge}</span> : null}
+    </Button>
+  )
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
+      <div className="flex items-center gap-1">
+        <Button variant="outline" onClick={onToday}>
+          Hoje
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
+          <ChevronLeftIcon strokeWidth={1.75} />
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => onShift(1)}>
+          <ChevronRightIcon strokeWidth={1.75} />
+        </Button>
+      </div>
+      <h2 data-testid="calendar-title" className="min-w-0 flex-1 basis-full text-xl leading-7 font-semibold tracking-[-0.01em] md:basis-40 md:truncate">
+        {title}
+      </h2>
+      {trailing}
+      {isMobile ? (
+        <>
+          {filterButton}
+          <Drawer open={sheet} onOpenChange={setSheet}>
+            <DrawerContent className="max-h-[80dvh]">
+              <DrawerHeader className="text-left">
+                <DrawerTitle>{filter.label}</DrawerTitle>
+                <DrawerDescription className="sr-only">Escolha o que aparece no calendário.</DrawerDescription>
+              </DrawerHeader>
+              <div className="flex flex-col gap-1 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filter.content}</div>
+            </DrawerContent>
+          </Drawer>
+        </>
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>{filterButton}</PopoverTrigger>
+          <PopoverContent align="end" className="w-60 gap-1 p-2">
+            {filter.content}
+          </PopoverContent>
+        </Popover>
+      )}
+      <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
+        <TabsList aria-label="Visão">
+          <TabsTrigger value="mes">Mês</TabsTrigger>
+          <TabsTrigger value="semana">Semana</TabsTrigger>
+          <TabsTrigger value="dia">Dia</TabsTrigger>
+          <TabsTrigger value="agenda" className={agendaTabOnDesktop ? undefined : "md:hidden"}>
+            Agenda
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
+  )
 }
 
 /** What the "new event" dialog starts with: a day, and optionally the time range picked on the grid. */
@@ -219,46 +315,23 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   const effectiveView: View = isMobile && view === "dia" ? "dia" : view
 
   const controls = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <div className="flex items-center gap-1">
-        <Button variant="outline" onClick={() => setDay(todayKey)}>
-          Hoje
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => shift(-1)}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => shift(1)}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
-      <h2 className="min-w-0 flex-1 basis-full text-xl leading-7 font-semibold tracking-[-0.01em] md:basis-40 md:truncate">{title}</h2>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline">
-            <LayersIcon strokeWidth={1.75} /> Calendários
-            {kinds.size < 4 ? <span className="tabular text-muted-foreground">{kinds.size}/4</span> : null}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-56 gap-1 p-2">
-          {(Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
-            <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
-              <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
-              {KIND_META[kind].label}
-            </label>
-          ))}
-        </PopoverContent>
-      </Popover>
-      <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-        <TabsList aria-label="Visão">
-          <TabsTrigger value="mes">Mês</TabsTrigger>
-          <TabsTrigger value="semana">Semana</TabsTrigger>
-          <TabsTrigger value="dia">Dia</TabsTrigger>
-          <TabsTrigger value="agenda" className="md:hidden">
-            Agenda
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
+    <CalendarToolbar
+      title={title}
+      onToday={() => setDay(todayKey)}
+      onShift={shift}
+      view={view}
+      onViewChange={setView}
+      filter={{
+        label: "Calendários",
+        badge: kinds.size < 4 ? `${kinds.size}/4` : undefined,
+        content: (Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
+          <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
+            <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
+            {KIND_META[kind].label}
+          </label>
+        )),
+      }}
+    />
   )
 
   const main = (
@@ -455,6 +528,7 @@ export function MonthGrid({
   onSelectDay,
   onOpenItem,
   onCreateOn,
+  onDropItem,
 }: {
   month: Date
   todayKey: string
@@ -462,7 +536,9 @@ export function MonthGrid({
   itemsOn: (key: string) => AgendaItem[]
   onSelectDay: (key: string) => void
   onOpenItem: (item: AgendaItem) => void
-  onCreateOn: (key: string) => void
+  onCreateOn: (key: string, anchor?: DOMRect) => void
+  /** Tasks only: an item (or a "Sem data" task) dropped on a day keeps its time. */
+  onDropItem?: (id: string, key: string) => void
 }) {
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) })
 
@@ -484,8 +560,19 @@ export function MonthGrid({
             title="Clique em um espaço vazio para criar um evento"
             onClick={(e) => {
               // An empty spot of the cell creates an event on that date; chips and the day number keep their own actions.
-              if (!(e.target as HTMLElement).closest("button, [data-radix-popper-content-wrapper]")) onCreateOn(key)
+              if (!(e.target as HTMLElement).closest("button, [data-radix-popper-content-wrapper]")) onCreateOn(key, e.currentTarget.getBoundingClientRect())
             }}
+            data-day-cell={key}
+            onDragOver={onDropItem ? (e) => e.preventDefault() : undefined}
+            onDrop={
+              onDropItem
+                ? (e) => {
+                    e.preventDefault()
+                    const id = e.dataTransfer.getData("application/x-organizzou-task")
+                    if (id) onDropItem(id, key)
+                  }
+                : undefined
+            }
             className={cn(
               "flex min-h-16 cursor-cell flex-col gap-1 border-r border-b border-border p-1.5 md:min-h-24",
               !isSameMonth(date, month) && "text-muted-foreground",
@@ -508,8 +595,12 @@ export function MonthGrid({
                 <button
                   key={item.key}
                   type="button"
+                  data-agenda-item={item.id}
+                  draggable={Boolean(onDropItem) && item.kind === "task"}
+                  onDragStart={(e) => e.dataTransfer.setData("application/x-organizzou-task", item.id)}
                   onClick={() => onOpenItem(item)}
-                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item))}
+                  style={itemStyle(item)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
                 >
                   <ItemIcon kind={item.kind} />
                   <span className="truncate">{item.title}</span>
@@ -709,7 +800,7 @@ function UpcomingList({
 // -------------------------------------------------------------- time grid
 
 type DragState =
-  | { mode: "create"; key: string; anchor: number; current: number }
+  | { mode: "create"; key: string; anchor: number; current: number; rect?: DOMRect }
   | { mode: "move"; item: AgendaItem; startKey: string; offsetMin: number; durationMin: number; key: string; top: number; moved: boolean }
   | { mode: "resize"; item: AgendaItem; key: string; startMin: number; endMin: number }
 
@@ -724,14 +815,20 @@ export function TimeGrid({
   onMoveEvent,
   canDrag,
   single = false,
+  onCreateAllDay,
+  onDropTask,
 }: {
+  /** All-day row: a click on its empty part (tasks: a date-only task). */
+  onCreateAllDay?: (key: string, anchor: DOMRect) => void
+  /** A "Sem data" task dropped on a column: the day and the 15-minute slot ("HH:mm"), or null when dropped on the all-day row. */
+  onDropTask?: (id: string, key: string, time: string | null) => void
   days: Date[]
   todayKey: string
   itemsOn: (key: string) => AgendaItem[]
   nowIso: string
   onOpenItem: (item: AgendaItem) => void
   onSelectDay?: (key: string) => void
-  onCreate: (draft: Draft) => void
+  onCreate: (draft: Draft, anchor?: DOMRect) => void
   onMoveEvent: (id: string, start: Date, end: Date) => void
   canDrag: (item: AgendaItem) => boolean
   single?: boolean
@@ -778,7 +875,7 @@ export function TimeGrid({
     if (e.button !== 0 || e.target !== e.currentTarget) return
     const m = minuteAt(e.clientY)
     e.currentTarget.setPointerCapture(e.pointerId)
-    setDrag({ mode: "create", key, anchor: m, current: m })
+    setDrag({ mode: "create", key, anchor: m, current: m, rect: new DOMRect(e.clientX, e.clientY, 1, 1) })
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -798,7 +895,7 @@ export function TimeGrid({
     if (d.mode === "create") {
       const start = Math.min(d.anchor, d.current)
       const end = Math.abs(d.current - d.anchor) < SNAP ? start + 60 : Math.max(d.anchor, d.current)
-      onCreate({ day: d.key, start: hhmm(start), end: hhmm(Math.min(end, 24 * 60 - 1)) })
+      onCreate({ day: d.key, start: hhmm(start), end: hhmm(Math.min(end, 24 * 60 - 1)) }, d.rect)
     } else if (d.mode === "move") {
       if (!d.moved) return onOpenItem(d.item)
       const start = new Date(toDueIso(d.key, hhmm(d.top), TZ))
@@ -816,7 +913,25 @@ export function TimeGrid({
           const key = format(date, "yyyy-MM-dd")
           const allDay = itemsOn(key).filter((i) => i.allDay)
           return (
-            <div key={key} role="columnheader" className="flex flex-col gap-1 border-l border-border px-2 py-2">
+            <div
+              key={key}
+              role="columnheader"
+              data-allday-row={key}
+              className="flex min-h-14 flex-col gap-1 border-l border-border px-2 py-2"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) onCreateAllDay?.(key, e.currentTarget.getBoundingClientRect())
+              }}
+              onDragOver={onDropTask ? (e) => e.preventDefault() : undefined}
+              onDrop={
+                onDropTask
+                  ? (e) => {
+                      e.preventDefault()
+                      const id = e.dataTransfer.getData("application/x-organizzou-task")
+                      if (id) onDropTask(id, key, null)
+                    }
+                  : undefined
+              }
+            >
               <button
                 type="button"
                 disabled={!onSelectDay}
@@ -832,10 +947,13 @@ export function TimeGrid({
                 <button
                   key={item.key}
                   type="button"
+                  data-agenda-item={item.id}
                   onClick={() => onOpenItem(item)}
-                  className={cn("truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item))}
+                  style={itemStyle(item)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
                 >
-                  {item.title}
+                  <ItemIcon kind={item.kind} />
+                  <span className="truncate">{item.title}</span>
                 </button>
               ))}
             </div>
@@ -863,7 +981,18 @@ export function TimeGrid({
                 aria-label={`${format(date, "EEEE, d 'de' MMMM", { locale: ptBR })}: arraste em um espaço vazio para criar um evento`}
                 className="relative cursor-cell touch-none border-l border-border"
                 style={{ height: gridHeight }}
+                data-time-column={key}
                 onPointerDown={(e) => startCreate(e, key)}
+                onDragOver={onDropTask ? (e) => e.preventDefault() : undefined}
+                onDrop={
+                  onDropTask
+                    ? (e) => {
+                        e.preventDefault()
+                        const id = e.dataTransfer.getData("application/x-organizzou-task")
+                        if (id) onDropTask(id, key, hhmm(minuteAt(e.clientY)))
+                      }
+                    : undefined
+                }
               >
                 {hours.map((hour, index) => (
                   <div key={hour} className="pointer-events-none absolute inset-x-0 border-t border-border" style={{ top: index * ROW_HEIGHT }} />
@@ -899,8 +1028,9 @@ export function TimeGrid({
                   return (
                     <div
                       key={item.key}
-                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(item), moving && "z-30 opacity-80 ring-2 ring-foreground/40")}
-                      style={{ top, height, left: `calc(${(column / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
+                      data-agenda-item={item.id}
+                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(item), moving && "z-30 opacity-80 ring-2 ring-foreground/40", item.highlight && HIGHLIGHT)}
+                      style={{ ...itemStyle(item), top, height, left: `calc(${(column / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
                     >
                       <button
                         type="button"

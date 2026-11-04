@@ -32,6 +32,10 @@ export type AgendaItem = {
   end: Date
   allDay: boolean
   swatch: SwatchId
+  /** A CSS color (a "Cor da tarefa"): tints the chip instead of the swatch. */
+  color?: string | null
+  /** Briefly highlighted (a task that was just created). */
+  highlight?: boolean
   detail?: string
   /** Only events created in the Agenda can be edited or deleted there. */
   editable: boolean

@@ -20,5 +20,5 @@ export type ViewProps = ListActions & {
   selection: { active: boolean; ids: Set<string>; toggle: (id: string) => void }
   /** Opens the creation sheet (phones) for a list. */
   /** `day` (yyyy-MM-dd) pre-fills the due date (the calendar's "Adicionar tarefa"). */
-  onCreate: (listId?: string, day?: string) => void
+  onCreate: (listId?: string, day?: string, time?: string, title?: string) => void
 }

@@ -26,6 +26,8 @@ type NewTaskDialogProps = {
   defaultListId?: string
   /** Pre-filled due date (the calendar's selected day, optionally with a time). */
   defaultDue?: { day: string; time?: string }
+  /** Pre-filled title (what was typed in the calendar's quick add). */
+  defaultTitle?: string
   now: Date
   timeZone: string
   onCreate: (input: NewTaskInput) => Promise<boolean>
@@ -70,8 +72,8 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
   )
 }
 
-function NewTaskForm({ lists, defaultListId, defaultDue, now, timeZone, onCreate, onClose }: NewTaskDialogProps & { onClose: () => void }) {
-  const [title, setTitle] = useState("")
+function NewTaskForm({ lists, defaultListId, defaultDue, defaultTitle, now, timeZone, onCreate, onClose }: NewTaskDialogProps & { onClose: () => void }) {
+  const [title, setTitle] = useState(defaultTitle ?? "")
   const [listId, setListId] = useState(defaultListId ?? lists.find((l) => !l.is_done_list)?.id ?? lists[0]?.id ?? "")
   const [priority, setPriority] = useState<Priority>("none")
   const [due, setDue] = useState<DuePreset>(defaultDue ? "dia" : "auto")
