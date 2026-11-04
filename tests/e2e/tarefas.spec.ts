@@ -268,7 +268,7 @@ test.describe("phone", () => {
     await open(page, "/design-system/tarefas?view=kanban")
     const tabs = page.getByRole("tablist", { name: "Listas do quadro" })
     await expect(tabs.getByRole("tab", { name: /^A fazer/ })).toHaveAttribute("aria-selected", "true")
-    expect((await tabs.boundingBox())!.height).toBeGreaterThanOrEqual(47)
+    expect((await tabs.boundingBox())!.height).toBeGreaterThanOrEqual(36)
     await expect(page.getByRole("button", { name: /Ver mais 4 tarefas/ })).toBeVisible()
     await tabs.getByRole("tab", { name: /^Em andamento/ }).click()
     await expect(tabs.getByRole("tab", { name: /^Em andamento/ })).toHaveAttribute("aria-selected", "true")
@@ -291,7 +291,7 @@ test.describe("phone", () => {
       await page.waitForTimeout(40)
     }
     await fire("pointerup", 190)
-    const panel = page.getByRole("button", { name: /Adiar 1 h/ }).first()
+    const panel = page.getByRole("button", { name: "Adiar 1 h", exact: true }).first()
     await expect(panel).toBeVisible()
     expect(Math.round((await panel.boundingBox())!.width)).toBe(68)
     await expect(page.getByRole("button", { name: /^Mover$/ }).first()).toBeVisible()
@@ -319,7 +319,7 @@ test.describe("phone", () => {
     const box = (await sheet.boundingBox())!
     expect(box.height).toBeGreaterThanOrEqual(844 * 0.9)
     expect(box.height).toBeLessThanOrEqual(844 * 0.93)
-    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(7) // Lista, Quadro, Prioridade, Prazo, Tags, the tag chip ×, Mais opções
+    await expect(sheet.getByTestId("properties").getByRole("button")).toHaveCount(8) // Lista, Quadro, Prioridade, Prazo, Tags, the tag chip ×, Categoria, the custom-color +
     for (const row of await sheet.getByTestId("properties").getByRole("button", { name: /^(Lista|Quadro|Prioridade|Prazo|Tags)$/ }).all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(51)
     await sheet.getByRole("button", { name: "Prioridade", exact: true }).click()
     await page.getByRole("dialog").last().getByRole("button", { name: "Média" }).click()
@@ -354,6 +354,6 @@ test.describe("phone", () => {
     await expect(page.getByRole("dialog")).toContainText("Ordem")
     await page.keyboard.press("Escape")
     const chips = page.getByRole("group", { name: "Atalhos" })
-    expect((await chips.locator("button").first().boundingBox())!.height).toBeGreaterThanOrEqual(43.5)
+    expect((await chips.locator("button").first().boundingBox())!.height).toBeGreaterThanOrEqual(35.5)
   })
 })

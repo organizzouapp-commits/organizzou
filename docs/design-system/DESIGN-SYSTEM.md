@@ -18,6 +18,9 @@ Tokens prontos: `organizzou-tokens.css` (mesclar em `src/app/globals.css`).
    fundo da cor a 16% sobre a superfície com borda de 1 px a 30%, barra de 4 px à esquerda do cartão da tarefa, bandeira da
    prioridade). **O texto do rótulo continua sempre no token neutro** (contraste nunca depende da cor escolhida) e o
    significado nunca vai só na cor (nome, ícone ou rótulo acessível junto). O chrome do app continua só com a paleta e o Lima.
+   **As cinco cores de rótulo padrão** (`--label-red`, `--label-yellow`, `--label-blue`, `--label-orange`, `--label-green`) e as cores
+   personalizadas da pessoa (até 8, `#RRGGBB`) formam as **cores de rótulo do usuário**: uma exceção permitida a "sem vermelho/verde" e a
+   "Lima é o único destaque". Cada uma tem ≥ 3:1 contra a superfície nos dois temas (ver 2.3).
 4. **Escuro primeiro.** O modo escuro é o padrão; o claro é completo, com o mesmo cuidado.
 5. **Ícone identifica o módulo, não a cor.** Todos os módulos usam a mesma paleta.
 6. **Mobile-first.** Projetar em 375 px, depois 768 e 1280.
@@ -62,6 +65,28 @@ A sidebar é **escura nos dois modos**: use sempre o logotipo do modo escuro nel
 
 `highlight` é o lima nos dois modos, sempre com texto/ícone em Tinta por cima: pílula do item ativo na navegação,
 seleção de texto, badges de "hoje". **Lima nunca é usado como texto ou linha sobre Papel** (contraste 1,1:1).
+
+### 2.3 Cores de rótulo do usuário
+
+Tokens (`globals.css`), um valor por tema:
+
+| Token | Escuro | Claro |
+|---|---|---|
+| `--label-red` (Vermelho) | `#E5484D` | `#D6343A` |
+| `--label-yellow` (Amarelo) | `#FFC53D` | `#A87400` |
+| `--label-blue` (Azul) | `#3E8BFF` | `#2C6FDB` |
+| `--label-orange` (Laranja) | `#FF8A3D` | `#C85A0A` |
+| `--label-green` (Verde) | `#3FB950` | `#1F8A36` |
+
+- **ColorPicker único** (tarefas, tags, categorias e prioridades; no diálogo da tarefa e em cada linha de Adicionar/Gerenciar): uma linha
+  que não quebra: [Sem cor (anel)] [Vermelho] [Amarelo] [Azul] [Laranja] [Verde] [+]. Círculos de 28 px, espaço de 8 px, área de toque de 44 px,
+  selecionado = anel de 2 px + check, `aria-label` com o nome pt-BR. As cores salvas entram depois das padrão (máx. 8, removíveis por
+  menu/clique longo); rola na horizontal só se estourar. "+" abre um painel compacto: `input type=color` + campo hex (`#RRGGBB`) + "Salvar cor".
+- Cores guardadas por versões antigas (Cinza, Lima, Lima verso, Tinta verso, Grafite, Papel) continuam renderizando e aparecem no seletor
+  como cores salvas. Nunca são apagadas.
+- **Regra de renderização:** texto neutro (`foreground`); a cor aparece só como ponto, fundo tingido (16% sobre a superfície, borda a 30%),
+  bandeira ou barra à esquerda.
+- Elevação transitória: `--shadow-lift` só no cartão levantado durante o arrastar (nunca em repouso).
 
 ### 2.2 Estados sem cores extras
 
@@ -351,7 +376,7 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 | `card` | Só quando agrupar de verdade. raio 16 px (`rounded-xl`), borda 1 px, sem sombra. |
 | `badge` | `rounded-full`; `secondary` padrão; `highlight` (Lima/Tinta) só para "hoje"/"novo". |
 | `input`, `textarea`, `select`, `form`, `label` | 44 px, raio 12 px (`rounded-lg`), borda `input`, foco `ring`. |
-| `checkbox` | Circular para hábitos e tarefas; marcado = Lima no escuro, Tinta no claro. |
+| `checkbox` | Circular para hábitos e tarefas; marcado = Lima no escuro, Tinta no claro. Em tarefas: 20 px visuais, check de 12 px, área de toque de 44 px por pseudo-elemento (sem afetar o layout). |
 | `switch`, `radio-group` | Ligado = `primary`. |
 | `progress` | Trilho `muted` 6 px; barra `chart-1` (Lima no escuro, Tinta verso no claro). |
 | `tabs` | Pílula: ativo `highlight`; inativo `muted-foreground`. |
@@ -363,6 +388,35 @@ Lucide, traço 1.75, 20 px na UI, 24 px na navegação, 16 px inline. Cor: `fore
 | `button` | Tamanho `xl` (52 px, 16 px / 600) para os formulários de acesso. |
 | `sidebar` | Variante `floating` (seção 5.2): raio 24 px, 260 px / rail de 80 px, itens de 44 px. |
 | `avatar`, `separator`, `skeleton`, `tooltip`, `scroll-area`, `dropdown-menu`, `popover`, `sheet` | Padrão com os tokens. |
+
+### 8.1 Cartão de tarefa (Tarefas)
+
+Um só componente (Kanban, Lista, Calendário, busca). Grade CSS: linha 1 = [check | título | ações], linha 2 = linha de meta.
+- Barra de cor: `left 8px`, 4 px, recuo de 12 px em cima e embaixo. Check de 20 px a 24 px da borda (12 px depois da barra); o recuo
+  esquerdo é constante com ou sem barra. Título 15 px/600, `line-height` 20 px; o check fica num wrapper de 20 px alinhado à PRIMEIRA linha.
+- Ações no topo à direita, centradas na primeira linha: bandeira de prioridade (16 px, não interativa, só com prioridade) e o botão ⋯
+  (32 px visuais, 44 px de toque, ícone de 16 px). O ⋯ ocupa sempre o último slot, então não se move quando não há bandeira.
+- Linha de meta (flex, wrap, `column-gap 8`, `row-gap 6`, `margin-top 6`): data/hora (13 px, muted), chip de prioridade, chip de categoria, chips
+  de tags (24 px, 12 px, texto neutro; no máximo 3 chips e depois "+N") e os contadores (13 px, ícones de 14 px, espaço de 10 px) com
+  `margin-inline-start:auto`, alinhados à direita (a borda direita coincide com a do ⋯).
+- Toque: arrastar começa com pressão longa de 250 ms (tolerância 8 px); deslizar horizontalmente conclui/adia; não há menu por pressão longa.
+  Alternativa acessível: ⋯ > Mover para cima / Mover para baixo / Mover para… (Quadro → Lista).
+
+### 8.2 Cabeçalho de Tarefas no celular
+
+Cartão sólido (raio 20, padding 12, `margin-top 12`, linhas separadas por 8 px): linha 1 = nome do quadro (18 px/600, editável por toque) + chevron
+(32 px) + busca e "Filtrar e ordenar" (círculos de 36 px, toque de 44 px); linha 2 = controle segmentado só de ícones (Kanban = colunas, Lista,
+Calendário; 40 px, ícones de 20 px, `aria-label` + `title`); linha 3 = abas das listas / atalhos (36 px, 13 px, padding 10 px; rola com
+`scroll-snap` e mantém o ativo à vista; o lápis fica fixo no fim) e some em Calendário.
+
+### 8.3 Calendário de Tarefas
+
+Espelha a Agenda usando os mesmos componentes (`CalendarToolbar`, `MonthGrid`, `TimeGrid`, `DayStrip`, `MiniMonth`): "Hoje", anterior/próximo, título
+do período, botão **Listas** (popover no desktop / folha no celular: uma linha por lista do quadro + "Mostrar concluídas") e Mês | Semana |
+Dia | Agenda. A última visão fica salva por pessoa (padrão: Semana no celular, Mês no desktop). Listas do dia: Sem horário, Manhã, Tarde, Noite e
+Sem data são grupos recolhíveis (44 px, chevron à esquerda, contagem; "Sem data" fecha por padrão). O horário fica dentro do cartão (sem coluna
+de horas). Criar: desktop = clique num dia/slot/linha "dia todo" abre um popover ancorado; celular = "+" do cabeçalho e o botão tracejado
+"+ Adicionar tarefa". A tarefa aparece na hora, com destaque de ~1,2 s, mesmo que um filtro a esconda (toast "Tarefa criada em …" + "Ver").
 
 Componentes próprios (`src/components/organizzou/`): `Logo`, `ModuleIcon` (só ícone + nome), `Stat`
 (rótulo + número herói + apoio, sem caixa), `HabitCheck`, `ListRow`, `BottomNav` (pílula flutuante: 4 itens + "+" central elevado;

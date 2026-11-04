@@ -72,7 +72,7 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Mais ações: ${task.title}`} className="relative size-8 shrink-0 rounded-full opacity-100 transition-opacity duration-150 after:absolute after:-inset-1.5 group-focus-within/card:opacity-100 group-hover/card:opacity-100 data-[state=open]:opacity-100 md:opacity-60 [&_svg]:size-4">
+        <Button variant="ghost" size="icon" aria-label={`Mais ações: ${task.title}`} className="relative size-8 shrink-0 rounded-full md:size-8 opacity-100 transition-opacity duration-150 after:absolute after:-inset-1.5 group-focus-within/card:opacity-100 group-hover/card:opacity-100 data-[state=open]:opacity-100 md:opacity-60 [&_svg]:size-4">
           <EllipsisIcon strokeWidth={1.75} />
         </Button>
       </DropdownMenuTrigger>

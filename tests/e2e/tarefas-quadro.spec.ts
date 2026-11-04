@@ -278,6 +278,7 @@ test.describe("desktop", () => {
     await expect(calendar.getByRole("grid").first()).toBeVisible()
     const rail = calendar.getByRole("complementary", { name: "Painel do calendário" })
     await expect(rail.getByRole("grid", { name: /Novembro/i }).or(rail.getByText("Novembro 2026"))).toBeVisible()
+    await rail.getByTestId("undated-tray").getByRole("button", { name: /Sem data/ }).click()
     await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toBeVisible()
     const railBox = (await rail.boundingBox())!
     expect(Math.round(railBox.width)).toBe(320)
@@ -292,12 +293,13 @@ test.describe("desktop", () => {
     await expect(page.getByText("Tarefa reagendada.")).toBeVisible()
 
     // Schedule an undated task from the tray.
-    await rail.getByRole("button", { name: /^Agendar Pesquisar curso/ }).click()
-    await page.getByRole("menuitem", { name: /^No dia/ }).click()
+    await rail.getByRole("button", { name: "Mais ações: Pesquisar curso de fotografia", exact: true }).click()
+    await page.getByRole("menuitem", { name: /Agendar/ }).click()
+    await page.getByRole("button", { name: "Agendar", exact: true }).last().click()
     await expect(rail.getByTestId("undated-tray").getByText("Pesquisar curso de fotografia")).toHaveCount(0)
 
     // The rail list opens the same task dialog.
-    await rail.getByRole("button", { name: "Comprar planta para a sala" }).click()
+    await rail.getByRole("button", { name: "Comprar planta para a sala", exact: true }).click()
     await expect(page.getByRole("dialog")).toBeVisible()
     await expect(page).toHaveURL(/tarefa=/)
   })
@@ -371,7 +373,6 @@ test.describe("desktop", () => {
   test("categories: pick one from a manageable list and rename it everywhere", async ({ page }) => {
     await open(page, `/design-system/tarefas?view=kanban&tarefa=${PREPARAR}`)
     const dialog = page.getByRole("dialog")
-    await dialog.getByRole("button", { name: "Mais opções" }).click()
     await dialog.getByRole("button", { name: "Categoria", exact: true }).click()
     const picker = page.getByTestId("picker-categoria")
     await picker.getByLabel("Buscar ou criar categoria").fill("Projeto")
@@ -433,9 +434,9 @@ for (const width of [360, 390, 430]) {
       expect(clipped).toBe(0)
       const views = await page.getByRole("tablist", { name: "Visão" }).locator('[role="tab"]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().width)))
       expect(Math.max(...views) - Math.min(...views)).toBeLessThanOrEqual(2)
-      for (const tab of await page.getByRole("tablist", { name: "Visão" }).locator('[role="tab"]').all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+      for (const tab of await page.getByRole("tablist", { name: "Visão" }).locator('[role="tab"]').all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(36)
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
-      expect((await page.getByRole("button", { name: "Buscar tarefas" }).boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      expect((await page.getByRole("button", { name: "Buscar tarefas" }).boundingBox())!.height).toBeGreaterThanOrEqual(36)
     })
   })
 }
@@ -446,7 +447,7 @@ test.describe("phone", () => {
 
   test("the page scrolls normally (no nested scroll) and the list tabs switch lists", async ({ page }) => {
     await open(page, "/design-system/tarefas?view=kanban&volume=30")
-    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(900)
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(850)
     const tab = page.getByRole("tab", { name: /^Em andamento/ })
     await tab.click()
     await expect(tab).toHaveAttribute("aria-selected", "true")

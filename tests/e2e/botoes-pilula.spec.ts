@@ -68,10 +68,9 @@ for (const [name, size] of [["mobile", { width: 390, height: 844 }], ["desktop",
       const dialog = page.locator('[role="dialog"]').first()
       await expect(dialog).toBeVisible()
       expect(await offenders(page)).toEqual([])
-      await page.getByRole("button", { name: "Mais opções" }).first().click()
       for (const label of ["Prioridade", "Tags", "Categoria"]) {
         await page.getByRole("button", { name: label, exact: true }).first().click()
-        await expect(page.locator("[data-picker-footer]")).toBeVisible()
+        await expect(page.locator("[data-picker-footer]").last()).toBeVisible()
         expect(await offenders(page), label).toEqual([])
         await page.keyboard.press("Escape")
       }

@@ -1081,7 +1081,7 @@ function DetailBody({
           <TitleField value={title} onChange={(v) => { setTitle(v); later("title", () => commitTitle(v)) }} onCommit={() => commitTitle(title)} className={desktop ? "text-[24px] leading-8" : "text-[22px] leading-[30px]"} />
         </div>
         {desktop ? (
-          <div className="grid grid-cols-[minmax(0,1fr)_264px] gap-6">
+          <div className="grid grid-cols-[minmax(0,1fr)_288px] gap-6">
             <div className="flex min-w-0 flex-col gap-8">
               {descriptionBlock}
               {checklistBlock}

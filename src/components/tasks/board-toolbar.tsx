@@ -331,7 +331,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
     { id: "calendario", label: "Calendário", icon: CalendarDaysIcon },
   ]
   const viewTabs = (
-    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full" : "")}>
+    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full p-0" : "")}>
       {views.map(({ id, label, icon: Icon }) => {
         const on = props.view === id
         return (
