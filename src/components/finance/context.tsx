@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react"
 
+import type { GoalHistory } from "@/features/finance/goal-history"
 import type { GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 
@@ -24,6 +25,7 @@ export type Finance = {
   bills: RecurringBillRow[]
   goals: FinancialGoalRow[]
   goalIcons: Record<string, GoalIconKey>
+  goalHistory: GoalHistory
   filters: Filters
   setFilters: (next: Partial<Filters>) => void
   categoryName: (id: string | null) => string
@@ -58,6 +60,8 @@ export type Finance = {
   saveAccount: (row: AccountRow) => void
   saveLimits: (limits: Record<string, number | null>) => void
   openNewAccount: () => void
+  /** Moving money between accounts is not built yet; the Transferir pill says so. */
+  openTransfer: () => void
   openLimits: () => void
 }
 

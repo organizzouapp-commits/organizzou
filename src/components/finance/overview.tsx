@@ -3,112 +3,82 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowDownRightIcon, ArrowUpRightIcon, BanknoteIcon, ClockIcon, CircleAlertIcon, LandmarkIcon, PencilIcon, ScaleIcon, TriangleAlertIcon } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { ArrowDownRightIcon, ArrowUpRightIcon, CircleAlertIcon, PlusIcon, ReceiptIcon, ScaleIcon, TriangleAlertIcon } from "lucide-react"
 
-import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { Button } from "@/components/ui/button"
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { accountBalance, billStatusIn, monthlySeries, spendByCategory, totalBalance, totals, type CategorySpend } from "@/features/finance/stats"
-import { formatBalance, formatBRL } from "@/lib/money"
+import { monthlySeries } from "@/features/finance/stats"
+import { formatBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
+import { BentoCard, BentoStat, CashflowChart, SegmentedPills, WalletMiniCard, type CashflowMonth } from "./bento"
+import { BillMini } from "./bill-mini"
 import { useFinance } from "./context"
-import { AddPill, CardHeader, CardStack, CategoryCircle, FinanceListItem, HeroCard, LIST_CARD, MoneyText, ProgressBar, StatTile, StatusChip, SUMMARY_CARD, useCategoryColor } from "./parts"
+import { derive, variation } from "./derive"
+import { GoalRing } from "./goals"
+import { AddPill, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, HeroPill, MoneyText, ProgressBar, ProgressRing, StatusChip, useCategoryColor } from "./parts"
+import { accountBalance } from "@/features/finance/stats"
 
-const chartConfig = {
-  income: { label: "Entradas", color: "var(--chart-1)" },
-  expense: { label: "Saídas", color: "var(--chart-4)" },
-} satisfies ChartConfig
+// ------------------------------------------------------------------ hero and stats
 
-/** "Venceu há 3 dias" / "Vence hoje" / "Vence em 5 dias". */
-export function dueText(daysLeft: number, status: string) {
-  if (status === "paid") return "Pago"
-  const n = Math.abs(daysLeft)
-  if (daysLeft < 0) return `Venceu há ${n} ${n === 1 ? "dia" : "dias"}`
-  if (daysLeft === 0) return "Vence hoje"
-  return `Vence em ${n} ${n === 1 ? "dia" : "dias"}`
+export function BalanceHero() {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <HeroCard
+      label="Saldo total"
+      value={<MoneyText cents={d.balance} tone="value" dimDecimals />}
+      support={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`}
+      className="h-full justify-between"
+      actions={
+        <>
+          <HeroPill primary onClick={f.openTransfer}>
+            Transferir
+          </HeroPill>
+          <HeroPill onClick={() => f.goTab("fixas")}>Pagar conta</HeroPill>
+        </>
+      }
+    />
+  )
 }
 
-/** The four numbers at the top. Saldo do mês is the real signed result (entradas − saídas): it can be negative. */
-export function KpiRow() {
+/** Entradas, Saídas, Saldo do mês (the signed result) and what is still to pay in fixed bills. */
+export function StatGrid({ compact = false }: { compact?: boolean }) {
   const f = useFinance()
-  const month = totals(f.transactions, f.month)
-  const balance = totalBalance(f.accounts, f.transactions)
+  const d = derive(f)
+  const incomeVar = variation(d.month.income, d.previous.income)
+  const expenseVar = variation(d.month.expense, d.previous.expense)
   return (
-    <div data-testid="kpi-row" className="grid grid-cols-3 gap-2 md:gap-4 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
-      <HeroCard label="Saldo total" value={formatBalance(balance)} support={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} className="col-span-3 lg:col-span-1" />
-      <StatTile compact={f.isMobile} icon={ArrowUpRightIcon} label="Entradas">
-        <MoneyText cents={month.income} />
-      </StatTile>
-      <StatTile compact={f.isMobile} icon={ArrowDownRightIcon} label="Saídas">
-        <MoneyText cents={month.expense} />
-      </StatTile>
-      <StatTile compact={f.isMobile} icon={ScaleIcon} label="Saldo do mês" helper={f.isMobile ? undefined : "entradas menos saídas"}>
-        <MoneyText cents={month.surplus} tone="value" />
-      </StatTile>
+    <div data-testid="stat-grid" className="grid auto-rows-fr grid-cols-2 gap-3 md:gap-4">
+      <BentoStat compact={compact} label="Entradas" icon={ArrowUpRightIcon} chip={incomeVar ?? "este mês"}>
+        <MoneyText cents={d.month.income} dimDecimals />
+      </BentoStat>
+      <BentoStat compact={compact} label="Saídas" icon={ArrowDownRightIcon} chip={expenseVar ?? "este mês"}>
+        <MoneyText cents={d.month.expense} dimDecimals />
+      </BentoStat>
+      <BentoStat compact={compact} label="Saldo do mês" icon={ScaleIcon} chip="entradas − saídas">
+        <MoneyText cents={d.month.surplus} tone="value" dimDecimals />
+      </BentoStat>
+      <BentoStat compact={compact} label="Fixas a pagar" icon={ReceiptIcon} chip={`${d.unpaidCount} ${d.unpaidCount === 1 ? "conta" : "contas"}`}>
+        <MoneyText cents={d.toPayTotal} dimDecimals />
+      </BentoStat>
     </div>
   )
 }
 
-/** "Para ficar de olho": bills overdue or due within five days of the month on show. */
-export function WatchList() {
-  const f = useFinance()
-  const [open, setOpen] = useState(true)
-  const views = f.bills
-    .filter((b) => b.active)
-    .map((b) => billStatusIn(b, f.month, f.today))
-    .filter((v) => v.status === "soon" || v.status === "overdue")
-    .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
-  if (views.length === 0) return null
-  return (
-    <section aria-label="Para ficar de olho" data-testid="watch-list" className="flex flex-col">
-      <div className="flex items-center justify-between gap-3">
-        <GroupHeader label="Para ficar de olho" count={views.length} open={open} onToggle={() => setOpen((v) => !v)} />
-        <Button variant="outline" size="sm" className="shrink-0" onClick={() => f.goTab("fixas")}>
-          Ver todas
-        </Button>
-      </div>
-      <Collapse open={open}>
-        <CardStack>
-          {views.map(({ bill, status, daysLeft }) => (
-            <FinanceListItem
-              key={bill.id}
-              data-bill={bill.id}
-              leading={<span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50">{status === "overdue" ? <TriangleAlertIcon strokeWidth={1.75} className="size-[18px]" /> : <ClockIcon strokeWidth={1.75} className="size-[18px]" />}</span>}
-              title={bill.name}
-              subtitle={dueText(daysLeft, status)}
-              amount={<MoneyText cents={bill.amount_cents} />}
-              action={
-                <Button size="sm" onClick={() => f.payBill(bill)}>
-                  Pagar
-                </Button>
-              }
-              onOpen={() => f.goTab("fixas")}
-            />
-          ))}
-        </CardStack>
-      </Collapse>
-    </section>
-  )
-}
+// ------------------------------------------------------------------ budget and categories
 
-function CategoryCard({ row, bordered }: { row: CategorySpend; bordered: boolean }) {
+function CategoryBar({ row }: { row: ReturnType<typeof derive>["categories"][number] }) {
   const { category, spent, limit, ratio } = row
   const color = useCategoryColor(category.id)
   const pct = ratio === null ? 0 : ratio * 100
   return (
-    <div data-category-card={category.id} className={cn("flex min-w-0 flex-col gap-2 p-3", bordered ? LIST_CARD : "rounded-[12px] border border-border")}>
+    <div data-category-card={category.id} className="flex min-w-0 flex-col gap-1.5">
       <div className="flex items-center gap-3">
-        <CategoryCircle id={category.id} name={category.name} />
+        <CategoryCircle id={category.id} name={category.name} size="sm" />
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-[15px] leading-6 font-medium">{category.name}</span>
-            {ratio !== null && ratio > 1 ? (
-              <StatusChip icon={CircleAlertIcon}>Acima do limite</StatusChip>
-            ) : ratio !== null && ratio >= 0.9 ? (
-              <StatusChip icon={TriangleAlertIcon}>Perto do limite</StatusChip>
-            ) : null}
+            {ratio !== null && ratio > 1 ? <StatusChip icon={CircleAlertIcon}>Acima do limite</StatusChip> : ratio !== null && ratio >= 0.9 ? <StatusChip icon={TriangleAlertIcon}>Perto do limite</StatusChip> : null}
           </span>
           <span className="tabular truncate text-[13px] leading-5 text-muted-foreground">
             {formatBRL(spent)}
@@ -122,110 +92,278 @@ function CategoryCard({ row, bordered }: { row: CategorySpend; bordered: boolean
   )
 }
 
-/** "Orçamento do mês" with, on desktop, "Onde estou gastando" inside it as a two-column grid. */
-export function BudgetCard() {
+/** The budget ring card: % used, "R$ X de R$ Y" and what is left. `rows` adds that many category rows (phones). */
+export function BudgetBento({ rows = 0 }: { rows?: number }) {
   const f = useFinance()
-  const categories = spendByCategory(f.categories, f.transactions, f.month)
-  const budget = f.categories.reduce((sum, c) => sum + (c.monthly_limit_cents ?? 0), 0)
-  const spentInBudget = categories.filter((c) => c.limit).reduce((sum, c) => sum + c.spent, 0)
-  const pct = budget === 0 ? 0 : (spentInBudget / budget) * 100
+  const d = derive(f)
   return (
-    <section aria-label="Orçamento do mês" data-testid="budget-card" className={cn(SUMMARY_CARD, "flex flex-col gap-4 p-5")}>
-      <CardHeader
-        title="Orçamento do mês"
-        actions={
-          <Button variant="outline" size="sm" className="shrink-0" onClick={f.openLimits}>
-            <PencilIcon strokeWidth={1.75} /> Editar limites
+    <BentoCard title={f.isMobile ? "Orçamento do mês" : "Orçamento"} subtitle={f.isMobile ? undefined : "do mês"} onArrow={f.openLimits} arrowLabel="Editar limites" data-testid="budget-card" className="h-full">
+      <div className="flex items-center gap-4">
+        <ProgressRing value={d.budgetPct} label="Orçamento usado" size={96} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <MoneyText cents={d.spentInBudget} dimDecimals className="text-[20px] leading-7 font-semibold" />
+          <span className="tabular text-[13px] leading-5 text-muted-foreground">de {formatBRL(d.budget)}</span>
+          <span className="text-[13px] leading-5 text-muted-foreground">{d.spentInBudget <= d.budget ? `Restam ${formatBRL(d.budget - d.spentInBudget)} até o fim do mês.` : `Você passou ${formatBRL(d.spentInBudget - d.budget)} do orçamento.`}</span>
+          <Button variant="outline" size="sm" className="mt-1 w-fit" onClick={f.openLimits}>
+            Editar limites
           </Button>
-        }
-      />
+        </div>
+      </div>
+      {rows > 0 ? (
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          {d.categories.slice(0, rows).map((row) => (
+            <CategoryBar key={row.category.id} row={row} />
+          ))}
+        </div>
+      ) : null}
+    </BentoCard>
+  )
+}
+
+export function SpendingBento() {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoCard title="Onde estou gastando" subtitle="por categoria, neste mês" onArrow={() => f.goTab("lancamentos")} arrowLabel="Ver lançamentos" data-testid="spending-card" className="h-full">
       <div className="flex flex-col gap-3">
-        <div className="tabular flex items-baseline justify-between gap-3 text-[15px] leading-6">
-          <span className="whitespace-nowrap">
-            <span className="text-[22px] leading-8 font-semibold">{formatBRL(spentInBudget)}</span> <span className="text-muted-foreground">de {formatBRL(budget)}</span>
-          </span>
-          <span className="text-muted-foreground">{Math.round(pct)}%</span>
-        </div>
-        <ProgressBar value={pct} label="Orçamento usado" />
-        <p className="text-[13px] leading-5 text-muted-foreground">
-          {spentInBudget <= budget ? `Restam ${formatBRL(budget - spentInBudget)} até o fim do mês.` : `Você passou ${formatBRL(spentInBudget - budget)} do orçamento.`}
-        </p>
-      </div>
-      {f.isMobile ? null : (
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <h4 className="text-[15px] leading-6 font-semibold">Onde estou gastando</h4>
-          {categories.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhum gasto neste mês.</p> : null}
-          <div className="grid gap-3 md:grid-cols-2">
-            {categories.map((row) => (
-              <CategoryCard key={row.category.id} row={row} bordered={false} />
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
-/** Phones: "Onde estou gastando" as separate cards (four, then a dashed "Ver todas as categorias"). */
-export function SpendingList() {
-  const f = useFinance()
-  const [all, setAll] = useState(false)
-  const categories = spendByCategory(f.categories, f.transactions, f.month)
-  const shown = all ? categories : categories.slice(0, 4)
-  return (
-    <section aria-label="Onde estou gastando" data-testid="spending-list" className="flex flex-col">
-      <h3 className="flex h-11 items-center text-[15px] font-semibold">Onde estou gastando</h3>
-      <CardStack>
-        {shown.map((row) => (
-          <CategoryCard key={row.category.id} row={row} bordered />
+        {d.categories.slice(0, 5).map((row) => (
+          <CategoryBar key={row.category.id} row={row} />
         ))}
-        {categories.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhum gasto neste mês.</p> : null}
-        {categories.length > 4 ? <AddPill label={all ? "Mostrar menos" : "Ver todas as categorias"} onClick={() => setAll((v) => !v)} /> : null}
-      </CardStack>
-    </section>
+        {d.categories.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhum gasto neste mês.</p> : null}
+      </div>
+    </BentoCard>
   )
 }
 
-export function EvolutionCard() {
+// ------------------------------------------------------------------ cash flow
+
+export function CashflowBento() {
   const f = useFinance()
-  const series = monthlySeries(f.transactions, f.month, 6).map((s) => ({ ...s, label: format(parseISO(`${s.month}-01`), "MMM", { locale: ptBR }).replace(".", "") }))
+  const [mode, setMode] = useState<"m" | "a">("m")
+  const [picked, setPicked] = useState<string | null>(null)
+  const year = f.month.slice(0, 4)
+  const data: CashflowMonth[] = (mode === "m" ? monthlySeries(f.transactions, f.month, 6) : monthlySeries(f.transactions, `${year}-12`, 12)).map((s) => ({
+    key: s.month,
+    label: format(parseISO(`${s.month}-01`), "MMM", { locale: ptBR }).replace(".", ""),
+    income: s.income,
+    expense: s.expense,
+  }))
+  const byKey = data.findIndex((m) => m.key === (picked ?? f.month))
+  const selected = byKey >= 0 ? byKey : Math.max(0, data.map((m) => m.income + m.expense > 0).lastIndexOf(true))
+  const m = data[selected]
   return (
-    <section aria-label="Evolução nos últimos 6 meses" className={cn(SUMMARY_CARD, "flex flex-col gap-3 p-5")}>
-      <CardHeader title="Evolução nos últimos 6 meses" />
-      <ChartContainer config={chartConfig} className="aspect-auto h-[170px] w-full md:h-[190px]">
-        <BarChart data={series} margin={{ left: 4, right: 4 }}>
-          <CartesianGrid vertical={false} strokeOpacity={0.5} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-          <YAxis tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => (v >= 100000 ? `${(v / 100000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : `${v / 100}`)} />
-          <ChartTooltip content={<ChartTooltipContent className="border-border bg-popover text-popover-foreground" formatter={(value, name) => `${name === "income" ? "Entradas" : "Saídas"}: ${formatBRL(Number(value))}`} />} />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Bar dataKey="income" fill="var(--color-income)" radius={6} />
-          <Bar dataKey="expense" fill="var(--color-expense)" radius={6} />
-        </BarChart>
-      </ChartContainer>
-    </section>
+    <BentoCard
+      title="Fluxo de caixa"
+      subtitle={mode === "m" ? "últimos 6 meses" : `ano de ${year}`}
+      data-testid="cashflow-card"
+      className="h-full"
+      actions={
+        <SegmentedPills
+          ariaLabel="Período do fluxo de caixa"
+          items={[
+            { id: "m", label: "Mensal" },
+            { id: "a", label: "Anual" },
+          ]}
+          value={mode}
+          onChange={(v) => (setMode(v), setPicked(null))}
+        />
+      }
+    >
+      <CashflowChart data={data} selected={selected} onSelect={(i) => setPicked(data[i].key)} ariaLabel={`Fluxo de caixa. ${m ? `${m.label}: entradas ${formatBRL(m.income)}, saídas ${formatBRL(m.expense)}.` : ""} Use as setas para trocar de mês.`} />
+      <div className="flex items-center gap-4 text-[12px] leading-4 text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="size-2.5 rounded-full bg-highlight" /> Entradas
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="size-2.5 rounded-full bg-foreground/25" /> Saídas
+        </span>
+      </div>
+    </BentoCard>
   )
 }
 
-export function AccountsCard() {
+// ------------------------------------------------------------------ bills, wallets, goals, recent
+
+export function WatchBento() {
   const f = useFinance()
+  const d = derive(f)
   return (
-    <section aria-label="Contas e bancos" className={cn(SUMMARY_CARD, "flex flex-col gap-3 p-5")}>
-      <CardHeader title="Contas e bancos" />
+    <BentoCard title="Para ficar de olho" subtitle={d.watch.length ? `${d.watch.length} ${d.watch.length === 1 ? "conta" : "contas"} perto de vencer` : undefined} onArrow={() => f.goTab("fixas")} arrowLabel="Ver contas fixas" data-testid="watch-list" className="h-full">
       <div className="flex flex-col gap-2">
-        {f.accounts.map((account) => (
-          <div key={account.id} data-account={account.id} className={cn(LIST_CARD, "flex min-h-14 items-center gap-3 px-3 py-2")}>
-            <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50">
-              {account.institution === "Dinheiro" ? <BanknoteIcon strokeWidth={1.75} className="size-[18px]" /> : <LandmarkIcon strokeWidth={1.75} className="size-[18px]" />}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[15px] leading-6">{account.name}</span>
-            <MoneyText cents={accountBalance(account, f.transactions)} tone="value" className="text-[15px] font-semibold" />
-          </div>
+        {d.watch.map((v) => (
+          <BillMini key={v.bill.id} view={v} />
         ))}
-        {f.accounts.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma conta ainda.</p> : null}
-        <AddPill label="Adicionar conta…" onClick={f.openNewAccount} />
+        {d.watch.length === 0 ? <EmptyBlock icon={ReceiptIcon} title="Nada vencendo agora" description="As contas que vencem em até 5 dias aparecem aqui." /> : null}
       </div>
-    </section>
+    </BentoCard>
   )
 }
 
+export function AccountsBento() {
+  const f = useFinance()
+  return (
+    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} className="h-full" data-testid="accounts-card">
+      <div className="grid grid-cols-2 gap-3">
+        {f.accounts.slice(0, 4).map((a) => (
+          <WalletMiniCard key={a.id} account={a} balance={accountBalance(a, f.transactions)} />
+        ))}
+      </div>
+      <AddPill label="Adicionar conta…" onClick={f.openNewAccount} />
+    </BentoCard>
+  )
+}
+
+/** Phones: the wallets in a horizontal carousel with a dashed "Adicionar" card. */
+export function AccountsCarousel() {
+  const f = useFinance()
+  return (
+    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} data-testid="accounts-card">
+      <div data-testid="accounts-carousel" className="scroll-soft -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+        {f.accounts.map((a) => (
+          <WalletMiniCard key={a.id} account={a} balance={accountBalance(a, f.transactions)} className="w-[152px] shrink-0 snap-start" />
+        ))}
+        <button type="button" data-add-task-pill onClick={f.openNewAccount} className="flex w-[152px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border p-3 text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+          <PlusIcon aria-hidden strokeWidth={1.75} className="size-5" />
+          Adicionar conta…
+        </button>
+      </div>
+    </BentoCard>
+  )
+}
+
+/** Goals in progress, nearest deadline first. */
+export function useOpenGoals() {
+  const f = useFinance()
+  return f.goals
+    .filter((g) => g.current_cents < g.target_cents)
+    .sort((a, b) => (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999"))
+}
+
+export function GoalsBento() {
+  const f = useFinance()
+  const goals = useOpenGoals().slice(0, 3)
+  return (
+    <BentoCard title="Metas" subtitle="em andamento" onArrow={() => f.goTab("metas")} arrowLabel="Ver metas" data-testid="goals-card" className="h-full">
+      <div className="flex flex-col gap-2">
+        {goals.map((g) => (
+          <div key={g.id} data-goal={g.id} className="flex items-center gap-3 rounded-[14px] border border-border p-2.5">
+            <GoalRing goal={g} size={44} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[15px] leading-6 font-medium">{g.name}</span>
+              <span className="tabular truncate text-[13px] leading-5 text-muted-foreground">
+                {formatBRL(g.current_cents)} de {formatBRL(g.target_cents)}
+              </span>
+            </div>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => f.fundGoal(g)}>
+              <PlusIcon strokeWidth={1.75} /> Guardar
+            </Button>
+          </div>
+        ))}
+        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : null}
+      </div>
+    </BentoCard>
+  )
+}
+
+/** Phones: a carousel of ring cards. */
+export function GoalsCarousel() {
+  const f = useFinance()
+  const goals = useOpenGoals()
+  return (
+    <BentoCard title="Metas" subtitle="em andamento" onArrow={() => f.goTab("metas")} arrowLabel="Ver metas" data-testid="goals-card">
+      <div data-testid="goals-carousel" className="scroll-soft -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+        {goals.map((g) => (
+          <div key={g.id} data-goal={g.id} className="flex w-[168px] shrink-0 snap-start flex-col gap-2 rounded-[14px] border border-border p-3">
+            <GoalRing goal={g} size={64} />
+            <span className="truncate text-[15px] leading-6 font-medium">{g.name}</span>
+            <span className="tabular truncate text-[12px] leading-4 text-muted-foreground">
+              {formatBRL(g.current_cents)} de {formatBRL(g.target_cents)}
+            </span>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => f.fundGoal(g)}>
+              <PlusIcon strokeWidth={1.75} /> Guardar
+            </Button>
+          </div>
+        ))}
+        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : null}
+      </div>
+    </BentoCard>
+  )
+}
+
+/** Phones: the last three movements and a pill to all of them. */
+export function RecentBento() {
+  const f = useFinance()
+  const last = [...f.transactions].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on)).slice(0, 3)
+  return (
+    <BentoCard title="Últimas movimentações" data-testid="recent-card">
+      <div className="flex flex-col gap-2">
+        {last.map((t) => (
+          <FinanceListItem
+            key={t.id}
+            data-transaction={t.id}
+            leading={<CategoryCircle id={t.category_id} name={f.categoryName(t.category_id)} />}
+            title={t.description}
+            subtitle={`${f.categoryName(t.category_id)} · ${f.accountName(t.account_id)}`}
+            amount={<MoneyText cents={t.amount_cents} tone={t.kind === "in" ? "in" : "out"} />}
+            onOpen={() => f.editTransaction(t)}
+          />
+        ))}
+        <Button variant="outline" className={cn("h-11 w-full")} onClick={() => f.goTab("lancamentos")}>
+          Ver todas
+        </Button>
+      </div>
+    </BentoCard>
+  )
+}
+
+function Cell({ className, children }: { className: string; children: React.ReactNode }) {
+  return <div className={cn("min-w-0 [&>*]:h-full", className)}>{children}</div>
+}
+
+/** Desktop (12 columns from 1280, 8 from 1024) and tablet (one column of two-up stat grids). */
+export function OverviewDesktop() {
+  return (
+    <div data-testid="overview-grid" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-8 xl:grid-cols-12">
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-5">
+        <BalanceHero />
+      </Cell>
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-4">
+        <StatGrid />
+      </Cell>
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-3">
+        <BudgetBento />
+      </Cell>
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-7">
+        <CashflowBento key="flow" />
+      </Cell>
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-5">
+        <WatchBento />
+      </Cell>
+      <Cell className="md:col-span-1 lg:col-span-4 xl:col-span-4">
+        <SpendingBento />
+      </Cell>
+      <Cell className="md:col-span-1 lg:col-span-4 xl:col-span-4">
+        <AccountsBento />
+      </Cell>
+      <Cell className="md:col-span-2 lg:col-span-8 xl:col-span-4">
+        <GoalsBento />
+      </Cell>
+    </div>
+  )
+}
+
+/** Phones: one column, 12px apart. */
+export function OverviewMobile() {
+  return (
+    <div data-testid="overview-grid" className="flex flex-col gap-3">
+      <BalanceHero />
+      <StatGrid compact />
+      <AccountsCarousel />
+      <BudgetBento rows={3} />
+      <CashflowBento />
+      <WatchBento />
+      <GoalsCarousel />
+      <RecentBento />
+    </div>
+  )
+}
