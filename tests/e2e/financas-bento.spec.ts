@@ -542,7 +542,9 @@ test.describe("phone behaviors", () => {
 
   test("Visão geral: order of cards, 2x2 stats, chart month by tap, Pagar, Últimas movimentações", async ({ page }) => {
     await open(page)
-    const order = await page.locator("[data-testid=overview-grid] > section[aria-label]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
+    const sections = page.locator("[data-testid=overview-grid] > section[aria-label]")
+    await expect(sections).toHaveCount(7)
+    const order = await sections.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
     expect(order).toEqual(["Saldo total", "Contas e bancos", "Orçamento", "Fluxo de caixa", "Para ficar de olho", "Metas", "Últimas movimentações"])
     const tiles = await page.getByTestId("stat-grid").locator("[data-bento-stat]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top)]))
     expect(new Set(tiles.map((t) => t[0])).size).toBe(2)
