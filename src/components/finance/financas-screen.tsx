@@ -29,7 +29,7 @@ import { AccountDialog, BillDialog, FundDialog, GoalDialog, LimitsDialog, Transa
 import { GoalsDesktop, GoalsMobile } from "./goals"
 import { OverviewDesktop, OverviewMobile } from "./overview"
 import { MonthToolbar } from "./parts"
-import { FiltersSheet, TransactionsMain, TransactionsSide, TransactionsTop } from "./transactions"
+import { FiltersSheet, TransactionsFilterRow, TransactionsMain, TransactionsSide, TransactionsTop } from "./transactions"
 
 export type { FinanceInitial } from "./context"
 
@@ -70,7 +70,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const today = dayOf(nowIso)
   const [tab, setTab] = useState<TabId>("visao")
   const [month, setMonth] = useState(monthOf(today))
-  const [filters, setFiltersState] = useState<Filters>({ kind: "all", category: "all", query: "" })
+  const [filters, setFiltersState] = useState<Filters>({ kind: "all", category: "all", query: "", sort: "date-desc" })
   const [accounts, setAccounts] = useRows<AccountRow>("finance_accounts", initial.accounts, memory)
   const [categories, setCategories] = useRows<CategoryRow>("finance_categories", initial.categories, memory)
   const [transactions, setTransactions] = useRows<TransactionRow>("finance_transactions", initial.transactions, memory)
@@ -345,6 +345,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
                 )}
               </div>
               {tabs}
+              {tab === "lancamentos" ? <TransactionsFilterRow /> : null}
             </section>
             {usesMonth ? <div className="px-1">{toolbar}</div> : null}
           </>

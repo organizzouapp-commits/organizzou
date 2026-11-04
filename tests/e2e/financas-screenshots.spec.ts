@@ -18,7 +18,7 @@ const TABS = [
   { slug: "metas", name: "Metas", short: "Metas" },
 ]
 
-const OUT = "docs/screenshots/financas-bento"
+const OUT = process.env.SHOTS_OUT ?? "docs/screenshots/financas-bento"
 mkdirSync(OUT, { recursive: true })
 
 for (const theme of ["dark", "light"]) {

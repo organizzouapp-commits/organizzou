@@ -10,7 +10,9 @@ export type FinanceInitial = { accounts: AccountRow[]; categories: CategoryRow[]
 
 export type TabId = "visao" | "lancamentos" | "fixas" | "metas"
 
-export type Filters = { kind: "all" | TransactionKind; category: string; query: string }
+export type TxSort = "date-desc" | "date-asc" | "amount-desc" | "amount-asc"
+
+export type Filters = { kind: "all" | TransactionKind; category: string; query: string; sort: TxSort }
 
 /** Everything the four tabs share: the rows, the month on show, and the actions (each one that changes data offers Desfazer). */
 export type Finance = {

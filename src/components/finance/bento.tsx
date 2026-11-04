@@ -58,7 +58,7 @@ export function BentoStat({ label, icon: Icon, children, chip, chipIcon: ChipIco
 }
 
 /** Mensal | Anual, Lista | Linha, Todos | Entradas | Saídas: an inline container with the active pill in Lima. */
-export function SegmentedPills<T extends string>({ items, value, onChange, ariaLabel, className }: { items: { id: T; label: string }[]; value: T; onChange: (id: T) => void; ariaLabel: string; className?: string }) {
+export function SegmentedPills<T extends string>({ items, value, onChange, ariaLabel, className }: { items: { id: T; label: string; count?: number }[]; value: T; onChange: (id: T) => void; ariaLabel: string; className?: string }) {
   return (
     <div role="group" aria-label={ariaLabel} data-segmented className={cn("inline-flex h-9 shrink-0 items-center gap-0.5 rounded-full bg-muted p-0.5", className)}>
       {items.map((item) => {
@@ -76,6 +76,7 @@ export function SegmentedPills<T extends string>({ items, value, onChange, ariaL
             )}
           >
             {item.label}
+            {item.count !== undefined ? <span className={cn("tabular ml-1.5", on ? "opacity-70" : "opacity-80")}>{item.count}</span> : null}
           </button>
         )
       })}

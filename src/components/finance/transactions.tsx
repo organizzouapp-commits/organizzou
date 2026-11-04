@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowUpRightIcon, ListIcon, PlusIcon, ScaleIcon, SearchIcon } from "lucide-react"
+import { ArrowUpRightIcon, ListIcon, PencilIcon, PlusIcon, ScaleIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
@@ -11,12 +11,17 @@ import { ManageablePicker } from "@/components/tasks/manageable-picker"
 import { PillTabs, dashedPillClass } from "@/components/tasks/pill-tabs"
 import { AddTaskPill } from "@/components/tasks/quick-add"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { ExpandingSearch, ToolbarSort } from "@/components/tasks/toolbar-controls"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { TransactionRow } from "@/features/finance/types"
 import { formatBRL } from "@/lib/money"
+import { cn } from "@/lib/utils"
 
-import { useFinance } from "./context"
+import { useFinance, type TxSort } from "./context"
 import { BentoCard, BentoStat, CategoryDonut, SegmentedPills } from "./bento"
 import { derive, variation } from "./derive"
 import { CardStack, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, MoneyText } from "./parts"
@@ -27,9 +32,29 @@ const KIND_ITEMS = [
   { id: "out", label: "Saídas" },
 ]
 
+const SORT_OPTIONS: { id: TxSort; label: string }[] = [
+  { id: "date-desc", label: "Data" },
+  { id: "date-asc", label: "Data (antigas)" },
+  { id: "amount-desc", label: "Maior valor" },
+  { id: "amount-asc", label: "Menor valor" },
+]
+
+/** Counts for the pills: kinds over the month's rows that match the search, categories over those that also match the kind. */
+function useTxCounts() {
+  const f = useFinance()
+  const q = f.filters.query.trim().toLowerCase()
+  const base = f.transactions.filter((t) => t.occurred_on.slice(0, 7) === f.month).filter((t) => (q ? t.description.toLowerCase().includes(q) : true))
+  const byKind = base.filter((t) => (f.filters.kind === "all" ? true : t.kind === f.filters.kind))
+  const categories = new Map<string, number>()
+  for (const t of byKind) if (t.category_id) categories.set(t.category_id, (categories.get(t.category_id) ?? 0) + 1)
+  return { all: base.length, in: base.filter((t) => t.kind === "in").length, out: base.filter((t) => t.kind === "out").length, categories }
+}
+
 export function KindPills() {
   const f = useFinance()
-  return <SegmentedPills ariaLabel="Filtrar por tipo" items={KIND_ITEMS as { id: "all" | "in" | "out"; label: string }[]} value={f.filters.kind} onChange={(kind) => f.setFilters({ kind })} />
+  const counts = useTxCounts()
+  const items = KIND_ITEMS.map((i) => ({ ...i, count: counts[i.id as "all" | "in" | "out"] })) as { id: "all" | "in" | "out"; label: string; count: number }[]
+  return <SegmentedPills ariaLabel="Filtrar por tipo" items={items} value={f.filters.kind} onChange={(kind) => f.setFilters({ kind })} />
 }
 
 /** The picker of categories (ManageablePicker with "Gerenciar" / "+ Adicionar"), as a dialog on desktop and a sheet on phones. */
@@ -58,21 +83,22 @@ export function CategoryPickerSheet({ open, onOpenChange }: { open: boolean; onO
   )
 }
 
-/** The scrolling row of category pills; the last one is the dashed "+ Categoria" that opens the picker. */
-export function CategoryPills({ onMore }: { onMore: () => void }) {
+/** The row of category pills (filled neutral, counts, Lima when on) ending in the dashed "Editar" pill that opens the picker. */
+export function CategoryPills({ onMore, className }: { onMore: () => void; className?: string }) {
   const f = useFinance()
+  const counts = useTxCounts()
   return (
     <PillTabs
       soft
       kind="toggles"
-      className="h-12 pb-2.5"
+      className={cn("h-12 pb-2.5", className)}
       ariaLabel="Filtrar por categoria"
-      items={f.categories.map((c) => ({ id: c.id, label: c.name }))}
+      items={f.categories.map((c) => ({ id: c.id, label: c.name, count: counts.categories.get(c.id) ?? 0 }))}
       isOn={(i) => f.filters.category === i.id}
       onSelect={(i) => f.setFilters({ category: f.filters.category === i.id ? "all" : i.id })}
       trailing={
-        <button type="button" onClick={onMore} className={dashedPillClass}>
-          <PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Categoria
+        <button type="button" aria-label="Editar categorias" data-edit-categories onClick={onMore} className={dashedPillClass}>
+          <PencilIcon aria-hidden strokeWidth={1.75} className="size-4" /> Editar
         </button>
       }
     />
@@ -157,49 +183,117 @@ export function useVisibleTransactions() {
     .filter((t) => (q ? t.description.toLowerCase().includes(q) : true))
 }
 
-export function TransactionsMain() {
+function sortRows(rows: TransactionRow[], sort: TxSort) {
+  const byAmount = sort === "amount-desc" ? (a: TransactionRow, b: TransactionRow) => b.amount_cents - a.amount_cents : sort === "amount-asc" ? (a: TransactionRow, b: TransactionRow) => a.amount_cents - b.amount_cents : null
+  return byAmount ? [...rows].sort(byAmount) : rows
+}
+
+/** Filtros popover (desktop): the kind and the category, with "Limpar". */
+function FiltersPopover() {
+  const f = useFinance()
+  const active = (f.filters.kind !== "all" ? 1 : 0) + (f.filters.category !== "all" ? 1 : 0)
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" data-testid="finance-filters" className="h-10 shrink-0 rounded-full px-4">
+          <SlidersHorizontalIcon strokeWidth={1.75} /> Filtros
+          {active > 0 ? <Badge variant="highlight">{active}</Badge> : null}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <Label>Tipo</Label>
+            <KindPills />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="filter-category">Categoria</Label>
+            <Select value={f.filters.category} onValueChange={(category) => f.setFilters({ category })}>
+              <SelectTrigger id="filter-category" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {f.categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="ghost" className="h-11 w-fit rounded-full" disabled={active === 0} onClick={() => f.setFilters({ kind: "all", category: "all" })}>
+            <XIcon strokeWidth={1.75} /> Limpar filtros
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** Desktop: ONE solid card like the Tarefas toolbar. Row 1 the quick add, row 2 the kinds, the categories (own row below 1100px) and the search, Filtros and Ordem. */
+function TransactionsToolbar() {
   const f = useFinance()
   const [picker, setPicker] = useState(false)
-  const [saved, setDay] = useDayToggles()
-  const rows = useVisibleTransactions()
-  const groups = [...rows.reduce<Map<string, TransactionRow[]>>((map, t) => map.set(t.occurred_on, [...(map.get(t.occurred_on) ?? []), t]), new Map()).entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  const currentMonth = f.today.slice(0, 7)
-  // Phones: one scrolling row, the segmented pills first and the category pills after them.
-  const filterRow = (
-    <div data-testid="filter-row" className="scroll-soft -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-2.5">
-      <KindPills />
-      <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
-      <PillTabs soft={false} kind="toggles" className="h-9 min-w-max overflow-visible" ariaLabel="Filtrar por categoria" items={f.categories.map((c) => ({ id: c.id, label: c.name }))} isOn={(i) => f.filters.category === i.id} onSelect={(i) => f.setFilters({ category: f.filters.category === i.id ? "all" : i.id })} trailing={<button type="button" onClick={() => setPicker(true)} className={dashedPillClass}><PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Categoria</button>} />
+  return (
+    <div data-testid="transactions-toolbar" className="@container flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:p-5">
+      <QuickAdd />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <KindPills />
+        <div className="order-last w-full min-w-0 @[1100px]:order-none @[1100px]:w-auto @[1100px]:flex-1">
+          <CategoryPills onMore={() => setPicker(true)} />
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ExpandingSearch value={f.filters.query} onChange={(query) => f.setFilters({ query })} label="Buscar lançamentos" />
+          <FiltersPopover />
+          <ToolbarSort value={f.filters.sort} onChange={(sort) => f.setFilters({ sort })} options={SORT_OPTIONS} className="h-10 rounded-full" />
+        </div>
+      </div>
+      <CategoryPickerSheet open={picker} onOpenChange={setPicker} />
     </div>
   )
+}
+
+/** Phones: the pill rows of the header card (kinds first, then the categories) in one scrolling line. */
+export function TransactionsFilterRow() {
+  const [picker, setPicker] = useState(false)
+  return (
+    <div data-testid="filter-row" className="scroll-soft -mx-1 flex items-center gap-2 overflow-x-auto px-1">
+      <KindPills />
+      <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+      <CategoryPills className="h-9 min-w-max overflow-visible pb-0" onMore={() => setPicker(true)} />
+      <CategoryPickerSheet open={picker} onOpenChange={setPicker} />
+    </div>
+  )
+}
+
+function QuickAdd() {
+  const f = useFinance()
+  return (
+    <AddTaskPill
+      label="Adicionar lançamento… ex.: mercado 45,90 ou + salário 5000"
+      inputLabel="Adicionar lançamento rápido"
+      placeholder="mercado 45,90  ou  + salário 5000"
+      onAdd={async (text) => {
+        if (f.quickAdd(text)) return true
+        toast("Escreva a descrição e o valor, por exemplo: mercado 45,90")
+        return false
+      }}
+    />
+  )
+}
+
+export function TransactionsMain() {
+  const f = useFinance()
+  const [saved, setDay] = useDayToggles()
+  const rows = useVisibleTransactions()
+  const days = [...rows.reduce<Map<string, TransactionRow[]>>((map, t) => map.set(t.occurred_on, [...(map.get(t.occurred_on) ?? []), t]), new Map()).entries()].sort((a, b) => (f.filters.sort === "date-asc" ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0])))
+  const groups = days.map(([day, list]) => [day, sortRows(list, f.filters.sort)] as const)
+  const currentMonth = f.today.slice(0, 7)
 
   return (
     <div className="flex flex-col gap-4" data-testid="transactions-main">
-      {f.isMobile ? filterRow : null}
-      <AddTaskPill
-        label="Adicionar lançamento… ex.: mercado 45,90 ou + salário 5000"
-        inputLabel="Adicionar lançamento rápido"
-        placeholder="mercado 45,90  ou  + salário 5000"
-        onAdd={async (text) => {
-          if (f.quickAdd(text)) return true
-          toast("Escreva a descrição e o valor, por exemplo: mercado 45,90")
-          return false
-        }}
-      />
-      {f.isMobile ? null : (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-3">
-          <KindPills />
-          {(
-            <div className="relative ml-auto w-full max-w-72">
-              <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input type="search" value={f.filters.query} onChange={(e) => f.setFilters({ query: e.target.value })} placeholder="Buscar lançamentos" aria-label="Buscar lançamentos" className="h-9 rounded-full pl-9" />
-            </div>
-          )}
-        </div>
-        <CategoryPills onMore={() => setPicker(true)} />
-      </div>
-      )}
+      {f.isMobile ? <QuickAdd /> : <TransactionsToolbar />}
 
       {rows.length === 0 ? (
         <EmptyBlock icon={ListIcon} title="Nenhum lançamento encontrado" description="Ajuste a busca ou os filtros." action={<Button variant="outline" onClick={f.openNewTransaction}><PlusIcon strokeWidth={1.75} /> Novo lançamento</Button>} />
@@ -237,7 +331,6 @@ export function TransactionsMain() {
           })}
         </div>
       )}
-      <CategoryPickerSheet open={picker} onOpenChange={setPicker} />
     </div>
   )
 }
