@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { GOAL_ICON_KEYS, localGoalIconRepo, type GoalIconKey } from "@/features/finance/goal-icons"
+import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-history"
 import { monthOf, shiftMonth } from "@/features/finance/stats"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -22,13 +23,13 @@ import { formatBRL, parseBRL } from "@/lib/money"
 import { dayOf, newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
-import { BillsAside, BillsHero, BillsMain } from "./bills"
+import { BillsTab } from "./bills"
 import { FinanceProvider, type Filters, type Finance, type FinanceInitial, type TabId } from "./context"
 import { AccountDialog, BillDialog, FundDialog, GoalDialog, LimitsDialog, TransactionDialog } from "./dialogs"
-import { GoalsHero, GoalsMain, NextDeadline } from "./goals"
-import { AccountsCard, BudgetCard, EvolutionCard, KpiRow, SpendingList, WatchList } from "./overview"
+import { GoalsDesktop, GoalsMobile } from "./goals"
+import { OverviewDesktop, OverviewMobile } from "./overview"
 import { MonthToolbar } from "./parts"
-import { FiltersSheet, TransactionTiles, TransactionsAside, TransactionsMain } from "./transactions"
+import { FiltersSheet, TransactionsMain, TransactionsSide, TransactionsTop } from "./transactions"
 
 export type { FinanceInitial } from "./context"
 
@@ -64,15 +65,6 @@ export function FinancasScreen({ nowIso, initial, memory = false }: { nowIso: st
   )
 }
 
-function TwoCol({ main, side, sideFirst = false }: { main: React.ReactNode; side: React.ReactNode; sideFirst?: boolean }) {
-  return (
-    <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_376px] lg:items-start">
-      <div className={cn("flex min-w-0 flex-col gap-5", sideFirst && "order-2 lg:order-1")}>{main}</div>
-      <aside className={cn("flex min-w-0 flex-col gap-4 lg:sticky lg:top-0", sideFirst && "order-1 lg:order-2")}>{side}</aside>
-    </div>
-  )
-}
-
 function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: FinanceInitial; memory: boolean }) {
   const isMobile = useIsMobile()
   const today = dayOf(nowIso)
@@ -85,6 +77,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [bills, setBills] = useRows<RecurringBillRow>("finance_bills", initial.bills, memory)
   const [goals, setGoals] = useRows<FinancialGoalRow>("finance_goals", initial.goals, memory)
   const [goalIcons, setGoalIcons] = useState<Record<string, GoalIconKey>>({})
+  const [goalHistory, setGoalHistory] = useState<GoalHistory>({})
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
@@ -98,6 +91,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     // localStorage only exists in the browser; read after mount so server and client render the same.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGoalIcons(localGoalIconRepo.load())
+    setGoalHistory(localGoalHistoryRepo.load())
   }, [])
 
   const setFilters = useCallback((next: Partial<Filters>) => setFiltersState((current) => ({ ...current, ...next })), [])
@@ -223,7 +217,17 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
 
   function saveGoalFunds(goal: FinancialGoalRow, cents: number) {
     setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, current_cents: g.current_cents + cents } : g)))
-    undoable(`${formatBRL(cents)} guardados em ${goal.name}.`, () => setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, current_cents: Math.max(0, g.current_cents - cents) } : g))))
+    const change = (update: (list: GoalHistory[string]) => GoalHistory[string]) =>
+      setGoalHistory((current) => {
+        const next = { ...current, [goal.id]: update(current[goal.id] ?? []) }
+        localGoalHistoryRepo.save(next)
+        return next
+      })
+    change((list) => [...list, { day: today, cents }])
+    undoable(`${formatBRL(cents)} guardados em ${goal.name}.`, () => {
+      setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, current_cents: Math.max(0, g.current_cents - cents) } : g)))
+      change((list) => list.slice(0, -1))
+    })
   }
 
   function removeGoal(goal: FinancialGoalRow) {
@@ -253,6 +257,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     bills,
     goals,
     goalIcons,
+    goalHistory,
     filters,
     setFilters,
     categoryName,
@@ -281,6 +286,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     saveAccount,
     saveLimits,
     openNewAccount: () => setAccountOpen(true),
+    openTransfer: () => toast("Transferências entre contas ainda não estão disponíveis."),
     openLimits: () => setLimitsOpen(true),
   }
 
@@ -349,37 +355,29 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
           </div>
         )}
 
-        {tab === "visao" ? (
-          <>
-            <KpiRow />
-            <TwoCol
-              main={
-                <>
-                  <WatchList />
-                  <BudgetCard />
-                  {isMobile ? <SpendingList /> : null}
-                </>
-              }
-              side={
-                <>
-                  <EvolutionCard />
-                  <AccountsCard />
-                </>
-              }
-            />
-          </>
-        ) : null}
+        {tab === "visao" ? (isMobile ? <OverviewMobile /> : <OverviewDesktop />) : null}
 
         {tab === "lancamentos" ? (
-          <>
-            {isMobile ? <TransactionTiles /> : null}
-            <TwoCol main={<TransactionsMain />} side={isMobile ? null : <TransactionsAside />} />
-          </>
+          isMobile ? (
+            <>
+              <TransactionsTop />
+              <TransactionsMain />
+            </>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-8 xl:grid-cols-12">
+              <div className="min-w-0 lg:col-span-5 xl:col-span-8">
+                <TransactionsMain />
+              </div>
+              <aside className="flex min-w-0 flex-col gap-4 lg:col-span-3 xl:col-span-4">
+                <TransactionsSide />
+              </aside>
+            </div>
+          )
         ) : null}
 
-        {tab === "fixas" ? <TwoCol sideFirst={isMobile} main={<BillsMain />} side={isMobile ? <BillsHero /> : <BillsAside />} /> : null}
+        {tab === "fixas" ? <BillsTab /> : null}
 
-        {tab === "metas" ? <TwoCol sideFirst={isMobile} main={<GoalsMain />} side={isMobile ? <GoalsHero /> : (<><GoalsHero /><NextDeadline /></>)} /> : null}
+        {tab === "metas" ? isMobile ? <GoalsMobile /> : <GoalsDesktop /> : null}
       </div>
 
       <TransactionDialog open={Boolean(txDialog)} onOpenChange={(open) => !open && setTxDialog(null)} row={txDialog?.row ?? null} />

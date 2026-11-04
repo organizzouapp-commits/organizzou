@@ -18,7 +18,7 @@ const TABS = [
   { slug: "metas", name: "Metas", short: "Metas" },
 ]
 
-const OUT = "docs/screenshots/financas"
+const OUT = "docs/screenshots/financas-bento"
 mkdirSync(OUT, { recursive: true })
 
 for (const theme of ["dark", "light"]) {
@@ -38,7 +38,12 @@ for (const theme of ["dark", "light"]) {
         test(`${tab.slug}`, async ({ page }) => {
           await page.goto("/design-system/financas")
           await expect(page.getByRole("tablist", { name: "Finanças" })).toBeVisible({ timeout: 60000 })
-          await page.getByRole("tab", { name: label === "390" ? tab.short : tab.name, exact: true }).click()
+          const target = page.getByRole("tab", { name: label === "390" ? tab.short : tab.name, exact: true })
+          // The first click can land before hydration finishes; click again until the tab is selected.
+          await expect(async () => {
+            await target.click()
+            await expect(target).toHaveAttribute("aria-selected", "true", { timeout: 1500 })
+          }).toPass({ timeout: 20000 })
           await page.waitForTimeout(1800)
           // A tall viewport instead of fullPage: resizing during a full-page capture restarts the chart animation.
           const height = await page.evaluate(() => Math.max(document.documentElement.scrollHeight, window.innerHeight))

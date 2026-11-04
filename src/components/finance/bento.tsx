@@ -143,15 +143,15 @@ export function CashflowChart({ data, selected, onSelect, ariaLabel, className }
         })}
       </div>
       {current ? (
-        <div data-testid="cashflow-tooltip" role="status" className="pointer-events-none absolute top-0 z-10 w-[148px] -translate-x-1/2 rounded-[12px] border border-border bg-popover px-3 py-2 text-popover-foreground" style={{ left: `clamp(74px, ${center}%, calc(100% - 74px))` }}>
+        <div data-testid="cashflow-tooltip" role="status" className="pointer-events-none absolute top-0 z-10 w-[172px] -translate-x-1/2 rounded-[12px] border border-border bg-popover px-3 py-2 text-popover-foreground" style={{ left: `clamp(86px, ${center}%, calc(100% - 86px))` }}>
           <div className="text-[12px] leading-4 font-semibold capitalize">{current.label}</div>
           <div className="tabular flex justify-between gap-2 text-[12px] leading-5">
             <span className="text-muted-foreground">Entradas</span>
-            <span>{formatBRL(current.income)}</span>
+            <span className="whitespace-nowrap">{formatBRL(current.income)}</span>
           </div>
           <div className="tabular flex justify-between gap-2 text-[12px] leading-5">
             <span className="text-muted-foreground">Saídas</span>
-            <span>{formatBRL(current.expense)}</span>
+            <span className="whitespace-nowrap">{formatBRL(current.expense)}</span>
           </div>
         </div>
       ) : null}
@@ -193,7 +193,7 @@ export function CategoryDonut({ segments, label, legend = "below", className }: 
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-[11px] leading-4 text-muted-foreground">Total</span>
-          <MoneyText cents={total} dimDecimals className="text-[15px] leading-5 font-semibold" />
+          <MoneyText cents={total} dimDecimals className="text-[12px] leading-4 font-semibold" />
         </span>
       </div>
       <ul className="flex min-w-0 flex-1 flex-col gap-1.5 self-stretch">
