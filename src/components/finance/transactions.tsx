@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { ArrowDownRightIcon, ArrowUpRightIcon, ListIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { ArrowUpRightIcon, ListIcon, PlusIcon, ScaleIcon, SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
@@ -13,13 +13,13 @@ import { AddTaskPill } from "@/components/tasks/quick-add"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { spendByCategory } from "@/features/finance/stats"
 import type { TransactionRow } from "@/features/finance/types"
 import { formatBRL } from "@/lib/money"
-import { cn } from "@/lib/utils"
 
 import { useFinance } from "./context"
-import { CardHeader, CardStack, CategoryCircle, EmptyBlock, FinanceListItem, MoneyText, ProgressBar, StatTile, SUMMARY_CARD, useCategoryColor } from "./parts"
+import { BentoCard, BentoStat, CategoryDonut, SegmentedPills } from "./bento"
+import { derive, variation } from "./derive"
+import { CardStack, CategoryCircle, EmptyBlock, FinanceListItem, HeroCard, MoneyText } from "./parts"
 
 const KIND_ITEMS = [
   { id: "all", label: "Todos" },
@@ -29,7 +29,7 @@ const KIND_ITEMS = [
 
 export function KindPills() {
   const f = useFinance()
-  return <PillTabs kind="toggles" ariaLabel="Filtrar por tipo" items={KIND_ITEMS} isOn={(i) => f.filters.kind === i.id} onSelect={(i) => f.setFilters({ kind: i.id as "all" | "in" | "out" })} />
+  return <SegmentedPills ariaLabel="Filtrar por tipo" items={KIND_ITEMS as { id: "all" | "in" | "out"; label: string }[]} value={f.filters.kind} onChange={(kind) => f.setFilters({ kind })} />
 }
 
 /** The picker of categories (ManageablePicker with "Gerenciar" / "+ Adicionar"), as a dialog on desktop and a sheet on phones. */
@@ -157,10 +157,6 @@ export function useVisibleTransactions() {
     .filter((t) => (q ? t.description.toLowerCase().includes(q) : true))
 }
 
-function sums(rows: TransactionRow[]) {
-  return rows.reduce((acc, t) => ({ ...acc, [t.kind]: acc[t.kind] + t.amount_cents }), { in: 0, out: 0 })
-}
-
 export function TransactionsMain() {
   const f = useFinance()
   const [picker, setPicker] = useState(false)
@@ -168,9 +164,18 @@ export function TransactionsMain() {
   const rows = useVisibleTransactions()
   const groups = [...rows.reduce<Map<string, TransactionRow[]>>((map, t) => map.set(t.occurred_on, [...(map.get(t.occurred_on) ?? []), t]), new Map()).entries()].sort((a, b) => b[0].localeCompare(a[0]))
   const currentMonth = f.today.slice(0, 7)
+  // Phones: one scrolling row, the segmented pills first and the category pills after them.
+  const filterRow = (
+    <div data-testid="filter-row" className="scroll-soft -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-2.5">
+      <KindPills />
+      <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+      <PillTabs soft={false} kind="toggles" className="h-9 min-w-max overflow-visible" ariaLabel="Filtrar por categoria" items={f.categories.map((c) => ({ id: c.id, label: c.name }))} isOn={(i) => f.filters.category === i.id} onSelect={(i) => f.setFilters({ category: f.filters.category === i.id ? "all" : i.id })} trailing={<button type="button" onClick={() => setPicker(true)} className={dashedPillClass}><PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Categoria</button>} />
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-4" data-testid="transactions-main">
+      {f.isMobile ? filterRow : null}
       <AddTaskPill
         label="Adicionar lançamento… ex.: mercado 45,90 ou + salário 5000"
         inputLabel="Adicionar lançamento rápido"
@@ -181,18 +186,20 @@ export function TransactionsMain() {
           return false
         }}
       />
+      {f.isMobile ? null : (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
           <KindPills />
-          {f.isMobile ? null : (
+          {(
             <div className="relative ml-auto w-full max-w-72">
               <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input type="search" value={f.filters.query} onChange={(e) => f.setFilters({ query: e.target.value })} placeholder="Buscar lançamentos" aria-label="Buscar lançamentos" className="h-9 rounded-full pl-9" />
             </div>
           )}
         </div>
-        {f.isMobile ? null : <CategoryPills onMore={() => setPicker(true)} />}
+        <CategoryPills onMore={() => setPicker(true)} />
       </div>
+      )}
 
       {rows.length === 0 ? (
         <EmptyBlock icon={ListIcon} title="Nenhum lançamento encontrado" description="Ajuste a busca ou os filtros." action={<Button variant="outline" onClick={f.openNewTransaction}><PlusIcon strokeWidth={1.75} /> Novo lançamento</Button>} />
@@ -235,79 +242,64 @@ export function TransactionsMain() {
   )
 }
 
-/** Phones: three compact tiles under the month toolbar. */
-export function TransactionTiles() {
-  const rows = useVisibleTransactions()
-  const s = sums(rows)
+/** The right column (desktop) / the top (phones): Saídas do mês against the budget, Entradas and Saldo do mês, and the donut by category. */
+export function SpendHero() {
+  const f = useFinance()
+  const d = derive(f)
+  const pct = d.budget === 0 ? 0 : (d.month.expense / d.budget) * 100
   return (
-    <div data-testid="transaction-tiles" className="grid grid-cols-3 gap-2">
-      <StatTile compact icon={ArrowUpRightIcon} label="Entradas">
-        <MoneyText cents={s.in} />
-      </StatTile>
-      <StatTile compact icon={ArrowDownRightIcon} label="Saídas">
-        <MoneyText cents={s.out} />
-      </StatTile>
-      <StatTile compact icon={ListIcon} label="Registros">
-        {rows.length}
-      </StatTile>
+    <HeroCard
+      label="Saídas do mês"
+      value={<MoneyText cents={d.month.expense} dimDecimals />}
+      progress={{ value: pct, label: "Saídas do mês contra o orçamento" }}
+      support={d.budget ? `${Math.round(pct)}% do orçamento de ${formatBRL(d.budget)}` : "Defina limites para acompanhar o orçamento"}
+    />
+  )
+}
+
+export function TransactionStats({ compact = false }: { compact?: boolean }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <div data-testid="transaction-tiles" className="grid grid-cols-2 gap-3 md:gap-4">
+      <BentoStat compact={compact} label="Entradas" icon={ArrowUpRightIcon} chip={variation(d.month.income, d.previous.income) ?? "este mês"}>
+        <MoneyText cents={d.month.income} dimDecimals />
+      </BentoStat>
+      <BentoStat compact={compact} label="Saldo do mês" icon={ScaleIcon} chip="entradas − saídas">
+        <MoneyText cents={d.month.surplus} tone="value" dimDecimals />
+      </BentoStat>
     </div>
   )
 }
 
-function BarRow({ id, name, spent, max }: { id: string; name: string; spent: number; max: number }) {
-  const color = useCategoryColor(id)
+function SpendDonut() {
+  const f = useFinance()
+  const d = derive(f)
+  const segments = d.categories.filter((c) => c.spent > 0).map((c) => ({ id: c.category.id, name: c.category.name, value: c.spent }))
   return (
-    <div data-top-category={id} className="flex flex-col gap-1.5 py-1.5">
-      <div className="flex items-center gap-3">
-        <CategoryCircle id={id} name={name} size="sm" />
-        <span className="min-w-0 flex-1 truncate text-[15px] leading-6">{name}</span>
-        <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">{formatBRL(spent)}</span>
-      </div>
-      <ProgressBar thin value={max === 0 ? 0 : (spent / max) * 100} color={color} label={`Gasto em ${name}`} />
-    </div>
+    <BentoCard title="Por categoria" subtitle="onde as saídas do mês foram" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
+      <CategoryDonut segments={segments} label="Saídas por categoria" />
+    </BentoCard>
   )
 }
 
 /** Desktop side column. */
-export function TransactionsAside() {
-  const f = useFinance()
-  const rows = useVisibleTransactions()
-  const s = sums(rows)
-  const top = spendByCategory(f.categories, f.transactions, f.month)
-    .filter((c) => c.spent > 0)
-    .slice(0, 5)
+export function TransactionsSide() {
   return (
     <>
-      <section aria-label="Resumo da lista" className={cn(SUMMARY_CARD, "flex flex-col gap-4 p-5")}>
-        <CardHeader title="Resumo da lista" />
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col">
-            <span className="text-[13px] leading-5 text-muted-foreground">Entradas</span>
-            <MoneyText cents={s.in} className="text-[17px] leading-7 font-semibold" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[13px] leading-5 text-muted-foreground">Saídas</span>
-            <MoneyText cents={s.out} className="text-[17px] leading-7 font-semibold" />
-          </div>
-        </div>
-        <p className="text-[13px] leading-5 text-muted-foreground">
-          {rows.length} {rows.length === 1 ? "lançamento" : "lançamentos"} com os filtros atuais.
-        </p>
-      </section>
-      <section aria-label="Maiores categorias do mês" className={cn(SUMMARY_CARD, "flex flex-col gap-2 p-5")}>
-        <CardHeader
-          title="Maiores categorias do mês"
-          actions={
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => f.goTab("visao")}>
-              Ver todas
-            </Button>
-          }
-        />
-        {top.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhum gasto neste mês.</p> : null}
-        {top.map(({ category, spent }) => (
-          <BarRow key={category.id} id={category.id} name={category.name} spent={spent} max={top[0].spent} />
-        ))}
-      </section>
+      <SpendHero />
+      <TransactionStats />
+      <SpendDonut />
     </>
+  )
+}
+
+/** Phones: the hero and the two tiles above the filters. */
+export function TransactionsTop() {
+  return (
+    <div className="flex flex-col gap-3">
+      <SpendHero />
+      <TransactionStats compact />
+    </div>
   )
 }
