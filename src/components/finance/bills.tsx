@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { createContext, useContext, useState } from "react"
 import { format, getDaysInMonth, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, WalletIcon } from "lucide-react"
@@ -8,7 +8,6 @@ import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, WalletIcon } f
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { Button } from "@/components/ui/button"
 import type { BillView } from "@/features/finance/stats"
-import { formatBRL } from "@/lib/money"
 
 import { BentoCard, BentoStat, CategoryDonut, MonthTimeline, SegmentedPills } from "./bento"
 import { BillMini, dueText } from "./bill-mini"
@@ -89,6 +88,8 @@ function Stats({ compact }: { compact: boolean }) {
   )
 }
 
+const goList = () => document.querySelector("[data-testid=bills-main]")?.scrollIntoView({ behavior: "smooth", block: "start" })
+
 function Hero() {
   const f = useFinance()
   const d = derive(f)
@@ -99,14 +100,16 @@ function Hero() {
       label="Total fixo por mês"
       value={<MoneyText cents={d.fixedTotal} dimDecimals />}
       progress={{ value: pct, label: "Contas fixas pagas" }}
-      support={`${p} ${p === 1 ? "paga" : "pagas"} · ${d.unpaidCount} ${d.unpaidCount === 1 ? "pendente" : "pendentes"} · ${formatBRL(d.paidTotal)} ${p === 1 ? "pago" : "pagos"}`}
-      className="h-full justify-between"
+      footer={`${p} ${p === 1 ? "paga" : "pagas"} · ${d.unpaidCount} ${d.unpaidCount === 1 ? "pendente" : "pendentes"}`}
+      onArrow={goList}
+      arrowLabel="Ir para a lista de contas"
+      className="h-full justify-between md:min-h-[168px]"
     />
   )
 }
 
 /** "Linha do mês": the days as chips with a dot where a bill is due. Choosing a day filters the list to it. */
-function Timeline({ day, onDay }: { day: number | null; onDay: (day: number | null) => void }) {
+function Timeline({ day, onDay }: { day: number | null; onDay: (day: number) => void }) {
   const f = useFinance()
   const d = derive(f)
   const dots: Record<number, number> = {}
@@ -115,17 +118,17 @@ function Timeline({ day, onDay }: { day: number | null; onDay: (day: number | nu
   return <MonthTimeline days={getDaysInMonth(parseISO(`${f.month}-01`))} today={f.today.slice(0, 7) === f.month ? Number(f.today.slice(8, 10)) : null} dots={dots} selected={day} onSelect={onDay} monthLabel={monthLabel} />
 }
 
-function Lists({ day, onDay }: { day: number | null; onDay: (day: number | null) => void }) {
+function Lists({ day }: { day: number | null }) {
   const f = useFinance()
   const d = derive(f)
   const views = d.views.filter((v) => day === null || v.bill.due_day === day)
   return (
     <div className="flex flex-col gap-3" data-testid="bills-main">
-      <AddPill label="Nova conta fixa…" onClick={f.openNewBill} />
+      {day !== null && views.length === 0 && d.views.length > 0 ? null : <AddPill label="Nova conta fixa…" onClick={f.openNewBill} />}
       {d.views.length === 0 ? (
         <EmptyBlock icon={ReceiptIcon} title="Nenhuma conta fixa ainda" description="Cadastre aluguel, internet e assinaturas." />
       ) : views.length === 0 ? (
-        <EmptyBlock icon={ReceiptIcon} title={`Nenhuma conta vence no dia ${day}`} action={<Button variant="outline" onClick={() => onDay(null)}>Ver todas as contas</Button>} />
+        <EmptyBlock icon={ReceiptIcon} title="Nenhuma conta vence neste dia" action={<AddPill label="Nova conta fixa…" onClick={f.openNewBill} className="max-w-xs" />} />
       ) : (
         <div className="flex flex-col">
           <BillGroup id="overdue" label="Atrasadas" views={views.filter((v) => v.status === "overdue")} defaultOpen />
@@ -148,7 +151,7 @@ function ByCategory() {
   }
   const segments = [...sums.entries()].map(([id, { value, count }]) => ({ id, name: f.categoryName(id === "none" ? null : id), value, count })).sort((a, b) => b.value - a.value)
   return (
-    <BentoCard title="Fixas por categoria" onArrow={() => f.openNewBill()} arrowLabel="Nova conta fixa">
+    <BentoCard title="Fixas por categoria" onArrow={goList} arrowLabel="Ir para a lista de contas">
       <CategoryDonut segments={segments} label="Fixas por categoria" variant="stacked" unit={["conta", "contas"]} />
     </BentoCard>
   )
@@ -177,61 +180,88 @@ function NextDue() {
   )
 }
 
+/** "Linha do mês" with its Todos | Dia switch: "Todos" lists every bill, "Dia" shows only the chosen day (today by default). Phones and desktop share it. */
+function TimelineCard() {
+  const f = useFinance()
+  const { mode, day, setMode, setDay } = useDayFilter()
+  return (
+    <BentoCard
+      title="Linha do mês"
+      subtitle={mode === "day" ? `dia ${day}` : "um ponto marca cada conta que vence"}
+      data-testid="timeline-card"
+      actions={
+        <SegmentedPills
+          ariaLabel="Filtro da linha do mês"
+          items={[
+            { id: "all", label: "Todos" },
+            { id: "day", label: "Dia" },
+          ]}
+          value={mode}
+          onChange={(v) => (v === "day" ? setMode("day", f.today.slice(0, 7) === f.month ? Number(f.today.slice(8, 10)) : (day ?? 1)) : setMode("all"))}
+        />
+      }
+    >
+      <Timeline day={mode === "day" ? day : null} onDay={setDay} />
+    </BentoCard>
+  )
+}
+
+const DayFilterContext = createContext<{ mode: "all" | "day"; day: number | null; setMode: (mode: "all" | "day", day?: number) => void; setDay: (day: number) => void } | null>(null)
+
+function useDayFilter() {
+  const value = useContext(DayFilterContext)
+  if (!value) throw new Error("useDayFilter outside BillsTab")
+  return value
+}
+
 /** The whole Contas fixas tab, laid out as bento. Desktop 12 columns, 8 from 1024px, one column below; phones as in the boards. */
 export function BillsTab() {
   const f = useFinance()
-  const [mode, setMode] = useState<"linha" | "lista">("linha")
-  const [day, setDay] = useState<number | null>(null)
-  const timeline = mode === "linha" ? <Timeline day={day} onDay={setDay} /> : null
+  const [mode, setModeState] = useState<"all" | "day">("all")
+  const [day, setDayState] = useState<number | null>(null)
+  const filter = {
+    mode,
+    day,
+    setMode: (next: "all" | "day", chosen?: number) => {
+      setModeState(next)
+      if (next === "day") setDayState(chosen ?? day ?? 1)
+    },
+    setDay: (chosen: number) => (setModeState("day"), setDayState(chosen)),
+  }
+  const activeDay = mode === "day" ? day : null
 
   if (f.isMobile) {
     return (
-      <div className="flex flex-col gap-3">
-        <Hero />
-        <Stats compact />
-        <BentoCard title="Linha do mês" subtitle={day ? `dia ${day}` : "toque em um dia para filtrar"} data-testid="timeline-card">
-          <Timeline day={day} onDay={setDay} />
-        </BentoCard>
-        <Lists day={day} onDay={setDay} />
-      </div>
+      <DayFilterContext.Provider value={filter}>
+        <div className="flex flex-col gap-3">
+          <Hero />
+          <Stats compact />
+          <TimelineCard />
+          <Lists day={activeDay} />
+        </div>
+      </DayFilterContext.Provider>
     )
   }
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-8 xl:grid-cols-12">
-      <div className="md:col-span-2 lg:col-span-8 xl:col-span-4">
-        <Hero />
+    <DayFilterContext.Provider value={filter}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-8 xl:grid-cols-12">
+        <div className="md:col-span-2 lg:col-span-8 xl:col-span-4">
+          <Hero />
+        </div>
+        <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
+          <Stats compact={false} />
+        </div>
+        <div className="md:col-span-2 lg:col-span-8 xl:col-span-12">
+          <TimelineCard />
+        </div>
+        <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
+          <Lists day={activeDay} />
+        </div>
+        <div className="flex flex-col gap-4 md:col-span-2 lg:col-span-8 xl:col-span-4">
+          <ByCategory />
+          <NextDue />
+        </div>
       </div>
-      <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
-        <Stats compact={false} />
-      </div>
-      <div className="md:col-span-2 lg:col-span-8 xl:col-span-12">
-        <BentoCard
-          title="Linha do mês"
-          subtitle={day ? `dia ${day}` : "um ponto marca cada conta que vence"}
-          data-testid="timeline-card"
-          actions={
-            <SegmentedPills
-              ariaLabel="Modo de exibição"
-              items={[
-                { id: "lista", label: "Lista" },
-                { id: "linha", label: "Linha" },
-              ]}
-              value={mode}
-              onChange={(v) => (setMode(v), v === "lista" && setDay(null))}
-            />
-          }
-        >
-          {timeline}
-          {mode === "lista" ? <p className="text-[13px] leading-5 text-muted-foreground">Só a lista está à mostra. Escolha “Linha” para ver os vencimentos por dia.</p> : null}
-        </BentoCard>
-      </div>
-      <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
-        <Lists day={day} onDay={setDay} />
-      </div>
-      <div className="flex flex-col gap-4 md:col-span-2 lg:col-span-8 xl:col-span-4">
-        <ByCategory />
-        <NextDue />
-      </div>
-    </div>
+    </DayFilterContext.Provider>
   )
 }

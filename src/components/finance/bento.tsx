@@ -1,6 +1,6 @@
 "use client"
 
-import { useId } from "react"
+import { useEffect, useId, useRef } from "react"
 import { ArrowUpRightIcon, BanknoteIcon, LandmarkIcon, type LucideIcon } from "lucide-react"
 
 import { useLabelColors } from "@/components/tasks/label-colors-context"
@@ -259,9 +259,14 @@ export function WalletMiniCard({ account, balance, className }: { account: Accou
 }
 
 /** Days of the month as chips: a dot where a bill is due, Lima for today, an outline for the chosen day. Scrolls and snaps on phones. */
-export function MonthTimeline({ days, today, dots, selected, onSelect, monthLabel, className }: { days: number; today: number | null; dots: Record<number, number>; selected: number | null; onSelect: (day: number | null) => void; monthLabel: string; className?: string }) {
+export function MonthTimeline({ days, today, dots, selected, onSelect, monthLabel, className }: { days: number; today: number | null; dots: Record<number, number>; selected: number | null; onSelect: (day: number) => void; monthLabel: string; className?: string }) {
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // Keep the chosen day in view when the row scrolls (phones).
+    row.current?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ inline: "center", block: "nearest" })
+  }, [selected])
   return (
-    <div role="group" aria-label={`Linha do mês, ${monthLabel}`} data-testid="month-timeline" className={cn("scroll-soft flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-2.5", className)}>
+    <div ref={row} role="group" aria-label={`Linha do mês, ${monthLabel}`} data-testid="month-timeline" className={cn("scroll-soft flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-2.5", className)}>
       {Array.from({ length: days }, (_, i) => i + 1).map((day) => {
         const count = dots[day] ?? 0
         const on = selected === day
@@ -274,7 +279,7 @@ export function MonthTimeline({ days, today, dots, selected, onSelect, monthLabe
             aria-label={`Dia ${day}${count ? `, ${count} ${count === 1 ? "conta vence" : "contas vencem"}` : ""}${isToday ? ", hoje" : ""}`}
             data-day={day}
             data-today={isToday ? "" : undefined}
-            onClick={() => onSelect(on ? null : day)}
+            onClick={() => onSelect(day)}
             className={cn(
               "flex h-16 w-11 min-w-11 shrink-0 snap-center flex-col items-center justify-center gap-0.5 rounded-[14px] border text-center outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:w-auto md:min-w-0 md:flex-1",
               isToday ? "border-transparent bg-highlight text-highlight-foreground" : "border-border hover:bg-accent",
