@@ -282,7 +282,7 @@ function QuickAdd({ state, props, onClose }: { state: QuickAddState | null; prop
     if (!value || cancelled.current) return
     done.current = true
     onClose()
-    await props.onCreateTask({ listId, title: value, priority: "none", dueDay: state.day, dueTime: state.time })
+    await props.onCreateTask({ listId, title: value, dueDay: state.day, dueTime: state.time })
   }
 
   if (!state) return null

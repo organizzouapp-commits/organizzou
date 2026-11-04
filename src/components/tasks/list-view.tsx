@@ -9,7 +9,7 @@ import { cardHover } from "@/components/organizzou/Bento"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { Button } from "@/components/ui/button"
 import { groupByDue } from "@/features/tasks/view"
-import { PRIORITY_LABELS, type ListRow, type Priority, type TaskView } from "@/features/tasks/types"
+import type { ListRow, TaskView } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
 import { ListMenu, ListName } from "./list-parts"
@@ -18,7 +18,7 @@ import { SortableTaskCard, TaskCardBody } from "./task-card"
 import { DRAG_OVERLAY_CLASS, hapticTick, TaskDragProvider, useDragHover, useTaskSensors } from "./task-dnd"
 import type { ViewProps } from "./types"
 
-export type GroupBy = "lista" | "prazo" | "prioridade"
+export type GroupBy = "lista" | "prazo"
 
 const STORAGE_KEY = "organizzou:tarefas-groups"
 const FOLDED_BY_DEFAULT = new Set(["concluidas"])
@@ -31,8 +31,6 @@ function readFolded(): Record<string, boolean> {
     return {}
   }
 }
-
-const PRIORITY_ORDER: Priority[] = ["high", "medium", "low", "none"]
 
 /**
  * Collapsing = the body shrinks to height 0 (0.4 s, instant under reduced motion) and is hidden afterwards, leaving the header only:
@@ -141,7 +139,7 @@ function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled }: { 
 
 /**
  * Lista. Default grouping = the quadro's lists (same as the Kanban, collapse/reorder/rename shared); "Agrupar por" can switch to
- * Prazo (Atrasadas, Hoje, Amanhã…) or Prioridade. Headers: chevron, name, count, "+" and the ⋯ menu for lists.
+ * Prazo (Atrasadas, Hoje, Amanhã…). Headers: chevron, name, count, "+" and the ⋯ menu for lists.
  */
 export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boolean; dragEnabled?: boolean; onMoveTasks?: (listId: string, taskIds: string[]) => void }) {
   const mobile = Boolean(props.isMobile)
@@ -217,8 +215,6 @@ export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boole
   const groups =
     props.groupBy === "prazo"
       ? groupByDue(props.tasks, { now: props.now, timeZone: props.timeZone }).map((g) => ({ id: g.id as string, label: g.label, tasks: g.tasks }))
-      : props.groupBy === "prioridade"
-        ? PRIORITY_ORDER.map((p) => ({ id: `p-${p}`, label: PRIORITY_LABELS[p], tasks: props.tasks.filter((t) => t.priority === p) })).filter((g) => g.tasks.length > 0)
         : []
 
   const activeTask = activeId ? taskById.get(activeId) : undefined

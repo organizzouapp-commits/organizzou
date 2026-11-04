@@ -12,8 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { PRIORITIES, PRIORITY_LABELS, type ListRow, type Priority, type TagRow } from "@/features/tasks/types"
+import type { ListRow, TagRow } from "@/features/tasks/types"
 import { EMPTY_CRITERIA, newShortcutId, type ShortcutCriteria, type ShortcutDef } from "@/features/tasks/shortcuts"
 import type { DueFilter } from "@/features/tasks/filters"
 
@@ -112,16 +111,6 @@ function Builder({ initial, lists, tags, categories, onCancel, onSave }: { initi
             <Input type="date" aria-label="Até" value={c.range.to ?? ""} onChange={(e) => setC({ ...c, range: { from: c.range?.from ?? null, to: e.target.value || null } })} className="h-11 rounded-xl" />
           </div>
         ) : null}
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>Prioridades</Label>
-        <ToggleGroup type="multiple" variant="outline" value={c.priorities} onValueChange={(v) => setC({ ...c, priorities: v as Priority[] })} className="flex-wrap justify-start">
-          {PRIORITIES.filter((p) => p !== "none").map((p) => (
-            <ToggleGroupItem key={p} value={p} className="h-11 md:h-9">
-              {PRIORITY_LABELS[p]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
       </div>
       {lists.length > 0 ? (
         <fieldset className="flex flex-col">

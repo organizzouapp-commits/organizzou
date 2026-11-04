@@ -1,14 +1,12 @@
 import { dayDiff, dayKey, isOverdue } from "@/lib/dates"
 
-import type { ListRow, Priority, TaskView } from "./types"
-import { asPriority } from "./types"
+import type { ListRow, TaskView } from "./types"
 
 export type DueFilter = "all" | "overdue" | "today" | "week" | "none"
-export type SortKey = "manual" | "due" | "priority" | "title" | "created"
+export type SortKey = "manual" | "due" | "title" | "created"
 
 export type TaskFilters = {
   query: string
-  priorities: Priority[]
   tagIds: string[]
   due: DueFilter
   listIds: string[]
@@ -20,7 +18,6 @@ export type TaskFilters = {
 
 export const EMPTY_FILTERS: TaskFilters = {
   query: "",
-  priorities: [],
   tagIds: [],
   due: "all",
   listIds: [],
@@ -31,7 +28,6 @@ export const EMPTY_FILTERS: TaskFilters = {
 
 export function countActiveFilters(filters: TaskFilters) {
   return (
-    (filters.priorities.length > 0 ? 1 : 0) +
     (filters.tagIds.length > 0 ? 1 : 0) +
     (filters.due !== "all" ? 1 : 0) +
     (filters.listIds.length > 0 ? 1 : 0) +
@@ -54,7 +50,6 @@ export function applyFilters(
 
   return tasks.filter((task) => {
     if (!filters.showCompleted && task.completed_at) return false
-    if (filters.priorities.length > 0 && !filters.priorities.includes(asPriority(task.priority))) return false
     if (filters.tagIds.length > 0 && !filters.tagIds.some((id) => task.tagIds.includes(id))) return false
     if (filters.listIds.length > 0 && !filters.listIds.includes(task.list_id)) return false
     if (filters.categories.length > 0 && !(task.category && filters.categories.includes(task.category))) return false
@@ -90,8 +85,6 @@ export function applyFilters(
   })
 }
 
-const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2, none: 3 }
-
 export function sortTasks(tasks: TaskView[], sort: SortKey) {
   const copy = [...tasks]
   switch (sort) {
@@ -102,12 +95,6 @@ export function sortTasks(tasks: TaskView[], sort: SortKey) {
         if (!b.due_at) return -1
         return new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
       })
-    case "priority":
-      return copy.sort(
-        (a, b) =>
-          PRIORITY_RANK[asPriority(a.priority)] - PRIORITY_RANK[asPriority(b.priority)] ||
-          a.position - b.position
-      )
     case "title":
       return copy.sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
     case "created":

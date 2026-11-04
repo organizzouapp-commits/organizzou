@@ -13,7 +13,6 @@ import {
   CopyIcon,
   DownloadIcon,
   EllipsisIcon,
-  FlagIcon,
   LayoutListIcon,
   ListIcon,
   PaperclipIcon,
@@ -42,7 +41,6 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import type { BoardApi } from "@/features/tasks/board-api"
 import { ManageablePicker } from "./manageable-picker"
 import { MAX_ATTACHMENT_BYTES } from "@/features/tasks/schemas"
-import { priorityOf, type PriorityState } from "@/features/tasks/priorities"
 import type { AttachmentRow, ChecklistItemRow, CommentRow, ListRow, TagRow, TaskView } from "@/features/tasks/types"
 import { dayKey, splitDue, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
@@ -53,17 +51,8 @@ import { cn } from "@/lib/utils"
 import { useLabelColors } from "./label-colors-context"
 import { ColorDot, LabelBadge, TagChip } from "./task-meta"
 
-/** Everything the pickers manage: priorities (the person's own list), tags and categories. Implemented by the board. */
+/** Everything the pickers manage: tags and categories. Implemented by the board. */
 export type Taxonomy = {
-  priorities: {
-    state: PriorityState
-    pick: (task: TaskView, id: string | null) => void
-    create: (name: string) => void
-    rename: (id: string, name: string) => void
-    remove: (id: string) => void
-    reorder: (ids: string[]) => void
-    usage: (id: string) => number
-  }
   tags: { rename: (id: string, name: string) => Promise<boolean>; remove: (id: string) => void; usage: (id: string) => number }
   categories: { list: string[]; rename: (from: string, to: string) => void; remove: (name: string) => void; usage: (name: string) => number }
 }
@@ -680,7 +669,6 @@ function DetailBody({
     />
   )
 
-  const priorityValue = priorityOf(taxonomy.priorities.state, task)
   const categoriesWithCurrent = [...new Set([...taxonomy.categories.list, ...(category.trim() ? [category.trim()] : [])])]
 
   const properties = (
@@ -706,27 +694,6 @@ function DetailBody({
               if (id !== task.list_id) onMoveToList(task, id)
               close()
             }}
-          />
-        )}
-      </Property>
-      <Property label="Prioridade" icon={FlagIcon} value={priorityValue?.name ?? "Sem prioridade"} desktop={desktop}>
-        {(close) => (
-          <ManageablePicker
-            noun="prioridade"
-            kind="priority"
-            deleteNote="As tarefas voltam para “Sem prioridade”."
-            fixed={{ id: "none", label: "Sem prioridade" }}
-            items={taxonomy.priorities.state.list.map((p) => ({ id: p.id, label: p.name }))}
-            selected={priorityValue ? [priorityValue.id] : []}
-            onSelect={(id) => {
-              taxonomy.priorities.pick(task, id === "none" ? null : id)
-              close()
-            }}
-            onCreate={(name) => taxonomy.priorities.create(name)}
-            onRename={(id, name) => taxonomy.priorities.rename(id, name)}
-            onDelete={taxonomy.priorities.remove}
-            onReorder={taxonomy.priorities.reorder}
-            usage={taxonomy.priorities.usage}
           />
         )}
       </Property>

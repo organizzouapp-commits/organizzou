@@ -61,5 +61,3 @@ export function groupByDue(tasks: TaskView[], context: { now: Date; timeZone: st
   return DUE_GROUPS.map((g) => ({ ...g, tasks: buckets.get(g.id)! })).filter((g) => g.tasks.length > 0)
 }
 
-/** Only high priority gets a flag on the card. */
-export const showsFlag = (priority: string) => priority === "high"

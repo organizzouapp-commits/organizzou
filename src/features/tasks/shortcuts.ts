@@ -1,6 +1,6 @@
 import { applyFilters, EMPTY_FILTERS, type DueFilter, type TaskFilters } from "./filters"
-import type { Priority, TaskView } from "./types"
-import { PRIORITIES } from "./types"
+import { tagIdsForLegacyPriorities } from "./priority-to-tags"
+import type { TagRow, TaskView } from "./types"
 import { isPending } from "./view"
 
 /**
@@ -13,9 +13,10 @@ export type ShortcutCriteria = {
   range: { from: string | null; to: string | null } | null
   listIds: string[]
   tagIds: string[]
-  priorities: Priority[]
   categories: string[]
   query: string
+  /** Priorities a shortcut used before they became tags: converted to tag ids once the tags are known (see `convertLegacyPriorities`). */
+  legacyPriorities?: string[]
 }
 
 export type ShortcutDef = {
@@ -28,7 +29,7 @@ export type ShortcutDef = {
   criteria: ShortcutCriteria
 }
 
-export const EMPTY_CRITERIA: ShortcutCriteria = { due: "all", range: null, listIds: [], tagIds: [], priorities: [], categories: [], query: "" }
+export const EMPTY_CRITERIA: ShortcutCriteria = { due: "all", range: null, listIds: [], tagIds: [], categories: [], query: "" }
 
 const builtin = (id: string, label: string, due: DueFilter): ShortcutDef => ({ id, label, builtin: true, hidden: false, pinned: id === "todas", criteria: { ...EMPTY_CRITERIA, due } })
 
@@ -74,9 +75,11 @@ export function parseShortcuts(raw: string | null): ShortcutDef[] {
             range: c.range && typeof c.range === "object" ? { from: c.range.from ?? null, to: c.range.to ?? null } : null,
             listIds: Array.isArray(c.listIds) ? c.listIds.filter((v): v is string => typeof v === "string") : [],
             tagIds: Array.isArray(c.tagIds) ? c.tagIds.filter((v): v is string => typeof v === "string") : [],
-            priorities: Array.isArray(c.priorities) ? c.priorities.filter((v): v is Priority => (PRIORITIES as readonly string[]).includes(v as string)) : [],
             categories: Array.isArray(c.categories) ? c.categories.filter((v): v is string => typeof v === "string") : [],
             query: typeof c.query === "string" ? c.query : "",
+            ...(Array.isArray((c as { priorities?: unknown }).priorities) && ((c as { priorities: unknown[] }).priorities.length > 0)
+              ? { legacyPriorities: (c as { priorities: unknown[] }).priorities.filter((v): v is string => typeof v === "string" && v !== "none") }
+              : {}),
           },
     })
   }
@@ -102,11 +105,23 @@ export function saveShortcuts(defs: ShortcutDef[]) {
 
 /** The board filters a chip applies (the person's own filters are replaced, "Mostrar concluídas" is kept). */
 export function criteriaToFilters(c: ShortcutCriteria, keep: Pick<TaskFilters, "showCompleted">): TaskFilters {
-  return { ...EMPTY_FILTERS, showCompleted: keep.showCompleted, due: c.due, range: c.range, listIds: c.listIds, tagIds: c.tagIds, priorities: c.priorities, categories: c.categories, query: c.query }
+  return { ...EMPTY_FILTERS, showCompleted: keep.showCompleted, due: c.due, range: c.range, listIds: c.listIds, tagIds: c.tagIds, categories: c.categories, query: c.query }
 }
 
 export function filtersToCriteria(f: TaskFilters): ShortcutCriteria {
-  return { due: f.due, range: f.range, listIds: f.listIds, tagIds: f.tagIds, priorities: f.priorities, categories: f.categories, query: f.query.trim() }
+  return { due: f.due, range: f.range, listIds: f.listIds, tagIds: f.tagIds, categories: f.categories, query: f.query.trim() }
+}
+
+/** Shortcuts that filtered by priority now filter by the equivalent tag (Baixa / Média / Alta). Returns the same array when nothing needed it. */
+export function convertLegacyPriorities(defs: ShortcutDef[], tags: Pick<TagRow, "id" | "name">[]): ShortcutDef[] {
+  if (!defs.some((d) => d.criteria.legacyPriorities?.length)) return defs
+  return defs.map((d) => {
+    const legacy = d.criteria.legacyPriorities
+    if (!legacy?.length) return d
+    const { legacyPriorities: _drop, ...rest } = d.criteria
+    void _drop
+    return { ...d, criteria: { ...rest, tagIds: [...new Set([...rest.tagIds, ...tagIdsForLegacyPriorities(legacy, tags)])] } }
+  })
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -119,7 +134,6 @@ export function isActiveShortcut(def: ShortcutDef, f: TaskFilters) {
     same(c.range, f.range) &&
     same([...c.listIds].sort(), [...f.listIds].sort()) &&
     same([...c.tagIds].sort(), [...f.tagIds].sort()) &&
-    same([...c.priorities].sort(), [...f.priorities].sort()) &&
     same([...c.categories].sort(), [...f.categories].sort()) &&
     (c.query === "" || c.query === f.query.trim())
   )

@@ -1,12 +1,10 @@
-import { CalendarIcon, ClockIcon, FlagIcon, MessageSquareIcon, PaperclipIcon, SquareCheckIcon, TriangleAlertIcon } from "lucide-react"
+import { CalendarIcon, ClockIcon, MessageSquareIcon, PaperclipIcon, SquareCheckIcon, TriangleAlertIcon } from "lucide-react"
 
 import { dayDiff, formatDue, isOverdue, splitDue } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { colorLabel, resolveHex, tintStyle, type ColorValue } from "@/features/tasks/colors"
-import { isTopHalf, priorityOf } from "@/features/tasks/priorities"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 import { useLabelColors } from "./label-colors-context"
-import { usePriorities } from "./priorities-context"
 
 /** A neutral dot (foreground ~55%): the NAME carries the meaning of a list or tag, never the hue. */
 export function NeutralDot({ className }: { className?: string }) {
@@ -48,20 +46,36 @@ export function SwatchDot({ className }: { swatch?: string; className?: string }
 }
 
 /**
- * The priority flag for ANY priority of the person's list (nothing for "Sem prioridade"): filled for the heavier half, outline for
- * the lighter half, and the name in the accessible label, so the meaning never rides on the fill alone.
+ * A label chip of a card (category or tag): tinted pill with the name, or just its 10px dot in "compact labels" mode. The same element
+ * animates between the two (0.4s, instant under reduced motion). Clicking it toggles the mode for every card (it never opens the task).
  */
-export function PriorityFlag({ task, className }: { task: Pick<TaskView, "id" | "priority">; className?: string }) {
-  const state = usePriorities()
-  const { colorOf } = useLabelColors()
-  const def = priorityOf(state, task)
-  if (!def) return null
-  const hex = resolveHex(colorOf("priority", def.id))
-  return <FlagIcon role="img" aria-label={`Prioridade ${def.name.toLowerCase()}`} strokeWidth={1.75} style={hex ? { color: hex } : undefined} className={cn("size-3.5 shrink-0", !hex && "text-muted-foreground", isTopHalf(state.list, def.id) && "fill-current", className)} />
+export function LabelChip({ name, color, compact, onToggle, className }: { name: string; color: ColorValue; compact: boolean; onToggle: () => void; className?: string }) {
+  const hex = resolveHex(color)
+  const toggleLabel = compact ? "Mostrar nomes das etiquetas" : "Ocultar nomes das etiquetas"
+  return (
+    <button
+      type="button"
+      data-label-chip
+      aria-pressed={compact}
+      aria-label={`${toggleLabel}: ${name}`}
+      title={name}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      style={!compact && hex ? tintStyle(hex) : undefined}
+      className={cn(
+        "pointer-events-auto relative z-10 inline-flex h-6 min-w-0 shrink-0 items-center rounded-full border text-[12px] leading-4 font-medium text-foreground outline-none transition-[padding,background-color,border-color,gap] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:-inset-2.5 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+        compact ? "gap-0 border-transparent bg-transparent px-1.5" : cn("gap-1.5 px-2", !hex && "border-transparent bg-secondary"),
+        className
+      )}
+    >
+      <span role="img" aria-label={name} data-label-dot={hex ?? "neutral"} className={cn("inline-block size-2.5 shrink-0 rounded-full", hex ? "ring-1 ring-foreground/25" : "bg-foreground/55")} style={hex ? { backgroundColor: hex } : undefined} />
+      <span aria-hidden={compact} className={cn("overflow-hidden text-left whitespace-nowrap transition-[max-width,opacity] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", compact ? "max-w-0 opacity-0" : "max-w-40 truncate opacity-100")}>{name}</span>
+    </button>
+  )
 }
-
-/** @deprecated kept for older imports; use PriorityFlag. */
-export const PriorityIcon = PriorityFlag
 
 export function TagChip({ tag, className }: { tag: TagRow; className?: string }) {
   const { colorOf } = useLabelColors()

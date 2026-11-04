@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { countPending, dueGroupOf, groupByDue, isPending, shortcutCounts, showsFlag } from "./view"
+import { countPending, dueGroupOf, groupByDue, isPending, shortcutCounts } from "./view"
 import type { TaskView } from "./types"
 
 const NOW = new Date("2026-11-03T15:00:00-03:00")
@@ -80,8 +80,3 @@ describe("due groups", () => {
   })
 })
 
-describe("priority flag", () => {
-  it("only high priority is flagged", () => {
-    expect(["none", "low", "medium", "high"].map(showsFlag)).toEqual([false, false, false, true])
-  })
-})

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
+import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,14 +11,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { colorLabel, resolveHex, taskColorOf, type ColorValue } from "@/features/tasks/colors"
-import { priorityOf } from "@/features/tasks/priorities"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 
 import { InlineInput } from "./inline-input"
 import { useTaskDragging } from "./task-dnd"
 import { useLabelColors } from "./label-colors-context"
-import { usePriorities } from "./priorities-context"
-import { DueLabel, LabelBadge, PriorityFlag, TaskCounters } from "./task-meta"
+import { useCompactLabels } from "./compact-labels"
+import { DueLabel, LabelChip, TaskCounters } from "./task-meta"
 
 /** What a task can do from its card, row, swipe panel or menu. */
 export type TaskActions = {
@@ -68,7 +67,6 @@ export const CHECK_CLASS = "size-5 after:-inset-3 [&_svg]:size-3"
 
 /** The ⋯ menu: the ONE trigger of a card (32 px visual, 44 px hit area). */
 function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: TaskView; actions: TaskActions; open: boolean; onOpenChange: (open: boolean) => void; onRename: () => void }) {
-  const done = Boolean(task.completed_at)
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -76,52 +74,34 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
           <EllipsisIcon strokeWidth={1.75} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52 rounded-2xl p-2">
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.toggle}>
-          {done ? <RotateCcwIcon strokeWidth={1.75} /> : <CheckIcon strokeWidth={1.75} />} {done ? "Reabrir" : "Concluir"}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.open}>
-          <PencilIcon strokeWidth={1.75} /> Abrir detalhes
-        </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={onRename}>
+      {/* Never under the bottom nav or the assistant button on phones (96px), and it scrolls inside when the screen is short. */}
+      <DropdownMenuContent align="end" collisionPadding={{ top: 80, bottom: 96, left: 16, right: 16 }} className="max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-52 overflow-y-auto rounded-2xl p-2">
+        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={onRename}>
           <TextCursorInputIcon strokeWidth={1.75} /> Renomear
         </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.duplicate}>
+        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.duplicate}>
           <CopyIcon strokeWidth={1.75} /> Duplicar
         </DropdownMenuItem>
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.select}>
-          <ListChecksIcon strokeWidth={1.75} /> Selecionar
-        </DropdownMenuItem>
-        {!done ? (
-          <>
-            <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.postpone1h}>
-              <ClockIcon strokeWidth={1.75} /> Adiar 1 h
-            </DropdownMenuItem>
-            <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.tomorrow}>
-              <CalendarIcon strokeWidth={1.75} /> Amanhã
-            </DropdownMenuItem>
-          </>
-        ) : null}
         {actions.schedule ? (
-          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.schedule}>
+          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.schedule}>
             <CalendarClockIcon strokeWidth={1.75} /> Agendar…
           </DropdownMenuItem>
         ) : null}
         {actions.moveUp ? (
-          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.moveUp}>
+          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveUp}>
             <ArrowUpIcon strokeWidth={1.75} /> Mover para cima
           </DropdownMenuItem>
         ) : null}
         {actions.moveDown ? (
-          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.moveDown}>
+          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.moveDown}>
             <ArrowDownIcon strokeWidth={1.75} /> Mover para baixo
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.move}>
+        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.move}>
           <ArrowRightIcon strokeWidth={1.75} /> Mover para…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.remove}>
+        <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-[15px] md:min-h-11" onSelect={actions.remove}>
           <Trash2Icon strokeWidth={1.75} /> Excluir tarefa
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -233,22 +213,22 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
   useEffect(() => () => window.clearTimeout(openTimer.current), [])
   const isMobile = useIsMobile()
   const labels = useLabelColors()
-  const priorities = usePriorities()
+  const { compact, toggle: toggleCompact } = useCompactLabels()
   const taskColor = taskColorOf(labels.state, task)
   const colorHex = resolveHex(taskColor)
   const done = Boolean(task.completed_at)
   const taskTags = task.tagIds.map((id) => tags.find((t) => t.id === id)).filter((t): t is TagRow => Boolean(t))
-  const priority = priorityOf(priorities, task)
-  // Label chips in order: priority, category, tags. At most 3 are shown, the rest becomes "+N".
+  // Label chips in order: category, tags. At most 3 are shown (6 dots in compact mode), the rest becomes "+N".
   const chips: { key: string; name: string; color: ColorValue }[] = []
-  if (priority) chips.push({ key: "priority", name: priority.name, color: labels.colorOf("priority", priority.id) })
   if (task.category) chips.push({ key: "category", name: task.category, color: labels.colorOf("category", task.category) })
   for (const tag of taskTags) chips.push({ key: `tag:${tag.id}`, name: tag.name, color: labels.colorOf("tag", tag.id) })
-  const shownChips = chips.slice(0, 3)
-  const hiddenChips = chips.slice(3)
+  const limit = compact ? 6 : 3
+  const shownChips = chips.slice(0, limit)
+  const hiddenChips = chips.slice(limit)
   const hasCounters = task.checklistTotal > 0 || task.commentCount > 0 || task.attachmentCount > 0
   const hasDue = Boolean(task.due_at) && (dueMode === "full" || task.due_has_time)
   const hasMeta = hasDue || chips.length > 0 || hasCounters
+  const hasDateRow = hasDue || hasCounters
 
   const body = (
     <div
@@ -314,33 +294,42 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
           className="min-w-0 cursor-grab rounded-md text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {/* Completed: struck through and muted (an opacity of 60% would drop the meta line under 4.5:1). */}
-          <span data-task-title className={cn("block text-[15px] leading-5 font-semibold [overflow-wrap:anywhere]", done && "text-muted-foreground line-through")}>
+          <span data-task-title title={task.title} className={cn("block truncate text-[15px] leading-5 font-semibold", done && "text-muted-foreground line-through")}>
             {task.title}
           </span>
         </button>
       )}
       {colorHex ? <span id={`task-color-${task.id}`} className="sr-only">Cor da tarefa: {colorLabel(taskColor)}</span> : null}
-      {/* Actions: flag (when there is a priority) then ⋯, both centered on the first title line; ⋯ keeps the rightmost slot. */}
+      {/* Actions: the ⋯ menu, centered on the first title line, in the rightmost slot. */}
       <div data-task-actions className="relative z-10 flex h-5 items-center justify-end gap-1" onPointerDown={(e) => e.stopPropagation()}>
         {inert ? null : (
           <>
-            <PriorityFlag task={task} className="size-4" />
             <ActionsMenu task={task} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} onRename={() => setRenaming(true)} />
           </>
         )}
       </div>
       {hasMeta ? (
-        <div data-task-meta className="pointer-events-none col-start-2 col-end-4 mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-          {hasDue ? <DueLabel task={task} now={now} timeZone={timeZone} mode={dueMode} className="h-6" /> : null}
-          {shownChips.map((chip) => (
-            <LabelBadge key={chip.key} name={chip.name} color={chip.color} className="h-6 max-w-40" />
-          ))}
-          {hiddenChips.length > 0 ? (
-            <span data-chip-more title={hiddenChips.map((c) => c.name).join(", ")} className="tabular inline-flex h-6 items-center rounded-full bg-secondary px-2 text-[12px] leading-4 font-medium text-secondary-foreground">
-              +{hiddenChips.length}
-            </span>
+        <div data-task-meta className="pointer-events-none col-start-2 col-end-4 mt-1.5 flex min-w-0 flex-col gap-1.5">
+          {/* Row 2: date/time on the left, the counters at the right end (their right edge is the ⋯ edge). */}
+          {hasDateRow ? (
+            <div data-meta-row className="flex min-w-0 items-center gap-2">
+              {hasDue ? <DueLabel task={task} now={now} timeZone={timeZone} mode={dueMode} className="h-6" /> : null}
+              <TaskCounters task={task} className="ml-auto h-6" />
+            </div>
           ) : null}
-          <TaskCounters task={task} className="ml-auto h-6" />
+          {/* Row 3: the labels, below the date, wrapping. */}
+          {chips.length > 0 ? (
+            <div role="group" aria-label="Etiquetas" data-label-row className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+              {shownChips.map((chip) => (
+                <LabelChip key={chip.key} name={chip.name} color={chip.color} compact={compact} onToggle={toggleCompact} />
+              ))}
+              {hiddenChips.length > 0 ? (
+                <span data-chip-more title={hiddenChips.map((c) => c.name).join(", ")} className="tabular inline-flex h-6 items-center rounded-full bg-secondary px-2 text-[12px] leading-4 font-medium text-secondary-foreground">
+                  +{hiddenChips.length}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

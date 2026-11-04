@@ -61,7 +61,6 @@ function rank(item: DayItem) {
   if (item.kind === "task") return 1
   return 2
 }
-const prio = (item: DayItem) => ({ high: 3, medium: 2, low: 1, none: 0 })[item.priority ?? "none"]
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -259,7 +258,7 @@ export function SeuDia({ data }: { data: DayData }) {
   const earlier = today.filter((item) => isEnded(item, nowMs)).sort((a, b) => new Date(a.at!).getTime() - new Date(b.at!).getTime())
   const rest = today.filter((item) => !isEnded(item, nowMs))
   const timed = rest.filter((item) => item.at).sort((a, b) => new Date(a.at!).getTime() - new Date(b.at!).getTime())
-  const untimed = rest.filter((item) => !item.at).sort((a, b) => rank(a) - rank(b) || prio(b) - prio(a))
+  const untimed = rest.filter((item) => !item.at).sort((a, b) => rank(a) - rank(b))
   const past = timed.filter((item) => new Date(item.at!).getTime() <= nowMs && !isCurrent(item, nowMs))
   const now = timed.filter((item) => isCurrent(item, nowMs))
   const future = timed.filter((item) => new Date(item.at!).getTime() > nowMs)

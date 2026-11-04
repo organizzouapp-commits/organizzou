@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { CalendarDaysIcon, CalendarIcon, ClockIcon, DumbbellIcon, EllipsisIcon, FlagIcon, GraduationCapIcon, ReceiptTextIcon, SquareCheckIcon, type LucideIcon } from "lucide-react"
+import { CalendarDaysIcon, CalendarIcon, ClockIcon, DumbbellIcon, EllipsisIcon, GraduationCapIcon, ReceiptTextIcon, SquareCheckIcon, type LucideIcon } from "lucide-react"
 
 import { agoText, clock, dayKey, durationText, remainingText } from "@/components/organizzou/today/day-format"
 import { Button } from "@/components/ui/button"
@@ -202,18 +202,7 @@ export function TimelineRow({ item, done, nowMs, handlers = {}, current, dimmed,
       ) : null}
       <Link href={item.href} className={cn("flex min-w-0 flex-col justify-center gap-0.5 rounded-md outline-none max-md:min-h-11 focus-visible:ring-3 focus-visible:ring-ring/50", current && "gap-1")}>
         <span className={cn("min-w-0 leading-5 font-semibold [overflow-wrap:anywhere]", current ? "text-[16px]" : "text-[15px]", done && "text-muted-foreground line-through decoration-1")}>
-          {item.priority === "high" ? (
-            <>
-              {item.title.slice(0, item.title.lastIndexOf(" ") + 1)}
-              {/* The last word and the flag never separate. */}
-              <span className="whitespace-nowrap">
-                {item.title.slice(item.title.lastIndexOf(" ") + 1)}
-                <FlagIcon role="img" aria-label="Prioridade alta" strokeWidth={1.75} className="ml-1.5 inline size-3.5 -translate-y-px text-muted-foreground" />
-              </span>
-            </>
-          ) : (
-            item.title
-          )}
+          {item.title}
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] leading-5 text-muted-foreground">
           <KindIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />

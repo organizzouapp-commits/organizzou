@@ -41,7 +41,7 @@ import {
   type TaskFilters,
 } from "@/features/tasks/filters"
 import type { ShortcutDef } from "@/features/tasks/shortcuts"
-import { PRIORITIES, PRIORITY_LABELS, type ListRow, type Priority, type TagRow } from "@/features/tasks/types"
+import type { ListRow, TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
 import { InlineInput } from "./inline-input"
@@ -62,7 +62,6 @@ const DUE_LABELS: Record<DueFilter, string> = {
 const SORT_LABELS: Record<SortKey, string> = {
   manual: "Ordem manual",
   due: "Data de entrega",
-  priority: "Prioridade",
   title: "Título (A–Z)",
   created: "Mais recentes",
 }
@@ -138,7 +137,7 @@ function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort:
         <div className="flex flex-col gap-2">
           <Label>Agrupar por</Label>
           <ToggleGroup type="single" variant="outline" value={props.groupBy} onValueChange={(v) => v && props.onGroupByChange(v as GroupBy)} className="justify-start">
-            {(["lista", "prazo", "prioridade"] as GroupBy[]).map((g) => (
+            {(["lista", "prazo"] as GroupBy[]).map((g) => (
               <ToggleGroupItem key={g} value={g} aria-label={`Agrupar por ${g}`} className="h-11 px-4 capitalize md:h-9">
                 {g}
               </ToggleGroupItem>
@@ -151,23 +150,6 @@ function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort:
           <ListIcon strokeWidth={1.75} /> Gerenciar listas
         </Button>
       ) : null}
-      <div className="flex flex-col gap-2">
-        <Label>Prioridade</Label>
-        <ToggleGroup
-          type="multiple"
-          variant="outline"
-          value={filters.priorities}
-          onValueChange={(values) => onFiltersChange({ ...filters, priorities: values as Priority[] })}
-          className="flex-wrap justify-start"
-        >
-          {PRIORITIES.filter((p) => p !== "none").map((p) => (
-            <ToggleGroupItem key={p} value={p} aria-label={PRIORITY_LABELS[p]}>
-              {PRIORITY_LABELS[p]}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-
       <div className="flex flex-col gap-2">
         <Label htmlFor="filter-due">Data de entrega</Label>
         <Select value={filters.due} onValueChange={(v) => onFiltersChange({ ...filters, due: v as DueFilter })}>
@@ -345,12 +327,12 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
             data-view-tab={id}
             onClick={() => props.onViewChange(id)}
             className={cn(
-              "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
+              "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-1.5 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
               on ? "bg-foreground/14 font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Icon aria-hidden strokeWidth={1.75} className={isMobile ? "size-5" : "size-4"} />
-            {isMobile ? null : <span className="max-[1535px]:sr-only">{label}</span>}
+            <Icon aria-hidden strokeWidth={1.75} className={isMobile ? "size-[18px] shrink-0" : "size-4"} />
+            {isMobile ? <span className="min-w-0 truncate text-[13px] leading-5 font-semibold">{label}</span> : <span className="max-[1535px]:sr-only">{label}</span>}
           </button>
         )
       })}

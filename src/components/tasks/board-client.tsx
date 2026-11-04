@@ -26,10 +26,12 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
-import { DEFAULT_PRIORITY_STATE, enumFor, localPriorityRepo, newPriorityId, priorityOf, usageOf, type PriorityState } from "@/features/tasks/priorities"
-import { countForShortcut, criteriaToFilters, DEFAULT_SHORTCUTS, filtersToCriteria, isActiveShortcut, loadShortcuts, saveShortcuts, type ShortcutCriteria, type ShortcutDef } from "@/features/tasks/shortcuts"
+import { localLabelColorRepo } from "@/features/tasks/colors"
+import { localPriorityRepo } from "@/features/tasks/priorities"
+import { planPriorityTags } from "@/features/tasks/priority-to-tags"
+import { countForShortcut, criteriaToFilters, DEFAULT_SHORTCUTS, filtersToCriteria, convertLegacyPriorities, isActiveShortcut, loadShortcuts, saveShortcuts, type ShortcutCriteria, type ShortcutDef } from "@/features/tasks/shortcuts"
 import { dueOfShortcut } from "@/features/tasks/view"
-import { asPriority, type BoardData, type ListRow, type Priority, type TagRow, type TaskView } from "@/features/tasks/types"
+import type { BoardData, ListRow, TagRow, TaskView } from "@/features/tasks/types"
 import { dayKey, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
@@ -46,7 +48,7 @@ import { MoveDialog } from "./move-dialog"
 import { NewTaskDialog, type NewTaskInput } from "./new-task-dialog"
 import type { TaskActions } from "./task-card"
 import { LabelColorsProvider, useLabelColorsStore } from "./label-colors-context"
-import { PrioritiesProvider } from "./priorities-context"
+import { CompactLabelsProvider, useCompactLabelsStore } from "./compact-labels"
 import { TaskDetail, type Taxonomy } from "./task-detail"
 
 type BoardClientProps = {
@@ -105,12 +107,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   const [helpOpen, setHelpOpen] = useState(false)
   const [manageListsOpen, setManageListsOpen] = useState(false)
   const labels = useLabelColorsStore()
-  const [prio, setPrio] = useState<PriorityState>(DEFAULT_PRIORITY_STATE)
-  useEffect(() => {
-    // The person's priorities live in the browser until the server adapter exists (see features/tasks/priorities.ts).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPrio(localPriorityRepo.load())
-  }, [])
+  const compactLabels = useCompactLabelsStore()
   const [shortcuts, setShortcuts] = useState<ShortcutDef[]>(DEFAULT_SHORTCUTS)
   const [editorOpen, setEditorOpen] = useState(false)
   const [shortcutDraft, setShortcutDraft] = useState<ShortcutCriteria | null>(null)
@@ -119,6 +116,16 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setShortcuts(loadShortcuts())
   }, [])
+  // Priorities became tags: shortcuts that filtered by priority now filter by the equivalent tag.
+  useEffect(() => {
+    // Derived once the tags are known.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShortcuts((current) => {
+      const next = convertLegacyPriorities(current, tags)
+      if (next !== current) saveShortcuts(next)
+      return next
+    })
+  }, [tags])
   const searchRef = useRef<HTMLInputElement>(null)
   const hoveredTask = useRef<string | null>(null)
 
@@ -241,13 +248,13 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     const tempId = `tmp-${Math.random().toString(36).slice(2)}`
     const siblings = tasks.filter((t) => t.list_id === input.listId)
     const draft: TaskView = {
-      id: tempId, board_id: boardId, list_id: input.listId, title: input.title, description: null, priority: input.priority, due_at: dueAt, due_has_time: Boolean(input.dueTime && dueAt),
+      id: tempId, board_id: boardId, list_id: input.listId, title: input.title, description: null, priority: "none", due_at: dueAt, due_has_time: Boolean(input.dueTime && dueAt),
       completed_at: null, archived: false, position: (siblings.reduce((max, t) => Math.max(max, t.position), 0) || 0) + 1000, swatch: "neutro", category: null, user_id: "", created_at: stamp, updated_at: stamp,
       tagIds: [], checklistTotal: 0, checklistDone: 0, commentCount: 0, attachmentCount: 0,
     }
     setTasks((current) => [...current, draft])
     setHighlightId(tempId)
-    const result = await api.createTask({ boardId, listId: input.listId, title: input.title, priority: input.priority as Priority, dueAt, dueHasTime: Boolean(input.dueTime) })
+    const result = await api.createTask({ boardId, listId: input.listId, title: input.title, dueAt, dueHasTime: Boolean(input.dueTime) })
     if (!result.ok) {
       setTasks((current) => current.filter((t) => t.id !== tempId))
       setHighlightId((current) => (current === tempId ? null : current))
@@ -381,54 +388,56 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
 
   // ------------------------------------------------------- priorities, tags, categories (the pickers' data)
 
-  /** Keeps the stored enum of every task in step with the weight of its priority (filters and sorting read the enum). */
-  async function syncPriorityEnums(next: PriorityState) {
-    for (const t of tasksRef.current) {
-      const want = enumFor(next.list, priorityOf(next, t)?.id ?? null)
-      if (want === t.priority) continue
-      replaceTask({ ...t, priority: want })
-      await api.updateTask({ id: t.id, patch: { priority: want } })
+  /**
+   * One-time, non-destructive conversion (per quadro, flagged in localStorage): every task with a priority gets a tag with the same
+   * name and color (created when missing, matched case-insensitively), nothing is removed. See features/tasks/priority-to-tags.ts.
+   */
+  const priorityMigration = useRef(false)
+  useEffect(() => {
+    if (priorityMigration.current) return
+    priorityMigration.current = true
+    const flag = `organizzou:tarefas-priority-tags-v1:${boardId}`
+    try {
+      if (window.localStorage.getItem(flag)) return
+    } catch {
+      return
     }
-  }
-  function commitPriorities(next: PriorityState) {
-    setPrio(next)
-    localPriorityRepo.save(next)
-    void syncPriorityEnums(next)
-  }
+    void (async () => {
+      const colors = localLabelColorRepo.load().colors.priority
+      const plan = planPriorityTags({ tasks, priorities: localPriorityRepo.load(), tags, colorOf: (id) => colors[id] ?? null })
+      const keyOf = (name: string) => name.trim().toLocaleLowerCase("pt-BR")
+      const idByKey = new Map(tags.map((t) => [keyOf(t.name), t.id]))
+      for (const wanted of plan.create) {
+        const result = await api.createTag({ name: wanted.name })
+        if (!result.ok) return // try again next visit: the flag is not set
+        idByKey.set(keyOf(wanted.name), result.data.id)
+        setTags((current) => [...current, result.data].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))
+        if (wanted.color) labels.setColor("tag", result.data.id, wanted.color)
+      }
+      const byTask = new Map<string, string[]>()
+      for (const { taskId, key } of plan.assign) {
+        const id = idByKey.get(key)
+        if (id) byTask.set(taskId, [...(byTask.get(taskId) ?? []), id])
+      }
+      for (const [taskId, extra] of byTask) {
+        const task = tasksRef.current.find((t) => t.id === taskId)
+        if (!task) continue
+        const tagIds = [...new Set([...task.tagIds, ...extra])]
+        const result = await api.setTaskTags({ taskId, tagIds })
+        if (!result.ok) return
+        replaceTask({ ...task, tagIds })
+      }
+      try {
+        window.localStorage.setItem(flag, "1")
+      } catch {
+        // Private mode: it just runs again next visit (and changes nothing: the tags are already there).
+      }
+    })()
+    // Once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const taxonomy: Taxonomy = {
-    priorities: {
-      state: prio,
-      pick: (task, id) => {
-        const assigned = { ...prio.assigned }
-        if (id) assigned[task.id] = id
-        else delete assigned[task.id]
-        const next = { ...prio, assigned }
-        setPrio(next)
-        localPriorityRepo.save(next)
-        const want = enumFor(next.list, id)
-        replaceTask({ ...task, priority: want })
-        void api.updateTask({ id: task.id, patch: { priority: want } }).then((r) => {
-          if (!r.ok) toast.error(r.error)
-        })
-      },
-      create: (name) => {
-        const id = newPriorityId()
-        commitPriorities({ ...prio, list: [...prio.list, { id, name }] })
-        return id
-      },
-      rename: (id, name) => commitPriorities({ ...prio, list: prio.list.map((p) => (p.id === id ? { ...p, name } : p)) }),
-      reorder: (ids) => commitPriorities({ ...prio, list: ids.map((id) => prio.list.find((p) => p.id === id)!).filter(Boolean) }),
-      remove: (id) => {
-        // Affected tasks fall back to "Sem prioridade".
-        for (const t of tasks.filter((x) => priorityOf(prio, x)?.id === id)) {
-          replaceTask({ ...t, priority: "none" })
-          void api.updateTask({ id: t.id, patch: { priority: "none" } })
-        }
-        commitPriorities({ list: prio.list.filter((p) => p.id !== id), assigned: Object.fromEntries(Object.entries(prio.assigned).filter(([, v]) => v !== id)) })
-      },
-      usage: (id) => usageOf(prio, tasks, id),
-    },
     tags: {
       rename: async (id, name) => {
         const result = await api.renameTag({ id, name })
@@ -507,7 +516,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   }
 
   async function duplicateTask(task: TaskView) {
-    const result = await api.createTask({ boardId, listId: task.list_id, title: `${task.title} (cópia)`.slice(0, 200), description: task.description, priority: asPriority(task.priority), dueAt: task.due_at, dueHasTime: task.due_has_time })
+    const result = await api.createTask({ boardId, listId: task.list_id, title: `${task.title} (cópia)`.slice(0, 200), description: task.description, dueAt: task.due_at, dueHasTime: task.due_has_time })
     if (!result.ok) return void toast.error(result.error)
     setTasks((current) => [...current, result.data])
     toast.success("Tarefa duplicada.")
@@ -855,7 +864,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
 
   return (
     <LabelColorsProvider value={labels}>
-    <PrioritiesProvider value={prio}>
+    <CompactLabelsProvider value={compactLabels}>
     <div className="flex flex-col gap-5 max-md:gap-3">
       <div data-testid="board-header" className={cn("max-md:mt-3 max-md:rounded-[20px] max-md:border max-md:border-border max-md:bg-card max-md:p-3", !isMobile && bentoCardClass())}>
       <BoardToolbar
@@ -1094,7 +1103,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       </Dialog>
       <DeleteListDialog list={listToDelete} taskCount={listTaskCount} others={lists.filter((l) => l.id !== listToDelete?.id)} onCancel={() => setListToDelete(null)} onConfirm={(destination) => void confirmDeleteList(destination)} />
     </div>
-    </PrioritiesProvider>
+    </CompactLabelsProvider>
     </LabelColorsProvider>
   )
 }

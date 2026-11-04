@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useIsMobile } from "@/hooks/use-mobile"
 import { dayKey } from "@/lib/dates"
 import { cn } from "@/lib/utils"
-import { PRIORITIES, PRIORITY_LABELS, type ListRow, type Priority } from "@/features/tasks/types"
+import type { ListRow } from "@/features/tasks/types"
 import { readAs } from "@/server/assistant/parse"
 
-export type NewTaskInput = { listId: string; title: string; priority: Priority; dueDay: string | null; dueTime: string | null }
+export type NewTaskInput = { listId: string; title: string; dueDay: string | null; dueTime: string | null }
 
 type NewTaskDialogProps = {
   open: boolean
@@ -75,7 +75,6 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
 function NewTaskForm({ lists, defaultListId, defaultDue, defaultTitle, now, timeZone, onCreate, onClose }: NewTaskDialogProps & { onClose: () => void }) {
   const [title, setTitle] = useState(defaultTitle ?? "")
   const [listId, setListId] = useState(defaultListId ?? lists.find((l) => !l.is_done_list)?.id ?? lists[0]?.id ?? "")
-  const [priority, setPriority] = useState<Priority>("none")
   const [due, setDue] = useState<DuePreset>(defaultDue ? "dia" : "auto")
   const [busy, setBusy] = useState(false)
 
@@ -101,8 +100,7 @@ function NewTaskForm({ lists, defaultListId, defaultDue, defaultTitle, now, time
         if (!value || busy) return
         setBusy(true)
         const when = resolveDue()
-        const finalPriority = priority !== "none" ? priority : read?.type === "tarefa" && read.priority && PRIORITIES.includes(read.priority as Priority) ? (read.priority as Priority) : "none"
-        const ok = await onCreate({ listId, title: value, priority: finalPriority, dueDay: when.day, dueTime: when.time })
+        const ok = await onCreate({ listId, title: value, dueDay: when.day, dueTime: when.time })
         setBusy(false)
         if (ok) onClose()
       }}
@@ -155,21 +153,6 @@ function NewTaskForm({ lists, defaultListId, defaultDue, defaultTitle, now, time
               {lists.map((l) => (
                 <SelectItem key={l.id} value={l.id}>
                   {l.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="new-task-priority">Prioridade</Label>
-          <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-            <SelectTrigger id="new-task-priority" className="h-11 w-full rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PRIORITY_LABELS[p]}
                 </SelectItem>
               ))}
             </SelectContent>

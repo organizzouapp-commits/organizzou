@@ -56,8 +56,7 @@ describe("applyFilters", () => {
     expect(ids).toEqual(["b"])
   })
 
-  it("filters by priority and tag", () => {
-    expect(applyFilters(tasks, { ...EMPTY_FILTERS, priorities: ["high"] }, ctx).map((t) => t.id)).toEqual(["a"])
+  it("filters by tag", () => {
     expect(applyFilters(tasks, { ...EMPTY_FILTERS, tagIds: ["t1"] }, ctx).map((t) => t.id)).toEqual(["c"])
   })
 
@@ -75,7 +74,7 @@ describe("applyFilters", () => {
 
   it("counts active filters without counting the search text", () => {
     expect(countActiveFilters(EMPTY_FILTERS)).toBe(0)
-    expect(countActiveFilters({ ...EMPTY_FILTERS, query: "x", priorities: ["low"], due: "today" })).toBe(2)
+    expect(countActiveFilters({ ...EMPTY_FILTERS, query: "x", tagIds: ["t1"], due: "today" })).toBe(2)
   })
 })
 
@@ -92,10 +91,6 @@ describe("sortTasks", () => {
 
   it("sorts by due date with undated tasks last", () => {
     expect(sortTasks(tasks, "due").map((t) => t.id)).toEqual(["c", "a", "b"])
-  })
-
-  it("sorts by priority, high first", () => {
-    expect(sortTasks(tasks, "priority").map((t) => t.id)).toEqual(["b", "c", "a"])
   })
 
   it("sorts by title using pt-BR collation", () => {
