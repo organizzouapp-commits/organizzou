@@ -17,7 +17,11 @@ import {
 import { ptBR } from "date-fns/locale"
 import {
   BellIcon,
+  BookOpenIcon,
   CalendarDaysIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DumbbellIcon,
@@ -55,7 +59,7 @@ import { expandEvent, layoutDay, REPEAT_OPTIONS, repeatLabel } from "@/features/
 import type { AgendaItem, AgendaKind, EventRow } from "@/features/calendar/types"
 import { dayKey, inTz, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
-import { colorLabel, resolveHex, type ColorValue } from "@/features/tasks/colors"
+import { resolveHex, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 import type { DeadlineRow } from "@/features/studies/types"
 import type { WorkoutPlanRow } from "@/features/workouts/types"
@@ -209,7 +213,18 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   const todayKey = dayOf(nowIso)
   const isMobile = useIsMobile()
   const [view, setView] = useState<View>("semana")
-  const [day, setDay] = useState(todayKey)
+  const [day, setDayState] = useState(() => {
+    // The selected day lives in the URL (?date=YYYY-MM-DD) so a reload or a shared link keeps it.
+    const wanted = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date")
+    return wanted && /^\d{4}-\d{2}-\d{2}$/.test(wanted) ? wanted : todayKey
+  })
+  const setDay = (next: string) => {
+    setDayState(next)
+    const url = new URL(window.location.href)
+    if (next === todayKey) url.searchParams.delete("date")
+    else url.searchParams.set("date", next)
+    window.history.replaceState(null, "", url)
+  }
   const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
   const router = useRouter()
   const labels = useLabelColorsStore()
@@ -265,7 +280,6 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   const items = useMemo(() => collect(gridFrom, gridTo), [events, kinds, day, nowIso, showDone, query, labels.state])
   const sortItems = (list: AgendaItem[]) => [...list].sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
   const itemsOn = (key: string) => sortItems(items.filter((item) => dayKey(item.start, TZ) === key))
-  const todayItems = sortItems(collect(new Date(toDueIso(todayKey, "00:00", TZ)), new Date(toDueIso(format(addDays(parseISO(todayKey), 1), "yyyy-MM-dd"), "00:00", TZ))))
 
   // --------------------------------------------------------------- navigation
   function shift(direction: -1 | 1) {
@@ -325,6 +339,9 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       if (board) router.push(`/dashboard/tarefas/${board}?tarefa=${item.id}`)
       return
     }
+    // Treinos and estudos are read-only here: they open in their own module.
+    if (item.kind === "workout") return void router.push("/dashboard/treinos")
+    if (item.kind === "study") return void router.push("/dashboard/estudos")
     setSelected(item)
   }
 
@@ -340,6 +357,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, todayKey])
 
   const hidden = (4 - kinds.size) + (showDone ? 1 : 0)
@@ -406,7 +424,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
     </>
   )
 
-  const dayTitle = upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
+  const dayTitle = day === todayKey ? `Hoje · ${format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR })}` : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
   const mobileTitle =
     view === "mes"
       ? format(parseISO(day), "MMMM 'de' yyyy", { locale: ptBR }).toLowerCase()
@@ -454,7 +472,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
             <h3 data-testid="day-heading" className="text-[15px] leading-6 font-semibold">
               {dayTitle}
             </h3>
-            <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
+            <DayGroups items={itemsOn(day)} day={day} onOpenItem={openItem} onNewEvent={() => setCreating({ day })} flat />
           </>
         )}
       </div>
@@ -492,13 +510,8 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         <MiniMonth month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(parseISO(day), n), "yyyy-MM-dd"))} />
       </BentoCard>
       <BentoCard title={dayTitle}>
-        <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
+        <DayGroups items={itemsOn(day)} day={day} onOpenItem={openItem} onNewEvent={() => setCreating({ day })} />
       </BentoCard>
-      {day !== todayKey ? (
-        <BentoCard title="Hoje">
-          <DayAgenda items={todayItems} onOpenItem={openItem} />
-        </BentoCard>
-      ) : null}
     </>
   )
 
@@ -856,6 +869,97 @@ function DayAgenda({ items, onOpenItem }: { items: AgendaItem[]; onOpenItem: (it
           </span>
         </button>
       ))}
+    </div>
+  )
+}
+
+const GROUPS: { kind: AgendaKind; label: string; icon: LucideIcon }[] = [
+  { kind: "task", label: "Tarefas", icon: SquareCheckIcon },
+  { kind: "event", label: "Eventos", icon: CalendarDaysIcon },
+  { kind: "workout", label: "Treinos", icon: DumbbellIcon },
+  { kind: "study", label: "Estudos", icon: BookOpenIcon },
+]
+const GROUPS_KEY = "organizzou:agenda-groups"
+
+/**
+ * The selected day, VIEW mode: collapsible groups by calendar (chevron, name, count; no "+" and no ⋯), the shared card anatomy
+ * (leading icon, one-line title, clock + time, place, left color bar, tinted) and ONE dashed "Novo evento…" pill at the end.
+ * `flat` (phones/tablets): no surface around it, the groups sit on the page background.
+ */
+function DayGroups({ items, day, onOpenItem, onNewEvent, flat = false }: { items: AgendaItem[]; day: string; onOpenItem: (item: AgendaItem) => void; onNewEvent: () => void; flat?: boolean }) {
+  const [saved, setSaved] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    try {
+      // localStorage only exists in the browser.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSaved(JSON.parse(window.localStorage.getItem(GROUPS_KEY) ?? "{}") as Record<string, boolean>)
+    } catch {
+      setSaved({})
+    }
+  }, [])
+  const toggle = (kind: string, open: boolean) => {
+    const next = { ...saved, [kind]: !open }
+    setSaved(next)
+    try {
+      window.localStorage.setItem(GROUPS_KEY, JSON.stringify(next))
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
+  return (
+    <div data-testid="day-card" data-day={day} className={cn("flex flex-col", flat && "gap-0")}>
+      {items.length === 0 ? <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nada para este dia.</p> : null}
+      {GROUPS.map(({ kind, label, icon: Icon }) => {
+        const list = items.filter((i) => i.kind === kind)
+        const open = saved[kind] ?? list.length > 0
+        return (
+          <section key={kind} data-group={kind} aria-label={label} className="flex flex-col">
+            <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(kind, open)} className="-ml-2 flex h-11 w-fit max-w-full items-center gap-2 rounded-full px-2 text-left text-[15px] font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+              <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
+              <span className="truncate">{label}</span>
+              <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{list.length}</span>
+            </button>
+            <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
+              <div className="min-h-0 overflow-hidden">
+                <div className="flex flex-col gap-2 pb-2">
+                  {list.map((item) => {
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        data-day-item={item.id}
+                        data-kind={item.kind}
+                        onClick={() => onOpenItem(item)}
+                        style={itemStyle(item)}
+                        className="relative flex min-h-[64px] w-full items-start gap-3 rounded-[14px] border border-border py-2.5 pr-3 pl-4 text-left text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-[18px] shrink-0 text-muted-foreground" />
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="truncate text-[15px] leading-5 font-semibold">{item.title}</span>
+                          <span className="tabular flex items-center gap-1 text-[13px] leading-5 text-muted-foreground">
+                            <ClockIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
+                            {item.allDay ? "Dia todo" : describeItemTime(item)}
+                          </span>
+                          {item.detail ? (
+                            <span className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-muted-foreground">
+                              {item.kind === "event" ? <MapPinIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
+                              <span className="truncate">{item.detail}</span>
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        )
+      })}
+      <button type="button" data-add-task-pill onClick={onNewEvent} className="mt-1 flex h-11 w-full items-center gap-2 rounded-full border border-dashed border-border px-4 text-[14px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
+        Novo evento…
+      </button>
     </div>
   )
 }
@@ -1343,7 +1447,7 @@ function EventForm({
       <div className="flex flex-col gap-2">
         <Label>Cor do evento{resolveHex(color) ? <span className="ml-2 inline-block size-2 rounded-full align-middle ring-1 ring-foreground/25" style={{ backgroundColor: resolveHex(color)! }} /> : null}</Label>
         <ColorPicker label="Cor do evento" value={color} onChange={setColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
-        <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão e no calendário. {colorLabel(color)}.</p>
+        <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão e no calendário.</p>
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>

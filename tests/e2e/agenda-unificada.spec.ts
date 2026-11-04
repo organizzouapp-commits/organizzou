@@ -178,3 +178,62 @@ for (const width of [360, 390, 430]) {
     })
   })
 }
+
+test.describe("day card (selected day only)", () => {
+  for (const [label, size] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]] as const) {
+    test.describe(label, () => {
+      test.use({ viewport: size, hasTouch: label === "phone" })
+      test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
+
+      test("only ONE day card; selecting another day replaces it, updates ?date=, and a reload keeps it", async ({ page }) => {
+        await open(page)
+        await page.getByRole("tab", { name: "Mês" }).click()
+        await expect(page.getByTestId("day-card")).toHaveCount(1)
+        await expect(page.getByRole("heading", { name: /^Hoje/ }).or(page.getByText(/^Hoje · /))).toBeVisible()
+        const tomorrow = await page.evaluate(() => {
+          const sel = document.querySelector('[role="gridcell"][aria-selected="true"], [data-day-cell][class*="bg-muted"]') as HTMLElement | null
+          const cells = [...document.querySelectorAll("[data-day-cell]")] as HTMLElement[]
+          const i = Math.max(0, cells.indexOf(sel ?? cells[0]))
+          return cells[i + 1]?.getAttribute("data-day-cell") ?? ""
+        })
+        if (label === "desktop") await page.locator(`[data-day-cell="${tomorrow}"] button`).first().click()
+        else await page.locator(`[data-day-cell="${tomorrow}"] button`).first().click()
+        await expect(page).toHaveURL(new RegExp(`date=${tomorrow}`))
+        await expect(page.getByTestId("day-card")).toHaveCount(1)
+        await expect(page.getByTestId("day-card")).toHaveAttribute("data-day", tomorrow)
+        await expect(page.getByText(/^Hoje · /)).toHaveCount(0)
+        await page.reload()
+        await expect(page.getByTestId("day-card")).toHaveAttribute("data-day", tomorrow, { timeout: 60000 })
+      })
+
+      test("VIEW mode: groups Tarefas/Eventos/Treinos/Estudos with counts, no + or ⋯, exactly one Novo evento pill", async ({ page }) => {
+        await open(page)
+        const card = page.getByTestId("day-card")
+        for (const name of ["Tarefas", "Eventos", "Treinos", "Estudos"]) await expect(card.getByRole("region", { name })).toBeVisible()
+        await expect(card.getByRole("region", { name: "Estudos" }).locator("[data-group-header]")).toContainText("0")
+        await expect(card.getByRole("button", { name: /^Adicionar/ })).toHaveCount(0)
+        await expect(card.getByRole("button", { name: /Mais ações|Opções/ })).toHaveCount(0)
+        await expect(page.locator("[data-add-task-pill]")).toHaveCount(1)
+        await expect(page.getByRole("button", { name: "Novo evento…" })).toBeVisible()
+        if (label === "phone") expect(await card.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+        // Treinos are read-only: they open their module.
+        await card.locator('[data-kind="workout"]').first().click()
+        await page.waitForURL(/\/dashboard\/treinos/, { timeout: 30000 })
+      })
+    })
+  }
+
+  test.describe("color helper", () => {
+    test.use({ viewport: { width: 1440, height: 900 } })
+    test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
+    test("the event editor says exactly 'Aparece no cartão e no calendário.' without a color name", async ({ page }) => {
+      await open(page)
+      await page.getByRole("button", { name: "Novo evento…" }).click()
+      const dialog = page.getByRole("dialog")
+      await expect(dialog.getByText("Aparece no cartão e no calendário.", { exact: true })).toBeVisible()
+      await dialog.getByRole("radio", { name: "Vermelho" }).click()
+      await expect(dialog.getByText("Aparece no cartão e no calendário.", { exact: true })).toBeVisible()
+      await expect(dialog.getByText(/Vermelho\./)).toHaveCount(0)
+    })
+  })
+})
