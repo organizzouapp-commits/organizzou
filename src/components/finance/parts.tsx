@@ -166,7 +166,7 @@ export function ProgressRing({ value, label, size = 64, tone = "default", classN
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className={tone === "inverse" ? "stroke-palette-papel/15" : "stroke-muted"} />
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className={cn(tone === "inverse" ? "stroke-palette-lima" : "stroke-primary", "transition-[stroke-dashoffset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none")} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
       </svg>
-      <span className={cn("tabular absolute inset-0 flex items-center justify-center font-semibold", size >= 80 ? "text-[17px]" : "text-[13px]", tone === "inverse" && "text-palette-papel")}>{pct}%</span>
+      <span className={cn("tabular absolute inset-0 flex items-center justify-center font-semibold", size >= 110 ? "text-[24px]" : size >= 80 ? "text-[17px]" : "text-[13px]", tone === "inverse" && "text-palette-papel")}>{pct}%</span>
     </div>
   )
 }
@@ -340,17 +340,22 @@ export function EmptyBlock({ icon: Icon, title, description, action }: { icon: L
 
 // ------------------------------------------------------------------ list item
 
-/** The ⋯ menu of a finance card: Editar and Excluir, nothing else. */
-export function RowMenu({ title, onEdit, onDelete, className }: { title: string; onEdit?: () => void; onDelete?: () => void; className?: string }) {
-  if (!onEdit && !onDelete) return null
+/** The ⋯ menu of a finance card: Editar and Excluir, plus optional extra entries before them (Destacar). `icon="arrow"` makes the trigger the circle arrow of the featured card. */
+export function RowMenu({ title, onEdit, onDelete, extra, icon = "dots", className }: { title: string; onEdit?: () => void; onDelete?: () => void; extra?: { label: string; icon: LucideIcon; onSelect: () => void }[]; icon?: "dots" | "arrow"; className?: string }) {
+  if (!onEdit && !onDelete && !extra?.length) return null
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Ações de ${title}`} className={cn("relative z-10 size-9 shrink-0 after:absolute after:-inset-1", className)}>
-          <EllipsisIcon strokeWidth={1.75} />
+        <Button variant="ghost" size="icon" aria-label={`Ações de ${title}`} className={cn("relative z-10 size-9 shrink-0 after:absolute after:-inset-1", icon === "arrow" && "border border-current/25", className)}>
+          {icon === "arrow" ? <ArrowUpRightIcon strokeWidth={1.75} /> : <EllipsisIcon strokeWidth={1.75} />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {extra?.map(({ label, icon: Icon, onSelect }) => (
+          <DropdownMenuItem key={label} className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={onSelect}>
+            <Icon strokeWidth={1.75} /> {label}
+          </DropdownMenuItem>
+        ))}
         {onEdit ? (
           <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={onEdit}>
             <PencilIcon strokeWidth={1.75} /> Editar
