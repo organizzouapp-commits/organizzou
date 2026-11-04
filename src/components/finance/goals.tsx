@@ -10,7 +10,6 @@ import { CalendarClockIcon, GripVerticalIcon, PiggyBankIcon, PlusIcon, StarIcon,
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { useTaskSensors } from "@/components/tasks/task-dnd"
-import { Button } from "@/components/ui/button"
 import { runningTotal } from "@/features/finance/goal-history"
 import { applyGoalOrder } from "@/features/finance/goal-layout"
 import type { FinancialGoalRow } from "@/features/finance/types"
@@ -57,7 +56,7 @@ export function useGoalSets() {
 
 // ------------------------------------------------------------------ summary
 
-export function GoalsHero() {
+export function GoalsHero({ compact = false }: { compact?: boolean }) {
   const f = useFinance()
   const saved = f.goals.reduce((sum, g) => sum + g.current_cents, 0)
   const target = f.goals.reduce((sum, g) => sum + g.target_cents, 0)
@@ -65,36 +64,37 @@ export function GoalsHero() {
   return (
     <HeroCard
       label="Guardado nas metas"
+      density={compact ? "compact" : "dense"}
       value={<MoneyText cents={saved} dimDecimals />}
       progress={{ value: pct, label: "Guardado nas metas" }}
       footer={`${pct}% de ${formatBRL(target)} · ${f.goals.length} ${f.goals.length === 1 ? "meta" : "metas"}`}
       onArrow={() => document.querySelector("[data-group=active]")?.scrollIntoView({ behavior: "smooth", block: "start" })}
       arrowLabel="Ir para as metas em andamento"
-      className="h-full justify-between md:min-h-[168px]"
+      className={compact ? "h-full" : "md:h-[168px]"}
     />
   )
 }
 
+/** Falta guardar, Aporte por mês and Próximo prazo: same structure as the hero, 168px tall on desktop. */
 export function GoalStats({ compact = false }: { compact?: boolean }) {
   const f = useFinance()
   const { open } = useGoalSets()
   const missing = open.reduce((sum, g) => sum + (g.target_cents - g.current_cents), 0)
   const monthly = open.filter((g) => g.deadline).reduce((sum, g) => sum + projection(g, f.today).monthly, 0)
   const next = [...open].filter((g) => g.deadline).sort((a, b) => a.deadline!.localeCompare(b.deadline!))[0]
+  const fixed = compact ? "h-full" : "md:h-[168px]"
   return (
-    <div data-testid="goal-stats" className={cn("grid gap-3 md:gap-4", compact ? "grid-cols-2" : "grid-cols-2 xl:grid-cols-3")}>
-      <BentoStat compact={compact} label="Falta guardar" icon={WalletIcon} chip={`${open.length} ${open.length === 1 ? "meta" : "metas"}`}>
+    <>
+      <BentoStat compact={compact} className={fixed} label="Falta guardar" icon={WalletIcon} chip={`${open.length} ${open.length === 1 ? "meta" : "metas"}`}>
         <MoneyText cents={missing} dimDecimals />
       </BentoStat>
-      <BentoStat compact={compact} label="Aporte por mês" icon={PiggyBankIcon} chip="para chegar nos prazos">
+      <BentoStat compact={compact} className={fixed} label="Aporte por mês" icon={PiggyBankIcon} chip="para chegar nos prazos">
         <MoneyText cents={monthly} dimDecimals />
       </BentoStat>
-      {compact ? null : (
-        <BentoStat label="Próximo prazo" icon={CalendarClockIcon} chip={next?.name ?? "nenhum prazo"} className="col-span-2 xl:col-span-1">
-          <span>{next?.deadline ? format(parseISO(next.deadline), "d MMM yyyy", { locale: ptBR }).replace(".", "") : "—"}</span>
-        </BentoStat>
-      )}
-    </div>
+      <BentoStat compact={compact} className={cn(fixed, !compact && "col-span-2 xl:col-span-1")} label="Próximo prazo" icon={CalendarClockIcon} chip={next?.name ?? "nenhum prazo"}>
+        <span>{next?.deadline ? format(parseISO(next.deadline), "d MMM yyyy", { locale: ptBR }).replace(".", "") : "—"}</span>
+      </BentoStat>
+    </>
   )
 }
 
@@ -152,106 +152,89 @@ function SortableGoals({ goals, layout, children }: { goals: FinancialGoalRow[];
 
 // ------------------------------------------------------------------ goal cards
 
-/** The featured goal: a dark card with the header, the big ring beside the amounts, the sparkline of contributions (only when there is history) and the projection with Guardar. */
-export function FeaturedGoal({ goal, grip }: { goal: FinancialGoalRow; grip?: React.ReactNode }) {
+/** No contributions yet: a flat dashed baseline and a caption, so the card keeps its structure without inventing data. */
+function EmptySpark({ compact, dark }: { compact: boolean; dark: boolean }) {
+  return (
+    <div data-spark-empty className={cn("flex flex-col justify-end gap-1", compact ? "h-12" : "h-16")}>
+      <span aria-hidden className={cn("w-full border-t border-dashed", dark ? "border-palette-papel/30" : "border-foreground/25")} />
+      <span className={cn("text-[11px] leading-4", dark ? "text-palette-papel/60" : "text-muted-foreground")}>Sem aportes ainda</span>
+    </div>
+  )
+}
+
+/**
+ * A goal in progress. Header: icon circle, name, deadline, grip and the circle arrow (its menu: Destacar, Editar, Excluir). Body: the ring and
+ * the amount. Then the sparkline of contributions (a flat baseline with "Sem aportes ainda" when there is no history) and the footer with
+ * the projection and a Lima Guardar pill. The featured goal is the dark card; `compact` is the 3-column variant (ring 80, amount 20,
+ * sparkline 48, Guardar full width at the bottom).
+ */
+export function GoalCard({ goal, grip, featured = false, compact = false, order }: { goal: FinancialGoalRow; grip?: React.ReactNode; featured?: boolean; compact?: boolean; order: string[] }) {
   const f = useFinance()
   const { text } = projection(goal, f.today)
   const points = runningTotal(goal.current_cents, f.goalHistory[goal.id] ?? [])
+  const muted = featured ? "text-palette-papel/70" : "text-muted-foreground"
   return (
-    <section aria-label={goal.name} data-goal={goal.id} data-featured className="relative flex min-w-0 flex-col gap-4 rounded-[20px] border border-border bg-palette-tinta p-5 text-palette-papel dark:bg-palette-grafite">
-      <div className="flex items-center justify-between gap-3">
+    <section
+      aria-label={goal.name}
+      data-goal={goal.id}
+      data-done="false"
+      data-featured={featured ? "" : undefined}
+      data-compact={compact ? "" : undefined}
+      className={cn("relative flex min-w-0 flex-col rounded-[20px] border border-border", compact ? "gap-3 p-4" : "gap-4 p-5", featured ? "bg-palette-tinta text-palette-papel dark:bg-palette-grafite" : "bg-card")}
+    >
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-palette-papel/25">
-            <GoalGlyph goal={goal} className="size-[18px]" />
+          <span aria-hidden className={cn("flex shrink-0 items-center justify-center rounded-full border", compact ? "size-9" : "size-10", featured ? "border-palette-papel/25" : "border-border bg-muted/50")}>
+            <GoalGlyph goal={goal} className={compact ? "size-4" : "size-[18px]"} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className="truncate text-left text-[17px] leading-6 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className={cn("truncate text-left font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50", compact ? "text-[15px] leading-6" : "text-[17px] leading-6")}>
               {goal.name}
             </button>
-            <span className="truncate text-[13px] leading-5 text-palette-papel/70">{deadlineText(goal)}</span>
+            <span className={cn("truncate text-[13px] leading-5", muted)}>{deadlineText(goal)}</span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1 text-palette-papel">
+        <div className="flex shrink-0 items-center gap-1">
           {grip}
-          <RowMenu icon="arrow" title={goal.name} onEdit={() => f.editGoal(goal)} onDelete={() => f.removeGoal(goal)} className="text-palette-papel hover:bg-palette-papel/10 hover:text-palette-papel" />
+          <RowMenu
+            icon="arrow"
+            title={goal.name}
+            extra={featured ? undefined : [{ label: "Destacar", icon: StarIcon, onSelect: () => f.featureGoal(goal, order) }]}
+            onEdit={() => f.editGoal(goal)}
+            onDelete={() => f.removeGoal(goal)}
+            className={featured ? "text-palette-papel hover:bg-palette-papel/10 hover:text-palette-papel" : undefined}
+          />
         </div>
       </div>
-      <div className="flex items-center gap-5">
-        <GoalRing goal={goal} size={120} tone="inverse" />
+      <div className={cn("flex items-center", compact ? "gap-4" : "gap-5")}>
+        <GoalRing goal={goal} size={compact ? 80 : 120} tone={featured ? "inverse" : "default"} />
         <div className="flex min-w-0 flex-col gap-1">
-          <MoneyText cents={goal.current_cents} dimDecimals className="text-[28px] leading-9 font-semibold" />
-          <span className="tabular truncate text-[13px] leading-5 text-palette-papel/70">de {formatBRL(goal.target_cents)}</span>
+          <MoneyText cents={goal.current_cents} dimDecimals className={cn("font-semibold", compact ? "text-[20px] leading-7" : "text-[28px] leading-9")} />
+          <span className={cn("tabular truncate text-[13px] leading-5", muted)}>de {formatBRL(goal.target_cents)}</span>
         </div>
       </div>
-      {points.length >= 2 ? <Sparkline points={points} label={`Aportes em ${goal.name}`} className="h-16" /> : null}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <p className="min-w-[180px] flex-1 text-[13px] leading-5 text-palette-papel/80">{text}</p>
-        <button type="button" onClick={() => f.fundGoal(goal)} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-palette-lima px-5 text-[14px] font-semibold text-palette-tinta outline-none transition-colors duration-[400ms] hover:bg-palette-lima/90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none">
-          <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" /> Guardar
-        </button>
-      </div>
+      {points.length >= 2 ? <Sparkline points={points} label={`Aportes em ${goal.name}`} tone={featured ? "inverse" : "default"} className={compact ? "h-12" : "h-16"} /> : <EmptySpark compact={compact} dark={featured} />}
+      {compact ? (
+        <>
+          <p className={cn("line-clamp-2 text-[13px] leading-5", featured ? "text-palette-papel/80" : "text-muted-foreground")}>{text}</p>
+          <GuardarPill goal={goal} className="mt-auto h-9 w-full" />
+        </>
+      ) : (
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <p className={cn("min-w-[180px] flex-1 text-[13px] leading-5", featured ? "text-palette-papel/80" : "text-muted-foreground")}>{text}</p>
+          <GuardarPill goal={goal} className="h-11 shrink-0 px-5" />
+        </div>
+      )}
     </section>
   )
 }
 
-/** A goal in progress, as a card of the grid: icon, name, deadline, ring, amounts and a full-width Guardar. */
-export function GoalBentoCard({ goal, grip, order }: { goal: FinancialGoalRow; grip?: React.ReactNode; order: string[] }) {
+function GuardarPill({ goal, className }: { goal: FinancialGoalRow; className?: string }) {
   const f = useFinance()
   return (
-    <section aria-label={goal.name} data-goal={goal.id} data-done="false" className="relative flex min-w-0 flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50">
-            <GoalGlyph goal={goal} className="size-4" />
-          </span>
-          <div className="flex min-w-0 flex-col">
-            <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className="truncate text-left text-[15px] leading-6 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-              {goal.name}
-            </button>
-            <span className="truncate text-[12px] leading-4 text-muted-foreground">{deadlineText(goal)}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center">
-          {grip}
-          <RowMenu title={goal.name} extra={[{ label: "Destacar", icon: StarIcon, onSelect: () => f.featureGoal(goal, order) }]} onEdit={() => f.editGoal(goal)} onDelete={() => f.removeGoal(goal)} />
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <GoalRing goal={goal} size={72} />
-        <div className="flex min-w-0 flex-col">
-          <span className="tabular truncate text-[13px] leading-5 text-muted-foreground">
-            {formatBRL(goal.current_cents)} de {formatBRL(goal.target_cents)}
-          </span>
-          <span className="text-[12px] leading-4 text-muted-foreground">{projection(goal, f.today).text}</span>
-        </div>
-      </div>
-      <Button variant="outline" className="mt-auto h-11 w-full" onClick={() => f.fundGoal(goal)}>
-        <PlusIcon strokeWidth={1.75} /> Guardar
-      </Button>
-    </section>
-  )
-}
-
-/** Phones: a compact row (grip, ring 72, name, amounts, a circle "+"). Tapping the row edits the goal; "Destacar" lives in the edit sheet. */
-export function GoalRow({ goal, grip }: { goal: FinancialGoalRow; grip?: React.ReactNode }) {
-  const f = useFinance()
-  return (
-    <section aria-label={goal.name} data-goal={goal.id} data-done="false" className="relative flex items-center gap-2 rounded-[14px] border border-border bg-card p-3">
-      {grip}
-      <GoalRing goal={goal} size={72} />
-      <div className="flex min-w-0 flex-1 flex-col pl-1">
-        <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className="truncate text-left text-[15px] leading-6 font-semibold outline-none after:absolute after:inset-0 after:rounded-[14px] focus-visible:after:ring-3 focus-visible:after:ring-ring/50">
-          {goal.name}
-        </button>
-        <span className="tabular text-[13px] leading-5 text-muted-foreground">
-          {formatBRL(goal.current_cents)} <span className="whitespace-nowrap">de {formatBRL(goal.target_cents)}</span>
-        </span>
-        <span className="truncate text-[12px] leading-4 text-muted-foreground">{deadlineText(goal)}</span>
-      </div>
-      <Button variant="outline" size="icon" aria-label={`Guardar em ${goal.name}`} className="relative z-10 shrink-0" onClick={() => f.fundGoal(goal)}>
-        <PlusIcon strokeWidth={1.75} />
-      </Button>
-    </section>
+    <button type="button" onClick={() => f.fundGoal(goal)} className={cn("inline-flex items-center justify-center gap-1.5 rounded-full bg-highlight text-[14px] font-semibold text-highlight-foreground outline-none transition-colors duration-[400ms] hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", className)}>
+      <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" /> Guardar
+    </button>
   )
 }
 
@@ -291,18 +274,27 @@ function Achieved({ done, className }: { done: FinancialGoalRow[]; className: st
   )
 }
 
-/** The dashed tile that sits in the first empty cell after the last goal in progress. */
-export function NewGoalCard({ compact = false }: { compact?: boolean }) {
+/** "Em andamento": the group header with the "+ Nova meta" pill at its right end (an icon-only 44px circle on narrow phones). */
+function ActiveHeader({ count, open, onToggle }: { count: number; open: boolean; onToggle: () => void }) {
   const f = useFinance()
   return (
-    <button type="button" data-new-goal data-add-task-pill onClick={f.openNewGoal} className={cn("flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", compact ? "min-h-[72px] flex-row rounded-[14px] p-3" : "min-h-[216px] rounded-[20px] p-5")}>
-      <PlusIcon aria-hidden strokeWidth={1.75} className={compact ? "size-5" : "size-6"} />
-      Nova meta…
-    </button>
+    <div className="flex items-center justify-between gap-3">
+      <GroupHeader label="Em andamento" count={count} open={open} onToggle={onToggle} />
+      <button
+        type="button"
+        data-new-goal
+        aria-label="Nova meta"
+        onClick={f.openNewGoal}
+        className="relative inline-flex size-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-highlight text-[14px] font-semibold text-highlight-foreground outline-none transition-colors duration-[400ms] hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none min-[420px]:h-9 min-[420px]:w-auto min-[420px]:px-4"
+      >
+        <PlusIcon aria-hidden strokeWidth={1.75} className="size-4" />
+        <span className="max-[419px]:sr-only">Nova meta</span>
+      </button>
+    </div>
   )
 }
 
-/** Desktop and tablet: the hero and the stats, "Em andamento" (the featured goal first, the cards after it and the dashed tile), then Alcançadas. */
+/** Desktop and tablet: the hero and the stats in one 168px row, "Em andamento" (the featured goal first, the other cards after it), then Alcançadas. */
 export function GoalsDesktop() {
   const f = useFinance()
   const { open, done } = useGoalSets()
@@ -314,22 +306,21 @@ export function GoalsDesktop() {
         <GoalsHero />
       </div>
       <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
-        <GoalStats />
+        <div data-testid="goal-stats" className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3">
+          <GoalStats />
+        </div>
       </div>
       <section data-group="active" aria-label="Em andamento" className="flex min-w-0 flex-col md:col-span-2 lg:col-span-8 xl:col-span-12">
-        <GroupHeader label="Em andamento" count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
+        <ActiveHeader count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
         <Collapse open={activeOpen}>
           {f.goals.length === 0 ? <EmptyBlock icon={TargetIcon} title="Nenhuma meta ainda" description="Crie uma meta e acompanhe quanto já guardou." /> : null}
           <SortableGoals goals={open} layout="grid">
             <div data-group-rows className="grid grid-cols-1 gap-4 pb-3 md:grid-cols-2 lg:grid-cols-8 xl:grid-cols-12">
               {open.map((g, i) => (
                 <SortableGoal key={g.id} goal={g} className={i === 0 ? "md:col-span-2 lg:col-span-8 xl:col-span-6" : "lg:col-span-4 xl:col-span-3"}>
-                  {(grip) => (i === 0 ? <FeaturedGoal goal={g} grip={grip} /> : <GoalBentoCard goal={g} grip={grip} order={order} />)}
+                  {(grip) => <GoalCard goal={g} grip={grip} featured={i === 0} compact={i > 0} order={order} />}
                 </SortableGoal>
               ))}
-              <div className="min-w-0 lg:col-span-4 xl:col-span-3 [&>*]:h-full">
-                <NewGoalCard />
-              </div>
             </div>
           </SortableGoals>
         </Collapse>
@@ -341,25 +332,27 @@ export function GoalsDesktop() {
   )
 }
 
-/** Phones: hero, two tiles, Em andamento (featured + compact rows + the dashed row), Alcançadas collapsed. */
+/** Phones: the 2x2 top cards, Em andamento as stacked full-width cards (the first one dark), Alcançadas collapsed. */
 export function GoalsMobile() {
   const { open, done } = useGoalSets()
   const [activeOpen, setActiveOpen] = useState(true)
+  const order = open.map((g) => g.id)
   return (
     <div data-testid="goals-main" className="flex flex-col gap-3">
-      <GoalsHero />
-      <GoalStats compact />
+      <div data-testid="goal-stats" className="grid auto-rows-fr grid-cols-2 gap-3">
+        <GoalsHero compact />
+        <GoalStats compact />
+      </div>
       <section data-group="active" aria-label="Em andamento" className="flex flex-col">
-        <GroupHeader label="Em andamento" count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
+        <ActiveHeader count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
         <Collapse open={activeOpen}>
           <SortableGoals goals={open} layout="list">
-            <div data-group-rows className="flex flex-col gap-2 pb-2">
+            <div data-group-rows className="flex flex-col gap-3 pb-2">
               {open.map((g, i) => (
                 <SortableGoal key={g.id} goal={g}>
-                  {(grip) => (i === 0 ? <FeaturedGoal goal={g} grip={grip} /> : <GoalRow goal={g} grip={grip} />)}
+                  {(grip) => <GoalCard goal={g} grip={grip} featured={i === 0} order={order} />}
                 </SortableGoal>
               ))}
-              <NewGoalCard compact />
             </div>
           </SortableGoals>
         </Collapse>
