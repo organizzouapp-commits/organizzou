@@ -22,20 +22,23 @@ import {
   ChevronRightIcon,
   DumbbellIcon,
   GraduationCapIcon,
-  LayersIcon,
   MapPinIcon,
   PencilIcon,
   RepeatIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
   SquareCheckIcon,
   Trash2Icon,
   type LucideIcon,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { BentoCard } from "@/components/organizzou/Bento"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
+import { ColorPicker } from "@/components/organizzou/ColorPicker"
+import { LabelColorsProvider, useLabelColors, useLabelColorsStore } from "@/components/tasks/label-colors-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -45,14 +48,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { expandEvent, layoutDay, REPEAT_OPTIONS, repeatLabel } from "@/features/calendar/recurrence"
 import type { AgendaItem, AgendaKind, EventRow } from "@/features/calendar/types"
 import { dayKey, inTz, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
-import { getSwatch } from "@/lib/swatches"
+import { colorLabel, resolveHex, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 import type { DeadlineRow } from "@/features/studies/types"
 import type { WorkoutPlanRow } from "@/features/workouts/types"
@@ -67,6 +70,13 @@ const HOUR_START = 6
 const HOUR_END = 23
 const ROW_HEIGHT = 56
 const SNAP = 15 // minutes
+
+export const MODE_ITEMS = [
+  { id: "mes", label: "Mês" },
+  { id: "semana", label: "Semana" },
+  { id: "dia", label: "Dia" },
+  { id: "agenda", label: "Agenda" },
+]
 
 const KIND_META: Record<AgendaKind, { label: string; icon: LucideIcon | null }> = {
   event: { label: "Eventos", icon: null },
@@ -111,24 +121,29 @@ function ItemIcon({ kind, className }: { kind: AgendaKind; className?: string })
   return Icon ? <Icon aria-hidden strokeWidth={1.75} className={className ?? "size-3 shrink-0"} /> : null
 }
 
-function itemTone(item: AgendaItem) {
-  if (item.color) return "text-foreground border border-transparent"
-  return item.swatch === "neutro" ? "bg-secondary text-secondary-foreground" : getSwatch(item.swatch).chip
+/** The item's color: its own (a task color) or the legacy swatch an event was saved with ("neutro" = none). Never wiped. */
+export function itemColor(item: AgendaItem): string | null {
+  return item.color ?? (item.swatch && item.swatch !== "neutro" ? resolveHex(item.swatch) : null)
 }
 
-/** A task with its own color: the color at 22% over the surface and a 1px border at 40%; the text stays the neutral foreground. */
-function itemStyle(item: AgendaItem): React.CSSProperties | undefined {
-  if (!item.color) return undefined
-  return { backgroundColor: `color-mix(in oklab, ${item.color} 22%, var(--card))`, borderColor: `color-mix(in oklab, ${item.color} 40%, transparent)` }
+/** The text is ALWAYS the neutral foreground token; the color only tints the chip and draws the left bar. */
+function itemTone() {
+  return "text-foreground"
+}
+
+/** Colored: the color at 16% over the surface and a 3px solid bar on the left. No color: a 7% neutral tint and no bar. */
+function itemStyle(item: AgendaItem): React.CSSProperties {
+  const color = itemColor(item)
+  if (!color) return { backgroundColor: "color-mix(in oklab, var(--foreground) 7%, transparent)" }
+  return { backgroundColor: `color-mix(in oklab, ${color} 16%, var(--card))`, boxShadow: `inset 3px 0 0 ${color}` }
 }
 
 const HIGHLIGHT = "ring-2 ring-primary ring-offset-1 ring-offset-card"
 
-type ToolbarFilter = { label: string; /** e.g. "2/4" when something is filtered out. */ badge?: string; content: React.ReactNode }
-
 /**
- * The calendar toolbar, shared by the Agenda and Tarefas > Calendário: "Hoje" pill, previous/next circles, the period title, a filter
- * button ("Calendários" / "Listas": a popover on desktop, a bottom sheet on phones) and the Mês | Semana | Dia | Agenda switch.
+ * The calendar toolbar, shared by the Agenda page and Tarefas > Agenda. Desktop: ‹ › circles and the period title (click = today) on
+ * the left, `trailing` (the Filtros pill) and the shared PillTabs Mês | Semana | Dia | Agenda on the right. `compact` (phones): one 40px
+ * row, title + ‹ ›; the modes live in the header block above.
  */
 export function CalendarToolbar({
   title,
@@ -136,27 +151,18 @@ export function CalendarToolbar({
   onShift,
   view,
   onViewChange,
-  filter,
-  agendaTabOnDesktop = false,
   trailing,
   compact = false,
-  tasksDesktop = false,
 }: {
   /** Phones in Tarefas: ONE 40px row — the title at the left ("Ir para hoje" on tap), ‹ › at the right. No Hoje, no filter, no mode tabs (the header card has them). */
   compact?: boolean
-  /** Desktop in Tarefas: ‹ › and the title (click = today) on the left, the Mês | Semana | Dia | Agenda switch on the right. No Hoje, Nova tarefa or Listas. */
-  tasksDesktop?: boolean
   title: string
   onToday: () => void
   onShift: (direction: -1 | 1) => void
   view: CalendarViewId
   onViewChange: (view: CalendarViewId) => void
-  filter: ToolbarFilter
-  agendaTabOnDesktop?: boolean
   trailing?: React.ReactNode
 }) {
-  const isMobile = useIsMobile()
-  const [sheet, setSheet] = useState(false)
   const titleButton = (className: string) => (
     <button type="button" data-testid="calendar-title" aria-label="Ir para hoje" title="Ir para hoje" onClick={onToday} className={cn("min-w-0 cursor-pointer truncate rounded-full text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50", className)}>
       {title}
@@ -175,8 +181,7 @@ export function CalendarToolbar({
       </div>
     )
   }
-  if (tasksDesktop) {
-    return (
+  return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
@@ -187,72 +192,9 @@ export function CalendarToolbar({
           </Button>
         </div>
         {titleButton("flex-1 basis-40 text-xl leading-7 font-semibold tracking-[-0.01em]")}
-        <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
-          <TabsList aria-label="Visão">
-            <TabsTrigger value="mes">Mês</TabsTrigger>
-            <TabsTrigger value="semana">Semana</TabsTrigger>
-            <TabsTrigger value="dia">Dia</TabsTrigger>
-            <TabsTrigger value="agenda">Agenda</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {trailing}
+        <PillTabs ariaLabel="Visão" items={MODE_ITEMS} value={view} onSelect={(item) => onViewChange(item.id as CalendarViewId)} />
       </div>
-    )
-  }
-  const filterButton = (
-    <Button variant="outline" data-testid="calendar-filter" onClick={isMobile ? () => setSheet(true) : undefined}>
-      <LayersIcon strokeWidth={1.75} /> {filter.label}
-      {filter.badge ? <span className="tabular text-muted-foreground">{filter.badge}</span> : null}
-    </Button>
-  )
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
-      <div className="flex items-center gap-1">
-        <Button variant="outline" onClick={onToday}>
-          Hoje
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => onShift(1)}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
-      <h2 data-testid="calendar-title" className="min-w-0 flex-1 basis-full text-xl leading-7 font-semibold tracking-[-0.01em] md:basis-40 md:truncate">
-        {title}
-      </h2>
-      {trailing}
-      {isMobile ? (
-        <>
-          {filterButton}
-          <Drawer open={sheet} onOpenChange={setSheet}>
-            <DrawerContent className="max-h-[80dvh]">
-              <DrawerHeader className="text-left">
-                <DrawerTitle>{filter.label}</DrawerTitle>
-                <DrawerDescription className="sr-only">Escolha o que aparece no calendário.</DrawerDescription>
-              </DrawerHeader>
-              <div className="flex flex-col gap-1 scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filter.content}</div>
-            </DrawerContent>
-          </Drawer>
-        </>
-      ) : (
-        <Popover>
-          <PopoverTrigger asChild>{filterButton}</PopoverTrigger>
-          <PopoverContent align="end" className="w-60 gap-1 p-2">
-            {filter.content}
-          </PopoverContent>
-        </Popover>
-      )}
-      <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
-        <TabsList aria-label="Visão">
-          <TabsTrigger value="mes">Mês</TabsTrigger>
-          <TabsTrigger value="semana">Semana</TabsTrigger>
-          <TabsTrigger value="dia">Dia</TabsTrigger>
-          <TabsTrigger value="agenda" className={agendaTabOnDesktop ? undefined : "md:hidden"}>
-            Agenda
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
   )
 }
 
@@ -260,7 +202,7 @@ export function CalendarToolbar({
 export type Draft = { day: string; start?: string; end?: string }
 
 /** What the other modules put on the calendar (real accounts). Events are the Agenda's own rows. */
-export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_name: string }
+export type AgendaTask = { id: string; title: string; due_at: string; due_has_time: boolean; board_id: string; board_name: string; completed_at?: string | null }
 export type AgendaInitial = { events: EventRow[]; tasks: AgendaTask[]; plans: WorkoutPlanRow[]; deadlines: DeadlineRow[] }
 
 export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: AgendaInitial }) {
@@ -269,7 +211,13 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   const [view, setView] = useState<View>("semana")
   const [day, setDay] = useState(todayKey)
   const [events, setEvents] = usePersistedRows<EventRow>("events", initial.events)
+  const router = useRouter()
+  const labels = useLabelColorsStore()
   const [kinds, setKinds] = useState<Set<AgendaKind>>(new Set(["event", "task", "workout", "study"]))
+  const [showDone, setShowDone] = useState(false)
+  const [query, setQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [filterSheet, setFilterSheet] = useState(false)
   const [creating, setCreating] = useState<Draft | null>(null)
   const [editing, setEditing] = useState<EventRow | null>(null)
   const [selected, setSelected] = useState<AgendaItem | null>(null)
@@ -282,9 +230,15 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
   // ------------------------------------------------ gather items from every module
   function collect(from: Date, to: Date): AgendaItem[] {
     const items: AgendaItem[] = []
-    if (kinds.has("event")) for (const event of events) items.push(...expandEvent(event, from, to, TZ))
+    if (kinds.has("event")) {
+      for (const event of events) {
+        const own = resolveHex(labels.colorOf("event", event.id))
+        for (const item of expandEvent(event, from, to, TZ)) items.push(own ? { ...item, color: own } : item)
+      }
+    }
     if (kinds.has("task")) {
       for (const task of initial.tasks) {
+        if (task.completed_at && !showDone) continue
         const start = new Date(task.due_at)
         if (start < from || start >= to) continue
         items.push({ key: `task:${task.id}`, kind: "task", id: task.id, title: task.title, start, end: new Date(start.getTime() + 30 * 60_000), allDay: !task.due_has_time, swatch: "neutro", detail: task.board_name, editable: false })
@@ -303,11 +257,12 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         for (const due of initial.deadlines.filter((d) => d.due_on === key)) items.push({ key: `study:${due.id}`, kind: "study", id: due.id, title: due.title, start, end, allDay: true, swatch: "neutro", detail: due.kind === "exam" ? "Prova" : "Entrega", editable: false })
       }
     }
-    return items
+    const text = query.trim().toLowerCase()
+    return text ? items.filter((item) => item.title.toLowerCase().includes(text)) : items
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => collect(gridFrom, gridTo), [events, kinds, day, nowIso])
+  const items = useMemo(() => collect(gridFrom, gridTo), [events, kinds, day, nowIso, showDone, query, labels.state])
   const sortItems = (list: AgendaItem[]) => [...list].sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
   const itemsOn = (key: string) => sortItems(items.filter((item) => dayKey(item.start, TZ) === key))
   const todayItems = sortItems(collect(new Date(toDueIso(todayKey, "00:00", TZ)), new Date(toDueIso(format(addDays(parseISO(todayKey), 1), "yyyy-MM-dd"), "00:00", TZ))))
@@ -326,7 +281,9 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       ? upperFirst(format(parseISO(day), "MMMM 'de' yyyy", { locale: ptBR }))
       : view === "semana"
         ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM yyyy", { locale: ptBR })}`
-        : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
+        : view === "agenda"
+          ? "Próximos 21 dias"
+          : upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
 
   function toggleKind(kind: AgendaKind) {
     setKinds((current) => {
@@ -359,92 +316,172 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
 
   usePrimaryAction("Novo evento", () => setCreating({ day }))
 
-  const effectiveView: View = isMobile && view === "dia" ? "dia" : view
+  const effectiveView: View = view
+  const taskBoard = new Map(initial.tasks.map((t) => [t.id, t.board_id]))
+  /** A task opens the SAME dialog (and URL) as in Tarefas; events, treinos and estudos open the event dialog. */
+  function openItem(item: AgendaItem) {
+    if (item.kind === "task") {
+      const board = taskBoard.get(item.id)
+      if (board) router.push(`/dashboard/tarefas/${board}?tarefa=${item.id}`)
+      return
+    }
+    setSelected(item)
+  }
 
-  const controls = (
-    <CalendarToolbar
-      title={title}
-      onToday={() => setDay(todayKey)}
-      onShift={shift}
-      view={view}
-      onViewChange={setView}
-      filter={{
-        label: "Calendários",
-        badge: kinds.size < 4 ? `${kinds.size}/4` : undefined,
-        content: (Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
-          <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
-            <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
-            {KIND_META[kind].label}
-          </label>
-        )),
-      }}
-    />
+  // `T` goes to today (ignored while typing or with a dialog open).
+  useEffect(() => {
+    if (isMobile) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "t" || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest("input, textarea, select, [contenteditable=true]") || document.querySelector("[role=dialog], [role=alertdialog]")) return
+      event.preventDefault()
+      setDay(todayKey)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [isMobile, todayKey])
+
+  const hidden = (4 - kinds.size) + (showDone ? 1 : 0)
+  // Calendários (checkbox rows with a color dot) and "Mostrar concluídas": ONE panel, a popover on desktop and a sheet on phones.
+  const filterContent = (
+    <div className="flex flex-col gap-1" data-testid="agenda-filters">
+      <p className="px-3 pt-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Calendários</p>
+      {(Object.keys(KIND_META) as AgendaKind[]).map((kind) => (
+        <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
+          <Checkbox checked={kinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-foreground/55" />
+          {KIND_META[kind].label}
+        </label>
+      ))}
+      <label className="mt-1 flex min-h-11 items-center justify-between gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
+        Mostrar concluídas
+        <Switch checked={showDone} onCheckedChange={setShowDone} aria-label="Mostrar concluídas" />
+      </label>
+    </div>
+  )
+  const filterBadge = hidden > 0 ? <span className="tabular flex size-5 items-center justify-center rounded-full bg-highlight text-[11px] font-semibold text-highlight-foreground">{hidden}</span> : null
+
+  const filtros = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 gap-2 px-4" data-testid="calendar-filter">
+          <SlidersHorizontalIcon strokeWidth={1.75} /> Filtros
+          {filterBadge}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 gap-1 p-2">
+        {filterContent}
+      </PopoverContent>
+    </Popover>
   )
 
-  const main = (
+  const itemsView = (
+    <>
+      {effectiveView === "mes" ? (
+        <MonthGrid month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onOpenItem={openItem} onCreateOn={(key) => (isMobile ? setDay(key) : setCreating({ day: key }))} />
+      ) : null}
+      {effectiveView === "semana" ? (
+        isMobile ? (
+          <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} />
+        ) : (
+          <TimeGrid
+            days={weekDays}
+            todayKey={todayKey}
+            itemsOn={itemsOn}
+            nowIso={nowIso}
+            onOpenItem={openItem}
+            onSelectDay={(key) => {
+              setDay(key)
+              setView("dia")
+            }}
+            onCreate={setCreating}
+            onMoveEvent={moveEvent}
+            canDrag={canDrag}
+          />
+        )
+      ) : null}
+      {effectiveView === "dia" && !isMobile ? <TimeGrid days={[parseISO(day)]} todayKey={todayKey} itemsOn={itemsOn} nowIso={nowIso} onOpenItem={openItem} onCreate={setCreating} onMoveEvent={moveEvent} canDrag={canDrag} single /> : null}
+      {effectiveView === "agenda" && !isMobile ? <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={openItem} /> : null}
+    </>
+  )
+
+  const dayTitle = upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))
+  const mobileTitle =
+    view === "mes"
+      ? format(parseISO(day), "MMMM 'de' yyyy", { locale: ptBR }).toLowerCase()
+      : view === "semana"
+        ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM", { locale: ptBR })}`.replace(/\./g, "")
+        : view === "dia"
+          ? format(parseISO(day), "EEE, d 'de' MMMM", { locale: ptBR }).toLowerCase()
+          : "Próximos 21 dias"
+
+  const main = isMobile ? (
+    <div className="flex flex-col gap-4" data-testid="agenda-mobile">
+      <section aria-label="Agenda" data-testid="agenda-header-block" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-3">
+        <div className="flex h-11 items-center gap-2">
+          {searchOpen ? (
+            <>
+              <Input autoFocus type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar na agenda" placeholder="Buscar na agenda" className="h-11 min-w-0 flex-1 rounded-full" />
+              <Button variant="ghost" className="h-11" onClick={() => (setQuery(""), setSearchOpen(false))}>
+                Fechar
+              </Button>
+            </>
+          ) : (
+            <>
+              <h2 className="min-w-0 flex-1 truncate text-[18px] leading-7 font-semibold">Agenda</h2>
+              <Button variant="outline" size="icon" aria-label="Buscar na agenda" className="relative size-9 after:absolute after:-inset-1" onClick={() => setSearchOpen(true)}>
+                <SearchIcon strokeWidth={1.75} />
+              </Button>
+              <Button variant="outline" size="icon" aria-label={hidden > 0 ? `Filtros, ${hidden} ativos` : "Filtros"} data-testid="calendar-filter" className="relative size-9 after:absolute after:-inset-1" onClick={() => setFilterSheet(true)}>
+                <SlidersHorizontalIcon strokeWidth={1.75} />
+                {hidden > 0 ? <span className="tabular absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-highlight text-[10px] font-semibold text-highlight-foreground">{hidden}</span> : null}
+              </Button>
+            </>
+          )}
+        </div>
+        <PillTabs equal ariaLabel="Visão" items={MODE_ITEMS} value={view} onSelect={(item) => setView(item.id as View)} />
+      </section>
+      <section aria-label="Calendário" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
+        <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
+        {view === "mes" || view === "semana" ? itemsView : null}
+      </section>
+      <div className="flex flex-col gap-1 px-1" data-testid="agenda-below">
+        {view === "agenda" ? (
+          <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={openItem} />
+        ) : (
+          <>
+            <h3 data-testid="day-heading" className="text-[15px] leading-6 font-semibold">
+              {dayTitle}
+            </h3>
+            <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
+          </>
+        )}
+      </div>
+      <Drawer open={filterSheet} onOpenChange={setFilterSheet}>
+        <DrawerContent className="max-h-[80dvh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Filtros</DrawerTitle>
+            <DrawerDescription className="sr-only">Escolha o que aparece na agenda.</DrawerDescription>
+          </DrawerHeader>
+          <div className="scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filterContent}</div>
+        </DrawerContent>
+      </Drawer>
+    </div>
+  ) : (
     <BentoCard>
       <div className="flex flex-col gap-5">
-        {controls}
-
-        {effectiveView === "mes" ? (
-          <MonthGrid
-            month={parseISO(day)}
-            todayKey={todayKey}
-            selectedKey={day}
-            itemsOn={itemsOn}
-            onSelectDay={setDay}
-            onOpenItem={setSelected}
-            onCreateOn={(key) => setCreating({ day: key })}
-          />
-        ) : null}
-
-        {effectiveView === "semana" ? (
-          <>
-            <div className="hidden md:block">
-              <TimeGrid
-                days={weekDays}
-                todayKey={todayKey}
-                itemsOn={itemsOn}
-                nowIso={nowIso}
-                onOpenItem={setSelected}
-                onSelectDay={(key) => {
-                  setDay(key)
-                  setView("dia")
-                }}
-                onCreate={setCreating}
-                onMoveEvent={moveEvent}
-                canDrag={canDrag}
-              />
-            </div>
-            <div className="md:hidden">
-              <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} />
-              <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
-            </div>
-          </>
-        ) : null}
-
-        {effectiveView === "dia" ? (
-          <>
-            <div className="hidden md:block">
-              <TimeGrid
-                days={[parseISO(day)]}
-                todayKey={todayKey}
-                itemsOn={itemsOn}
-                nowIso={nowIso}
-                onOpenItem={setSelected}
-                onCreate={setCreating}
-                onMoveEvent={moveEvent}
-                canDrag={canDrag}
-                single
-              />
-            </div>
-            <div className="md:hidden">
-              <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
-            </div>
-          </>
-        ) : null}
-
-        {effectiveView === "agenda" ? <UpcomingList from={day} items={items} itemsOn={itemsOn} onOpenItem={setSelected} /> : null}
+        <CalendarToolbar
+         
+          trailing={filtros}
+          title={title}
+          onToday={() => setDay(todayKey)}
+          onShift={shift}
+          view={view}
+          onViewChange={setView}
+         
+        />
+        {itemsView}
       </div>
     </BentoCard>
   )
@@ -454,23 +491,24 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
       <BentoCard title="Calendário">
         <MiniMonth month={parseISO(day)} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(parseISO(day), n), "yyyy-MM-dd"))} />
       </BentoCard>
-      <BentoCard title={upperFirst(format(parseISO(day), "EEEE, d 'de' MMMM", { locale: ptBR }))}>
-        <DayAgenda items={itemsOn(day)} onOpenItem={setSelected} />
+      <BentoCard title={dayTitle}>
+        <DayAgenda items={itemsOn(day)} onOpenItem={openItem} />
       </BentoCard>
       {day !== todayKey ? (
         <BentoCard title="Hoje">
-          <DayAgenda items={todayItems} onOpenItem={setSelected} />
+          <DayAgenda items={todayItems} onOpenItem={openItem} />
         </BentoCard>
       ) : null}
     </>
   )
 
   return (
+    <LabelColorsProvider value={labels}>
     <div className="@container">
       <div className="grid min-w-0 grid-cols-1 gap-5 @min-[880px]:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] @min-[880px]:items-start">
         <div className="min-w-0">{main}</div>
         {/* From 880 px of content width (about a 1280 px screen with the sidebar open): the selected day and a mini month. */}
-        <aside className={cn("flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0", effectiveView === "mes" ? "" : "")}>{aside}</aside>
+        {isMobile ? null : <aside className="flex min-w-0 flex-col gap-4 @min-[880px]:sticky @min-[880px]:top-0">{aside}</aside>}
       </div>
 
       <EventDialog
@@ -562,6 +600,7 @@ export function AgendaScreen({ nowIso, initial }: { nowIso: string; initial: Age
         onConfirm={confirmDelete}
       />
     </div>
+    </LabelColorsProvider>
   )
 }
 
@@ -647,7 +686,7 @@ export function MonthGrid({
                   onDragStart={(e) => e.dataTransfer.setData("application/x-organizzou-task", item.id)}
                   onClick={() => onOpenItem(item)}
                   style={itemStyle(item)}
-                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-2 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(), item.highlight && HIGHLIGHT)}
                 >
                   <ItemIcon kind={item.kind} />
                   <span className="truncate">{item.title}</span>
@@ -656,8 +695,8 @@ export function MonthGrid({
               {list.length > 3 ? (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button type="button" className="self-start rounded-md px-1 text-xs leading-4 text-muted-foreground underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
-                      +{list.length - 3} mais
+                    <button type="button" data-more-pill aria-label={`Mais ${list.length - 3} itens`} className="tabular relative inline-flex h-5 self-start items-center rounded-full bg-muted px-2 text-xs leading-4 text-foreground outline-none after:absolute after:-inset-y-1 after:inset-x-0 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+                      +{list.length - 3}
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-72 gap-1 p-2">
@@ -665,7 +704,7 @@ export function MonthGrid({
                       {format(date, "EEEE, d 'de' MMMM", { locale: ptBR })}
                     </p>
                     {list.map((item) => (
-                      <button key={item.key} type="button" onClick={() => onOpenItem(item)} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+                      <button key={item.key} type="button" data-more-item onClick={() => onOpenItem(item)} style={itemStyle(item)} className={cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone())}>
                         <span className="tabular w-12 shrink-0 text-[13px] text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
                         <span className="truncate">{item.title}</span>
                       </button>
@@ -768,7 +807,6 @@ export function DayStrip({
     <div className="mb-4 grid grid-cols-7 gap-1" role="group" aria-label="Dias da semana">
       {days.map((date) => {
         const key = format(date, "yyyy-MM-dd")
-        const count = itemsOn(key).length
         return (
           <button
             key={key}
@@ -782,7 +820,11 @@ export function DayStrip({
           >
             <span className="text-[11px] leading-4 uppercase">{format(date, "EEE", { locale: ptBR }).slice(0, 3)}</span>
             <span className={cn("tabular text-[15px] font-semibold", key === todayKey && key !== selectedKey && "underline underline-offset-4")}>{format(date, "d")}</span>
-            <span aria-hidden className={cn("size-1.5 rounded-full", count > 0 ? "bg-current" : "bg-transparent")} />
+            <span aria-hidden data-dots className="flex h-1.5 items-center gap-0.5">
+              {itemsOn(key).slice(0, 3).map((item) => (
+                <span key={item.key} className={cn("size-1.5 rounded-full", !itemColor(item) && "bg-current")} style={itemColor(item) ? { backgroundColor: itemColor(item)! } : undefined} />
+              ))}
+            </span>
           </button>
         )
       })}
@@ -804,7 +846,7 @@ function DayAgenda({ items, onOpenItem }: { items: AgendaItem[]; onOpenItem: (it
           className="flex min-h-14 items-center gap-4 border-b border-border py-3 text-left outline-none last:border-b-0 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <span className="tabular w-16 shrink-0 text-[13px] leading-5 text-muted-foreground">{item.allDay ? "Dia todo" : formatTime(item.start)}</span>
-          <span aria-hidden className={cn("h-8 w-1 shrink-0 rounded-full", getSwatch(item.swatch).fill)} />
+          <span aria-hidden className={cn("h-8 w-1 shrink-0 rounded-full", !itemColor(item) && "bg-foreground/20")} style={itemColor(item) ? { backgroundColor: itemColor(item)! } : undefined} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="flex items-center gap-2 text-[15px] leading-6">
               <ItemIcon kind={item.kind} className="size-4 shrink-0 text-muted-foreground" />
@@ -997,7 +1039,7 @@ export function TimeGrid({
                   data-agenda-item={item.id}
                   onClick={() => onOpenItem(item)}
                   style={itemStyle(item)}
-                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(item), item.highlight && HIGHLIGHT)}
+                  className={cn("flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-left text-xs leading-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50", itemTone(), item.highlight && HIGHLIGHT)}
                 >
                   <ItemIcon kind={item.kind} />
                   <span className="truncate">{item.title}</span>
@@ -1076,7 +1118,7 @@ export function TimeGrid({
                     <div
                       key={item.key}
                       data-agenda-item={item.id}
-                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(item), moving && "z-30 opacity-80 ring-2 ring-foreground/40", item.highlight && HIGHLIGHT)}
+                      className={cn("absolute flex flex-col overflow-hidden rounded-lg px-2 py-1 text-left text-xs leading-4", itemTone(), moving && "z-30 opacity-80 ring-2 ring-foreground/40", item.highlight && HIGHLIGHT)}
                       style={{ ...itemStyle(item), top, height, left: `calc(${(column / lanes) * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }}
                     >
                       <button
@@ -1122,7 +1164,7 @@ export function TimeGrid({
                 {/* Ghost of an event being moved into this column. */}
                 {drag?.mode === "move" && drag.key === key && !timed.some((t) => t.item.key === drag.item.key) ? (
                   <div
-                    className={cn("pointer-events-none absolute inset-x-1 z-30 rounded-lg px-2 py-1 text-xs leading-4 opacity-80 ring-2 ring-foreground/40", itemTone(drag.item))}
+                    className={cn("pointer-events-none absolute inset-x-1 z-30 rounded-lg px-2 py-1 text-xs leading-4 opacity-80 ring-2 ring-foreground/40", itemTone())}
                     style={{ top: ((drag.top - HOUR_START * 60) / 60) * ROW_HEIGHT, height: Math.max(24, (drag.durationMin / 60) * ROW_HEIGHT - 2) }}
                   >
                     {drag.item.title}
@@ -1181,7 +1223,9 @@ function EventForm({
   const [category, setCategory] = useState(event?.category ?? "")
   const [location, setLocation] = useState(event?.location ?? "")
   const [notes, setNotes] = useState(event?.description ?? "")
-  const [swatch, setSwatch] = useState<SwatchId>(event?.swatch ?? "neutro")
+  const labels = useLabelColors()
+  // The shared ColorPicker: a color saved locally (the new defaults and custom colors), else the legacy swatch the event was saved with.
+  const [color, setColor] = useState<ColorValue>(event ? (labels.colorOf("event", event.id) ?? (event.swatch !== "neutro" ? event.swatch : null)) : null)
   const [repeat, setRepeat] = useState<string>(REPEAT_OPTIONS.find((o) => o.rrule === (event?.rrule ?? null))?.value ?? "none")
   const [reminder, setReminder] = useState<string>(REMINDER_OPTIONS.find((o) => o.minutes === (event?.reminder_offsets[0] ?? null))?.value ?? "none")
 
@@ -1195,9 +1239,13 @@ function EventForm({
         if (invalid) return
         const stamp = new Date().toISOString()
         const minutes = REMINDER_OPTIONS.find((o) => o.value === reminder)?.minutes ?? null
+        const id = event?.id ?? newId()
+        labels.setColor("event", id, color)
+        // The column only accepts the legacy swatches; the rest of the colors live in the label store until the migration is applied.
+        const column = (color && ["lima", "lima-verso", "tinta-verso", "grafite", "papel"].includes(color) ? color : "neutro") as SwatchId
         onSave(
           {
-            id: event?.id ?? newId(),
+            id,
             user_id: event?.user_id ?? "00000000-0000-4000-8000-000000000001",
             title: title.trim(),
             starts_at: toDueIso(date, allDay ? "00:00" : start, TZ),
@@ -1206,7 +1254,7 @@ function EventForm({
             description: notes.trim() || null,
             location: location.trim() || null,
             category: category.trim() || null,
-            swatch,
+            swatch: column,
             rrule: REPEAT_OPTIONS.find((o) => o.value === repeat)?.rrule ?? null,
             reminder_offsets: minutes ? [minutes] : [],
             created_at: event?.created_at ?? stamp,
@@ -1293,8 +1341,9 @@ function EventForm({
         <Textarea id="event-notes" value={notes} maxLength={1000} placeholder="Detalhes, links, o que levar" onChange={(e) => setNotes(e.target.value)} />
       </div>
       <div className="flex flex-col gap-2">
-        <Label>Cor</Label>
-        <SwatchPicker value={swatch} onChange={setSwatch} />
+        <Label>Cor do evento{resolveHex(color) ? <span className="ml-2 inline-block size-2 rounded-full align-middle ring-1 ring-foreground/25" style={{ backgroundColor: resolveHex(color)! }} /> : null}</Label>
+        <ColorPicker label="Cor do evento" value={color} onChange={setColor} custom={labels.state.custom} onSaveCustom={labels.addCustom} onRemoveCustom={labels.removeCustom} />
+        <p className="px-1 text-[13px] leading-5 text-muted-foreground">Aparece no cartão e no calendário. {colorLabel(color)}.</p>
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>

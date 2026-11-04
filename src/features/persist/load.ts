@@ -207,9 +207,9 @@ export async function loadAgenda() {
     rows<DeadlineRow>(supabase, "study_deadlines", { order: ["due_on"] }),
     rows<{ id: string; name: string }>(supabase, "boards"),
     (async () => {
-      const { data, error } = await supabase.from("tasks").select("id, title, due_at, due_has_time, board_id").not("due_at", "is", null).is("completed_at", null).limit(2000)
+      const { data, error } = await supabase.from("tasks").select("id, title, due_at, due_has_time, board_id, completed_at").not("due_at", "is", null).limit(2000)
       if (error) console.error(`[data] could not read tasks: ${error.message}`)
-      return (data ?? []) as { id: string; title: string; due_at: string; due_has_time: boolean; board_id: string }[]
+      return (data ?? []) as { id: string; title: string; due_at: string; due_has_time: boolean; board_id: string; completed_at: string | null }[]
     })(),
   ])
   const boardName = new Map(boards.map((b) => [b.id, b.name]))
@@ -217,7 +217,7 @@ export async function loadAgenda() {
     events,
     plans,
     deadlines,
-    tasks: tasks.map((t) => ({ id: t.id, title: t.title, due_at: t.due_at, due_has_time: t.due_has_time, board_name: boardName.get(t.board_id) ?? "Tarefas" })),
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, due_at: t.due_at, due_has_time: t.due_has_time, board_id: t.board_id, completed_at: t.completed_at, board_name: boardName.get(t.board_id) ?? "Tarefas" })),
   }
 }
 

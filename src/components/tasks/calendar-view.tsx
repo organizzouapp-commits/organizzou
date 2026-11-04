@@ -44,7 +44,6 @@ type CalendarViewProps = ViewProps & {
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 /** "Sem data" is shown as the last group of the day, through the same group component as the lists (a pseudo list). */
 const UNDATED_ID = "__undated__"
-const NO_FILTER = { label: "", content: null }
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const lower = (text: string) => text.toLowerCase()
 
@@ -325,7 +324,7 @@ export function CalendarView(props: CalendarViewProps) {
   // ---- creating
   const quickAt = (key: string, time: string | null, anchor?: DOMRect) => setQuick({ anchor: anchor ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 1, 1), day: key, time })
 
-  const toolbar = <CalendarToolbar tasksDesktop title={title} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
+  const toolbar = <CalendarToolbar title={title} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
 
   const common: CardsProps = { props, actionsOf: schedulable, dueMode: "time" }
   const dayHeading = (
@@ -414,7 +413,7 @@ export function CalendarView(props: CalendarViewProps) {
       <div data-testid="tasks-calendar" className="flex flex-col gap-4">
         {/* The solid card holds only the toolbar and the month grid / week strip; the lists below sit flat on the page background. */}
         <section aria-label="Agenda" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4" {...swipe}>
-          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
+          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} />
           {view === "mes" ? monthGrid : null}
           {view === "semana" ? <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} /> : null}
         </section>

@@ -7,7 +7,7 @@ import type { TaskView } from "./types"
  * `tasks.swatch` column, so those already follow the person across devices.
  */
 export type ColorValue = string | null
-export type LabelKind = "priority" | "tag" | "category" | "task"
+export type LabelKind = "priority" | "tag" | "category" | "task" | "event"
 
 export const HEX_RE = /^#[0-9a-fA-F]{6}$/
 export const MAX_CUSTOM_COLORS = 8
@@ -58,7 +58,7 @@ export type LabelColorState = {
   custom: string[]
 }
 
-export const EMPTY_LABEL_COLORS: LabelColorState = { colors: { priority: {}, tag: {}, category: {}, task: {} }, custom: [] }
+export const EMPTY_LABEL_COLORS: LabelColorState = { colors: { priority: {}, tag: {}, category: {}, task: {}, event: {} }, custom: [] }
 
 export type LabelColorRepo = {
   load(): LabelColorState
@@ -85,7 +85,7 @@ export function parseLabelColors(raw: string | null): LabelColorState {
   if (!raw) return EMPTY_LABEL_COLORS
   try {
     const data = JSON.parse(raw) as Partial<LabelColorState>
-    const colors = { priority: {}, tag: {}, category: {}, task: {} } as LabelColorState["colors"]
+    const colors = { priority: {}, tag: {}, category: {}, task: {}, event: {} } as LabelColorState["colors"]
     for (const kind of Object.keys(colors) as LabelKind[]) {
       const source = data.colors?.[kind]
       if (!source || typeof source !== "object") continue
