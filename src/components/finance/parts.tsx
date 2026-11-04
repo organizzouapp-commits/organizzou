@@ -46,11 +46,21 @@ export const SUMMARY_CARD = "rounded-[20px] border border-border bg-card"
  * Money, always tabular and never truncated. `tone="in"` is an income ("+ R$ 5.000,00", Lima on dark, Tinta verso on Papel: Lima never
  * becomes text on a light surface), `"out"` an expense ("− R$ 45,00", the default text), `"value"` a balance that can be negative.
  */
-export function MoneyText({ cents, tone = "plain", className }: { cents: number; tone?: "plain" | "in" | "out" | "value"; className?: string }) {
+export function MoneyText({ cents, tone = "plain", dimDecimals = false, className }: { cents: number; tone?: "plain" | "in" | "out" | "value"; /** The cents at ~50% opacity ("R$ 32.161" + ",80"), for the big numbers of the bento cards. */ dimDecimals?: boolean; className?: string }) {
   const text = tone === "in" ? `+ ${formatBRL(Math.abs(cents))}` : tone === "out" ? `− ${formatBRL(Math.abs(cents))}` : tone === "value" ? formatBalance(cents) : formatBRL(cents)
+  const at = text.lastIndexOf(",")
   return (
     <span data-money data-tone={tone} className={cn("tabular whitespace-nowrap", tone === "in" && "text-palette-tinta-verso dark:text-brand", className)}>
-      {text}
+      {dimDecimals && at > 0 ? (
+        <>
+          {text.slice(0, at)}
+          <span data-cents className="opacity-50">
+            {text.slice(at)}
+          </span>
+        </>
+      ) : (
+        text
+      )}
     </span>
   )
 }
@@ -121,18 +131,41 @@ export function ProgressBar({ value, label, color, thin = false, className }: { 
   )
 }
 
+/**
+ * The bar of budgets and limits: a track with a diagonal hatch and a solid fill (Lima on dark, Tinta on Papel; Tinta on a Lima card).
+ * Capped at 100%.
+ */
+export function HatchedProgress({ value, label, tone = "default", className }: { value: number; label: string; tone?: "default" | "onLima"; className?: string }) {
+  const pct = Math.max(0, Math.min(100, Math.round(value)))
+  const ink = tone === "onLima" ? "var(--highlight-foreground)" : "var(--foreground)"
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+      data-hatched
+      className={cn("h-2.5 w-full overflow-hidden rounded-full", className)}
+      style={{ backgroundColor: `color-mix(in oklab, ${ink} 10%, transparent)`, backgroundImage: `repeating-linear-gradient(135deg, color-mix(in oklab, ${ink} 22%, transparent) 0 1.5px, transparent 1.5px 6px)` }}
+    >
+      <div className={cn("h-full rounded-full transition-[width] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", tone === "onLima" ? "bg-highlight-foreground" : "bg-primary")} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
 /** SVG ring with the percentage in the middle. Lima stroke on dark, Tinta on Papel. */
-export function ProgressRing({ value, label, size = 64, className }: { value: number; label: string; size?: number; className?: string }) {
+export function ProgressRing({ value, label, size = 64, tone = "default", className }: { value: number; label: string; size?: number; /** "inverse": Lima on a Tinta surface in both themes. */ tone?: "default" | "inverse"; className?: string }) {
   const pct = Math.max(0, Math.min(100, Math.round(value)))
   const r = 26
   const c = 2 * Math.PI * r
   return (
     <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className={cn("relative shrink-0", className)} style={{ width: size, height: size }}>
       <svg viewBox="0 0 64 64" width={size} height={size} className="-rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-muted" />
-        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className="stroke-primary transition-[stroke-dashoffset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
+        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className={tone === "inverse" ? "stroke-palette-papel/15" : "stroke-muted"} />
+        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className={cn(tone === "inverse" ? "stroke-palette-lima" : "stroke-primary", "transition-[stroke-dashoffset] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none")} strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} />
       </svg>
-      <span className="tabular absolute inset-0 flex items-center justify-center text-[13px] font-semibold">{pct}%</span>
+      <span className={cn("tabular absolute inset-0 flex items-center justify-center font-semibold", size >= 80 ? "text-[17px]" : "text-[13px]", tone === "inverse" && "text-palette-papel")}>{pct}%</span>
     </div>
   )
 }
@@ -151,15 +184,35 @@ export function StatTile({ icon: Icon, label, children, helper, compact = false,
   )
 }
 
-/** The Lima card for the key number of a screen. Lima surface, Tinta text, in both themes. */
-export function HeroCard({ label, value, support, children, className }: { label: string; value: React.ReactNode; support?: string; children?: React.ReactNode; className?: string }) {
+/**
+ * The Lima card for the key number of a screen. Lima surface, Tinta text, in both themes. `actions` adds two pills at the bottom
+ * (the primary one is Tinta with Lima text); `progress` adds the hatched bar (Tinta on Lima).
+ */
+export function HeroCard({ label, value, support, children, actions, progress, className }: { label: string; value: React.ReactNode; support?: string; children?: React.ReactNode; actions?: React.ReactNode; progress?: { value: number; label: string }; className?: string }) {
   return (
     <section aria-label={label} data-hero-card className={cn("flex min-w-0 flex-col gap-2 rounded-[20px] bg-highlight p-5 text-highlight-foreground", className)}>
       <span className="text-[13px] leading-5 font-medium text-highlight-foreground/75">{label}</span>
       <span className="tabular text-[30px] leading-9 font-semibold tracking-[-0.02em] whitespace-nowrap">{value}</span>
+      {progress ? <HatchedProgress value={progress.value} label={progress.label} tone="onLima" /> : null}
       {children}
       {support ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{support}</span> : null}
+      {actions ? <div className="mt-2 flex flex-wrap gap-2">{actions}</div> : null}
     </section>
+  )
+}
+
+/** The pills of a hero with actions: primary = Tinta with Lima text, secondary = outline. */
+export function HeroPill({ primary = false, className, ...props }: React.ComponentProps<"button"> & { primary?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        "inline-flex h-11 items-center justify-center gap-1.5 rounded-full px-4 text-[14px] leading-5 font-semibold outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-10",
+        primary ? "bg-palette-tinta text-palette-lima hover:bg-palette-tinta/90" : "border border-highlight-foreground/40 text-highlight-foreground hover:bg-highlight-foreground/10",
+        className
+      )}
+    />
   )
 }
 
