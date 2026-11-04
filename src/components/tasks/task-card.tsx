@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowRightIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
+import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CalendarClockIcon, CalendarIcon, CheckIcon, ClockIcon, CopyIcon, EllipsisIcon, ListChecksIcon, PencilIcon, RotateCcwIcon, TextCursorInputIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -15,6 +15,7 @@ import { priorityOf } from "@/features/tasks/priorities"
 import type { TagRow, TaskView } from "@/features/tasks/types"
 
 import { InlineInput } from "./inline-input"
+import { useTaskDragging } from "./task-dnd"
 import { useLabelColors } from "./label-colors-context"
 import { usePriorities } from "./priorities-context"
 import { DueLabel, LabelBadge, PriorityFlag, TaskCounters } from "./task-meta"
@@ -34,6 +35,9 @@ export type TaskActions = {
   schedule?: () => void
   /** Renames in place (auto-commit); resolves false when the save failed. */
   rename: (title: string) => Promise<boolean>
+  /** Reorders inside its list (the accessible alternative to dragging). Absent where the order is not the user's. */
+  moveUp?: () => void
+  moveDown?: () => void
 }
 
 type Density = "card" | "row"
@@ -103,6 +107,16 @@ function ActionsMenu({ task, actions, open, onOpenChange, onRename }: { task: Ta
             <CalendarClockIcon strokeWidth={1.75} /> Agendar…
           </DropdownMenuItem>
         ) : null}
+        {actions.moveUp ? (
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.moveUp}>
+            <ArrowUpIcon strokeWidth={1.75} /> Mover para cima
+          </DropdownMenuItem>
+        ) : null}
+        {actions.moveDown ? (
+          <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.moveDown}>
+            <ArrowDownIcon strokeWidth={1.75} /> Mover para baixo
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem className="min-h-11 gap-3 rounded-xl px-3 text-[15px]" onSelect={actions.move}>
           <ArrowRightIcon strokeWidth={1.75} /> Mover para…
         </DropdownMenuItem>
@@ -131,6 +145,7 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
   const timer = useRef<number | undefined>(undefined)
   const host = useRef<HTMLDivElement>(null)
   const done = Boolean(task.completed_at)
+  const draggingNow = useTaskDragging()
 
   useEffect(() => {
     if (!open) return
@@ -182,7 +197,7 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
         }}
         onPointerMove={(e) => {
           const s = start.current
-          if (!s) return
+          if (!s || draggingNow) return
           const ax = e.clientX - s.x
           const ay = e.clientY - s.y
           if (s.locked === null && (Math.abs(ax) > 8 || Math.abs(ay) > 8)) s.locked = Math.abs(ax) > Math.abs(ay) * 1.5
@@ -192,6 +207,7 @@ function SwipeShell({ task, actions, children, className }: { task: TaskView; ac
         }}
         onPointerUp={finish}
         onPointerCancel={finish}
+        onContextMenu={(e) => window.matchMedia("(pointer: coarse)").matches && e.preventDefault()}
         style={{ transform: `translateX(${offset}px)` }}
         className={cn("relative touch-pan-y bg-card md:!transform-none", !dragging && cn("transition-transform duration-[400ms] motion-reduce:transition-none", EASE))}
       >
@@ -351,9 +367,21 @@ export function SortableTaskCard({ listId, disabled, ...body }: SortableTaskCard
   })
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
 
+  // The slot the card will drop into: the card itself steps aside (invisible) and a Lima-free line marks the spot.
   return (
-    <div ref={setNodeRef} style={style} data-task-id={body.task.id} {...attributes} {...listeners} className={cn("snap-start touch-manipulation cursor-grab outline-none", isDragging && "opacity-40")}>
-      <TaskCardBody {...body} />
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-task-id={body.task.id}
+      data-dragging={isDragging ? "" : undefined}
+      {...attributes}
+      {...listeners}
+      className={cn("relative snap-start touch-manipulation cursor-grab outline-none select-none [-webkit-touch-callout:none]", isDragging && "touch-none")}
+    >
+      <div className={cn(isDragging && "opacity-0")}>
+        <TaskCardBody {...body} />
+      </div>
+      {isDragging ? <span aria-hidden data-drop-indicator className="pointer-events-none absolute inset-x-2 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-primary" /> : null}
     </div>
   )
 }

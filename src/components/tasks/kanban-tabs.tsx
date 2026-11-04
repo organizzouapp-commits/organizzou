@@ -32,6 +32,7 @@ export function KanbanTabs({ lists, counts, activeId, onSelect, onAdd, onManage 
             type="button"
             role="tab"
             aria-selected={active}
+            data-list-tab={list.id}
             onClick={() => onSelect(list.id)}
             onPointerDown={() => {
               window.clearTimeout(press.current)
@@ -43,7 +44,7 @@ export function KanbanTabs({ lists, counts, activeId, onSelect, onAdd, onManage 
             onContextMenu={(e) => e.preventDefault()}
             className={cn(
               "relative flex h-9 shrink-0 snap-center items-center justify-center gap-1.5 rounded-full px-2.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] select-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-              active ? "bg-highlight font-semibold text-highlight-foreground" : "bg-muted text-muted-foreground"
+              "data-[drop-hover]:ring-2 data-[drop-hover]:ring-foreground/60", active ? "bg-highlight font-semibold text-highlight-foreground" : "bg-muted text-muted-foreground"
             )}
           >
             {list.name}

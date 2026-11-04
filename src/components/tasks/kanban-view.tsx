@@ -6,18 +6,13 @@ import {
   closestCorners,
   DndContext,
   DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
   useDroppable,
-  useSensor,
-  useSensors,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core"
-import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { ChevronDownIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
 
@@ -29,6 +24,7 @@ import { InlineInput } from "./inline-input"
 import { ListMenu, ListName } from "./list-parts"
 import { QuickAdd } from "./quick-add"
 import { SortableTaskCard, TaskCardBody } from "./task-card"
+import { DRAG_OVERLAY_CLASS, hapticTick, TaskDragProvider, useDragHover, useTaskSensors } from "./task-dnd"
 import type { ViewProps } from "./types"
 
 type KanbanViewProps = ViewProps & {
@@ -189,9 +185,11 @@ function NewListTile({ onAdd }: { onAdd: (name: string) => Promise<void> }) {
 function MobileColumn({ list, index, total, ids, taskById, props }: { list: ListRow; index: number; total: number; ids: string[]; taskById: Map<string, TaskView>; props: KanbanViewProps }) {
   const [showAll, setShowAll] = useState(false)
   const [editing, setEditing] = useState(false)
+  const { setNodeRef: setDropRef } = useDroppable({ id: list.id, data: { type: "list" } })
   const hidden = Math.max(0, ids.length - MOBILE_VISIBLE)
+  const shown = ids.slice(0, showAll ? undefined : MOBILE_VISIBLE)
   return (
-    <section data-column={list.id} aria-label={list.name} className="flex min-w-0 flex-col gap-2">
+    <section ref={setDropRef} data-column={list.id} aria-label={list.name} className="flex min-w-0 flex-col gap-2">
       <header className="flex min-h-11 items-center gap-1 px-1">
         <ListName list={list} actions={props} editing={editing} onEditingChange={setEditing} />
         <span className="tabular rounded-full bg-muted px-2 text-[13px] leading-5">{ids.length}</span>
@@ -201,11 +199,27 @@ function MobileColumn({ list, index, total, ids, taskById, props }: { list: List
         <ListMenu list={list} index={index} total={total} count={ids.length} actions={props} onRename={() => setEditing(true)} />
       </header>
       <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} className="h-11 rounded-full border border-dashed border-border" />
-      {ids.slice(0, showAll ? undefined : MOBILE_VISIBLE).map((id) => {
-        const task = taskById.get(id)
-        if (!task) return null
-        return <TaskCardBody key={id} anchor task={task} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={props.actionsFor(task)} selecting={props.selection.active} selected={props.selection.ids.has(id)} onSelect={() => props.selection.toggle(id)} />
-      })}
+      <SortableContext items={shown} strategy={verticalListSortingStrategy}>
+        {shown.map((id) => {
+          const task = taskById.get(id)
+          if (!task) return null
+          return (
+            <SortableTaskCard
+              key={id}
+              listId={list.id}
+              disabled={!props.dragEnabled || props.selection.active}
+              task={task}
+              tags={props.tags}
+              now={props.now}
+              timeZone={props.timeZone}
+              actions={props.actionsFor(task)}
+              selecting={props.selection.active}
+              selected={props.selection.ids.has(id)}
+              onSelect={() => props.selection.toggle(id)}
+            />
+          )
+        })}
+      </SortableContext>
       {ids.length === 0 ? <p className="px-2 py-6 text-center text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
       {hidden > 0 && !showAll ? (
         <Button variant="ghost" className="h-11 rounded-full" onClick={() => setShowAll(true)}>
@@ -233,11 +247,12 @@ export function KanbanView(props: KanbanViewProps) {
   const columns = override ?? base
   const currentMobile = lists.find((l) => l.id === props.activeListId)?.id ?? lists[0]?.id
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const sensors = useTaskSensors()
+  // Phones: hovering the dragged card over a list tab for ~500 ms shows that list (so it can be dropped at an exact spot).
+  const dragging = activeId !== null && !isListId(activeId)
+  const hoverRef = useDragHover(props.isMobile && dragging, (hover) => {
+    if (hover.kind === "tab") props.onActiveListChange(hover.id)
+  })
 
   // Lists only collide with lists; tasks only with tasks and the list bodies.
   const collision: CollisionDetection = (args) => {
@@ -252,6 +267,7 @@ export function KanbanView(props: KanbanViewProps) {
 
   function onDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id))
+    hapticTick()
   }
 
   function onDragOver({ active, over }: DragOverEvent) {
@@ -287,6 +303,16 @@ export function KanbanView(props: KanbanViewProps) {
     const cols = override ?? base
     const activeKey = String(active.id)
     const container = containerOf(activeKey, cols)
+
+    // Dropped on a list tab (phones): append to the end of that list.
+    const tab = hoverRef.current
+    if (props.isMobile && tab?.kind === "tab") {
+      const target = tab.id
+      const without = (base[target] ?? []).filter((id) => id !== activeKey)
+      setOverride(null)
+      props.onMoveTasks(target, [...without, activeKey])
+      return
+    }
 
     if (!container || !over) {
       setOverride(null)
@@ -329,8 +355,10 @@ export function KanbanView(props: KanbanViewProps) {
   }, [currentMobile, lists])
 
   const listName = (id: unknown) => lists.find((l) => l.id === String(id).slice(LIST_PREFIX.length))?.name ?? "Lista"
+  const taskTitle = (id: unknown) => taskById.get(String(id))?.title ?? ""
 
   return (
+    <TaskDragProvider value={dragging}>
     <DndContext
       id="kanban-dnd"
       sensors={sensors}
@@ -340,9 +368,19 @@ export function KanbanView(props: KanbanViewProps) {
       onDragEnd={onDragEnd}
       accessibility={{
         announcements: {
-          onDragStart: ({ active }) => (isListId(active.id) ? `Lista ${listName(active.id)} pega.` : "Tarefa pega."),
-          onDragOver: ({ active, over }) => (isListId(active.id) && over ? `Lista ${listName(active.id)} sobre a posição de ${listName(over.id)}.` : "Tarefa sobre outra posição."),
-          onDragEnd: ({ active, over }) => (isListId(active.id) ? (over ? `Lista ${listName(active.id)} solta na posição de ${listName(over.id)}.` : `Lista ${listName(active.id)} solta.`) : "Tarefa solta."),
+          onDragStart: ({ active }) => (isListId(active.id) ? `Lista ${listName(active.id)} pega.` : `Tarefa ${taskTitle(active.id)} pega.`),
+          onDragOver: ({ active, over }) => {
+            if (isListId(active.id)) return over ? `Lista ${listName(active.id)} sobre a posição de ${listName(over.id)}.` : undefined
+            if (!over) return undefined
+            const cols = override ?? base
+            const where = containerOf(String(over.id), cols)
+            return `Tarefa ${taskTitle(active.id)} sobre ${where ? lists.find((l) => l.id === where)?.name : "outra posição"}.`
+          },
+          onDragEnd: ({ active, over }) => {
+            if (isListId(active.id)) return over ? `Lista ${listName(active.id)} solta na posição de ${listName(over.id)}.` : `Lista ${listName(active.id)} solta.`
+            const where = containerOf(String(active.id), override ?? base)
+            return `Tarefa ${taskTitle(active.id)} solta${where ? ` em ${lists.find((l) => l.id === where)?.name}` : ""}.`
+          },
           onDragCancel: () => "Movimento cancelado.",
         },
         screenReaderInstructions: { draggable: "Para mover, aperte espaço, use as setas para escolher o lugar e aperte espaço de novo. Esc cancela. Também dá para usar Mover para… no menu." },
@@ -362,7 +400,7 @@ export function KanbanView(props: KanbanViewProps) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {!props.dragEnabled ? <p className="text-[13px] leading-5 text-muted-foreground">Para arrastar tarefas, volte à ordem manual e limpe os filtros.</p> : null}
+          {!props.dragEnabled ? <p className="text-[13px] leading-5 text-muted-foreground">Para arrastar tarefas, limpe a busca e os filtros.</p> : null}
           <div ref={board} data-testid="kanban-board" className="flex items-start gap-4 overflow-x-auto overflow-y-hidden [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
             <SortableContext items={lists.map((l) => sortableId(l.id))} strategy={horizontalListSortingStrategy}>
               {lists.map((list, i) => (
@@ -374,9 +412,10 @@ export function KanbanView(props: KanbanViewProps) {
         </div>
       )}
       <DragOverlay>
-        {activeTask ? <TaskCardBody inert task={activeTask} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={props.actionsFor(activeTask)} className="-translate-y-0.5 rotate-1" /> : null}
+        {activeTask ? <TaskCardBody inert task={activeTask} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={props.actionsFor(activeTask)} className={DRAG_OVERLAY_CLASS} /> : null}
         {activeList ? <div className="flex h-14 items-center rounded-[16px] border border-border bg-card px-4 text-[15px] font-semibold">{activeList.name}</div> : null}
       </DragOverlay>
     </DndContext>
+    </TaskDragProvider>
   )
 }

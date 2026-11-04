@@ -114,6 +114,8 @@
   --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   /* User-label colors (tasks, tags, categories, priorities): an allowed exception to "no red/green" and "Lima only accent"; UI chrome keeps the old rules. Light theme: each >= 3:1 on Papel. */
+  /* The lifted card while it is dragged (a transient, not a resting elevation). */
+  --shadow-lift: 0 12px 28px color-mix(in oklab, var(--palette-tinta) 24%, transparent);
   --label-red: #D6343A;
   --label-yellow: #A87400;
   --label-blue: #2C6FDB;
@@ -161,6 +163,7 @@
   --highlight: oklch(0.936 0.220 119.1); /* Lima #DBFD00 */
   --highlight-foreground: oklch(0.159 0.015 120.6); /* Tinta #0C0E07 */
   /* User-label colors, dark theme: each >= 3:1 on Grafite and Tinta. */
+  --shadow-lift: 0 12px 28px color-mix(in oklab, var(--palette-tinta) 70%, transparent);
   --label-red: #E5484D;
   --label-yellow: #FFC53D;
   --label-blue: #3E8BFF;

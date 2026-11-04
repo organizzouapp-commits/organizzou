@@ -258,6 +258,49 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     }
   }
 
+  /**
+   * A manual reorder (drag, or "Mover para cima/baixo"): persists the order of the list. When the sort was not "Manual", the order the
+   * person just made would be invisible, so the sort switches to Manual with a toast whose "Desfazer" restores order and sort.
+   */
+  async function reorderTasks(listId: string, taskIds: string[]) {
+    const before = tasks
+    const previousSort = sort
+    await moveToList(listId, taskIds)
+    if (previousSort === "manual") return
+    setSort("manual")
+    toast("Ordenação manual ativada", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          setSort(previousSort)
+          setTasks(before)
+          const moved = before.find((t) => taskIds.includes(t.id) && t.list_id !== listId) ?? null
+          const listsToRestore = new Set([listId, ...(moved ? [moved.list_id] : [])])
+          for (const id of listsToRestore) {
+            const ordered = before.filter((t) => t.list_id === id).sort((a, b) => a.position - b.position).map((t) => t.id)
+            if (ordered.length > 0) void api.moveTasks({ listId: id, taskIds: ordered })
+          }
+        },
+      },
+    })
+  }
+
+  function moveWithinList(task: TaskView, direction: -1 | 1) {
+    const ids = tasks
+      .filter((t) => t.list_id === task.list_id)
+      .sort((a, b) => a.position - b.position)
+      .map((t) => t.id)
+    const index = ids.indexOf(task.id)
+    const target = index + direction
+    if (index < 0 || target < 0 || target >= ids.length) {
+      toast(direction === -1 ? "A tarefa já está no topo." : "A tarefa já está no fim.")
+      return
+    }
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    void reorderTasks(task.list_id, ids)
+    toast(direction === -1 ? "Tarefa movida para cima." : "Tarefa movida para baixo.")
+  }
+
   function moveTaskToList(task: TaskView, listId: string) {
     if (task.list_id === listId) return
     const ids = tasks
@@ -472,6 +515,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       postpone1h: () => postpone1h(task),
       tomorrow: () => postponeTomorrow(task),
       move: () => setMoveFor([task]),
+      moveUp: filtering ? undefined : () => moveWithinList(task, -1),
+      moveDown: filtering ? undefined : () => moveWithinList(task, 1),
       remove: () => setTaskToDelete(task),
       duplicate: () => void duplicateTask(task),
       rename: async (title) => {
@@ -843,15 +888,15 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       ) : view === "kanban" ? (
         <KanbanView
           {...viewProps}
-          dragEnabled={sort === "manual" && !filtering}
-          onMoveTasks={(listId, ids) => void moveToList(listId, ids)}
+          dragEnabled={!filtering}
+          onMoveTasks={(listId, ids) => void reorderTasks(listId, ids)}
           isMobile={isMobile}
           activeListId={mobileList}
           onActiveListChange={setMobileList}
         />
       ) : view === "lista" ? (
         <div className={cn(!isMobile && bentoCardClass())}>
-          <ListView {...viewProps} groupBy={groupBy} isMobile={isMobile} />
+          <ListView {...viewProps} groupBy={groupBy} isMobile={isMobile} dragEnabled={!filtering} onMoveTasks={(listId, ids) => void reorderTasks(listId, ids)} />
         </div>
       ) : (
         <CalendarView {...viewProps} nowIso={nowIso} onDayChange={setCalendarDay} onSchedule={(task, dueIso, hasTime) => void reschedule(task, dueIso, hasTime, "Tarefa reagendada.")} />
