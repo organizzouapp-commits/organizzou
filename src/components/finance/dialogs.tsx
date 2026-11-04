@@ -48,9 +48,10 @@ function Field({ label, htmlFor, error, helper, children }: { label: string; htm
 }
 
 /** Cancelar (outline pill) + the primary pill. Sticky at the bottom of the sheet on phones, so it never scrolls away. */
-function Footer({ onCancel, submit }: { onCancel: () => void; submit: string }) {
+function Footer({ onCancel, submit, extra }: { onCancel: () => void; submit: string; extra?: React.ReactNode }) {
   return (
     <div className="sticky bottom-0 -mx-4 mt-1 flex gap-2 border-t border-border bg-popover px-4 pt-3 pb-1 md:static md:mx-0 md:justify-end md:border-0 md:px-0 md:pt-1 md:pb-0">
+      {extra}
       <Button type="button" variant="outline" className="h-11 flex-1 md:h-10 md:flex-none" onClick={onCancel}>
         Cancelar
       </Button>
@@ -389,7 +390,17 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
           })}
         </div>
       </Field>
-      <Footer onCancel={onClose} submit={row ? "Salvar" : "Criar meta"} />
+      <Footer
+        onCancel={onClose}
+        submit={row ? "Salvar" : "Criar meta"}
+        extra={
+          row ? (
+            <Button type="button" variant="outline" className="h-11 flex-1 md:mr-auto md:h-10 md:flex-none" onClick={() => (f.removeGoal(row), onClose())}>
+              Excluir meta
+            </Button>
+          ) : null
+        }
+      />
     </form>
   )
 }
