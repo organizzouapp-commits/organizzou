@@ -48,7 +48,7 @@ export function BentoStat({ label, icon: Icon, children, chip, chipIcon: ChipIco
       </div>
       <span className={cn("tabular font-semibold whitespace-nowrap", compact ? "text-[16px] leading-6" : "text-[24px] leading-8 tracking-[-0.01em]")}>{children}</span>
       {chip ? (
-        <span data-stat-chip className="inline-flex h-6 w-fit max-w-full items-center gap-1 rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">
+        <span data-stat-chip className="mt-auto inline-flex h-6 w-fit max-w-full items-center gap-1 rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">
           {ChipIcon ? <ChipIcon aria-hidden strokeWidth={1.75} className="size-3 shrink-0" /> : null}
           <span className="truncate">{chip}</span>
         </span>
@@ -279,7 +279,8 @@ export function CategoryDonut({ segments, label, variant = "side", unit = ["lan√
 }
 
 /** A small Lima area line. `points` is the running total; fewer than two points draws nothing (the caller hides it). */
-export function Sparkline({ points, label, className }: { points: number[]; label: string; className?: string }) {
+export function Sparkline({ points, label, tone = "inverse", className }: { points: number[]; label: string; /** "inverse": Lima on a dark surface; "default": the primary color (Lima on dark, Tinta on Papel). */ tone?: "default" | "inverse"; className?: string }) {
+  const ink = tone === "inverse" ? "var(--palette-lima)" : "var(--primary)"
   const id = useId()
   if (points.length < 2) return null
   const w = 160
@@ -292,12 +293,12 @@ export function Sparkline({ points, label, className }: { points: number[]; labe
     <svg role="img" aria-label={label} data-sparkline viewBox={`0 0 ${w} ${h}`} className={cn("h-11 w-full", className)} preserveAspectRatio="none">
       <defs>
         <linearGradient id={id} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="var(--palette-lima)" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="var(--palette-lima)" stopOpacity="0" />
+          <stop offset="0%" stopColor={ink} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={ink} stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon points={`0,${h} ${line} ${w},${h}`} fill={`url(#${id})`} />
-      <polyline points={line} fill="none" stroke="var(--palette-lima)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <polyline points={line} fill="none" stroke={ink} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }

@@ -194,6 +194,7 @@ export function HeroCard({
   label,
   value,
   size = "md",
+  density = "default",
   support,
   children,
   actions,
@@ -208,6 +209,8 @@ export function HeroCard({
   value: React.ReactNode
   /** "md" 36px, "lg" 44px (the balance). */
   size?: "md" | "lg"
+  /** "dense": the 168px card of a four-up row (tight spacing, the bar pinned to the bottom). "compact": the half-width phone card of a 2x2 grid. */
+  density?: "default" | "dense" | "compact"
   /** The helper line right under the value. */
   support?: string
   children?: React.ReactNode
@@ -221,23 +224,25 @@ export function HeroCard({
   arrowLabel?: string
   className?: string
 }) {
+  const dense = density === "dense"
+  const compact = density === "compact"
   return (
-    <section aria-label={label} data-hero-card className={cn("flex min-w-0 flex-col gap-3 rounded-[20px] bg-highlight p-5 text-highlight-foreground", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-[11px] leading-4 font-semibold tracking-[0.1em] uppercase">{label}</span>
+    <section aria-label={label} data-hero-card data-density={density} className={cn("flex min-w-0 flex-col rounded-[20px] bg-highlight text-highlight-foreground", compact ? "gap-1.5 p-3" : dense ? "gap-2 p-5" : "gap-3 p-5", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <span className={cn("truncate font-semibold tracking-[0.1em] uppercase", compact ? "text-[10px] leading-4 tracking-[0.08em]" : "text-[11px] leading-4")}>{label}</span>
         {onArrow ? (
-          <button type="button" data-hero-arrow aria-label={arrowLabel ?? `Abrir ${label}`} onClick={onArrow} className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-highlight-foreground/10 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:-inset-1 hover:bg-highlight-foreground/20 focus-visible:ring-3 focus-visible:ring-highlight-foreground/40 motion-reduce:transition-none">
-            <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-[18px]" />
+          <button type="button" data-hero-arrow aria-label={arrowLabel ?? `Abrir ${label}`} onClick={onArrow} className={cn("relative flex shrink-0 items-center justify-center rounded-full bg-highlight-foreground/10 outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:-inset-1.5 hover:bg-highlight-foreground/20 focus-visible:ring-3 focus-visible:ring-highlight-foreground/40 motion-reduce:transition-none", compact ? "size-6" : dense ? "size-8" : "size-9")}>
+            <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className={compact ? "size-3" : dense ? "size-4" : "size-[18px]"} />
           </button>
         ) : null}
       </div>
       <div className="flex flex-col gap-1">
-        <span className={cn("tabular text-[36px] leading-[44px] font-semibold tracking-[-0.02em] whitespace-nowrap", size === "lg" && "md:text-[44px] md:leading-[52px]")}>{value}</span>
+        <span className={cn("tabular font-semibold tracking-[-0.02em] whitespace-nowrap", compact ? "text-[20px] leading-7" : dense ? "text-[36px] leading-10" : "text-[36px] leading-[44px]", size === "lg" && "md:text-[44px] md:leading-[52px]")}>{value}</span>
         {support ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{support}</span> : null}
       </div>
       {progress ? (
-        <div className="flex flex-col gap-1.5">
-          <HatchedProgress value={progress.value} label={progress.label} tone="onLima" className="h-3" />
+        <div className={cn("flex flex-col gap-1.5", (dense || compact) && "mt-auto")}>
+          <HatchedProgress value={progress.value} label={progress.label} tone="onLima" className={compact ? "h-2" : "h-3"} />
           {captions ? (
             <div className="tabular flex justify-between text-[11px] leading-4 text-highlight-foreground/70">
               <span>{captions[0]}</span>
@@ -247,7 +252,7 @@ export function HeroCard({
         </div>
       ) : null}
       {children}
-      {footer ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{footer}</span> : null}
+      {footer ? <span className={cn("text-highlight-foreground/75", compact ? "text-[11px] leading-4" : "text-[13px] leading-5")}>{footer}</span> : null}
       {actions ? <div className="mt-auto flex flex-wrap gap-2 pt-1">{actions}</div> : null}
     </section>
   )

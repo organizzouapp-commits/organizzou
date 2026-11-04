@@ -67,30 +67,30 @@ function BillGroup({ id, label, views, defaultOpen }: { id: string; label: strin
   )
 }
 
+/** Pagas, A pagar and Atrasadas: the same structure as the hero (label + icon circle on top, value, chip at the bottom), 168px tall on desktop. */
 function Stats({ compact }: { compact: boolean }) {
   const f = useFinance()
   const d = derive(f)
   const count = (n: number) => `${n} ${n === 1 ? "conta" : "contas"}`
+  const fixed = compact ? "h-full" : "md:h-[168px]"
   return (
-    <div data-testid="bill-stats" className={compact ? "grid grid-cols-2 gap-3" : "grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3"}>
-      <BentoStat compact={compact} label="Pagas" icon={CheckCheckIcon} chip={count(d.paid.length)}>
+    <>
+      <BentoStat compact={compact} className={fixed} label="Pagas" icon={CheckCheckIcon} chip={count(d.paid.length)}>
         <MoneyText cents={d.paidTotal} dimDecimals />
       </BentoStat>
-      {compact ? null : (
-        <BentoStat label="A pagar" icon={WalletIcon} chip={count(d.toPay.length)}>
-          <MoneyText cents={d.toPayTotal - d.overdueTotal} dimDecimals />
-        </BentoStat>
-      )}
-      <BentoStat compact={compact} label="Atrasadas" icon={CircleAlertIcon} chip={count(d.overdue.length)}>
+      <BentoStat compact={compact} className={fixed} label="A pagar" icon={WalletIcon} chip={count(d.toPay.length)}>
+        <MoneyText cents={d.toPayTotal - d.overdueTotal} dimDecimals />
+      </BentoStat>
+      <BentoStat compact={compact} className={fixed} label="Atrasadas" icon={CircleAlertIcon} chip={count(d.overdue.length)}>
         <MoneyText cents={d.overdueTotal} dimDecimals />
       </BentoStat>
-    </div>
+    </>
   )
 }
 
 const goList = () => document.querySelector("[data-testid=bills-main]")?.scrollIntoView({ behavior: "smooth", block: "start" })
 
-function Hero() {
+function Hero({ compact = false }: { compact?: boolean }) {
   const f = useFinance()
   const d = derive(f)
   const pct = d.fixedTotal === 0 ? 0 : (d.paidTotal / d.fixedTotal) * 100
@@ -103,7 +103,8 @@ function Hero() {
       footer={`${p} ${p === 1 ? "paga" : "pagas"} · ${d.unpaidCount} ${d.unpaidCount === 1 ? "pendente" : "pendentes"}`}
       onArrow={goList}
       arrowLabel="Ir para a lista de contas"
-      className="h-full justify-between md:min-h-[168px]"
+      density={compact ? "compact" : "dense"}
+      className={compact ? "h-full" : "md:h-[168px]"}
     />
   )
 }
@@ -234,8 +235,10 @@ export function BillsTab() {
     return (
       <DayFilterContext.Provider value={filter}>
         <div className="flex flex-col gap-3">
-          <Hero />
-          <Stats compact />
+          <div data-testid="bill-stats" className="grid auto-rows-fr grid-cols-2 gap-3">
+            <Hero compact />
+            <Stats compact />
+          </div>
           <TimelineCard />
           <Lists day={activeDay} />
         </div>
@@ -249,7 +252,9 @@ export function BillsTab() {
           <Hero />
         </div>
         <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
-          <Stats compact={false} />
+          <div data-testid="bill-stats" className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3">
+            <Stats compact={false} />
+          </div>
         </div>
         <div className="md:col-span-2 lg:col-span-8 xl:col-span-12">
           <TimelineCard />
