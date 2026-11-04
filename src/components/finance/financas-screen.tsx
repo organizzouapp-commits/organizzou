@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { GOAL_ICON_KEYS, localGoalIconRepo, type GoalIconKey } from "@/features/finance/goal-icons"
 import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-history"
+import { featureFirst, localGoalLayoutRepo } from "@/features/finance/goal-layout"
 import { monthOf, shiftMonth } from "@/features/finance/stats"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -78,6 +79,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [goals, setGoals] = useRows<FinancialGoalRow>("finance_goals", initial.goals, memory)
   const [goalIcons, setGoalIcons] = useState<Record<string, GoalIconKey>>({})
   const [goalHistory, setGoalHistory] = useState<GoalHistory>({})
+  const [goalOrder, setGoalOrderState] = useState<string[]>([])
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
@@ -92,6 +94,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGoalIcons(localGoalIconRepo.load())
     setGoalHistory(localGoalHistoryRepo.load())
+    setGoalOrderState(localGoalLayoutRepo.load())
   }, [])
 
   const setFilters = useCallback((next: Partial<Filters>) => setFiltersState((current) => ({ ...current, ...next })), [])
@@ -230,6 +233,18 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     })
   }
 
+  function setGoalOrder(ids: string[]) {
+    setGoalOrderState(ids)
+    localGoalLayoutRepo.save(ids)
+  }
+
+  /** "Destacar": the goal goes to the front, which is the featured slot. */
+  function featureGoal(goal: FinancialGoalRow, currentOrder: string[]) {
+    const previous = goalOrder
+    setGoalOrder(featureFirst(currentOrder, goal.id))
+    undoable(`${goal.name} agora é a meta em destaque.`, () => setGoalOrder(previous))
+  }
+
   function removeGoal(goal: FinancialGoalRow) {
     setGoals((current) => current.filter((g) => g.id !== goal.id))
     undoable("Meta excluída.", () => setGoals((current) => [...current, goal]))
@@ -258,6 +273,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     goals,
     goalIcons,
     goalHistory,
+    goalOrder,
     filters,
     setFilters,
     categoryName,
@@ -282,6 +298,8 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     saveGoal,
     removeGoal,
     editGoal: (row) => setGoalDialog({ row }),
+    setGoalOrder,
+    featureGoal,
     openNewGoal: () => setGoalDialog({ row: null }),
     saveAccount,
     saveLimits,

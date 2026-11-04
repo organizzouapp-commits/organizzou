@@ -28,6 +28,8 @@ export type Finance = {
   goals: FinancialGoalRow[]
   goalIcons: Record<string, GoalIconKey>
   goalHistory: GoalHistory
+  /** Goal ids in the chosen order (empty = nearest deadline first); the first goal in progress is the featured one. */
+  goalOrder: string[]
   filters: Filters
   setFilters: (next: Partial<Filters>) => void
   categoryName: (id: string | null) => string
@@ -57,6 +59,9 @@ export type Finance = {
   saveGoal: (row: FinancialGoalRow, icon: GoalIconKey) => void
   removeGoal: (goal: FinancialGoalRow) => void
   editGoal: (goal: FinancialGoalRow) => void
+  /** Saves the order of the goals in progress (the first becomes the featured one). */
+  setGoalOrder: (ids: string[]) => void
+  featureGoal: (goal: FinancialGoalRow, currentOrder: string[]) => void
   openNewGoal: () => void
   // accounts and limits
   saveAccount: (row: AccountRow) => void

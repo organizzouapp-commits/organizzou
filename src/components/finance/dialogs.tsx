@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 
 import { useFinance } from "./context"
 import { GOAL_ICONS } from "./parts"
-import { projection } from "./goals"
+import { projection, useGoalSets } from "./goals"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 const INPUT = "h-11 rounded-[12px]"
@@ -343,6 +343,7 @@ export function GoalDialog({ open, onOpenChange, row }: { open: boolean; onOpenC
 
 function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () => void }) {
   const f = useFinance()
+  const sets = useGoalSets()
   const [name, setName] = useState(row?.name ?? "")
   const [target, setTarget] = useState(row ? (row.target_cents / 100).toFixed(2).replace(".", ",") : "")
   const [deadline, setDeadline] = useState(row?.deadline ?? "")
@@ -395,9 +396,16 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
         submit={row ? "Salvar" : "Criar meta"}
         extra={
           row ? (
-            <Button type="button" variant="outline" className="h-11 flex-1 md:mr-auto md:h-10 md:flex-none" onClick={() => (f.removeGoal(row), onClose())}>
-              Excluir meta
-            </Button>
+            <div className="flex flex-1 gap-2 md:mr-auto md:flex-none">
+              {sets.open.some((g) => g.id === row.id) && sets.open[0]?.id !== row.id ? (
+                <Button type="button" variant="outline" className="h-11 flex-1 md:h-10 md:flex-none" onClick={() => (f.featureGoal(row, sets.open.map((g) => g.id)), onClose())}>
+                  Destacar
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" className="h-11 flex-1 md:h-10 md:flex-none" onClick={() => (f.removeGoal(row), onClose())}>
+                Excluir meta
+              </Button>
+            </div>
           ) : null
         }
       />
