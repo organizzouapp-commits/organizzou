@@ -19,7 +19,6 @@ import {
   BellIcon,
   BookOpenIcon,
   CalendarDaysIcon,
-  ChevronDownIcon,
   PlusIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -35,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { TaskCardBody, type TaskActions } from "@/components/tasks/task-card"
 import type { TaskView } from "@/features/tasks/types"
@@ -1129,16 +1129,10 @@ function DayGroups({ items, day, renderRow, onNewEvent, flat = false }: { items:
         const open = saved[kind] ?? list.length > 0
         return (
           <section key={kind} data-group={kind} aria-label={label} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
-            <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(kind, open)} className="-ml-2 flex h-11 w-fit max-w-full items-center gap-2 rounded-full px-2 text-left text-[15px] font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
-              <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
-              <span className="truncate">{label}</span>
-              <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{list.length}</span>
-            </button>
-            <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
-              <div className="min-h-0 overflow-hidden">
-                <div data-group-rows className="flex flex-col gap-2 pb-2">{list.map((item) => renderRow(item))}</div>
-              </div>
-            </div>
+            <GroupHeader label={label} count={list.length} open={open} onToggle={() => toggle(kind, open)} />
+            <Collapse open={open}>
+              <div data-group-rows className="flex flex-col gap-2 pb-2">{list.map((item) => renderRow(item))}</div>
+            </Collapse>
           </section>
         )
       })}
@@ -1196,18 +1190,12 @@ function AgendaDays({ from, todayKey, itemsOn, renderRow, flat }: { from: string
         const open = isOpen(key)
         return (
           <section key={key} data-agenda-day={key} aria-label={label(key)} className={cn("flex flex-col", flat ? (open ? "mb-4" : "mb-2") : "mb-0.5")}>
-            <button type="button" data-group-header aria-expanded={open} onClick={() => persist({ ...saved, [key]: !open })} className="-ml-2 flex h-11 w-fit max-w-full items-center gap-2 rounded-full px-2 text-left text-[15px] font-semibold outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
-              <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", !open && "-rotate-90")} />
-              <span className="truncate">{label(key)}</span>
-              <span className="tabular inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-[12px] leading-4 font-medium">{list.length}</span>
-            </button>
-            <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]")}>
-              <div className="min-h-0 overflow-hidden">
-                <div data-group-rows className="flex flex-col gap-2 pb-2">
-                  {list.map((item) => renderRow(item))}
-                </div>
+            <GroupHeader label={label(key)} count={list.length} open={open} onToggle={() => persist({ ...saved, [key]: !open })} />
+            <Collapse open={open}>
+              <div data-group-rows className="flex flex-col gap-2 pb-2">
+                {list.map((item) => renderRow(item))}
               </div>
-            </div>
+            </Collapse>
           </section>
         )
       })}

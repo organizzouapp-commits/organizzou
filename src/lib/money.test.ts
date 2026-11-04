@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { formatBRL, formatCompactBRL, formatSignedBRL, parseBRL } from "./money"
+import { formatBalance, formatBRL, formatCompactBRL, formatSignedBRL, parseBRL } from "./money"
 
 describe("formatBRL", () => {
   it("formats cents in pt-BR", () => {
@@ -34,5 +34,13 @@ describe("formatCompactBRL", () => {
   it("shortens thousands", () => {
     expect(formatCompactBRL(1250000)).toBe("R$ 12,5 mil")
     expect(formatCompactBRL(45000)).toBe("R$ 450")
+  })
+})
+
+describe("formatBalance", () => {
+  it("keeps the sign of a negative balance", () => {
+    expect(formatBalance(-97320)).toBe("− R$ 973,20")
+    expect(formatBalance(97320)).toBe("R$ 973,20")
+    expect(formatBalance(0)).toBe("R$ 0,00")
   })
 })

@@ -10,6 +10,11 @@ export function formatSignedBRL(cents: number, kind: "in" | "out") {
   return `${kind === "in" ? "+" : "−"} ${formatBRL(Math.abs(cents))}`
 }
 
+/** A balance with its sign: "R$ 45,00" or "− R$ 973,20". */
+export function formatBalance(cents: number) {
+  return cents < 0 ? `− ${formatBRL(-cents)}` : formatBRL(cents)
+}
+
 /** "1.234,56", "45", "45,5" or "R$ 45,00" -> cents. Returns null when it is not a valid amount. */
 export function parseBRL(input: string): number | null {
   const cleaned = input.replace(/[^\d,.-]/g, "").trim()

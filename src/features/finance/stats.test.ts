@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { accountBalance, billStatus, monthlySeries, spendByCategory, totals } from "./stats"
+import { accountBalance, billStatus, billStatusIn, monthlySeries, spendByCategory, totals } from "./stats"
 import type { AccountRow, CategoryRow, RecurringBillRow, TransactionRow } from "./types"
 
 const stamp = { created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" }
@@ -77,5 +77,16 @@ describe("monthlySeries", () => {
     const series = monthlySeries(list, "2026-03", 3)
     expect(series.map((s) => s.month)).toEqual(["2026-01", "2026-02", "2026-03"])
     expect(series[1].expense).toBe(20_000)
+  })
+})
+
+describe("billStatusIn", () => {
+  const bill: RecurringBillRow = { id: "b1", user_id: "u", name: "Internet", amount_cents: 11_990, due_day: 15, category_id: null, active: true, last_paid_month: "2026-03", ...stamp }
+
+  it("is paid for the month paid and the ones before it, pending after", () => {
+    expect(billStatusIn(bill, "2026-03", "2026-03-20").status).toBe("paid")
+    expect(billStatusIn(bill, "2026-02", "2026-03-20").status).toBe("paid")
+    expect(billStatusIn(bill, "2026-04", "2026-03-20").status).toBe("upcoming")
+    expect(billStatusIn(bill, "2026-04", "2026-04-20").status).toBe("overdue")
   })
 })

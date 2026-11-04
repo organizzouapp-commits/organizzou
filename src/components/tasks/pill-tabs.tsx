@@ -32,20 +32,22 @@ type PillTabsProps = {
   /** Extra attributes per pill (data-*). */
   itemProps?: (item: PillItem) => React.HTMLAttributes<HTMLButtonElement> & Record<string, unknown>
   className?: string
+  /** A thin visible scrollbar (.scroll-soft) instead of a hidden one, for rows that really scroll (Finanças categories). */
+  soft?: boolean
 }
 
 /**
  * Kanban list tabs, Lista shortcut chips and the calendar mode switcher all render through this: same height, radius, fill, gap and
  * scrolling (a horizontal snap scroller that keeps the active pill in view).
  */
-export function PillTabs({ items, value = null, isOn, onSelect, ariaLabel, kind = "tabs", equal = false, trailing, itemProps, className }: PillTabsProps) {
+export function PillTabs({ items, value = null, isOn, onSelect, ariaLabel, kind = "tabs", equal = false, trailing, itemProps, className, soft = false }: PillTabsProps) {
   const row = useRef<HTMLDivElement>(null)
   const activeKey = items.map((i) => (isOn ? isOn(i) : i.id === value)).join()
   useEffect(() => {
     row.current?.querySelector<HTMLElement>("[data-pill-active=true]")?.scrollIntoView({ inline: "center", block: "nearest" })
   }, [activeKey])
   return (
-    <div ref={row} role={kind === "tabs" ? "tablist" : "group"} aria-label={ariaLabel} data-pill-row className={cn("h-9 gap-2", equal ? "grid grid-cols-4" : "no-scrollbar flex snap-x overflow-x-auto", className)}>
+    <div ref={row} role={kind === "tabs" ? "tablist" : "group"} aria-label={ariaLabel} data-pill-row className={cn("h-9 gap-2", equal ? "grid grid-cols-4" : cn("flex snap-x overflow-x-auto", soft ? "scroll-soft" : "no-scrollbar"), className)}>
       {items.map((item) => {
         const on = isOn ? isOn(item) : item.id === value
         return (
