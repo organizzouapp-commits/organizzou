@@ -203,7 +203,7 @@ export function ManageablePicker(props: ManageablePickerProps) {
         }}
         className="h-11 shrink-0 rounded-xl"
       />
-      <ul data-picker-list className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+      <ul data-picker-list className="flex min-h-0 flex-1 flex-col scroll-soft overflow-y-auto overscroll-contain">
         {adding ? <AddRow noun={noun} onCommit={(name, color) => create(name, color)} onClose={() => setAdding(false)} /> : null}
         {fixed && !managing ? (
           <li className="flex min-h-[52px] items-center">

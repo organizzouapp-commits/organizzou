@@ -22,7 +22,7 @@ type Props = {
 
 /** The view named in the URL; null lets the screen pick (the device's last view, else Lista on phones and Kanban on desktop). */
 function parseView(value: string | undefined): ViewMode | null {
-  return value === "kanban" || value === "lista" || value === "calendario" ? value : null
+  return value === "kanban" || value === "lista" || value === "calendario" ? value : value === "agenda" ? "calendario" : null
 }
 
 async function BoardContent({ params, searchParams }: Props) {

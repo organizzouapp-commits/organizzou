@@ -424,3 +424,36 @@ body:has([role="dialog"][data-state="open"]) [data-testid="assistant-fab"],
 body:has([data-vaul-drawer][data-state="open"]) [data-testid="assistant-fab"] {
   display: none;
 }
+
+/* ---------- Soft scrollbars (the look of the notifications panel, shared) ----------
+   Thin rounded thumb at ~28% of the foreground (48% on hover/drag), transparent track, no arrow buttons, a small inset, contained
+   overscroll. Firefox: scrollbar-width/-color; Chromium, Edge and Safari: the ::-webkit-scrollbar rules. No fade animation. */
+.scroll-soft {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent;
+}
+.scroll-soft::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+.scroll-soft::-webkit-scrollbar-track,
+.scroll-soft::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.scroll-soft::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  background-color: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+.scroll-soft::-webkit-scrollbar-thumb:hover,
+.scroll-soft::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--foreground) 48%, transparent);
+}
+.scroll-soft::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}

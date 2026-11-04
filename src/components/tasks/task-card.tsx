@@ -34,6 +34,8 @@ export type TaskActions = {
   schedule?: () => void
   /** Renames in place (auto-commit); resolves false when the save failed. */
   rename: (title: string) => Promise<boolean>
+  /** Opens the task dialog on its Tags (the "+N" chip). */
+  openTags?: () => void
   /** Reorders inside its list (the accessible alternative to dragging). Absent where the order is not the user's. */
   moveUp?: () => void
   moveDown?: () => void
@@ -222,13 +224,15 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
   const chips: { key: string; name: string; color: ColorValue }[] = []
   if (task.category) chips.push({ key: "category", name: task.category, color: labels.colorOf("category", task.category) })
   for (const tag of taskTags) chips.push({ key: `tag:${tag.id}`, name: tag.name, color: labels.colorOf("tag", tag.id) })
-  const limit = compact ? 6 : 3
+  const limit = compact ? 4 : 2
   const shownChips = chips.slice(0, limit)
   const hiddenChips = chips.slice(limit)
   const hasCounters = task.checklistTotal > 0 || task.commentCount > 0 || task.attachmentCount > 0
   const hasDue = Boolean(task.due_at) && (dueMode === "full" || task.due_has_time)
   const hasMeta = hasDue || chips.length > 0 || hasCounters
-  const hasDateRow = hasDue || hasCounters
+  // Counters sit at the bottom-right corner: on the labels row when there are labels, else on the date row, else on a row of their own.
+  const countersOnLabels = hasCounters && chips.length > 0
+  const hasDateRow = hasDue || (hasCounters && !countersOnLabels && chips.length === 0)
 
   const body = (
     <div
@@ -310,26 +314,41 @@ export function TaskCardBody({ task, tags, now, timeZone, actions, density = "ca
       </div>
       {hasMeta ? (
         <div data-task-meta className="pointer-events-none col-start-2 col-end-4 mt-1.5 flex min-w-0 flex-col gap-1.5">
-          {/* Row 2: date/time on the left, the counters at the right end (their right edge is the ⋯ edge). */}
+          {/* Row 2: date/time (and the counters when there are no labels). */}
           {hasDateRow ? (
             <div data-meta-row className="flex min-w-0 items-center gap-2">
               {hasDue ? <DueLabel task={task} now={now} timeZone={timeZone} mode={dueMode} className="h-6" /> : null}
-              <TaskCounters task={task} className="ml-auto h-6" />
+              {hasCounters && chips.length === 0 ? <TaskCounters task={task} className="ml-auto h-6" /> : null}
             </div>
           ) : null}
-          {/* Row 3: the labels, below the date, wrapping. */}
+          {/* Last row: labels at the left (max 2 + "+N"), counters at the bottom-right (their right edge is the ⋯ edge). */}
           {chips.length > 0 ? (
-            <div role="group" aria-label="Etiquetas" data-label-row className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-              {shownChips.map((chip) => (
-                <LabelChip key={chip.key} name={chip.name} color={chip.color} compact={compact} onToggle={toggleCompact} />
-              ))}
-              {hiddenChips.length > 0 ? (
-                <span data-chip-more title={hiddenChips.map((c) => c.name).join(", ")} className="tabular inline-flex h-6 items-center rounded-full bg-secondary px-2 text-[12px] leading-4 font-medium text-secondary-foreground">
-                  +{hiddenChips.length}
-                </span>
-              ) : null}
+            <div data-label-row className="flex min-w-0 items-end gap-2">
+              <div role="group" aria-label="Etiquetas" className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1.5">
+                {shownChips.map((chip) => (
+                  <LabelChip key={chip.key} name={chip.name} color={chip.color} compact={compact} onToggle={toggleCompact} />
+                ))}
+                {hiddenChips.length > 0 ? (
+                  <button
+                    type="button"
+                    data-chip-more
+                    aria-label={`Mais ${hiddenChips.length} etiquetas: ${hiddenChips.map((c) => c.name).join(", ")}. Abrir tags`}
+                    title={hiddenChips.map((c) => c.name).join(", ")}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      ;(actions.openTags ?? actions.open)()
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="tabular pointer-events-auto relative z-10 inline-flex h-6 items-center rounded-full bg-secondary px-2 text-[12px] leading-4 font-medium text-secondary-foreground outline-none after:absolute after:-inset-2.5 focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    +{hiddenChips.length}
+                  </button>
+                ) : null}
+              </div>
+              {countersOnLabels ? <TaskCounters task={task} className="h-6 self-end" /> : null}
             </div>
           ) : null}
+          {chips.length === 0 && !hasDateRow && hasCounters ? <TaskCounters task={task} className="ml-auto h-6" /> : null}
         </div>
       ) : null}
     </div>

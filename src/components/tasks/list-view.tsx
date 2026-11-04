@@ -12,6 +12,7 @@ import { groupByDue } from "@/features/tasks/view"
 import type { ListRow, TaskView } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { ListMenu, ListName } from "./list-parts"
 import { QuickAdd } from "./quick-add"
 import { SortableTaskCard, TaskCardBody } from "./task-card"
@@ -51,10 +52,10 @@ function Collapse({ open, children }: { open: boolean; children: React.ReactNode
 /** Phones: 8px under a collapsed group, 16px under an expanded one (none after the last). Desktop keeps the container gap. */
 const groupSpacing = (mobile: boolean, open: boolean) => (mobile ? cn("flex flex-col last:mb-0", open ? "mb-4" : "mb-2") : "flex flex-col gap-1")
 
-function Row({ task, props, mobile }: { task: TaskView; props: ViewProps; mobile: boolean }) {
+function Row({ task, props }: { task: TaskView; props: ViewProps }) {
   return (
     <TaskCardBody
-      density={mobile ? "card" : "row"}
+      density="card"
       anchor
       task={task}
       tags={props.tags}
@@ -88,7 +89,7 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
       key={task.id}
       listId={list.id}
       disabled={!dragEnabled || props.selection.active}
-      density={mobile ? "card" : "row"}
+      density="card"
       dueMode={dueMode}
       highlight={highlightId === task.id}
       task={task}
@@ -102,9 +103,18 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
     />
   )
   const ids = tasks.map((t) => t.id)
+  // Desktop (>= 1024px): one framed card per list (radius 20, 12px padding, 48px header). Below that: transparent flat groups.
+  const framed = !mobile
   return (
-    <section ref={setNodeRef} data-group={list.id} data-drop-group={list.id} aria-label={list.name} className={groupSpacing(mobile, open)}>
-      <div data-group-header className="-ml-2 flex h-11 items-center gap-1 pl-1">
+    <section
+      ref={setNodeRef}
+      data-group={list.id}
+      data-drop-group={list.id}
+      data-framed={framed ? "" : undefined}
+      aria-label={list.name}
+      className={framed ? "flex flex-col rounded-[20px] border border-border bg-card p-3" : groupSpacing(mobile, open)}
+    >
+      <div data-group-header className={cn("flex items-center gap-1", framed ? "h-12" : "-ml-2 h-11 pl-1")}>
         <button type="button" aria-expanded={open} aria-label={`${open ? "Recolher" : "Expandir"} ${list.name}`} onClick={() => props.onToggleCollapse(list)} className={cn("flex size-11 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50", cardHover)}>
           <Chevron open={open} />
         </button>
@@ -116,32 +126,19 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
         <ListMenu list={list} index={index} total={total} count={tasks.length} actions={props} onRename={() => setEditing(true)} />
       </div>
       <Collapse open={open}>
-        {mobile ? (
-          // Phones: a transparent container, separate cards (same card as the Kanban) and a dashed composer pill.
-          <div className="flex flex-col gap-2 pt-1">
-            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-              {tasks.map(sortable)}
-            </SortableContext>
-            {tasks.length === 0 ? <p className="px-2 py-2 text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
-            {onAddTask ? (
-              <Button type="button" variant="outline" data-testid="group-add-pill" className="h-11 w-full justify-start border-dashed text-muted-foreground" onClick={() => onAddTask(list)}>
-                <PlusIcon strokeWidth={1.75} /> Adicionar tarefa…
-              </Button>
-            ) : (
-              <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} className="h-11 rounded-full border border-dashed border-border" />
-            )}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-[16px] border border-border bg-card">
-            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-              {tasks.map(sortable)}
-            </SortableContext>
-            {tasks.length === 0 ? <p className="px-4 py-4 text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
-            <div className="border-t border-border p-1.5">
-              <QuickAdd onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} />
-            </div>
-          </div>
-        )}
+        <div className="flex flex-col gap-2 pt-1">
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            {tasks.map(sortable)}
+          </SortableContext>
+          {tasks.length === 0 ? <p className="px-2 py-2 text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
+          {onAddTask ? (
+            <Button type="button" variant="outline" data-testid="group-add-pill" className="h-11 w-full justify-start border-dashed text-muted-foreground" onClick={() => onAddTask(list)}>
+              <PlusIcon strokeWidth={1.75} /> Adicionar tarefa…
+            </Button>
+          ) : (
+            <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} className="h-11 rounded-full border border-dashed border-border" />
+          )}
+        </div>
       </Collapse>
     </section>
   )
@@ -152,7 +149,9 @@ export function ListGroup({ list, index, total, tasks, props, mobile, dragEnable
  * Prazo (Atrasadas, Hoje, Amanhã…). Headers: chevron, name, count, "+" and the ⋯ menu for lists.
  */
 export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boolean; dragEnabled?: boolean; onMoveTasks?: (listId: string, taskIds: string[]) => void }) {
-  const mobile = Boolean(props.isMobile)
+  // Below 1024px the groups are transparent and flat; from 1024px each list is its own framed card.
+  const framed = useMediaQuery("(min-width: 1024px)")
+  const mobile = !framed
   const dragEnabled = Boolean(props.dragEnabled && props.onMoveTasks && props.groupBy === "lista")
   const sensors = useTaskSensors()
   const [override, setOverride] = useState<Record<string, string[]> | null>(null)
@@ -247,26 +246,18 @@ export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boole
         : groups.map((group) => {
             const open = !isFolded(group.id)
             return (
-              <section key={group.id} data-group={group.id} aria-label={group.label} className={groupSpacing(mobile, open)}>
-                <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(group.id)} className={cn("-ml-2 flex h-11 w-full items-center gap-2 rounded-full px-2 text-left", cardHover)}>
+              <section key={group.id} data-group={group.id} data-framed={framed ? "" : undefined} aria-label={group.label} className={framed ? "flex flex-col rounded-[20px] border border-border bg-card p-3" : groupSpacing(mobile, open)}>
+                <button type="button" data-group-header aria-expanded={open} onClick={() => toggle(group.id)} className={cn("flex w-full items-center gap-2 rounded-full px-2 text-left", framed ? "h-12" : "-ml-2 h-11", cardHover)}>
                   <Chevron open={open} />
                   <h3 className={overline}>{group.label}</h3>
                   <span className={countPill}>{group.tasks.length}</span>
                 </button>
                 <Collapse open={open}>
-                  {mobile ? (
-                    <div className="flex flex-col gap-2 pt-1">
-                      {group.tasks.map((task) => (
-                        <Row key={task.id} task={task} props={props} mobile />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="overflow-hidden rounded-[16px] border border-border bg-card">
-                      {group.tasks.map((task) => (
-                        <Row key={task.id} task={task} props={props} mobile={false} />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2 pt-1">
+                    {group.tasks.map((task) => (
+                      <Row key={task.id} task={task} props={props} />
+                    ))}
+                  </div>
                 </Collapse>
               </section>
             )
@@ -296,7 +287,7 @@ export function ListView(props: ViewProps & { groupBy: GroupBy; isMobile?: boole
         }}
       >
         {content}
-        <DragOverlay>{activeTask ? <TaskCardBody inert density={mobile ? "card" : "row"} task={activeTask} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={props.actionsFor(activeTask)} className={cn(DRAG_OVERLAY_CLASS, !mobile && "rounded-[14px] border border-border bg-card")} /> : null}</DragOverlay>
+        <DragOverlay>{activeTask ? <TaskCardBody inert density="card" task={activeTask} tags={props.tags} now={props.now} timeZone={props.timeZone} actions={props.actionsFor(activeTask)} className={DRAG_OVERLAY_CLASS} /> : null}</DragOverlay>
       </DndContext>
     </TaskDragProvider>
   )

@@ -3,22 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { addDays, addMonths, addWeeks, eachDayOfInterval, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CalendarClockIcon, ChevronDownIcon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
+import { CalendarClockIcon, ChevronDownIcon } from "lucide-react"
 
 import { BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
 import { CalendarToolbar, DayStrip, MiniMonth, MonthGrid, TimeGrid, type CalendarViewId } from "@/components/calendar/agenda-screen"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { AgendaItem } from "@/features/calendar/types"
 import { resolveHex, taskColorOf } from "@/features/tasks/colors"
 import type { TaskView } from "@/features/tasks/types"
-import { dayKey, inTz, splitDue, toDueIso } from "@/lib/dates"
+import { dayKey, splitDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 import { resolveMode, useCalendarPrefs } from "./calendar-store"
@@ -45,9 +42,9 @@ type CalendarViewProps = ViewProps & {
 }
 
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+const NO_FILTER = { label: "", content: null }
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const lower = (text: string) => text.toLowerCase()
-const hourOf = (task: TaskView, timeZone: string) => inTz(task.due_at!, timeZone).getHours()
 
 function useSwipe(onSwipe: (direction: -1 | 1) => void) {
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -110,66 +107,6 @@ function Cards({ tasks, props, actionsOf, dueMode }: CardsProps & { tasks: TaskV
   )
 }
 
-function AddPill({ onClick, label = "Adicionar tarefa" }: { onClick: () => void; label?: string }) {
-  return (
-    <Button type="button" variant="outline" data-testid="calendar-add-pill" className="h-11 w-full border-dashed" onClick={onClick}>
-      <PlusIcon strokeWidth={1.75} /> {label}
-    </Button>
-  )
-}
-
-/** One day: Sem horário / Manhã / Tarde / Noite groups, the "agora" divider on today, the dashed "+ Adicionar tarefa" pill. */
-function DayList({ day, tasks, props, actionsOf, isOpen, toggle, onAdd }: CardsProps & { day: string; tasks: TaskView[]; isOpen: (id: string, fallback?: boolean) => boolean; toggle: (id: string, fallback?: boolean) => void; onAdd: () => void }) {
-  const { timeZone, now } = props
-  const isToday = day === dayKey(now, timeZone)
-  const timed = tasks.filter((t) => t.due_has_time)
-  const groups = [
-    { id: "sem-horario", label: "Sem horário", tasks: tasks.filter((t) => !t.due_has_time) },
-    { id: "manha", label: "Manhã", tasks: timed.filter((t) => hourOf(t, timeZone) < 12) },
-    { id: "tarde", label: "Tarde", tasks: timed.filter((t) => hourOf(t, timeZone) >= 12 && hourOf(t, timeZone) < 18) },
-    { id: "noite", label: "Noite", tasks: timed.filter((t) => hourOf(t, timeZone) >= 18) },
-  ].filter((g) => g.tasks.length > 0)
-  const firstUpcoming = isToday ? timed.find((t) => new Date(t.due_at!).getTime() >= now.getTime()) : undefined
-  const lastTimed = timed[timed.length - 1]
-  const nowLabel = format(inTz(now, timeZone), "HH:mm")
-  const divider = (
-    <div role="separator" aria-label={`Agora, ${nowLabel}`} data-now-divider className="flex items-center gap-2 py-1">
-      <span aria-hidden className="size-2 shrink-0 rounded-full bg-foreground" />
-      <span aria-hidden className="h-px flex-1 bg-foreground/40" />
-      <span className="tabular text-[12px] leading-4 text-muted-foreground">agora · {nowLabel}</span>
-    </div>
-  )
-
-  if (tasks.length === 0) {
-    return (
-      <div data-testid="day-empty" className="flex flex-col items-center gap-3 py-6 text-center">
-        <CalendarClockIcon aria-hidden strokeWidth={1.75} className="size-8 text-muted-foreground" />
-        <p className="text-[15px] leading-6 text-muted-foreground">Nada para este dia</p>
-        <AddPill onClick={onAdd} />
-      </div>
-    )
-  }
-  return (
-    <div data-testid="day-list" className="flex flex-col">
-      {groups.map((group) => (
-        <Group key={group.id} id={group.id} label={group.label} count={group.tasks.length} open={isOpen(group.id, true)} onToggle={() => toggle(group.id, true)}>
-          <div className="flex flex-col">
-            {group.tasks.map((task) => (
-              <div key={task.id}>
-                {isToday && firstUpcoming?.id === task.id ? divider : null}
-                <Cards tasks={[task]} props={props} actionsOf={actionsOf} dueMode="time" />
-                {isToday && !firstUpcoming && lastTimed?.id === task.id ? divider : null}
-              </div>
-            ))}
-          </div>
-        </Group>
-      ))}
-      <div className="pt-2">
-        <AddPill onClick={onAdd} />
-      </div>
-    </div>
-  )
-}
 
 /** "Sem data · N": collapsed by default, tasks draggable onto the desktop grid, "Agendar…" in the menu. */
 function Undated({ tasks, props, actionsOf, isOpen, toggle, draggable }: CardsProps & { tasks: TaskView[]; isOpen: (id: string, fallback?: boolean) => boolean; toggle: (id: string, fallback?: boolean) => void; draggable?: boolean }) {
@@ -342,9 +279,8 @@ export function CalendarView(props: CalendarViewProps) {
   // The app header's "+" pre-fills the selected day (today in the Agenda mode, which has no selected day).
   useEffect(() => onContextChange?.({ day: view === "agenda" ? todayKey : day, view }), [day, view, todayKey, onContextChange])
 
-  const hidden = useMemo(() => new Set(prefs.hiddenLists), [prefs.hiddenLists])
-  // Phones filter through the "Filtrar e ordenar" sheet (the board's own filters); the desktop toolbar has the "Listas" popover.
-  const shown = useMemo(() => (isMobile ? tasks : tasks.filter((t) => t.id === highlightId || (!hidden.has(t.list_id) && (prefs.showDone || !t.completed_at)))), [isMobile, tasks, hidden, prefs.showDone, highlightId])
+  // The board's own filters ("Filtros": Listas and "Mostrar concluídas") already shaped `tasks`; nothing else hides tasks here.
+  const shown = tasks
   const byId = useMemo(() => new Map(shown.map((t) => [t.id, t])), [shown])
   const items = useMemo(
     () =>
@@ -356,7 +292,7 @@ export function CalendarView(props: CalendarViewProps) {
         }),
     [shown, labels.state, highlightId]
   )
-  const undated = useMemo(() => shown.filter((t) => !t.due_at && (isMobile || prefs.showDone || !t.completed_at)), [shown, prefs.showDone, isMobile])
+  const undated = useMemo(() => shown.filter((t) => !t.due_at), [shown])
   const itemsOn = useCallback((key: string) => items.filter((item) => dayKey(item.start, timeZone) === key).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime()), [items, timeZone])
   const tasksOn = useCallback((key: string) => itemsOn(key).map((i) => byId.get(i.id)).filter((t): t is TaskView => Boolean(t)), [itemsOn, byId])
 
@@ -394,73 +330,58 @@ export function CalendarView(props: CalendarViewProps) {
     setDay(format(next, "yyyy-MM-dd"))
   }
   const swipe = useSwipe((direction) => shift(direction))
+  // `T` goes to today (ignored while typing or with a dialog open).
+  useEffect(() => {
+    if (isMobile) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "t" || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest("input, textarea, select, [contenteditable=true]") || document.querySelector("[role=dialog], [role=alertdialog]")) return
+      event.preventDefault()
+      setDay(todayKey)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [isMobile, todayKey])
 
   // ---- creating
-  const nextFreeHour = () => {
-    const hour = Math.min(23, inTz(now, timeZone).getHours() + 1)
-    return `${String(hour).padStart(2, "0")}:00`
-  }
-  const openAdd = (key: string) => props.onCreate(undefined, key, key === todayKey && (view === "semana" || view === "dia") ? nextFreeHour() : undefined)
   const quickAt = (key: string, time: string | null, anchor?: DOMRect) => setQuick({ anchor: anchor ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 1, 1), day: key, time })
 
-  // A task that a filter (an unchecked list, "concluídas" off, or the board's filters) would hide still shows, with a way to see why.
-  const announced = useRef<string | null>(null)
-  useEffect(() => {
-    if (!highlightId || announced.current === highlightId) return
-    const task = tasks.find((t) => t.id === highlightId)
-    if (!task) return
-    announced.current = highlightId
-    const hiddenByList = hidden.has(task.list_id) || (!prefs.showDone && Boolean(task.completed_at))
-    if (!hiddenByList) return
-    toast(`Tarefa criada em ${task.due_at ? lower(format(parseISO(dayKey(task.due_at, timeZone)), "EEEE, d 'de' MMMM", { locale: ptBR })) : "Sem data"}`, {
-      action: { label: "Ver", onClick: () => update((p) => ({ ...p, hiddenLists: p.hiddenLists.filter((id) => id !== task.list_id), showDone: true })) },
-    })
-  }, [highlightId, tasks, hidden, prefs.showDone, timeZone, update])
-
-  const filter = {
-    label: "Listas",
-    badge: hidden.size > 0 || !prefs.showDone ? `${lists.length - [...hidden].filter((id) => lists.some((l) => l.id === id)).length}/${lists.length}` : undefined,
-    content: (
-      <>
-        {lists.map((list) => (
-          <label key={list.id} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
-            <Checkbox
-              checked={!hidden.has(list.id)}
-              aria-label={list.name}
-              onCheckedChange={() => update((p) => ({ ...p, hiddenLists: p.hiddenLists.includes(list.id) ? p.hiddenLists.filter((id) => id !== list.id) : [...p.hiddenLists, list.id] }))}
-            />
-            {list.name}
-          </label>
-        ))}
-        <div role="separator" className="my-1 h-px bg-border" />
-        <label className="flex min-h-11 items-center justify-between gap-3 rounded-xl px-3 text-[15px] hover:bg-accent">
-          Mostrar concluídas
-          <Switch checked={prefs.showDone} aria-label="Mostrar concluídas" onCheckedChange={(checked) => update((p) => ({ ...p, showDone: checked }))} />
-        </label>
-      </>
-    ),
-  }
-
-  const toolbar = (
-    <CalendarToolbar
-      title={title}
-      onToday={() => setDay(todayKey)}
-      onShift={shift}
-      view={view}
-      onViewChange={setView}
-      filter={filter}
-      agendaTabOnDesktop
-      trailing={isMobile ? null : <Button onClick={() => openAdd(day)}>Nova tarefa</Button>}
-    />
-  )
+  const toolbar = <CalendarToolbar tasksDesktop title={title} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
 
   const common: CardsProps = { props, actionsOf: schedulable, dueMode: "time" }
   const dayHeading = (
-    <h3 data-testid="day-heading" className="text-[17px] leading-6 font-semibold">
+    <h3 data-testid="day-heading" className="text-[15px] leading-6 font-semibold">
       {upperFirst(format(selected, "EEEE, d 'de' MMMM", { locale: ptBR }))}
     </h3>
   )
-  const dayList = <DayList {...common} day={day} tasks={tasksOn(day)} isOpen={isOpen} toggle={toggle} onAdd={() => openAdd(day)} />
+  // The selected day's tasks grouped by the quadro's lists (the same group component as Lista), with their own collapse state: lists marked
+  // as concluded and lists with nothing in them start collapsed. Used under the calendar card on phones and in the desktop rail.
+  const dayTasks = tasksOn(day)
+  const collapsedHere = (list: ListRow) => {
+    const saved = prefs.open[`list:${list.id}`]
+    return saved === undefined ? list.is_done_list || !dayTasks.some((t) => t.list_id === list.id) : !saved
+  }
+  const groupProps: ViewProps = { ...props, tasks: dayTasks, actionsFor: schedulable, collapsed: collapsedHere, onToggleCollapse: (list) => update((p) => ({ ...p, open: { ...p.open, [`list:${list.id}`]: collapsedHere(list) } })) }
+  const dayGroups = (
+    <div data-testid="day-lists" className="flex flex-col">
+      {lists.map((list, i) => (
+        <ListGroup
+          key={list.id}
+          list={list}
+          index={i}
+          total={lists.length}
+          tasks={dayTasks.filter((t) => t.list_id === list.id)}
+          props={groupProps}
+          mobile
+          dragEnabled={false}
+          dueMode="time"
+          highlightId={highlightId}
+          onAddTask={(target) => props.onCreate(target.id, day)}
+        />
+      ))}
+    </div>
+  )
   const undatedSection = <Undated {...common} tasks={undated} isOpen={isOpen} toggle={toggle} draggable={!isMobile} />
 
   const monthGrid = (
@@ -487,44 +408,25 @@ export function CalendarView(props: CalendarViewProps) {
           : view === "dia"
             ? `${lower(format(selected, "EEEE", { locale: ptBR })).split("-")[0]}, ${format(selected, "d 'de' MMMM", { locale: ptBR })}`.toLowerCase()
             : "Próximos 30 dias"
-    const dayTasks = tasksOn(day)
-    // The day's tasks grouped by the quadro's lists, with their own collapse state (apart from Lista/Kanban): lists marked as concluded
-    // and lists with nothing in them start collapsed.
-    const collapsedHere = (list: ListRow) => {
-      const saved = prefs.open[`list:${list.id}`]
-      return saved === undefined ? list.is_done_list || !dayTasks.some((t) => t.list_id === list.id) : !saved
-    }
-    const groupProps: ViewProps = { ...props, tasks: dayTasks, actionsFor: schedulable, collapsed: collapsedHere, onToggleCollapse: (list) => update((p) => ({ ...p, open: { ...p.open, [`list:${list.id}`]: collapsedHere(list) } })) }
     return (
       <div data-testid="tasks-calendar" className="flex flex-col gap-4">
-        <section aria-label="Calendário" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4" {...swipe}>
-          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={filter} />
+        {/* The solid card holds only the toolbar and the month grid / week strip; the lists below sit flat on the page background. */}
+        <section aria-label="Agenda" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4" {...swipe}>
+          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={NO_FILTER} />
           {view === "mes" ? monthGrid : null}
           {view === "semana" ? <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} /> : null}
+        </section>
+        <div data-testid="agenda-below" className="flex flex-col gap-1 px-1">
           {view === "agenda" ? (
             <AgendaList {...common} from={day} byDay={tasksOn} todayKey={todayKey} isOpen={isOpen} toggle={toggle} />
           ) : (
-            <div data-testid="day-lists" className="flex flex-col">
+            <>
               {view !== "dia" ? dayHeading : null}
-              {lists.map((list, i) => (
-                <ListGroup
-                  key={list.id}
-                  list={list}
-                  index={i}
-                  total={lists.length}
-                  tasks={dayTasks.filter((t) => t.list_id === list.id)}
-                  props={groupProps}
-                  mobile
-                  dragEnabled={false}
-                  dueMode="time"
-                  highlightId={highlightId}
-                  onAddTask={(target) => props.onCreate(target.id, day)}
-                />
-              ))}
-            </div>
+              {dayGroups}
+            </>
           )}
           {undatedSection}
-        </section>
+        </div>
         <ScheduleSheet task={scheduling} open={Boolean(scheduling)} onOpenChange={(open) => !open && setScheduling(null)} todayKey={todayKey} timeZone={timeZone} onConfirm={confirmSchedule} />
       </div>
     )
@@ -562,7 +464,7 @@ export function CalendarView(props: CalendarViewProps) {
           <BentoCard title="Calendário">
             <MiniMonth month={selected} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} onShift={(n) => setDay(format(addMonths(selected, n), "yyyy-MM-dd"))} />
           </BentoCard>
-          <BentoCard title={upperFirst(format(selected, "EEEE, d 'de' MMMM", { locale: ptBR }))}>{dayList}</BentoCard>
+          <BentoCard title={upperFirst(format(selected, "EEEE, d 'de' MMMM", { locale: ptBR }))}>{dayGroups}</BentoCard>
           <BentoCard>{undatedSection}</BentoCard>
         </aside>
       </div>

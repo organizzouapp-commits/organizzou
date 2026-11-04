@@ -12,7 +12,7 @@ const clockNow = () => Date.now()
 async function Fixture({ searchParams }: { searchParams: Promise<{ view?: string; volume?: string }> }) {
   await connection()
   const { view, volume } = await searchParams
-  return <FixtureBoard nowMs={clockNow()} volume={Math.min(Number(volume) || 0, 100)} view={view === "kanban" || view === "lista" || view === "calendario" ? view : null} />
+  return <FixtureBoard nowMs={clockNow()} volume={Math.min(Number(volume) || 0, 100)} view={view === "kanban" || view === "lista" || view === "calendario" ? view : view === "agenda" ? "calendario" : null} />
 }
 
 export default function TarefasFixturePage({ searchParams }: { searchParams: Promise<{ view?: string; volume?: string }> }) {

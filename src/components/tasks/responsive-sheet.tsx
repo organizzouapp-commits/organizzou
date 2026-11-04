@@ -16,14 +16,14 @@ export function ResponsiveSheet({ open, onOpenChange, title, description, childr
             <DrawerTitle>{title}</DrawerTitle>
             <DrawerDescription className={description ? undefined : "sr-only"}>{description ?? title}</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">{children}</div>
+          <div className="scroll-soft overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">{children}</div>
         </DrawerContent>
       </Drawer>
     )
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[85dvh] overflow-y-auto rounded-[20px] sm:max-w-md", className)}>
+      <DialogContent className={cn("max-h-[85dvh] scroll-soft overflow-y-auto rounded-[20px] sm:max-w-md", className)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className={description ? undefined : "sr-only"}>{description ?? title}</DialogDescription>

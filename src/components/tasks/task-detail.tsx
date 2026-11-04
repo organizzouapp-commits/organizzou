@@ -59,6 +59,8 @@ export type Taxonomy = {
 }
 
 type TaskDetailProps = {
+  /** Opens with the Tags picker already open (the "+N" chip of a card). */
+  focusTags?: boolean
   api: BoardApi
   taxonomy: Taxonomy
   /** The open task, or null (closed). */
@@ -203,8 +205,11 @@ function Property({
   desktop,
   readOnly,
   wide,
+  defaultOpen,
   children,
 }: {
+  /** Starts open (a card's "+N" chip lands on Tags). */
+  defaultOpen?: boolean
   label: string
   icon: typeof ListIcon
   value: React.ReactNode
@@ -214,7 +219,7 @@ function Property({
   wide?: boolean
   children?: (close: () => void) => React.ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(Boolean(defaultOpen))
   const close = () => setOpen(false)
   if (readOnly || !children) {
     return desktop ? (
@@ -241,7 +246,7 @@ function Property({
               <ChevronDownIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" collisionPadding={16} avoidCollisions sticky="always" className={cn("max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-2", wide ? "w-80" : "w-72")}>
+          <PopoverContent align="end" collisionPadding={16} avoidCollisions sticky="always" className={cn("max-h-[var(--radix-popover-content-available-height)] scroll-soft overflow-y-auto p-2", wide ? "w-80" : "w-72")}>
             {children(close)}
           </PopoverContent>
         </Popover>
@@ -264,7 +269,7 @@ function Property({
             <DrawerTitle>{label}</DrawerTitle>
             <DrawerDescription className="sr-only">Escolha uma opção.</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children(close)}</div>
+          <div className="scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children(close)}</div>
         </DrawerContent>
       </Drawer>
     </>
@@ -334,6 +339,7 @@ function DetailBody({
   onTagCreated,
   onDelete,
   desktop,
+  focusTags,
 }: TaskDetailProps & { task: TaskView; desktop: boolean }) {
   const save = useSaveStatus()
   const [title, setTitle] = useState(task.title)
@@ -739,6 +745,7 @@ function DetailBody({
       </Property>
       <Property
         label="Tags"
+        defaultOpen={focusTags}
         icon={TagIcon}
         value={
           selectedTags.length === 0 ? (
@@ -1065,7 +1072,7 @@ function DetailBody({
 
       <div
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > (desktop ? 0 : 56))}
-        className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", desktop ? "px-6 pb-6" : "px-4 pb-6")}
+        className={cn("min-h-0 flex-1 scroll-soft overflow-y-auto overscroll-contain", desktop ? "px-6 pb-6" : "px-4 pb-6")}
         data-testid="task-detail-body"
       >
         {loadError ? (

@@ -72,7 +72,7 @@ function useFillHeight(ref: React.RefObject<HTMLElement | null>, enabled: boolea
   }, [ref, enabled])
 }
 
-const SCROLL = "snap-y snap-proximity overflow-y-auto overscroll-contain [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] scroll-py-2"
+const SCROLL = "snap-y snap-proximity overflow-y-auto overscroll-contain scroll-soft scroll-py-2"
 
 function Column({ list, index, total, ids, taskById, props }: { list: ListRow; index: number; total: number; ids: string[]; taskById: Map<string, TaskView>; props: KanbanViewProps }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: sortableId(list.id), data: { type: "list-sort" } })
@@ -407,7 +407,7 @@ export function KanbanView(props: KanbanViewProps) {
       ) : (
         <div className="flex flex-col gap-2">
           {!props.dragEnabled ? <p className="text-[13px] leading-5 text-muted-foreground">Para arrastar tarefas, limpe a busca e os filtros.</p> : null}
-          <div ref={board} data-testid="kanban-board" className="flex items-start gap-4 overflow-x-auto overflow-y-hidden [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+          <div ref={board} data-testid="kanban-board" className="flex items-start gap-4 overflow-x-auto overflow-y-hidden scroll-soft">
             <SortableContext items={lists.map((l) => sortableId(l.id))} strategy={horizontalListSortingStrategy}>
               {lists.map((list, i) => (
                 <Column key={list.id} list={list} index={i} total={lists.length} ids={columns[list.id] ?? []} taskById={taskById} props={props} />

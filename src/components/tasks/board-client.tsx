@@ -145,7 +145,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     } catch {
       stored = null
     }
-    const pick = (value: string | null): ViewMode | null => (value === "kanban" || value === "lista" || value === "calendario" ? value : null)
+    const pick = (value: string | null): ViewMode | null => (value === "kanban" || value === "lista" ? value : value === "calendario" || value === "agenda" ? "calendario" : null)
     setView(pick(fromUrl) ?? pick(stored) ?? (phone ? "lista" : "kanban"))
     const atalho = params.get("atalho")
     if (atalho) setFilters((f) => ({ ...f, due: dueOfShortcut(atalho) }))
@@ -165,7 +165,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
 
   // The open task lives in the URL (?tarefa=<id>): opening pushes a history entry so Back closes it, a reload or a shared link opens
   // the same task over the same board, and the board behind never moves.
+  /** The "+N" chip opens the dialog with Tags already open. */
+  const [focusTags, setFocusTags] = useState(false)
   function openTaskById(id: string | null) {
+    if (!id) setFocusTags(false)
     setOpenId(id)
     const url = new URL(window.location.href)
     if (id) {
@@ -217,7 +220,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   function changeView(next: ViewMode) {
     setView(next)
     const url = new URL(window.location.href)
-    url.searchParams.set("view", next)
+    // The calendar view is called "Agenda" now; ?view=calendario keeps working and new links use ?view=agenda.
+    url.searchParams.set("view", next === "calendario" ? "agenda" : next)
     url.searchParams.delete("visao")
     window.history.replaceState(null, "", url)
     try {
@@ -618,6 +622,10 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   function actionsFor(task: TaskView): TaskActions {
     return {
       open: () => openTaskById(task.id),
+      openTags: () => {
+        setFocusTags(true)
+        openTaskById(task.id)
+      },
       toggle: () => void toggleComplete(task),
       postpone1h: () => postpone1h(task),
       tomorrow: () => postponeTomorrow(task),
@@ -1038,7 +1046,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           onActiveListChange={setMobileList}
         />
       ) : view === "lista" ? (
-        <div className={cn(!isMobile && bentoCardClass())}>
+        <div data-testid="lista-view">
           <ListView {...viewProps} groupBy={groupBy} isMobile={isMobile} dragEnabled={!filtering} onMoveTasks={(listId, ids) => void reorderTasks(listId, ids)} />
         </div>
       ) : (
@@ -1060,6 +1068,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       <TaskDetail
         api={api}
         taxonomy={taxonomy}
+        focusTags={focusTags}
         task={openTask}
         boardName={boardName}
         boardId={boardId}

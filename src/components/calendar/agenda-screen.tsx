@@ -140,9 +140,12 @@ export function CalendarToolbar({
   agendaTabOnDesktop = false,
   trailing,
   compact = false,
+  tasksDesktop = false,
 }: {
-  /** Phones in Tarefas: ONE 40px row — "Hoje" at the left, the title in the middle, ‹ › at the right. No filter button, no mode tabs (the header card has them). */
+  /** Phones in Tarefas: ONE 40px row — the title at the left ("Ir para hoje" on tap), ‹ › at the right. No Hoje, no filter, no mode tabs (the header card has them). */
   compact?: boolean
+  /** Desktop in Tarefas: ‹ › and the title (click = today) on the left, the Mês | Semana | Dia | Agenda switch on the right. No Hoje, Nova tarefa or Listas. */
+  tasksDesktop?: boolean
   title: string
   onToday: () => void
   onShift: (direction: -1 | 1) => void
@@ -154,21 +157,44 @@ export function CalendarToolbar({
 }) {
   const isMobile = useIsMobile()
   const [sheet, setSheet] = useState(false)
+  const titleButton = (className: string) => (
+    <button type="button" data-testid="calendar-title" aria-label="Ir para hoje" title="Ir para hoje" onClick={onToday} className={cn("min-w-0 cursor-pointer truncate rounded-full text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50", className)}>
+      {title}
+    </button>
+  )
   if (compact) {
     return (
       <div className="flex h-10 items-center gap-2" data-testid="calendar-toolbar">
-        <Button variant="outline" className="h-10 shrink-0" onClick={onToday}>
-          Hoje
-        </Button>
-        <h2 data-testid="calendar-title" className="min-w-0 flex-1 truncate text-[15px] leading-6 font-semibold">
-          {title}
-        </h2>
+        {titleButton("flex-1 text-[15px] leading-6 font-semibold")}
         <Button variant="ghost" size="icon" aria-label="Anterior" className="shrink-0" onClick={() => onShift(-1)}>
           <ChevronLeftIcon strokeWidth={1.75} />
         </Button>
         <Button variant="ghost" size="icon" aria-label="Próximo" className="shrink-0" onClick={() => onShift(1)}>
           <ChevronRightIcon strokeWidth={1.75} />
         </Button>
+      </div>
+    )
+  }
+  if (tasksDesktop) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="calendar-toolbar">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" aria-label="Anterior" onClick={() => onShift(-1)}>
+            <ChevronLeftIcon strokeWidth={1.75} />
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Próximo" onClick={() => onShift(1)}>
+            <ChevronRightIcon strokeWidth={1.75} />
+          </Button>
+        </div>
+        {titleButton("flex-1 basis-40 text-xl leading-7 font-semibold tracking-[-0.01em]")}
+        <Tabs value={view} onValueChange={(v) => onViewChange(v as CalendarViewId)}>
+          <TabsList aria-label="Visão">
+            <TabsTrigger value="mes">Mês</TabsTrigger>
+            <TabsTrigger value="semana">Semana</TabsTrigger>
+            <TabsTrigger value="dia">Dia</TabsTrigger>
+            <TabsTrigger value="agenda">Agenda</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
     )
   }
@@ -204,7 +230,7 @@ export function CalendarToolbar({
                 <DrawerTitle>{filter.label}</DrawerTitle>
                 <DrawerDescription className="sr-only">Escolha o que aparece no calendário.</DrawerDescription>
               </DrawerHeader>
-              <div className="flex flex-col gap-1 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filter.content}</div>
+              <div className="flex flex-col gap-1 scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{filter.content}</div>
             </DrawerContent>
           </Drawer>
         </>
@@ -982,7 +1008,7 @@ export function TimeGrid({
         })}
       </div>
 
-      <div ref={scroller} className="relative max-h-[640px] overflow-y-auto">
+      <div ref={scroller} className="relative max-h-[640px] scroll-soft overflow-y-auto">
         <div ref={columnsRef} className="relative grid" style={{ gridTemplateColumns: columns }} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => setDrag(null)}>
           <div className="relative" style={{ height: gridHeight }}>
             {hours.map((hour, index) => (
@@ -1127,7 +1153,7 @@ function EventDialog({
   const open = Boolean(draft || event)
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto">
+      <DialogContent className="max-h-[92dvh] scroll-soft overflow-y-auto">
         {open ? <EventForm key={event?.id ?? `${draft?.day}-${draft?.start}`} draft={draft} event={event} onClose={onClose} onSave={onSave} /> : null}
       </DialogContent>
     </Dialog>

@@ -54,7 +54,7 @@ export function NewTaskDialog(props: NewTaskDialogProps) {
             <DrawerTitle>Nova tarefa</DrawerTitle>
             <DrawerDescription className="sr-only">Crie uma tarefa.</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{open ? <NewTaskForm {...props} onClose={() => onOpenChange(false)} /> : null}</div>
+          <div className="scroll-soft overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{open ? <NewTaskForm {...props} onClose={() => onOpenChange(false)} /> : null}</div>
         </DrawerContent>
       </Drawer>
     )

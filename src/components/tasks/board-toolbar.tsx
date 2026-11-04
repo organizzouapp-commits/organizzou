@@ -44,8 +44,10 @@ import type { ShortcutDef } from "@/features/tasks/shortcuts"
 import type { ListRow, TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
+import type { CalendarViewId } from "@/components/calendar/agenda-screen"
 import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { InlineInput } from "./inline-input"
+import { dashedPillClass, PillTabs } from "./pill-tabs"
 import type { GroupBy } from "./list-view"
 import { useLabelColors } from "./label-colors-context"
 import { ColorDot } from "./task-meta"
@@ -244,32 +246,19 @@ const MODE_LABELS = [
   { id: "agenda", label: "Agenda" },
 ] as const
 
-/** Phones, Calendário: row 3 of the header card is the mode switcher (same pill style and size as the list tabs and chips). */
+/** Phones, Agenda: row 3 of the header card is the mode switcher (the shared PillTabs, equal widths). */
 function CalendarModes() {
   const { prefs, update } = useCalendarPrefs()
   const mode = resolveMode(prefs, true)
   return (
-    <div role="tablist" aria-label="Modo do calendário" data-calendar-modes className="grid h-9 grid-cols-4 gap-1.5">
-      {MODE_LABELS.map(({ id, label }) => {
-        const on = mode === id
-        return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={on}
-            data-calendar-mode={id}
-            onClick={() => update((p) => ({ ...p, view: id }))}
-            className={cn(
-              "relative inline-flex h-9 min-w-0 items-center justify-center rounded-full px-1.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-              on ? "bg-highlight font-semibold text-highlight-foreground" : "bg-muted text-muted-foreground"
-            )}
-          >
-            {label}
-          </button>
-        )
-      })}
-    </div>
+    <PillTabs
+      equal
+      ariaLabel="Modo do calendário"
+      value={mode}
+      items={MODE_LABELS.map((m) => ({ id: m.id, label: m.label }))}
+      onSelect={(item) => update((p) => ({ ...p, view: item.id as CalendarViewId }))}
+      itemProps={(item) => ({ "data-calendar-mode": item.id })}
+    />
   )
 }
 
@@ -347,7 +336,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   const views: { id: ViewMode; label: string; icon: typeof ListIcon }[] = [
     { id: "kanban", label: "Kanban", icon: SquareKanbanIcon },
     { id: "lista", label: "Lista", icon: ListIcon },
-    { id: "calendario", label: "Calendário", icon: CalendarDaysIcon },
+    { id: "calendario", label: "Agenda", icon: CalendarDaysIcon },
   ]
   const viewTabs = (
     <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full gap-0 p-0" : "")}>
@@ -378,33 +367,24 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
 
   // Editable shortcut chips with PENDING counts; hidden at 0 unless pinned (or active). Lima = active.
   const chips = (
-    <div className="flex min-w-0 items-center gap-1">
-      <div role="group" aria-label="Atalhos" className="no-scrollbar flex min-w-0 snap-x gap-2 overflow-x-auto max-md:gap-1.5" ref={(el) => el?.querySelector<HTMLElement>("[aria-pressed=true]")?.scrollIntoView({ inline: "center", block: "nearest" })}>
-        {props.shortcuts
-          .filter((chip) => !chip.hidden && (chip.pinned || (props.counts[chip.id] ?? 0) > 0 || props.activeShortcutId === chip.id))
-          .map((chip) => {
-            const on = props.activeShortcutId === chip.id
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => props.onShortcut(chip)}
-                className={cn(
-                  "relative inline-flex h-9 shrink-0 snap-center items-center gap-1.5 rounded-full border px-2.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-4 md:text-[14px] md:after:hidden",
-                  on ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border hover:bg-accent"
-                )}
-              >
-                {chip.label}
-                <span className={cn("tabular text-[13px]", on ? "opacity-70" : "text-muted-foreground")}>{props.counts[chip.id] ?? 0}</span>
-              </button>
-            )
-          })}
-      </div>
-      <Button type="button" variant="ghost" size="icon" aria-label="Editar atalhos" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1 md:after:hidden" onClick={props.onEditShortcuts}>
-        <PencilIcon strokeWidth={1.75} />
-      </Button>
-    </div>
+    <PillTabs
+      kind="toggles"
+      ariaLabel="Atalhos"
+      onSelect={(item) => {
+        const chip = props.shortcuts.find((x) => x.id === item.id)
+        if (chip) props.onShortcut(chip)
+      }}
+      isOn={(item) => props.activeShortcutId === item.id}
+      items={props.shortcuts
+        .filter((chip) => !chip.hidden && (chip.pinned || (props.counts[chip.id] ?? 0) > 0 || props.activeShortcutId === chip.id))
+        .map((chip) => ({ id: chip.id, label: chip.label, count: props.counts[chip.id] ?? 0 }))}
+      trailing={
+        <button type="button" aria-label="Editar atalhos" onClick={props.onEditShortcuts} className={dashedPillClass}>
+          <PencilIcon aria-hidden strokeWidth={1.75} className="size-4" /> Editar
+        </button>
+      }
+      className="min-w-0"
+    />
   )
 
   const filtersBadge = active > 0 ? <Badge variant="highlight">{active}</Badge> : null
@@ -416,7 +396,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
           <DrawerTitle>Filtrar e ordenar</DrawerTitle>
           <DrawerDescription className="sr-only">Filtre, ordene e agrupe as tarefas do quadro.</DrawerDescription>
         </DrawerHeader>
-        <div className="overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="scroll-soft overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           <FiltersPanel
             props={{
               ...props,
@@ -486,7 +466,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
               {filtersBadge}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="max-h-[min(80dvh,640px)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto">
+          <PopoverContent align="end" className="max-h-[min(80dvh,640px)] w-80 max-w-[calc(100vw-2rem)] scroll-soft overflow-y-auto">
             <FiltersPanel props={props} showSort={false} />
           </PopoverContent>
         </Popover>

@@ -77,7 +77,7 @@ function NotificationScroll({ onScrolled, children }: { onScrolled: (scrolled: b
       tabIndex={0}
       data-testid="notifications-scroll"
       onScroll={(event) => onScrolled(event.currentTarget.scrollTop > 0)}
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 outline-none [scrollbar-color:var(--border)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2 scroll-soft outline-none [scrollbar-gutter:stable] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
     >
       {children}
     </div>
