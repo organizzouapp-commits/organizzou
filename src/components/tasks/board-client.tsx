@@ -26,6 +26,7 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
+import { undoable, UNDO_DURATION } from "@/features/tasks/undo"
 import { localLabelColorRepo } from "@/features/tasks/colors"
 import { localPriorityRepo } from "@/features/tasks/priorities"
 import { planPriorityTags } from "@/features/tasks/priority-to-tags"
@@ -151,7 +152,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   }
 
   // Collapsed lists are shared by Kanban and Lista; Lista folds "concluded" lists the first time.
-  const { collapsed, toggle: toggleCollapse } = useCollapsedLists(initial.board.id, view === "lista" ? foldDone : never)
+  const { collapsed, toggle: toggleCollapse } = useCollapsedLists(initial.board.id, view === "lista" || (view === "kanban" && mobileList === "all") ? foldDone : never)
 
   const timeZone = initial.timezone
   const boardId = initial.board.id
@@ -193,6 +194,25 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     for (const t of visible) map[t.list_id] = (map[t.list_id] ?? 0) + 1
     return map
   }, [visible])
+
+  // The last Kanban tab is remembered per quadro on this device (the first list stays the default).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`organizzou:tarefas-kanban-tab:${initial.board.id}`)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && (saved === "all" || initial.lists.some((l) => l.id === saved))) setMobileList(saved)
+    } catch {
+      // Private mode: stays on the first list.
+    }
+  }, [initial.board.id, initial.lists])
+  function selectKanbanTab(id: string) {
+    setMobileList(id)
+    try {
+      window.localStorage.setItem(`organizzou:tarefas-kanban-tab:${initial.board.id}`, id)
+    } catch {
+      // Private mode: the choice just does not survive the visit.
+    }
+  }
 
   function changeView(next: ViewMode) {
     setView(next)
@@ -313,6 +333,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     if (previousSort === "manual") return
     setSort("manual")
     toast("Ordenação manual ativada", {
+      duration: UNDO_DURATION,
       action: {
         label: "Desfazer",
         onClick: () => {
@@ -376,6 +397,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       return
     }
     toast(done ? "Tarefa concluída." : "Tarefa reaberta.", {
+      duration: UNDO_DURATION,
       action: {
         label: "Desfazer",
         onClick: () => {
@@ -449,10 +471,27 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         return true
       },
       remove: (id) => {
-        void api.deleteTag(id).then((result) => {
-          if (!result.ok) return void toast.error(result.error)
-          setTags((current) => current.filter((t) => t.id !== id))
-          setTasks((current) => current.map((t) => ({ ...t, tagIds: t.tagIds.filter((x) => x !== id) })))
+        const tag = tags.find((t) => t.id === id)
+        if (!tag) return
+        const carrying = tasks.filter((t) => t.tagIds.includes(id)).map((t) => t.id)
+        const put = () => {
+          setTags((current) => (current.some((t) => t.id === id) ? current : [...current, tag].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))))
+          setTasks((current) => current.map((t) => (carrying.includes(t.id) && !t.tagIds.includes(id) ? { ...t, tagIds: [...t.tagIds, id] } : t)))
+        }
+        undoable({
+          message: "Tag excluída.",
+          apply: () => {
+            setTags((current) => current.filter((t) => t.id !== id))
+            setTasks((current) => current.map((t) => ({ ...t, tagIds: t.tagIds.filter((x) => x !== id) })))
+          },
+          revert: put,
+          commit: async () => {
+            const result = await api.deleteTag(id)
+            if (!result.ok) {
+              put()
+              toast.error(result.error)
+            }
+          },
         })
       },
       usage: (id) => tasks.filter((t) => t.tagIds.includes(id)).length,
@@ -471,10 +510,22 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         }
       },
       remove: (name) => {
-        for (const t of tasks.filter((x) => x.category === name)) {
-          replaceTask({ ...t, category: null })
-          void api.updateTask({ id: t.id, patch: { category: null } })
-        }
+        const affected = tasks.filter((x) => x.category === name)
+        const put = () => setTasks((current) => current.map((t) => (affected.some((a) => a.id === t.id) && !t.category ? { ...t, category: name } : t)))
+        undoable({
+          message: "Categoria excluída.",
+          apply: () => setTasks((current) => current.map((t) => (t.category === name ? { ...t, category: null } : t))),
+          revert: put,
+          commit: async () => {
+            for (const t of affected) {
+              const result = await api.updateTask({ id: t.id, patch: { category: null } })
+              if (!result.ok) {
+                put()
+                toast.error(result.error)
+              }
+            }
+          },
+        })
       },
       usage: (name) => tasks.filter((t) => t.category === name).length,
     },
@@ -487,6 +538,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     openTaskById(null)
     setTasks((current) => current.filter((t) => t.id !== task.id))
     toast(`Movida para ${result.data.boardName} › ${result.data.listName}`, {
+      duration: UNDO_DURATION,
       action: {
         label: "Desfazer",
         onClick: () => {
@@ -499,20 +551,28 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     })
   }
 
-  async function confirmDeleteTask() {
+  /** Puts tasks back (undo): by id, never twice. */
+  const restoreTasks = (list: TaskView[]) => setTasks((current) => [...current, ...list.filter((t) => !current.some((c) => c.id === t.id))])
+
+  function confirmDeleteTask() {
     const task = taskToDelete
     setTaskToDelete(null)
     if (!task) return
-    const snapshot = tasks
-    openTaskById(null)
-    setTasks((current) => current.filter((t) => t.id !== task.id))
-    const result = await api.deleteTask(task.id)
-    if (!result.ok) {
-      setTasks(snapshot)
-      toast.error(result.error)
-      return
-    }
-    toast("Tarefa excluída.")
+    undoable({
+      message: "Tarefa excluída.",
+      apply: () => {
+        openTaskById(null)
+        setTasks((current) => current.filter((t) => t.id !== task.id))
+      },
+      revert: () => restoreTasks([task]),
+      commit: async () => {
+        const result = await api.deleteTask(task.id)
+        if (!result.ok) {
+          restoreTasks([task])
+          toast.error(result.error)
+        }
+      },
+    })
   }
 
   async function duplicateTask(task: TaskView) {
@@ -533,6 +593,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
       return
     }
     toast(message, {
+      duration: UNDO_DURATION,
       action: {
         label: "Desfazer",
         onClick: () => {
@@ -608,22 +669,24 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     for (const task of selectedTasks.filter((t) => !t.completed_at)) postponeTomorrow(task)
     stopSelecting()
   }
-  async function confirmBulkDelete() {
+  function confirmBulkDelete() {
     setBulkDelete(false)
     const doomed = selectedTasks
-    const snapshot = tasks
-    setTasks((current) => current.filter((t) => !selected.has(t.id)))
-    for (const task of doomed) {
-      const result = await api.deleteTask(task.id)
-      if (!result.ok) {
-        setTasks(snapshot)
-        toast.error(result.error)
-        stopSelecting()
-        return
-      }
-    }
-    toast(`${doomed.length} ${doomed.length === 1 ? "tarefa excluída" : "tarefas excluídas"}.`)
     stopSelecting()
+    undoable({
+      message: `${doomed.length} ${doomed.length === 1 ? "tarefa excluída" : "tarefas excluídas"}.`,
+      apply: () => setTasks((current) => current.filter((t) => !doomed.some((d) => d.id === t.id))),
+      revert: () => restoreTasks(doomed),
+      commit: async () => {
+        for (const task of doomed) {
+          const result = await api.deleteTask(task.id)
+          if (!result.ok) {
+            restoreTasks(doomed.filter((d) => d.id === task.id))
+            toast.error(result.error)
+          }
+        }
+      },
+    })
   }
 
   // ------------------------------------------------------------ lists
@@ -687,24 +750,36 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     const list = listToDelete
     setListToDelete(null)
     if (!list) return
-    // Tasks that have somewhere to go are moved first; otherwise they go with the list.
-    if (destinationListId) {
+    const listsBefore = lists
+    const inList = tasks.filter((t) => t.list_id === list.id).sort((a, b) => a.position - b.position)
+    // Tasks that have somewhere to go are moved first (undo moves them back); otherwise they go with the list.
+    if (destinationListId && inList.length > 0) {
       const keep = tasks.filter((t) => t.list_id === destinationListId).sort((a, b) => a.position - b.position).map((t) => t.id)
-      const moving = tasks.filter((t) => t.list_id === list.id).sort((a, b) => a.position - b.position).map((t) => t.id)
-      if (moving.length > 0) {
-        await moveToList(destinationListId, [...keep, ...moving])
-        // moveToList rolls back and reports on failure: stop if the tasks did not leave.
-        if (tasksRef.current.some((t) => t.list_id === list.id && moving.includes(t.id))) return
-      }
+      await moveToList(destinationListId, [...keep, ...inList.map((t) => t.id)])
+      // moveToList rolls back and reports on failure: stop if the tasks did not leave.
+      if (tasksRef.current.some((t) => t.list_id === list.id && inList.some((m) => m.id === t.id))) return
     }
-    const result = await api.deleteList(list.id)
-    if (!result.ok) {
-      toast.error(result.error)
-      return
-    }
-    setLists((current) => current.filter((l) => l.id !== list.id))
-    setTasks((current) => current.filter((t) => t.list_id !== list.id))
-    toast("Lista excluída.")
+    const doomedTasks = destinationListId ? [] : inList
+    undoable({
+      message: "Lista excluída.",
+      apply: () => {
+        setLists((current) => current.filter((l) => l.id !== list.id))
+        setTasks((current) => current.filter((t) => t.list_id !== list.id || !doomedTasks.some((d) => d.id === t.id)))
+      },
+      revert: () => {
+        setLists(listsBefore)
+        restoreTasks(doomedTasks)
+        if (destinationListId && inList.length > 0) void moveToList(list.id, inList.map((t) => t.id))
+      },
+      commit: async () => {
+        const result = await api.deleteList(list.id)
+        if (!result.ok) {
+          setLists(listsBefore)
+          restoreTasks(doomedTasks)
+          toast.error(result.error)
+        }
+      },
+    })
   }
 
   // ----------------------------------------------------------- boards
@@ -728,15 +803,29 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     setBoards((current) => current.map((b) => (b.id === boardId ? { ...b, name } : b)))
   }
 
-  async function confirmArchive() {
+  function confirmArchive() {
     setArchiveOpen(false)
-    const result = await api.archiveBoard(boardId)
-    if (!result.ok) {
-      toast.error(result.error)
-      return
-    }
-    toast("Quadro arquivado.")
-    router.push(result.data.nextBoardId ? `/dashboard/tarefas/${result.data.nextBoardId}` : "/dashboard/tarefas")
+    const boardsBefore = boards
+    const next = boards.find((b) => b.id !== boardId)
+    undoable({
+      message: "Quadro arquivado.",
+      apply: () => {
+        setBoards((current) => current.filter((b) => b.id !== boardId))
+        router.push(next ? `/dashboard/tarefas/${next.id}` : "/dashboard/tarefas")
+      },
+      revert: () => {
+        setBoards(boardsBefore)
+        router.push(`${basePath}/${boardId}`)
+      },
+      commit: async () => {
+        const result = await api.archiveBoard(boardId)
+        if (!result.ok) {
+          setBoards(boardsBefore)
+          router.push(`${basePath}/${boardId}`)
+          toast.error(result.error)
+        }
+      },
+    })
   }
 
   // "Nova tarefa" from the app header: pre-filled with this quadro and, on phones in Kanban, the list being looked at.
@@ -758,22 +847,25 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     return undefined
   }
 
-  async function confirmClearDone() {
+  function confirmClearDone() {
     const list = doneToClear
     setDoneToClear(null)
     if (!list) return
     const doomed = tasks.filter((t) => t.list_id === list.id)
-    const snapshot = tasks
-    setTasks((current) => current.filter((t) => t.list_id !== list.id))
-    for (const task of doomed) {
-      const result = await api.deleteTask(task.id)
-      if (!result.ok) {
-        setTasks(snapshot)
-        toast.error(result.error)
-        return
-      }
-    }
-    toast(`${doomed.length} ${doomed.length === 1 ? "tarefa concluída removida" : "tarefas concluídas removidas"}.`)
+    undoable({
+      message: `${doomed.length} ${doomed.length === 1 ? "tarefa concluída removida" : "tarefas concluídas removidas"}.`,
+      apply: () => setTasks((current) => current.filter((t) => t.list_id !== list.id)),
+      revert: () => restoreTasks(doomed),
+      commit: async () => {
+        for (const task of doomed) {
+          const result = await api.deleteTask(task.id)
+          if (!result.ok) {
+            restoreTasks([task])
+            toast.error(result.error)
+          }
+        }
+      },
+    })
   }
 
   // Remember the board in use: /dashboard/tarefas opens it next time.
@@ -905,8 +997,9 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           <KanbanTabs
             lists={lists}
             counts={listCounts}
+            allCount={counts.todas ?? 0}
             activeId={mobileList ?? lists[0]?.id}
-            onSelect={setMobileList}
+            onSelect={selectKanbanTab}
             onAdd={addList}
             onManage={() => setManageListsOpen(true)}
           />

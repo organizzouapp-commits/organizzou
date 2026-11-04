@@ -1,22 +1,26 @@
 "use client"
 
 import { useTheme } from "next-themes"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
+  const isMobile = useIsMobile()
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
-      // Top-right under the header on desktop, full-width at the top (below the safe area and the mobile header) on phones.
-      // Never at the bottom: the assistant button and the bottom pill live there.
-      position="top-right"
+      // Desktop: top-right under the header. Phones: centered, calc(100% - 32px) wide, ABOVE the bottom nav and the assistant button
+      // (nav height + 16px + the safe area), never over the top header. Toasts with an action ("Desfazer") last 8 s (set where they are
+      // created), pause while hovered or touched, and swipe sideways to dismiss.
+      position={isMobile ? "bottom-center" : "top-right"}
       duration={4000}
-      offset={{ top: "calc(env(safe-area-inset-top) + 84px)", right: 32 }}
-      mobileOffset={{ top: "calc(env(safe-area-inset-top) + 72px)", left: 16, right: 16 }}
+      swipeDirections={["left", "right"]}
+      offset={isMobile ? { bottom: "calc(env(safe-area-inset-bottom) + 96px)", left: 16, right: 16 } : { top: "calc(env(safe-area-inset-top) + 84px)", right: 32 }}
+      mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 96px)", left: 16, right: 16 }}
       icons={{
         success: (
           <CircleCheckIcon className="size-4" />
@@ -44,7 +48,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast !items-center !gap-3 !rounded-2xl !px-4 !py-3 !text-[14px] !leading-5",
+          content: "min-w-0 flex-1",
+          actionButton: "relative !ml-auto !h-9 !shrink-0 !rounded-full !border !border-foreground/40 !bg-transparent !px-4 !text-[14px] !leading-5 !font-semibold !text-foreground after:absolute after:-inset-1 hover:!bg-accent focus-visible:!ring-3 focus-visible:!ring-ring/50",
         },
       }}
       {...props}

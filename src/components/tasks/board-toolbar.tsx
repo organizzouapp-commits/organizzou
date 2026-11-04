@@ -44,6 +44,7 @@ import type { ShortcutDef } from "@/features/tasks/shortcuts"
 import type { ListRow, TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
+import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { InlineInput } from "./inline-input"
 import type { GroupBy } from "./list-view"
 import { useLabelColors } from "./label-colors-context"
@@ -236,6 +237,42 @@ export const SearchField = forwardRef<HTMLInputElement, { value: string; onChang
   )
 })
 
+const MODE_LABELS = [
+  { id: "mes", label: "Mês" },
+  { id: "semana", label: "Semana" },
+  { id: "dia", label: "Dia" },
+  { id: "agenda", label: "Agenda" },
+] as const
+
+/** Phones, Calendário: row 3 of the header card is the mode switcher (same pill style and size as the list tabs and chips). */
+function CalendarModes() {
+  const { prefs, update } = useCalendarPrefs()
+  const mode = resolveMode(prefs, true)
+  return (
+    <div role="tablist" aria-label="Modo do calendário" data-calendar-modes className="grid h-9 grid-cols-4 gap-1.5">
+      {MODE_LABELS.map(({ id, label }) => {
+        const on = mode === id
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            data-calendar-mode={id}
+            onClick={() => update((p) => ({ ...p, view: id }))}
+            className={cn(
+              "relative inline-flex h-9 min-w-0 items-center justify-center rounded-full px-1.5 text-[13px] whitespace-nowrap outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+              on ? "bg-highlight font-semibold text-highlight-foreground" : "bg-muted text-muted-foreground"
+            )}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(function BoardToolbar(props, searchRef) {
   const { filters, onFiltersChange, isMobile } = props
   const active = countActiveFilters(filters)
@@ -421,7 +458,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
           </div>
         )}
         {viewTabs}
-        {props.view === "kanban" ? props.listTabs : props.view === "lista" ? chips : null}
+        {props.view === "kanban" ? props.listTabs : props.view === "lista" ? chips : <CalendarModes />}
         {sheet}
       </div>
     )

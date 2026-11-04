@@ -76,7 +76,7 @@ const countPill = "tabular inline-flex h-5 min-w-5 items-center justify-center r
 const overline = "text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase"
 
 /** One group per list of the quadro: the same lists, order and collapsed state as the Kanban. */
-function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled }: { list: ListRow; index: number; total: number; tasks: TaskView[]; props: ViewProps; mobile: boolean; dragEnabled: boolean }) {
+export function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled, onAddTask, dueMode }: { list: ListRow; index: number; total: number; tasks: TaskView[]; props: ViewProps; mobile: boolean; dragEnabled: boolean; /** Where "+" and the dashed pill create the task themselves (the calendar prefills the day) instead of the inline composer. */ onAddTask?: (list: ListRow) => void; dueMode?: "full" | "time" }) {
   const [editing, setEditing] = useState(false)
   const [signal, setSignal] = useState(0)
   const open = !props.collapsed(list)
@@ -87,6 +87,7 @@ function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled }: { 
       listId={list.id}
       disabled={!dragEnabled || props.selection.active}
       density={mobile ? "card" : "row"}
+      dueMode={dueMode}
       task={task}
       tags={props.tags}
       now={props.now}
@@ -106,7 +107,7 @@ function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled }: { 
         </button>
         <ListName list={list} actions={props} editing={editing} onEditingChange={setEditing} className="min-w-0" />
         <span className={countPill}>{tasks.length}</span>
-        <Button variant="ghost" size="icon" aria-label={`Adicionar tarefa em ${list.name}`} className="size-11 rounded-full md:size-9" onClick={() => (open ? setSignal((n) => n + 1) : props.onToggleCollapse(list))}>
+        <Button variant="ghost" size="icon" aria-label={`Adicionar tarefa em ${list.name}`} className="size-11 rounded-full md:size-9" onClick={() => (onAddTask ? onAddTask(list) : open ? setSignal((n) => n + 1) : props.onToggleCollapse(list))}>
           <PlusIcon strokeWidth={1.75} />
         </Button>
         <ListMenu list={list} index={index} total={total} count={tasks.length} actions={props} onRename={() => setEditing(true)} />
@@ -119,7 +120,13 @@ function ListGroup({ list, index, total, tasks, props, mobile, dragEnabled }: { 
               {tasks.map(sortable)}
             </SortableContext>
             {tasks.length === 0 ? <p className="px-2 py-2 text-[13px] leading-5 text-muted-foreground">Nada em {list.name}.</p> : null}
-            <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} className="h-11 rounded-full border border-dashed border-border" />
+            {onAddTask ? (
+              <Button type="button" variant="outline" data-testid="group-add-pill" className="h-11 w-full justify-start border-dashed text-muted-foreground" onClick={() => onAddTask(list)}>
+                <PlusIcon strokeWidth={1.75} /> Adicionar tarefa…
+              </Button>
+            ) : (
+              <QuickAdd label="Adicionar tarefa…" onAdd={(title) => props.onQuickAdd(list.id, title)} openSignal={signal} className="h-11 rounded-full border border-dashed border-border" />
+            )}
           </div>
         ) : (
           <div className="overflow-hidden rounded-[16px] border border-border bg-card">

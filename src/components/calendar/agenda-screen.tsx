@@ -139,7 +139,10 @@ export function CalendarToolbar({
   filter,
   agendaTabOnDesktop = false,
   trailing,
+  compact = false,
 }: {
+  /** Phones in Tarefas: ONE 40px row — "Hoje" at the left, the title in the middle, ‹ › at the right. No filter button, no mode tabs (the header card has them). */
+  compact?: boolean
   title: string
   onToday: () => void
   onShift: (direction: -1 | 1) => void
@@ -151,6 +154,24 @@ export function CalendarToolbar({
 }) {
   const isMobile = useIsMobile()
   const [sheet, setSheet] = useState(false)
+  if (compact) {
+    return (
+      <div className="flex h-10 items-center gap-2" data-testid="calendar-toolbar">
+        <Button variant="outline" className="h-10 shrink-0" onClick={onToday}>
+          Hoje
+        </Button>
+        <h2 data-testid="calendar-title" className="min-w-0 flex-1 truncate text-[15px] leading-6 font-semibold">
+          {title}
+        </h2>
+        <Button variant="ghost" size="icon" aria-label="Anterior" className="shrink-0" onClick={() => onShift(-1)}>
+          <ChevronLeftIcon strokeWidth={1.75} />
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="Próximo" className="shrink-0" onClick={() => onShift(1)}>
+          <ChevronRightIcon strokeWidth={1.75} />
+        </Button>
+      </div>
+    )
+  }
   const filterButton = (
     <Button variant="outline" data-testid="calendar-filter" onClick={isMobile ? () => setSheet(true) : undefined}>
       <LayersIcon strokeWidth={1.75} /> {filter.label}

@@ -21,8 +21,11 @@ import type { TaskView } from "@/features/tasks/types"
 import { dayKey, inTz, splitDue, toDueIso } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
+import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { useLabelColors } from "./label-colors-context"
+import { ListGroup } from "./list-view"
 import type { NewTaskInput } from "./new-task-dialog"
+import type { ListRow } from "@/features/tasks/types"
 import { ScheduleSheet } from "./schedule-sheet"
 import { TaskCardBody, type TaskActions } from "./task-card"
 import type { ViewProps } from "./types"
@@ -41,53 +44,10 @@ type CalendarViewProps = ViewProps & {
   onCreate: (listId?: string, day?: string, time?: string, title?: string) => void
 }
 
-const STORAGE_KEY = "organizzou:tarefas-calendar-v2"
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const lower = (text: string) => text.toLowerCase()
 const hourOf = (task: TaskView, timeZone: string) => inTz(task.due_at!, timeZone).getHours()
-
-// ------------------------------------------------------------------ prefs (per person, on this device until a prefs column exists)
-
-type Prefs = { view: CalendarViewId | null; showDone: boolean; hiddenLists: string[]; /** Explicit open (true) / closed (false) choices of the collapsible groups. */ open: Record<string, boolean> }
-const DEFAULT_PREFS: Prefs = { view: null, showDone: true, hiddenLists: [], open: {} }
-
-function readPrefs(): Prefs {
-  try {
-    const data = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<Prefs>
-    return {
-      view: data.view && ["mes", "semana", "dia", "agenda"].includes(data.view) ? data.view : null,
-      showDone: data.showDone !== false,
-      hiddenLists: Array.isArray(data.hiddenLists) ? data.hiddenLists.filter((id): id is string => typeof id === "string") : [],
-      open: data.open && typeof data.open === "object" ? data.open : {},
-    }
-  } catch {
-    return DEFAULT_PREFS
-  }
-}
-
-function usePrefs() {
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    // localStorage only exists in the browser.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPrefs(readPrefs())
-    setReady(true)
-  }, [])
-  const update = useCallback((patch: (current: Prefs) => Prefs) => {
-    setPrefs((current) => {
-      const next = patch(current)
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        // Private mode: the choice just does not survive the visit.
-      }
-      return next
-    })
-  }, [])
-  return { prefs, ready, update }
-}
 
 function useSwipe(onSwipe: (direction: -1 | 1) => void) {
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -373,16 +333,18 @@ export function CalendarView(props: CalendarViewProps) {
   const isMobile = useIsMobile()
   const labels = useLabelColors()
   const todayKey = dayKey(now, timeZone)
-  const { prefs, ready, update } = usePrefs()
+  const { prefs, update } = useCalendarPrefs()
   const [day, setDay] = useState(todayKey)
   const [scheduling, setScheduling] = useState<TaskView | null>(null)
   const [quick, setQuick] = useState<QuickAddState | null>(null)
-  const view: CalendarViewId = prefs.view ?? (isMobile ? "semana" : "mes")
+  const view: CalendarViewId = resolveMode(prefs, isMobile)
   const setView = (next: CalendarViewId) => update((p) => ({ ...p, view: next }))
-  useEffect(() => onContextChange?.({ day, view }), [day, view, onContextChange])
+  // The app header's "+" pre-fills the selected day (today in the Agenda mode, which has no selected day).
+  useEffect(() => onContextChange?.({ day: view === "agenda" ? todayKey : day, view }), [day, view, todayKey, onContextChange])
 
   const hidden = useMemo(() => new Set(prefs.hiddenLists), [prefs.hiddenLists])
-  const shown = useMemo(() => tasks.filter((t) => t.id === highlightId || ((!hidden.has(t.list_id)) && (prefs.showDone || !t.completed_at))), [tasks, hidden, prefs.showDone, highlightId])
+  // Phones filter through the "Filtrar e ordenar" sheet (the board's own filters); the desktop toolbar has the "Listas" popover.
+  const shown = useMemo(() => (isMobile ? tasks : tasks.filter((t) => t.id === highlightId || (!hidden.has(t.list_id) && (prefs.showDone || !t.completed_at)))), [isMobile, tasks, hidden, prefs.showDone, highlightId])
   const byId = useMemo(() => new Map(shown.map((t) => [t.id, t])), [shown])
   const items = useMemo(
     () =>
@@ -394,7 +356,7 @@ export function CalendarView(props: CalendarViewProps) {
         }),
     [shown, labels.state, highlightId]
   )
-  const undated = useMemo(() => shown.filter((t) => !t.due_at && (prefs.showDone || !t.completed_at)), [shown, prefs.showDone])
+  const undated = useMemo(() => shown.filter((t) => !t.due_at && (isMobile || prefs.showDone || !t.completed_at)), [shown, prefs.showDone, isMobile])
   const itemsOn = useCallback((key: string) => items.filter((item) => dayKey(item.start, timeZone) === key).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime()), [items, timeZone])
   const tasksOn = useCallback((key: string) => itemsOn(key).map((i) => byId.get(i.id)).filter((t): t is TaskView => Boolean(t)), [itemsOn, byId])
 
@@ -514,26 +476,53 @@ export function CalendarView(props: CalendarViewProps) {
     />
   )
 
-  if (!ready) return <div data-testid="tasks-calendar" className="min-h-96" />
-
   // ---------------------------------------------------------------- phones
   if (isMobile) {
+    // The mode switcher lives in the header card and "Listas" / "Mostrar concluídas" in its filter sheet; this card has one 40px toolbar.
+    const mobileTitle =
+      view === "mes"
+        ? lower(format(selected, "MMMM 'de' yyyy", { locale: ptBR }))
+        : view === "semana"
+          ? `${format(weekDays[0], "d MMM", { locale: ptBR })} – ${format(weekDays[6], "d MMM", { locale: ptBR })}`.replace(/\./g, "")
+          : view === "dia"
+            ? `${lower(format(selected, "EEEE", { locale: ptBR })).split("-")[0]}, ${format(selected, "d 'de' MMMM", { locale: ptBR })}`.toLowerCase()
+            : "Próximos 30 dias"
+    const dayTasks = tasksOn(day)
+    // The day's tasks grouped by the quadro's lists, with their own collapse state (apart from Lista/Kanban): lists marked as concluded
+    // and lists with nothing in them start collapsed.
+    const collapsedHere = (list: ListRow) => {
+      const saved = prefs.open[`list:${list.id}`]
+      return saved === undefined ? list.is_done_list || !dayTasks.some((t) => t.list_id === list.id) : !saved
+    }
+    const groupProps: ViewProps = { ...props, tasks: dayTasks, actionsFor: schedulable, collapsed: collapsedHere, onToggleCollapse: (list) => update((p) => ({ ...p, open: { ...p.open, [`list:${list.id}`]: collapsedHere(list) } })) }
     return (
       <div data-testid="tasks-calendar" className="flex flex-col gap-4">
-        <section aria-label="Calendário" data-testid="calendar-card" className="flex flex-col gap-4 rounded-[20px] border border-border bg-card p-4" {...swipe}>
-          {toolbar}
+        <section aria-label="Calendário" data-testid="calendar-card" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-4" {...swipe}>
+          <CalendarToolbar compact title={mobileTitle} onToday={() => setDay(todayKey)} onShift={shift} view={view} onViewChange={setView} filter={filter} />
           {view === "mes" ? monthGrid : null}
           {view === "semana" ? <DayStrip days={weekDays} todayKey={todayKey} selectedKey={day} itemsOn={itemsOn} onSelectDay={setDay} /> : null}
           {view === "agenda" ? (
             <AgendaList {...common} from={day} byDay={tasksOn} todayKey={todayKey} isOpen={isOpen} toggle={toggle} />
           ) : (
-            <>
-              {dayHeading}
-              {dayList}
-              {undatedSection}
-            </>
+            <div data-testid="day-lists" className="flex flex-col">
+              {view !== "dia" ? dayHeading : null}
+              {lists.map((list, i) => (
+                <ListGroup
+                  key={list.id}
+                  list={list}
+                  index={i}
+                  total={lists.length}
+                  tasks={dayTasks.filter((t) => t.list_id === list.id)}
+                  props={groupProps}
+                  mobile
+                  dragEnabled={false}
+                  dueMode="time"
+                  onAddTask={(target) => props.onCreate(target.id, day)}
+                />
+              ))}
+            </div>
           )}
-          {view === "agenda" ? undatedSection : null}
+          {undatedSection}
         </section>
         <ScheduleSheet task={scheduling} open={Boolean(scheduling)} onOpenChange={(open) => !open && setScheduling(null)} todayKey={todayKey} timeZone={timeZone} onConfirm={confirmSchedule} />
       </div>

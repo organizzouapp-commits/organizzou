@@ -23,6 +23,8 @@ import type { ListRow, TaskView } from "@/features/tasks/types"
 import { InlineInput } from "./inline-input"
 import { ListMenu, ListName } from "./list-parts"
 import { QuickAdd } from "./quick-add"
+import { ALL_TAB } from "./kanban-tabs"
+import { ListView } from "./list-view"
 import { SortableTaskCard, TaskCardBody } from "./task-card"
 import { DRAG_OVERLAY_CLASS, hapticTick, TaskDragProvider, useDragHover, useTaskSensors } from "./task-dnd"
 import type { ViewProps } from "./types"
@@ -246,6 +248,8 @@ export function KanbanView(props: KanbanViewProps) {
   }, [lists, tasks])
   const columns = override ?? base
   const currentMobile = lists.find((l) => l.id === props.activeListId)?.id ?? lists[0]?.id
+  // Phones, "Todas": every list stacked with the SAME groups as Lista (shared collapse state, drag between groups).
+  const showAll = props.isMobile && props.activeListId === ALL_TAB
 
   const sensors = useTaskSensors()
   // Phones: hovering the dragged card over a list tab for ~500 ms shows that list (so it can be dropped at an exact spot).
@@ -390,7 +394,9 @@ export function KanbanView(props: KanbanViewProps) {
         setOverride(null)
       }}
     >
-      {props.isMobile ? (
+      {showAll ? (
+        <ListView {...props} groupBy="lista" isMobile dragEnabled={props.dragEnabled} onMoveTasks={props.onMoveTasks} />
+      ) : props.isMobile ? (
         <div ref={scroller} onScroll={onScroll} className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto">
           {lists.map((list, i) => (
             <div key={list.id} className="w-full shrink-0 snap-start">

@@ -45,6 +45,7 @@ import type { AttachmentRow, ChecklistItemRow, CommentRow, ListRow, TagRow, Task
 import { dayKey, splitDue, toDueIso } from "@/lib/dates"
 import type { SwatchId } from "@/lib/swatches"
 import { ColorPicker } from "@/components/organizzou/ColorPicker"
+import { undoable } from "@/features/tasks/undo"
 import { columnSwatchFor, resolveHex, taskColorOf, type ColorValue } from "@/features/tasks/colors"
 import { cn } from "@/lib/utils"
 
@@ -522,16 +523,27 @@ function DetailBody({
     setChecklist((c) => c.map((i) => (i.id === item.id ? { ...i, text: value } : i)))
     await save.track(async () => (await api.updateChecklistItem({ id: item.id, text: value })).ok)
   }
-  async function removeItem(item: ChecklistItemRow) {
-    const before = checklist
-    const next = checklist.filter((i) => i.id !== item.id)
-    setChecklist(next)
-    syncCounters({ checklist: next })
-    const ok = await save.track(async () => (await api.deleteChecklistItem(item.id)).ok)
-    if (!ok) {
-      setChecklist(before)
-      syncCounters({ checklist: before })
-    }
+  function removeItem(item: ChecklistItemRow) {
+    const before = checklistRef.current
+    const next = before.filter((i) => i.id !== item.id)
+    undoable({
+      message: "Item excluído.",
+      apply: () => {
+        setChecklist(next)
+        syncCounters({ checklist: next })
+      },
+      revert: () => {
+        setChecklist(before)
+        syncCounters({ checklist: before })
+      },
+      commit: async () => {
+        const ok = await save.track(async () => (await api.deleteChecklistItem(item.id)).ok)
+        if (!ok) {
+          setChecklist(before)
+          syncCounters({ checklist: before })
+        }
+      },
+    })
   }
 
   // ----- comments -----
@@ -554,16 +566,27 @@ function DetailBody({
   useEffect(() => {
     commentsRef.current = comments
   }, [comments])
-  async function removeComment(comment: CommentRow) {
-    const before = comments
-    const next = comments.filter((c) => c.id !== comment.id)
-    setComments(next)
-    syncCounters({ comments: next })
-    const ok = await save.track(async () => (await api.deleteComment(comment.id)).ok)
-    if (!ok) {
-      setComments(before)
-      syncCounters({ comments: before })
-    }
+  function removeComment(comment: CommentRow) {
+    const before = commentsRef.current
+    const next = before.filter((c) => c.id !== comment.id)
+    undoable({
+      message: "Comentário excluído.",
+      apply: () => {
+        setComments(next)
+        syncCounters({ comments: next })
+      },
+      revert: () => {
+        setComments(before)
+        syncCounters({ comments: before })
+      },
+      commit: async () => {
+        const ok = await save.track(async () => (await api.deleteComment(comment.id)).ok)
+        if (!ok) {
+          setComments(before)
+          syncCounters({ comments: before })
+        }
+      },
+    })
   }
 
   // ----- attachments -----
@@ -597,12 +620,26 @@ function DetailBody({
     const file = removeFile
     setRemoveFile(null)
     if (!file) return
-    const ok = await save.track(async () => (await api.deleteAttachment(file.id)).ok)
-    if (!ok) return
-    const next = attachments.filter((a) => a.id !== file.id)
-    setAttachments(next)
-    syncCounters({ attachments: next })
-    toast("Anexo removido.")
+    const before = attachments
+    const next = before.filter((a) => a.id !== file.id)
+    undoable({
+      message: "Anexo removido.",
+      apply: () => {
+        setAttachments(next)
+        syncCounters({ attachments: next })
+      },
+      revert: () => {
+        setAttachments(before)
+        syncCounters({ attachments: before })
+      },
+      commit: async () => {
+        const ok = await save.track(async () => (await api.deleteAttachment(file.id)).ok)
+        if (!ok) {
+          setAttachments(before)
+          syncCounters({ attachments: before })
+        }
+      },
+    })
   }
 
   const checklistDone = checklist.filter((i) => i.done).length
