@@ -185,7 +185,8 @@ test.describe("desktop 1440", () => {
     expect(await months.nth(0).getAttribute("aria-label")).toMatch(/entradas R\$ .*, saídas R\$ /)
     await page.getByRole("group", { name: "Período do fluxo de caixa" }).getByRole("button", { name: "Anual" }).click()
     await expect(chart.locator("[data-month]")).toHaveCount(12)
-    // The Lima pill of the segmented control.
+    // The Lima pill of the segmented control (after its 0.4s color transition).
+    await page.waitForTimeout(600)
     expect(await contrast(page, await computed(page.getByRole("button", { name: "Anual" }), "color"), await computed(page.getByRole("button", { name: "Anual" }), "background-color"))).toBeGreaterThan(4.5)
   })
 
