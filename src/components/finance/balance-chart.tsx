@@ -33,12 +33,11 @@ const monthName = (key: string, pattern: string) => format(parseISO(`${key}-01`)
  * The evolution of the total balance and where it comes from, in the language of the Fluxo de caixa chart: a pill column per month over
  * dashed grid lines with a y axis. Months that are not selected are hatched; the selected one is solid and stacked by account in Tinta tones
  * (a negative balance hangs below the baseline). A month is chosen by hover, tap or the arrow keys and drives the tooltip and the legend;
- * picking a legend item highlights that account (again to undo).
+ * nothing else is printed under it: the numbers of each month are in the tooltip (and in a hidden table for screen readers).
  */
 export function BalanceChart({ history, className }: { history: BalanceMonth[]; className?: string }) {
   const [picked, setPicked] = useState<string | null>(null)
   const [tip, setTip] = useState<string | null>(null)
-  const [isolate, setIsolate] = useState<string | null>(null)
   const timer = useRef<number | undefined>(undefined)
 
   const last = history[history.length - 1]
@@ -72,13 +71,17 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
   }
   const tipMonth = history.find((m) => m.month === tip)
   const summary = `Saldo total em ${monthName(selected.month, "MMMM")}: ${formatBalance(selected.total)}, composto por ${selected.parts.map((p) => `${p.name} ${formatBalance(p.value)}`).join(", ")}. Use as setas para trocar de mês.`
-  const faded = (id: string): CSSProperties => (isolate && isolate !== id ? { opacity: 0.2 } : {})
   const sorted = (m: BalanceMonth) => [...m.parts].sort((a, b) => rank(a.id) - rank(b.id))
 
   return (
     <div data-testid="balance-chart" className={cn("@container flex flex-col gap-3", className)}>
       {enough ? (
-        <div role="group" aria-label={summary} data-testid="balance-plot" className="relative h-[150px] md:h-[170px]" onPointerLeave={(e) => e.pointerType === "mouse" && setTip(null)}>
+        <div role="group" aria-label={summary} data-testid="balance-plot" className="relative h-[150px] md:h-[170px]" onPointerLeave={(e) => {
+            if (e.pointerType !== "mouse") return
+            // Back to the default: the current month highlighted, no tooltip.
+            setTip(null)
+            setPicked(null)
+          }}>
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-2 bottom-6">
             {ticks.map((t) => (
               <div key={t} data-tick className="absolute inset-x-0 flex items-center gap-2" style={{ bottom: `${at(t * step)}%`, transform: "translateY(50%)" }}>
@@ -125,12 +128,12 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
                           {sorted(m).filter((p) => p.value > 0).map((p, k, list) => {
                             const from = at(climbed)
                             climbed += p.value
-                            return <span key={p.id} data-segment={p.id} className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-t-md")} style={{ bottom: `${from}%`, height: `calc(${at(climbed) - from}% - 1px)`, ...toneStyle(rank(p.id)), ...faded(p.id) }} />
+                            return <span key={p.id} data-segment={p.id} className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-t-md")} style={{ bottom: `${from}%`, height: `calc(${at(climbed) - from}% - 1px)`, ...toneStyle(rank(p.id)) }} />
                           })}
                           {sorted(m).filter((p) => p.value < 0).map((p, k, list) => {
                             const from = at(-sunk)
                             sunk += -p.value
-                            return <span key={p.id} data-segment={p.id} data-negative className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-b-md")} style={{ bottom: `${at(-sunk)}%`, height: `calc(${from - at(-sunk)}% - 1px)`, ...toneStyle(rank(p.id)), ...faded(p.id) }} />
+                            return <span key={p.id} data-segment={p.id} data-negative className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-b-md")} style={{ bottom: `${at(-sunk)}%`, height: `calc(${from - at(-sunk)}% - 1px)`, ...toneStyle(rank(p.id)) }} />
                           })}
                         </>
                       ) : (
@@ -173,25 +176,19 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
         </p>
       )}
 
-      <div className="flex items-baseline justify-between gap-3 border-t border-current/15 pt-2 text-[12px] leading-4 text-current/75">
-        <span data-testid="balance-legend-month">De onde vem · {monthName(selected.month, "MMMM")}</span>
-        <MoneyText cents={selected.total} tone="value" className="font-semibold" />
-      </div>
-      <ul data-testid="balance-legend" className="grid grid-cols-1 gap-x-5 gap-y-0.5 @[280px]:grid-cols-2">
-        {sorted(selected).map((p) => {
-          const pressed = isolate === p.id
-          return (
-            <li key={p.id}>
-              <button type="button" aria-pressed={pressed} data-legend-account={p.id} onClick={() => setIsolate(pressed ? null : p.id)} className={cn("relative grid h-8 w-full grid-cols-[10px_minmax(0,1fr)_auto_34px] items-center gap-2 rounded-lg text-left text-[13px] leading-5 outline-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-current/40", pressed && "bg-current/10 font-semibold", isolate && !pressed && "opacity-60")}>
-                <span aria-hidden className="size-2.5 rounded-[3px]" style={toneStyle(rank(p.id))} />
-                <span className="truncate">{p.name}</span>
-                <MoneyText cents={p.value} tone="value" className="text-right" />
-                <span className="tabular text-right text-[12px] text-current/70">{p.value > 0 && selected.total > 0 ? `${Math.round((p.value / selected.total) * 100)}%` : ""}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      {/* Screen readers get the same numbers the tooltip shows, for every month. */}
+      <table className="sr-only" data-testid="balance-table">
+        <caption>Saldo total por mês e por conta</caption>
+        <tbody>
+          {history.map((m) => (
+            <tr key={m.month}>
+              <th scope="row">{monthName(m.month, "MMMM")}</th>
+              <td>{formatBalance(m.total)}</td>
+              <td>{sorted(m).map((p) => `${p.name} ${formatBalance(p.value)}`).join(", ")}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
