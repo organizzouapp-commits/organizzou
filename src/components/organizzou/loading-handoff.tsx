@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 import { LOGO_INTRO_MS, LOGO_REDUCED_MOTION_MS } from "./logo-timing"
-import { LoadingScreen } from "./loading-screen"
+import { LoadingScreenView } from "./loading-screen"
+import { markSplashPlayed } from "./splash-gate"
 
-const ARRIVE_MAX_MS = 6000 // after navigating: never keep the overlay longer than this waiting for the dashboard
+const ARRIVE_MAX_MS = 15000 // after navigating: never keep the overlay longer than this waiting for the dashboard (a slow connection must not see a second loader appear under it)
 const NO_TARGET_MS = 8000 // Google sign-in leaves the page by itself; this only guards a failed redirect
 const FADE_MS = 400
 
@@ -27,12 +28,22 @@ function setState(next: State) {
  * the screen.
  */
 export function startLoadingHandoff(href?: string) {
+  markSplashPlayed()
   setState({ active: true, href: href ?? null })
 }
 
 // Test hook (never in production builds): lets Playwright start the hand-off without a real sign-in.
 if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
   ;(window as unknown as { __startLoadingHandoff: typeof startLoadingHandoff }).__startLoadingHandoff = startLoadingHandoff
+}
+
+/** True while the hand-off overlay owns the screen: every other loading state stays out of its way. */
+export function useLoadingHandoffActive() {
+  return useSyncExternalStore(
+    subscribe,
+    () => state.active,
+    () => false
+  )
 }
 
 function subscribe(onChange: () => void) {
@@ -42,7 +53,7 @@ function subscribe(onChange: () => void) {
 
 /** The logo never re-renders while it plays: this subtree has no props and no state. */
 const Logo = memo(function Logo() {
-  return <LoadingScreen className="z-auto" />
+  return <LoadingScreenView className="z-auto" />
 })
 
 /** Mounted once in the root layout, so it survives the /login -> /dashboard navigation without restarting the animation. */
