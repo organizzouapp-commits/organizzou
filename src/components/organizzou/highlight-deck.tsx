@@ -81,6 +81,7 @@ export function HighlightDeck({ slides, label, stripLabel, noun = "destaque", he
   const reduced = useSyncExternalStore(subscribeReduced, reducedNow, () => false)
   const [swiper, setSwiper] = useState<SwiperInstance | null>(null)
   const [active, setActive] = useState(0)
+  const activeRef = useRef(0)
   const go = useCallback((index: number) => swiper?.slideToLoop(index), [swiper])
   const deck = useRef<HTMLDivElement>(null)
   const strip = useRef<HTMLDivElement>(null)
@@ -149,8 +150,15 @@ export function HighlightDeck({ slides, label, stripLabel, noun = "destaque", he
           cardsEffect={{ slideShadows: false, perSlideOffset: 9, perSlideRotate: 2, rotate: true }}
           a11y={{ containerMessage: label, containerRoleDescriptionMessage: "carrossel", itemRoleDescriptionMessage: "item", slideLabelMessage: "{{index}} de {{slidesLength}}", prevSlideMessage: `${noun.charAt(0).toUpperCase()}${noun.slice(1)} anterior`, nextSlideMessage: `Próximo ${noun}` }}
           onSwiper={setSwiper}
-          onSlideChange={(s) => setActive(s.realIndex)}
-          className={cn("mx-auto overflow-visible! [&_.swiper-slide]:rounded-[20px]", widthClass, adaptive ? "h-(--deck-h) [&_.swiper-slide]:overflow-hidden transition-[height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none" : "")}
+          onSlideChange={(s) => {
+            activeRef.current = s.realIndex
+            setActive(s.realIndex)
+          }}
+          // A resize (the deck changes height with the card in front) must never throw the deck back to its first card.
+          onResize={(s) => {
+            if (s.realIndex !== activeRef.current) s.slideToLoop(activeRef.current, 0)
+          }}
+          className={cn("mx-auto overflow-visible! [&_.swiper-slide]:rounded-[20px]", widthClass, adaptive ? "h-(--deck-h) [&_.swiper-slide]:overflow-hidden [&_.swiper-slide:not(.swiper-slide-active)]:pointer-events-none transition-[height] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none" : "")}
           style={adaptive ? undefined : { height }}
         >
           {slides.map((slide, index) => (

@@ -22,7 +22,7 @@ export type FinanceSlide = {
 }
 
 /** "Destaques" of a Finanças tab on phones: the shared deck with this tab's cards, one Lima in front. */
-export function FinanceDeck({ slides, label = "Destaques", noun = "destaque", initialHeight = 168, title = "Destaques", widthClass = "w-[86vw] max-w-[400px]", className }: { slides: FinanceSlide[]; label?: string; noun?: string; initialHeight?: number; title?: string | null; widthClass?: string; className?: string }) {
+export function FinanceDeck({ slides, label = "Destaques", noun = "destaque", initialHeight = 168, title = "Destaques", widthClass = "w-[78vw] max-w-[320px]", className }: { slides: FinanceSlide[]; label?: string; noun?: string; initialHeight?: number; title?: string | null; widthClass?: string; className?: string }) {
   const deck: DeckSlide[] = slides.map((slide) => ({
     id: slide.id,
     render: (front) => <div className={cn("h-full", front ? (slide.hero ? "" : LIMA) : slide.hero ? SURFACE : "")}>{slide.node}</div>,
