@@ -45,9 +45,6 @@ type CopyKey = keyof typeof COPY
 // One easing for every movement in the shell (DESIGN-SYSTEM §6).
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-/** Text on the photo follows the theme, matching the logo: dark theme -> Tinta (logo-preta), light theme -> Papel (logo-branca). */
-const ON_PHOTO = "text-palette-papel dark:text-palette-tinta"
-
 const glass =
   "border border-foreground/15 bg-foreground/10"
 
@@ -225,18 +222,19 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
     <div
       inert={hidden}
       aria-hidden={hidden}
-      className={cn("fixed inset-0 z-10 flex flex-col transition-opacity duration-500 lg:hidden", ON_PHOTO, hidden && "opacity-0")}
+      className={cn("fixed inset-0 z-10 flex flex-col text-foreground transition-opacity duration-500 lg:hidden", hidden && "opacity-0")}
     >
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
         <div>
-          <ThemedLogo className="h-10" />
+          {/* The logo follows the theme like the text: Papel letters in dark, Tinta letters in light (both files in the markup, toggled by CSS). */}
+          <ThemedLogo className="h-10" inverse={false} />
         </div>
-        {/* The photo stays untouched, so the text sits on a solid surface (a card), not on a scrim over the photo. */}
-        <div className="mt-2 flex w-full max-w-sm flex-col items-center gap-2 rounded-[28px] bg-background px-6 py-5 text-foreground">
+        {/* Straight on the photo: no card, no border, no blur, no shadow box. The text color is the foreground token (Papel in dark, Tinta in light); a soft text shadow keeps it readable on the photo. */}
+        <div className="mt-2 flex w-full max-w-sm flex-col items-center gap-2 px-6 py-5 [text-shadow:0_1px_14px_color-mix(in_oklab,var(--background)_55%,transparent)]">
           <h2 className={cn("text-[30px] leading-[38px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
             Sua vida, organizada.
           </h2>
-          <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(2)}>
+          <p className={cn("text-base leading-6", R)} style={rs(2)}>
             Tudo do seu dia em um só lugar.
           </p>
         </div>
@@ -246,7 +244,7 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
           type="button"
           onClick={() => onOpen("login")}
           className={cn(
-            "bg-background pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-foreground outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-accent",
+            "bg-transparent pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-foreground outline-none [text-shadow:0_1px_14px_color-mix(in_oklab,var(--background)_55%,transparent)] hover:bg-foreground/10 focus-visible:bg-foreground/10 focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-foreground/10",
             authMotion
           )}
         >
