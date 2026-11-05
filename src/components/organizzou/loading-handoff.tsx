@@ -9,7 +9,7 @@ import { LOGO_INTRO_MS, LOGO_REDUCED_MOTION_MS } from "./logo-timing"
 import { LoadingScreenView } from "./loading-screen"
 import { markSplashPlayed } from "./splash-gate"
 
-const ARRIVE_MAX_MS = 15000 // after navigating: never keep the overlay longer than this waiting for the dashboard (a slow connection must not see a second loader appear under it)
+const ARRIVE_MAX_MS = 45000 // after navigating: a very slow connection keeps the splash rather than showing the bare wallpaper or a second loader; only a navigation that never arrives gives up
 const NO_TARGET_MS = 8000 // Google sign-in leaves the page by itself; this only guards a failed redirect
 const FADE_MS = 400
 
@@ -46,14 +46,21 @@ export function useLoadingHandoffActive() {
   )
 }
 
+const subscribeReduced = (onChange: () => void) => {
+  const query = window.matchMedia("(prefers-reduced-motion: reduce)")
+  query.addEventListener("change", onChange)
+  return () => query.removeEventListener("change", onChange)
+}
+const reducedNow = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
 function subscribe(onChange: () => void) {
   listeners.add(onChange)
   return () => listeners.delete(onChange)
 }
 
 /** The logo never re-renders while it plays: this subtree has no props and no state. */
-const Logo = memo(function Logo() {
-  return <LoadingScreenView className="z-auto" />
+const Logo = memo(function Logo({ still }: { still: boolean }) {
+  return <LoadingScreenView className="z-auto" still={still} />
 })
 
 /** Mounted once in the root layout, so it survives the /login -> /dashboard navigation without restarting the animation. */
@@ -64,6 +71,8 @@ export function LoadingHandoff() {
     () => state
   )
   const router = useRouter()
+  // prefers-reduced-motion: the still logotype, no animation at all.
+  const reducedMotion = useSyncExternalStore(subscribeReduced, reducedNow, () => false)
   const [fading, setFading] = useState(false)
   const host = useRef<HTMLDivElement>(null)
 
@@ -92,10 +101,14 @@ export function LoadingHandoff() {
       const target = new URL(href, window.location.origin).pathname
       const began = performance.now()
       poll = window.setInterval(() => {
-        const arrived = window.location.pathname === target && document.querySelector("[data-app-scroll]")
-        if (arrived || performance.now() - began >= ARRIVE_MAX_MS) {
+        const shell = document.querySelector("[data-app-scroll]")
+        // Ready = on the dashboard, the shell is there, no skeleton or loader is still on screen and the page has content: the wallpaper alone
+        // is never what shows when the overlay leaves.
+        const painted = window.location.pathname === target && Boolean(shell) && !shell?.querySelector(".page-skeleton, [aria-busy=true]") && (shell?.textContent?.trim().length ?? 0) > 20 && !document.querySelector("[role=status][aria-label=Carregando]:not([data-handoff] *)")
+        if (painted || performance.now() - began >= ARRIVE_MAX_MS) {
           window.clearInterval(poll)
-          finish()
+          // Two frames, so the content is on the screen before the overlay starts to fade.
+          requestAnimationFrame(() => requestAnimationFrame(finish))
         }
       }, 100)
     }
@@ -125,12 +138,13 @@ export function LoadingHandoff() {
   return (
     <div
       ref={host}
+      data-handoff
       className={cn(
         "fixed inset-0 z-[110] transition-opacity duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
         fading ? "pointer-events-none opacity-0" : "opacity-100"
       )}
     >
-      <Logo />
+      <Logo still={reducedMotion} />
     </div>
   )
 }

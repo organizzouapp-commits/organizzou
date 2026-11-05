@@ -17,13 +17,13 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
 })
 
-type Probe = { added: number; topmost: string[] }
+type Probe = { added: number; topmost: string[]; bare: number }
 
 /** Installs the probe before any page script runs: counts added loading logos and samples which one is on top every frame. */
 async function installProbe(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __logo: { added: number; topmost: string[]; seen: WeakMap<Element, string> } }
-    w.__logo = { added: 0, topmost: [], seen: new WeakMap() }
+    const w = window as unknown as { __logo: { added: number; topmost: string[]; seen: WeakMap<Element, string>; bare: number } }
+    w.__logo = { added: 0, topmost: [], seen: new WeakMap(), bare: 0 }
     let next = 0
     const counted = new WeakSet<Element>()
     const isLogo = (el: Element): el is HTMLImageElement => el instanceof HTMLImageElement && /organizzou-logo-carregamento/.test(el.getAttribute("src") ?? "")
@@ -38,6 +38,11 @@ async function installProbe(page: Page) {
       })
     }).observe(document, { childList: true, subtree: true })
     const sample = () => {
+      // The wallpaper must never be what the person sees: on /dashboard, with no overlay, the shell has to carry content already.
+      if (location.pathname.startsWith("/dashboard") && !document.querySelector("[data-handoff]")) {
+        const shell = document.querySelector("[data-app-scroll]")
+        if (!shell || (shell.textContent ?? "").trim().length <= 20 || document.querySelector(".page-skeleton")) w.__logo.bare += 1
+      }
       const logos = Array.from(document.querySelectorAll("img")).filter(isLogo).filter((i) => getComputedStyle(i).display !== "none")
       for (const img of logos) {
         const box = img.getBoundingClientRect()
@@ -66,7 +71,7 @@ async function runHandoff(page: Page) {
   await page.waitForTimeout(1500)
   return page.evaluate(() => {
     const w = window as unknown as { __logo: Probe }
-    return { added: w.__logo.added, topmost: w.__logo.topmost }
+    return { added: w.__logo.added, topmost: w.__logo.topmost, bare: w.__logo.bare }
   })
 }
 
@@ -75,6 +80,7 @@ test("login -> dashboard: one loading logo is ever on top, and it is added once"
   const probe = await runHandoff(page)
   expect(probe.topmost).toHaveLength(1)
   expect(probe.added).toBeLessThanOrEqual(1)
+  expect(probe.bare).toBe(0)
 })
 
 test("same with a throttled CPU and network", async ({ page, context }) => {
@@ -86,6 +92,7 @@ test("same with a throttled CPU and network", async ({ page, context }) => {
   const probe = await runHandoff(page)
   expect(probe.topmost).toHaveLength(1)
   expect(probe.added).toBeLessThanOrEqual(1)
+  expect(probe.bare).toBe(0)
 })
 
 test("reduced motion: still a single logo", async ({ browser, baseURL }) => {
@@ -93,7 +100,40 @@ test("reduced motion: still a single logo", async ({ browser, baseURL }) => {
   await ctx.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
   const page = await ctx.newPage()
   await installProbe(page)
-  const probe = await runHandoff(page)
-  expect(probe.topmost).toHaveLength(1)
+  await page.goto("/login")
+  await page.waitForFunction(() => Boolean((window as unknown as { __startLoadingHandoff?: unknown }).__startLoadingHandoff))
+  await page.evaluate(() => (window as unknown as { __startLoadingHandoff: (href: string) => void }).__startLoadingHandoff("/dashboard"))
+  // The still logotype, no animated SVG at all.
+  const overlay = page.locator("[data-handoff]")
+  await expect(overlay.locator("img[src*='logotipo']").first()).toBeAttached()
+  await expect(overlay.locator("img[src*='carregamento']")).toHaveCount(0)
+  await page.waitForURL(/\/dashboard$/, { timeout: 30000 })
+  await expect(page.locator("[data-handoff]")).toHaveCount(0, { timeout: 30000 })
+  const probe = await page.evaluate(() => (window as unknown as { __logo: Probe }).__logo)
+  expect(probe.topmost).toHaveLength(0)
+  expect(probe.bare).toBe(0)
   await ctx.close()
+})
+
+/**
+ * The real thing: the sign-in form, against a production build (npm run build && npx next start -p 3210; BASE=http://localhost:3210) and an
+ * existing test account:  E2E_LOGIN_EMAIL=... E2E_LOGIN_PASSWORD=... BASE=... npx playwright test login-logo
+ * Without credentials this is skipped (the hand-off hook above only exists in development).
+ */
+test("production: a real sign-in plays the splash once and never shows the bare wallpaper", async ({ page }) => {
+  const email = process.env.E2E_LOGIN_EMAIL
+  const password = process.env.E2E_LOGIN_PASSWORD
+  test.skip(!email || !password, "needs E2E_LOGIN_EMAIL and E2E_LOGIN_PASSWORD (a real test account)")
+  test.setTimeout(120000)
+  await installProbe(page)
+  await page.goto("/login")
+  await page.getByLabel("E-mail").fill(email!)
+  await page.getByLabel("Senha", { exact: false }).first().fill(password!)
+  await page.getByRole("button", { name: /Entrar|Conectando/ }).first().click()
+  await page.waitForURL(/\/dashboard/, { timeout: 60000 })
+  await expect(page.getByRole("status", { name: "Carregando" })).toHaveCount(0, { timeout: 30000 })
+  await page.waitForTimeout(2000)
+  const probe = await page.evaluate(() => (window as unknown as { __logo: Probe }).__logo)
+  expect(probe.topmost).toHaveLength(1)
+  expect(probe.bare).toBe(0)
 })

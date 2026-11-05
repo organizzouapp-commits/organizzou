@@ -6,8 +6,23 @@ import { useLoadingHandoffActive } from "./loading-handoff"
 
 /** One animated splash per document load: set once any loading logo has been drawn (the hand-off overlay or the first fallback). */
 let played = false
+const KEY = "organizzou:splash-at"
+/** A splash that started within this long ago counts as "just played" even across full page loads (Google sign-in, auth callback). */
+const RECENT_MS = 15_000
 export const markSplashPlayed = () => {
   played = true
+  try {
+    sessionStorage.setItem(KEY, String(Date.now()))
+  } catch {
+    // Private mode: the module flag still covers this document.
+  }
+}
+const playedRecently = () => {
+  try {
+    return Date.now() - Number(sessionStorage.getItem(KEY) ?? 0) < RECENT_MS
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -17,10 +32,17 @@ export const markSplashPlayed = () => {
  */
 export function SplashGate({ animated, still }: { animated: React.ReactNode; still: React.ReactNode }) {
   const handoff = useLoadingHandoffActive()
-  const [animate] = useState(() => !played)
+  const [animate, setAnimate] = useState(() => !played)
+  const [recent, setRecent] = useState(false)
   useEffect(() => {
-    markSplashPlayed()
+    // Read after mount so the server HTML and the first client render agree; a splash drawn right after another one turns into the still logo.
+    const again = playedRecently()
+    if (again) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRecent(true)
+      setAnimate(false)
+    } else markSplashPlayed()
   }, [])
   if (handoff) return null
-  return animate ? animated : still
+  return animate && !recent ? animated : still
 }
