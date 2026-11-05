@@ -732,94 +732,140 @@ test.describe("widths 768–1920", () => {
   })
 })
 
+const DECKS = { "Visão geral": 6, Lançamentos: 4, "Contas fixas": 4, Metas: 4 } as const
+
+/** The counter of the card deck ("1 de 6") that sits inside `scope`. */
+const counter = (scope: Locator) => scope.getByText(/^\d+ de \d+$/).first()
+
 for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { width: 390, height: 844 }], ["430", { width: 430, height: 932 }]] as const) {
   for (const theme of ["dark", "light"]) {
     test.describe(`phone ${label} ${theme}`, () => {
       test.use({ viewport: size, hasTouch: true })
       test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!, theme))
 
-      test("every tab fits; carousels scroll inside their card, never the page; tiles do not overflow; 90px of room below", async ({ page }) => {
+      test("every tab: the header card as in Tarefas, a highlight deck you can swipe and arrow through, nothing scrolls the page", async ({ page }) => {
         await open(page)
-        const tablist = page.getByRole("tablist", { name: "Finanças" })
-        await expect(tablist.getByRole("tab")).toHaveText(["Geral", "Lançamentos", "Fixas", "Metas"])
+        // No page title above the card; the title lives in the header card with the segmented container.
+        await expect(page.getByRole("heading", { level: 1, name: "Finanças" })).toHaveCount(0)
+        const header = page.getByTestId("financas-header-block")
+        await expect(header.getByRole("heading", { name: "Finanças" })).toBeVisible()
+        const tablist = header.getByRole("tablist", { name: "Finanças" })
+        await expect(tablist.getByRole("tab")).toHaveCount(4)
+        expect(parseFloat(await computed(tablist, "border-top-left-radius"))).toBeGreaterThan(100)
         for (const tab of ["Visão geral", "Lançamentos", "Contas fixas", "Metas"] as const) {
           await page.getByRole("tab", { name: SHORT[tab], exact: true }).click()
-          await page.waitForTimeout(300)
+          await page.waitForTimeout(350)
           expect(await noPageScroll(page)).toBe(true)
-          expect(await tablist.getByRole("tab").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length)).toBe(0)
-          expect(await page.locator("[data-bento-stat]").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length)).toBe(0)
           expect(await noCardOverflow(page)).toEqual([])
-        }
-        await page.getByRole("tab", { name: "Geral", exact: true }).click()
-        for (const id of ["accounts-carousel", "goals-carousel"]) {
-          const carousel = page.getByTestId(id)
-          expect(await carousel.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
-          expect(await carousel.evaluate((el) => el.className)).toContain("scroll-soft")
-          await carousel.evaluate((el) => (el.scrollLeft = 120))
-          expect(await noPageScroll(page)).toBe(true)
+          const deck = page.getByTestId("finance-deck").first()
+          await expect(counter(deck)).toHaveText(`1 de ${DECKS[tab]}`)
+          await expect(deck.getByRole("tablist", { name: /Escolher/ }).getByRole("tab")).toHaveCount(Math.min(DECKS[tab], 7))
+          // The card in front is Lima; arrow keys move to the next one, which becomes Lima.
+          const front = deck.locator(".swiper-slide-active").first()
+          const lima = await computed(front.locator("[data-hero-card], [data-bento-stat], [data-bento-card]").first(), "background-color")
+          await page.waitForTimeout(600) // the deck initializes right after hydration
+          await page.keyboard.press("ArrowRight")
+          await expect(counter(deck)).toHaveText(`2 de ${DECKS[tab]}`)
+          await page.waitForTimeout(700)
+          const second = deck.locator(".swiper-slide-active").first().locator("[data-hero-card], [data-bento-stat], [data-bento-card]").first()
+          expect(await computed(second, "background-color")).toBe(lima)
+          // A drag moves it too.
+          await page.waitForTimeout(500)
+          await expect(async () => {
+            const box = (await deck.locator(".swiper").first().boundingBox())!
+            await page.mouse.move(box.x + box.width * 0.9, box.y + 24)
+            await page.mouse.down()
+            await page.mouse.move(box.x + box.width * 0.05, box.y + 24, { steps: 20 })
+            await page.mouse.up()
+            await expect(counter(deck)).toHaveText(`3 de ${DECKS[tab]}`, { timeout: 1500 })
+          }).toPass({ timeout: 12000 })
+          await deck.getByRole("tablist", { name: /Escolher/ }).getByRole("tab").first().click()
+          await expect(counter(deck)).toHaveText(`1 de ${DECKS[tab]}`)
         }
         expect(await page.getByTestId("financas").evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))).toBeGreaterThanOrEqual(90)
       })
 
-      test("contrast: Lima hero with Tinta text, income text, active pills reach 4.5:1", async ({ page }) => {
-        await open(page, "Visão geral", true)
-        const hero = page.locator("[data-hero-card]")
-        expect(await contrast(page, await computed(hero, "color"), await computed(hero, "background-color"))).toBeGreaterThan(4.5)
-        const pill = page.getByRole("tab", { name: "Geral", exact: true })
-        expect(await contrast(page, await computed(pill, "color"), await computed(pill, "background-color"))).toBeGreaterThan(4.5)
-        await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
-        // Only the latest day starts open; open them all to reach the income row.
-        await page.locator("[data-day-group] [data-group-header][aria-expanded=false]").evaluateAll((els) => els.forEach((e) => (e as HTMLElement).click()))
-        await expect(page.locator("[data-money][data-tone=in]").first()).toBeVisible()
-        const income = page.locator("[data-money][data-tone=in]").first()
-        const card = income.locator("xpath=ancestor::div[contains(@class,'rounded-[14px]')][1]")
-        expect(await contrast(page, await computed(income, "color"), await computed(card, "background-color"))).toBeGreaterThan(4.5)
-      })
-    })
-  }
-}
-
-for (const theme of ["dark", "light"]) {
-  for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { width: 390, height: 844 }], ["430", { width: 430, height: 932 }]] as const) {
-    test.describe(`phone ${label} ${theme} (round 3)`, () => {
-      test.use({ viewport: size, hasTouch: true })
-      test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!, theme))
-
-      test("Nova meta is the dashed add pill (44px circle below 420px) and the Saldo total card has chart, legend and no buttons", async ({ page }) => {
-        await open(page, "Metas", true)
-        const pill = page.getByRole("button", { name: "Nova meta" })
-        expect(await computed(pill, "border-top-style")).toBe("dashed")
-        expect(parseFloat(await computed(pill, "border-top-left-radius"))).toBeGreaterThan(100)
-        const box = (await pill.boundingBox())!
-        if (size.width < 420) {
-          expect(Math.round(box.width)).toBe(44)
-          expect(Math.round(box.height)).toBe(44)
-        } else {
-          expect(Math.round(box.height)).toBe(36)
-          await expect(pill).toContainText("Nova meta")
+      test("Visão geral: Contas e bancos and Metas are decks of their own, the Saldo total card has chart and legend and no buttons", async ({ page }) => {
+        await open(page)
+        for (const [id, total] of [["accounts-card", 5], ["goals-card", 4]] as const) {
+          const card = page.getByTestId(id)
+          await expect(counter(card)).toHaveText(`1 de ${total}`)
+          expect(await card.getByTestId(id === "accounts-card" ? "accounts-carousel" : "goals-carousel").evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+          await card.getByRole("tab", { name: /de \d+$/ }).last().click()
+          await expect(counter(card)).toHaveText(`${total} de ${total}`)
         }
-        // Not Lima: its fill is the translucent foreground, never the highlight color.
-        expect(await computed(pill, "background-color")).not.toBe(await computed(page.locator("[data-hero-card]"), "background-color"))
-        await page.getByRole("tab", { name: "Geral", exact: true }).click()
-        const hero = page.locator("[data-hero-card]")
+        await expect(page.getByTestId("accounts-card").getByRole("button", { name: "Gerenciar" })).toBeVisible()
+        await expect(page.getByTestId("accounts-card").getByRole("button", { name: "Adicionar conta…" })).toBeVisible()
+        await expect(page.getByTestId("goals-card").getByRole("button", { name: "Ver todas" })).toBeVisible()
+        const hero = page.locator("[data-hero-card]").first()
         await expect(hero.getByRole("button", { name: /Transferir|Pagar conta/ })).toHaveCount(0)
         const chart = hero.getByTestId("balance-chart")
         await expect(chart).toBeVisible()
         const plot = (await chart.getByTestId("balance-plot").boundingBox())!
-        expect(plot.height).toBeGreaterThanOrEqual(120)
-        expect(plot.height).toBeLessThanOrEqual(150)
+        expect(plot.height).toBeGreaterThanOrEqual(130)
+        expect(plot.height).toBeLessThanOrEqual(175)
         await chart.locator("[data-month]").first().tap()
         await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
         await expect(chart.getByTestId("balance-tooltip")).toBeVisible()
+        const columns = await chart.getByTestId("balance-legend").locator("li").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().left))).size)
+        expect(columns).toBe(size.width >= 390 ? 2 : 1)
         expect(await noPageScroll(page)).toBe(true)
-        expect(await noCardOverflow(page)).toEqual([])
-        // Legend in two columns when there is room, one on the narrowest phones.
-        const items = await chart.getByTestId("balance-legend").locator("li").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().left))).size)
-        expect(items).toBe(size.width >= 390 ? 2 : 1)
-        // The 2x2 tiles keep equal heights per row.
-        const tiles = await page.getByTestId("stat-grid").locator("[data-bento-stat]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().top), Math.round(e.getBoundingClientRect().height)]))
-        expect(tiles[0][1]).toBe(tiles[1][1])
-        expect(tiles[2][1]).toBe(tiles[3][1])
+        // Contrast: Tinta on the Lima hero in both themes.
+        expect(await contrast(page, await computed(hero, "color"), await computed(hero, "background-color"))).toBeGreaterThan(4.5)
+      })
+
+      test("Metas: Nova meta… is the full-width add pill under the group header; goal cards are compact and without a visible grip", async ({ page }) => {
+        await open(page, "Metas", true)
+        const pill = page.locator("[data-group=active]").getByRole("button", { name: "Nova meta…" })
+        const header = (await page.locator("[data-group=active] [data-group-header]").boundingBox())!
+        const box = (await pill.boundingBox())!
+        expect(Math.round(box.height)).toBe(44)
+        expect(box.y).toBeGreaterThan(header.y + header.height / 2)
+        expect(box.width).toBeGreaterThan(size.width - 48)
+        expect(await computed(pill, "border-top-style")).toBe("dashed")
+        const cards = page.locator("[data-group=active] [data-goal]")
+        await expect(cards).toHaveCount(3)
+        for (let i = 0; i < 3; i += 1) {
+          const card = cards.nth(i)
+          const b = (await card.boundingBox())!
+          expect(b.height).toBeLessThan(290)
+          expect(Math.round((await card.getByRole("progressbar").boundingBox())!.width)).toBe(64)
+          expect(await computed(card.locator("[data-goal-title]"), "text-overflow")).toBe("ellipsis")
+          expect(await card.locator("[data-grip]").count()).toBeGreaterThanOrEqual(0)
+          if (await card.locator("[data-grip]").count()) expect(await computed(card.locator("[data-grip]").first(), "display")).toBe("none")
+          const guardar = (await card.getByRole("button", { name: "Guardar" }).boundingBox())!
+          expect(Math.round(guardar.height)).toBe(36)
+          expect(guardar.width).toBeLessThan(140)
+          expect(Math.round(parseFloat(await computed(card, "padding-left")))).toBe(14)
+        }
+        // The accessible alternative to dragging: Mover para baixo / Destacar in the menu.
+        await cards.nth(1).getByRole("button", { name: /^Ações de/ }).click()
+        await expect(page.getByRole("menuitem")).toContainText(["Destacar", "Mover para cima", "Mover para baixo", "Editar", "Excluir"])
+        await page.getByRole("menuitem", { name: "Mover para baixo" }).click()
+        await expect(page.locator("[data-group=active] [data-goal]").nth(2)).toContainText("Reserva de emergência")
+        await expect(page.locator("[data-group=done] [data-group-header]")).toHaveAttribute("aria-expanded", "false")
+        expect(await noPageScroll(page)).toBe(true)
+      })
+
+      test("Lançamentos: one scrolling pill row inside the header card, the quick-add label is never cut", async ({ page }) => {
+        await open(page, "Lançamentos", true)
+        const header = page.getByTestId("financas-header-block")
+        const row = header.getByTestId("filter-row")
+        const pills = row.locator("[data-pill-row]")
+        expect(await pills.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+        expect(await pills.evaluate((el) => el.className)).toContain("no-scrollbar")
+        await expect(row.getByRole("button", { name: /Rolar categorias/ })).toHaveCount(0)
+        await expect(row.getByRole("group", { name: "Filtrar por tipo" }).getByRole("button")).toHaveText([/^Todos\s*\d+$/, /^Entradas\s*\d+$/, /^Saídas\s*\d+$/])
+        // Todos | Entradas | Saídas and the categories share ONE line.
+        const [first, last] = [(await row.getByRole("button", { name: /^Todos/ }).boundingBox())!, (await row.getByRole("button", { name: /^Moradia/ }).boundingBox())!]
+        expect(Math.abs(first.y - last.y)).toBeLessThan(4)
+        // Lima for the active pill.
+        expect(await computed(row.getByRole("button", { name: /^Todos/ }), "background-color")).not.toMatch(/rgba\(0, 0, 0, 0\)/)
+        const add = page.locator("[data-add-task-pill]").first()
+        const text = add.locator("span").first()
+        expect(await text.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+        await expect(add).toContainText("Adicionar… ex.: mercado 45,90")
+        expect(await noPageScroll(page)).toBe(true)
       })
     })
   }
@@ -829,20 +875,15 @@ test.describe("phone behaviors", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
   test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
 
-  test("Visão geral: order of cards, 2x2 stats, chart month by tap, Pagar, Últimas movimentações", async ({ page }) => {
+  test("Visão geral: order of the blocks, Pagar + Desfazer, Últimas movimentações", async ({ page }) => {
     await open(page)
-    const sections = page.locator("[data-testid=overview-grid] > section[aria-label]")
-    await expect(sections).toHaveCount(7)
-    const order = await sections.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))
-    expect(order).toEqual(["Saldo total", "Contas e bancos", "Orçamento", "Fluxo de caixa", "Para ficar de olho", "Metas", "Últimas movimentações"])
-    const tiles = await page.getByTestId("stat-grid").locator("[data-bento-stat]").evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top)]))
-    expect(new Set(tiles.map((t) => t[0])).size).toBe(2)
-    expect(new Set(tiles.map((t) => t[1])).size).toBe(2)
-    await expect(page.getByTestId("budget-card").locator("[data-category-card]")).toHaveCount(3)
+    const blocks = page.locator("[data-testid=overview-grid] > *")
+    await expect(blocks).toHaveCount(7)
+    const labels = await blocks.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("aria-label")))
+    expect(labels).toEqual(["finance-deck", "accounts-card", "spending-card", "cashflow-card", "watch-list", "goals-card", "recent-card"])
     const chart = page.getByTestId("cashflow-chart")
     await chart.locator("[data-month]").first().tap()
     await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
-    expect(Math.round((await chart.boundingBox())!.height)).toBe(210)
     const watch = page.getByTestId("watch-list")
     const bill = watch.locator("[data-bill]").filter({ hasText: "Energia elétrica" })
     const [title, amount, pill] = [await bill.locator("[data-item-title]").boundingBox(), await bill.locator("[data-money]").boundingBox(), await bill.getByRole("button", { name: "Pagar" }).boundingBox()]
@@ -856,22 +897,13 @@ test.describe("phone behaviors", () => {
     await expect(page.getByRole("tab", { name: "Lançamentos", exact: true })).toHaveAttribute("aria-selected", "true")
   })
 
-  test("Lançamentos: header card with the filter row, hero + 2 tiles, quick add under them, swipe left deletes, filter sheet with count", async ({ page }) => {
+  test("Lançamentos: deck of four, quick add under it, swipe left deletes, filter sheet with count", async ({ page }) => {
     await open(page, "Lançamentos", true)
-    await expect(page.locator("[data-hero-card]")).toContainText("Saídas do mês")
-    await expect(page.getByTestId("transaction-tiles").locator("[data-bento-stat]")).toHaveCount(2)
-    const row = page.getByTestId("filter-row")
-    const pills = row.locator("[data-pill-row]").first()
-    expect(await pills.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
-    expect(await pills.evaluate((el) => el.className)).toContain("no-scrollbar")
-    // The kinds on the first line, the categories on a second one.
-    const [kinds, cats] = [(await row.getByRole("group", { name: "Filtrar por tipo" }).boundingBox())!, (await pills.boundingBox())!]
-    expect(cats.y).toBeGreaterThan(kinds.y + kinds.height - 2)
-    expect(await noPageScroll(page)).toBe(true)
-    // The pill rows live in the solid header card, as in Minhas tarefas.
-    expect(await row.evaluate((el) => !!el.closest("[data-testid=financas-header-block]"))).toBe(true)
-    const rowY = (await row.boundingBox())!.y
+    await expect(page.locator("[data-hero-card]").first()).toContainText("Saídas do mês")
+    await expect(counter(page.getByTestId("finance-deck"))).toHaveText("1 de 4")
+    const rowY = (await page.getByTestId("filter-row").boundingBox())!.y
     expect((await page.locator("[data-add-task-pill]").first().boundingBox())!.y).toBeGreaterThan(rowY)
+    expect(await noPageScroll(page)).toBe(true)
     const tx = page.locator("[data-transaction]").filter({ hasText: "Padaria da esquina" })
     await swipe(tx, -160)
     await expect(page.getByText("Lançamento excluído.")).toBeVisible()
@@ -885,10 +917,9 @@ test.describe("phone behaviors", () => {
     await expect(page.getByRole("searchbox", { name: "Buscar lançamentos" })).toBeVisible()
   })
 
-  test("Contas fixas: hero, two tiles, day chips filter the list, two-line cards with swipe", async ({ page }) => {
+  test("Contas fixas: deck of four, day chips filter the list, two-line cards with swipe", async ({ page }) => {
     await open(page, "Contas fixas", true)
-    await expect(page.locator("[data-hero-card] [data-hatched]")).toHaveCount(1)
-    await expect(page.getByTestId("bill-stats").locator("[data-bento-stat]")).toHaveText([/Pagas/, /A pagar/, /Atrasadas/])
+    await expect(counter(page.getByTestId("finance-deck"))).toHaveText("1 de 4")
     const timeline = page.getByTestId("month-timeline")
     const chip = timeline.locator("[data-day]").first()
     expect(Math.round((await chip.boundingBox())!.width)).toBe(44)
@@ -913,24 +944,6 @@ test.describe("phone behaviors", () => {
     await expect(page.getByText("Conta fixa excluída.")).toBeVisible()
     await undoBtn(page).click()
     await expect(bill).toHaveCount(1)
-  })
-
-  test("Metas: 2x2 top cards, + Nova meta pill, stacked full goal cards with a 44px Lima Guardar, achieved collapsed", async ({ page }) => {
-    await open(page, "Metas", true)
-    await expect(page.locator("[data-hero-card] [data-hatched]")).toHaveCount(1)
-    await expect(page.getByTestId("goal-stats").locator("[data-bento-stat]")).toHaveCount(3)
-    await expect(page.getByRole("button", { name: "Nova meta" })).toBeVisible()
-    const featured = page.locator("[data-featured]")
-    const guardar = featured.getByRole("button", { name: "Guardar" })
-    expect(Math.round((await guardar.boundingBox())!.height)).toBeGreaterThanOrEqual(44)
-    const rows = page.locator("[data-group=active] [data-goal]:not([data-featured])")
-    await expect(rows).toHaveCount(2)
-    const ring = await rows.first().getByRole("progressbar").boundingBox()
-    expect(Math.round(ring!.width)).toBe(120)
-    const plus = await rows.first().getByRole("button", { name: "Guardar" }).boundingBox()
-    expect(plus!.width).toBeGreaterThanOrEqual(44)
-    await expect(page.locator("[data-group=done] [data-group-header]")).toHaveAttribute("aria-expanded", "false")
-    expect(await noPageScroll(page)).toBe(true)
   })
 
   test("dialogs on phones: bottom sheet, primary action in view", async ({ page }) => {

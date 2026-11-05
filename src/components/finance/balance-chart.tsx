@@ -177,7 +177,7 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
         <span data-testid="balance-legend-month">De onde vem · {monthName(selected.month, "MMMM")}</span>
         <MoneyText cents={selected.total} tone="value" className="font-semibold" />
       </div>
-      <ul data-testid="balance-legend" className="grid grid-cols-1 gap-x-5 gap-y-0.5 @[300px]:grid-cols-2">
+      <ul data-testid="balance-legend" className="grid grid-cols-1 gap-x-5 gap-y-0.5 @[280px]:grid-cols-2">
         {sorted(selected).map((p) => {
           const pressed = isolate === p.id
           return (
