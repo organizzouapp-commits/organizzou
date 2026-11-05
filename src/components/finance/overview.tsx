@@ -277,11 +277,11 @@ export function AccountsBento() {
 export function AccountsCarousel() {
   const f = useFinance()
   const slides = [
-    ...f.accounts.map((a) => ({ id: a.id, node: <Wallet account={a} className="min-h-[150px]" /> })),
+    ...f.accounts.map((a) => ({ id: a.id, node: <Wallet account={a} className="min-h-[150px] rounded-[20px]" /> })),
     {
       id: "add",
       node: (
-        <button type="button" data-add-task-pill onClick={f.openNewAccount} className="flex min-h-[150px] w-full flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border p-3 text-[14px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+        <button type="button" data-add-task-pill data-last-slide onClick={f.openNewAccount} className="flex min-h-[150px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-border bg-card p-3 text-[14px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <PlusIcon aria-hidden strokeWidth={1.75} className="size-5" />
           Adicionar conta…
         </button>
@@ -291,7 +291,7 @@ export function AccountsCarousel() {
   return (
     <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} actions={<ManageButton />} data-testid="accounts-card">
       <div data-testid="accounts-carousel">
-        <FinanceDeck slides={slides} title={null} label="Contas e bancos" noun="conta" initialHeight={150} widthClass="w-[80%] max-w-[300px]" />
+        <FinanceDeck slides={slides} title={null} label="Contas e bancos" noun="conta" initialHeight={150} widthClass="w-[72%] max-w-[260px]" />
       </div>
     </BentoCard>
   )
@@ -333,7 +333,7 @@ export function GoalsCarousel() {
     ...goals.map((g) => ({
       id: g.id,
       node: (
-        <div data-goal={g.id} className="flex min-h-[170px] flex-col gap-2 rounded-[14px] border border-border bg-card p-3">
+        <div data-goal={g.id} className="flex min-h-[170px] flex-col gap-2 rounded-[20px] border border-border bg-card p-3.5">
           <div className="flex items-center gap-3">
             <GoalRing goal={g} size={64} />
             <div className="flex min-w-0 flex-col">
@@ -352,9 +352,9 @@ export function GoalsCarousel() {
     {
       id: "all",
       node: (
-        <button type="button" onClick={() => f.goTab("metas")} className="flex min-h-[170px] w-full flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border p-3 text-[14px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+        <button type="button" data-last-slide onClick={() => f.goTab("metas")} className="flex min-h-[170px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-border bg-card p-3 text-[14px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-5" />
-          Ver todas
+          Ver todas as metas
         </button>
       ),
     },
@@ -362,7 +362,7 @@ export function GoalsCarousel() {
   return (
     <BentoCard title="Metas" subtitle={`${goals.length} em andamento`} onArrow={() => f.goTab("metas")} arrowLabel="Ver metas" data-testid="goals-card">
       <div data-testid="goals-carousel">
-        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : <FinanceDeck slides={slides} title={null} label="Metas" noun="meta" initialHeight={170} widthClass="w-[80%] max-w-[300px]" />}
+        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : <FinanceDeck slides={slides} title={null} label="Metas" noun="meta" initialHeight={170} widthClass="w-[72%] max-w-[260px]" />}
       </div>
     </BentoCard>
   )
@@ -430,7 +430,7 @@ export function OverviewDesktop() {
   )
 }
 
-/** Phones: the highlights as one deck (Saldo total in front with its chart), then the rest of the cards one under the other. */
+/** Phones: the highlights as one deck (Saldo total in front with its chart), then the rest of the cards, normal ones, one under the other. */
 export function OverviewMobile() {
   const slides: FinanceSlide[] = [
     { id: "saldo", hero: true, node: <BalanceHero fill={false} /> },
@@ -438,11 +438,11 @@ export function OverviewMobile() {
     { id: "saidas", node: <ExpenseStat /> },
     { id: "saldo-mes", node: <SurplusStat /> },
     { id: "fixas", node: <FixedToPayStat /> },
-    { id: "orcamento", node: <BudgetBento fill={false} /> },
   ]
   return (
     <div data-testid="overview-grid" className="flex flex-col gap-3">
       <FinanceDeck slides={slides} initialHeight={430} />
+      <BudgetBento fill={false} />
       <AccountsCarousel />
       <SpendingBento />
       <CashflowBento />
