@@ -611,7 +611,7 @@ test.describe("desktop 1440", () => {
     expect(new Set(bars.map((b) => b[1])).size).toBe(1)
   })
 
-  test("Saldo total: evolution + composition chart with a negative account, month by click and keyboard, legend isolate", async ({ page }) => {
+  test("Saldo total: evolution + composition chart with a negative account, numbers only on hover / tap / focus", async ({ page }) => {
     await open(page)
     // Make Carteira negative: its Farmácia expense grows past the balance (R$ 300 opening).
     await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
@@ -639,35 +639,35 @@ test.describe("desktop 1440", () => {
     expect(await chart.locator("[data-tick]").count()).toBeGreaterThanOrEqual(3)
     await expect(chart.locator("[data-tick]").first()).toContainText(/^−|mil|d/)
     await expect(chart.getByTestId("balance-plot")).toHaveAttribute("aria-label", /Saldo total em .*: .*composto por .*Carteira − R\$/)
-    // Legend: swatch, name, value and % for the selected month; the negative one has no %.
-    const legend = chart.getByTestId("balance-legend").locator("li")
-    await expect(legend).toHaveCount(4)
-    await expect(legend.filter({ hasText: "Carteira" })).toContainText("− R$")
-    await expect(legend.filter({ hasText: "Carteira" })).not.toContainText("%")
-    await expect(legend.filter({ hasText: "Poupança" })).toContainText("%")
-    const before = await chart.getByTestId("balance-legend-month").textContent()
-    // Month by click, then by keyboard: tooltip, legend month and the plot's label follow.
-    await months.nth(1).click()
+    // Nothing is printed under the chart: no legend, no "De onde vem" block, and no tooltip until the pointer (or focus) is on a month.
+    await expect(chart.getByTestId("balance-legend")).toHaveCount(0)
+    await expect(hero).not.toContainText("De onde vem")
+    await expect(chart.getByTestId("balance-tooltip")).toHaveCount(0)
+    await expect(months.last()).toHaveAttribute("aria-pressed", "true")
+    // Hover: that column turns solid and stacked, the tooltip lists every account (the negative one with "− R$").
+    await months.nth(1).hover()
     await expect(months.nth(1)).toHaveAttribute("aria-pressed", "true")
-    await expect(chart.getByTestId("balance-tooltip")).toContainText("Nubank")
-    await expect(chart.getByTestId("balance-tooltip")).toContainText("Carteira")
-    await expect(chart.getByTestId("balance-legend-month")).not.toHaveText(before!)
+    const tip = chart.getByTestId("balance-tooltip")
+    for (const name of ["Nubank", "Itaú", "Poupança", "Carteira"]) await expect(tip).toContainText(name)
+    await months.last().hover()
+    await expect(tip).toContainText(/Carteira\s*− R\$/)
+    await months.nth(1).hover()
+    await expect(months.nth(1).locator("[data-segment]").first()).toBeVisible()
+    // Leaving the chart goes back to the default: the current month highlighted, no tooltip.
+    await page.mouse.move(5, 5)
+    await expect(tip).toHaveCount(0)
+    await expect(months.last()).toHaveAttribute("aria-pressed", "true")
+    // Keyboard: focus shows the tooltip, the arrows move between months.
     await months.nth(1).focus()
+    await expect(tip).toBeVisible()
     await page.keyboard.press("ArrowRight")
     await expect(months.nth(2)).toHaveAttribute("aria-pressed", "true")
     await expect(months.nth(2)).toBeFocused()
     await page.keyboard.press("End")
     await expect(months.last()).toHaveAttribute("aria-pressed", "true")
-    await expect(chart.getByTestId("balance-legend-month")).toHaveText(before!)
-    // Isolate an account: its segments stay, the others fade; again to undo.
-    const nubank = chart.locator("[data-legend-account]").filter({ hasText: "Nubank" })
-    await nubank.click()
-    await expect(nubank).toHaveAttribute("aria-pressed", "true")
-    const opacities = await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-segment"), getComputedStyle(e).opacity]))
-    expect(new Set(opacities.map((o) => o[1]))).toEqual(new Set(["0.2", "1"]))
-    await nubank.click()
-    await expect(nubank).toHaveAttribute("aria-pressed", "false")
-    expect(new Set(await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => getComputedStyle(e).opacity)))).toEqual(new Set(["1"]))
+    // Screen readers get every month in a hidden table.
+    await expect(chart.getByTestId("balance-table").locator("tr")).toHaveCount(6)
+    await expect(chart.getByTestId("balance-table")).toContainText(/Carteira\s*−/)
     // Row 1 stretches: the hero, the stat grid and the budget share one height.
     const heights = await Promise.all([hero, page.getByTestId("stat-grid"), page.getByTestId("budget-card")].map(async (l) => Math.round((await l.boundingBox())!.height)))
     expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(2)
@@ -732,7 +732,7 @@ test.describe("widths 768–1920", () => {
   })
 })
 
-const DECKS = { "Visão geral": 6, Lançamentos: 4, "Contas fixas": 4, Metas: 4 } as const
+const DECKS = { "Visão geral": 5, Lançamentos: 3, "Contas fixas": 4, Metas: 4 } as const
 
 /** The counter of the card deck ("1 de 6") that sits inside `scope`. */
 const counter = (scope: Locator) => scope.getByText(/^\d+ de \d+$/).first()
@@ -807,8 +807,7 @@ for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { wid
         await chart.locator("[data-month]").first().tap()
         await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
         await expect(chart.getByTestId("balance-tooltip")).toBeVisible()
-        const columns = await chart.getByTestId("balance-legend").locator("li").evaluateAll((els) => new Set(els.map((e) => Math.round(e.getBoundingClientRect().left))).size)
-        expect(columns).toBe(size.width >= 390 ? 2 : 1)
+        await expect(chart.getByTestId("balance-legend")).toHaveCount(0)
         expect(await noPageScroll(page)).toBe(true)
         // Contrast: Tinta on the Lima hero in both themes.
         expect(await contrast(page, await computed(hero, "color"), await computed(hero, "background-color"))).toBeGreaterThan(4.5)
@@ -871,6 +870,184 @@ for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { wid
   }
 }
 
+const parseRgb = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number)
+
+for (const theme of ["dark", "light"]) {
+  for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { width: 390, height: 844 }], ["430", { width: 430, height: 932 }]] as const) {
+    test.describe(`phone ${label} ${theme} (round 5)`, () => {
+      test.use({ viewport: size, hasTouch: true })
+      test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!, theme))
+
+      test("Orçamento and Por categoria are normal cards in the page flow, never slides", async ({ page }) => {
+        await open(page)
+        const deck = page.getByTestId("finance-deck").first()
+        const lima = await computed(deck.locator("[data-hero-card]").first(), "background-color")
+        const budget = page.getByTestId("budget-card")
+        expect(await budget.evaluate((el) => !el.closest("[data-testid=finance-deck]"))).toBe(true)
+        expect(await computed(budget, "background-color")).not.toBe(lima)
+        expect(parseFloat(await computed(budget, "border-top-left-radius"))).toBe(20)
+        expect(parseFloat(await computed(budget, "border-top-width"))).toBe(1)
+        const [d, b, acc] = await Promise.all([deck.boundingBox(), budget.boundingBox(), page.getByTestId("accounts-card").boundingBox()])
+        expect(b!.y).toBeGreaterThan(d!.y + d!.height - 2)
+        expect(acc!.y).toBeGreaterThan(b!.y + b!.height - 2)
+        const ring = (await budget.locator("[data-budget-ring]").boundingBox())!
+        expect(ring.width).toBeGreaterThanOrEqual(104)
+        expect(ring.width).toBeLessThanOrEqual(128)
+        await expect(budget).toContainText("usado")
+        await expect(budget).toContainText(/R\$ .* de R\$ /)
+        await expect(budget).toContainText(/Restam R\$/)
+        await expect(deck.getByText("Orçamento")).toHaveCount(0)
+
+        await page.getByRole("tab", { name: "Lançamentos", exact: true }).click()
+        await page.waitForTimeout(500)
+        const deck2 = page.getByTestId("finance-deck").first()
+        await expect(deck2.getByText("Por categoria")).toHaveCount(0)
+        const card = page.getByTestId("category-card")
+        expect(await card.evaluate((el) => !el.closest("[data-testid=finance-deck]"))).toBe(true)
+        expect(parseFloat(await computed(card, "border-top-left-radius"))).toBe(20)
+        expect(await computed(card, "background-color")).not.toBe(lima)
+        const [d2, c2, add] = await Promise.all([deck2.boundingBox(), card.boundingBox(), page.locator("[data-add-task-pill]").first().boundingBox()])
+        expect(c2!.y).toBeGreaterThan(d2!.y + d2!.height - 2)
+        expect(add!.y).toBeGreaterThan(c2!.y + c2!.height - 2)
+        // The legend: equal row heights, amounts right-aligned on one edge.
+        const rows = await card.locator("[data-legend]").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
+        expect(new Set(rows)).toEqual(new Set([28]))
+        const rights = await card.locator("[data-legend] > span:nth-child(3)").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().right)))
+        expect(new Set(rights).size).toBe(1)
+        expect(await noPageScroll(page)).toBe(true)
+      })
+
+      test("Contas e bancos and Metas: every slide, the last one included, is a solid card, Lima when in front, and readable", async ({ page }) => {
+        await open(page)
+        await page.waitForTimeout(1500) // the decks initialize right after hydration
+        // Lima, as the browser resolves it in this theme.
+        const lima = await page.evaluate(() => {
+          const probe = document.createElement("div")
+          probe.style.backgroundColor = "var(--highlight)"
+          document.body.appendChild(probe)
+          const color = getComputedStyle(probe).backgroundColor
+          probe.remove()
+          return color
+        })
+        for (const id of ["accounts-card", "goals-card"] as const) {
+          const card = page.getByTestId(id)
+          const dots = card.getByRole("tablist", { name: /Escolher/ }).getByRole("tab")
+          const total = await dots.count()
+          for (let i = 0; i < total; i += 1) {
+            await dots.nth(i).click()
+            await expect(card.getByText(new RegExp(`^${i + 1} de ${total}$`)).first()).toBeVisible()
+            await page.waitForTimeout(650)
+            const slide = card.locator(".swiper-slide-active").first()
+            const inner = slide.locator("[data-wallet], [data-goal], [data-last-slide]").first()
+            const bg = parseRgb(await computed(inner, "background-color"))
+            // Solid (no transparency) and Lima in front.
+            expect(bg.length === 3 || bg[3] === 1).toBe(true)
+            expect(await computed(inner, "background-color")).toBe(lima)
+            if (i === total - 1) {
+              await expect(inner).toHaveAttribute("data-last-slide")
+              expect(await contrast(page, await computed(inner, "color"), await computed(inner, "background-color"))).toBeGreaterThan(4.5)
+              await expect(inner).toContainText(id === "accounts-card" ? "Adicionar conta…" : "Ver todas as metas")
+              // Nothing of the previous slide shows through: this card is what the pointer hits.
+              const hit = await inner.evaluate((el) => {
+                const r = el.getBoundingClientRect()
+                const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+                return Boolean(top && el.contains(top))
+              })
+              expect(hit).toBe(true)
+            }
+          }
+          // The last card does what it says.
+          await card.scrollIntoViewIfNeeded()
+          await page.waitForTimeout(400)
+          if (id === "accounts-card") {
+            await card.getByRole("button", { name: "Adicionar conta…" }).click()
+            await expect(page.locator("[role=dialog]").first()).toContainText("Nova conta")
+            await page.keyboard.press("Escape")
+            await page.waitForTimeout(600)
+          } else {
+            await card.getByRole("button", { name: "Ver todas as metas" }).click()
+            await expect(page.getByRole("tab", { name: "Metas", exact: true })).toHaveAttribute("aria-selected", "true")
+          }
+        }
+      })
+
+      test("no hard slivers: the neighbours of every deck are rounded and inside the page", async ({ page }) => {
+        await open(page)
+        for (const tab of ["Visão geral", "Lançamentos", "Contas fixas", "Metas"] as const) {
+          await page.getByRole("tab", { name: SHORT[tab], exact: true }).click()
+          await page.waitForTimeout(700)
+          for (const swiper of await page.locator(".swiper").all()) {
+            const info = await swiper.evaluate((el) => {
+              const wrap = el.parentElement!.getBoundingClientRect()
+              return Array.from(el.querySelectorAll(".swiper-slide-active, .swiper-slide-prev, .swiper-slide-next")).map((s) => {
+                const r = s.getBoundingClientRect()
+                return { radius: parseFloat(getComputedStyle(s).borderTopLeftRadius), left: r.left, right: r.right, wrapLeft: wrap.left, wrapRight: wrap.right }
+              })
+            })
+            for (const slide of info) {
+              expect(slide.radius).toBe(20)
+              // Never cut square by the section edge: the neighbours stay inside the room around the deck.
+              expect(slide.left).toBeGreaterThanOrEqual(slide.wrapLeft - 1)
+              expect(slide.right).toBeLessThanOrEqual(slide.wrapRight + 1)
+            }
+          }
+          expect(await noPageScroll(page)).toBe(true)
+        }
+      })
+    })
+  }
+}
+
+test.describe("deck parity with Hoje (390)", () => {
+  for (const theme of ["dark", "light"]) {
+    test(`Hoje and Finanças decks have the same geometry, ${theme}`, async ({ browser, baseURL }) => {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true })
+      await ctx.addCookies([{ name: "organizzou_consent", value: CONSENT, url: baseURL! }])
+      await ctx.addInitScript(([t, colors]) => {
+        try {
+          localStorage.setItem("theme", t)
+          localStorage.setItem("organizzou:tarefas-colors", colors)
+        } catch {}
+      }, [theme, JSON.stringify(COLORS)])
+      const page = await ctx.newPage()
+      const measure = () =>
+        page.evaluate(() => {
+          const sw = document.querySelector(".swiper") as HTMLElement
+          const slides = Array.from(sw.querySelectorAll(".swiper-slide"))
+          const pick = (cls: string) => {
+            const s = slides.find((x) => x.classList.contains(cls))
+            if (!s) return null
+            const r = s.getBoundingClientRect()
+            return { radius: getComputedStyle(s).borderTopLeftRadius, width: Math.round(r.width), z: getComputedStyle(s).zIndex }
+          }
+          return { swiper: Math.round(sw.getBoundingClientRect().width), overflow: getComputedStyle(sw).overflow, active: pick("swiper-slide-active"), next: pick("swiper-slide-next"), prev: pick("swiper-slide-prev"), scroll: document.documentElement.scrollWidth <= innerWidth }
+        })
+      await page.goto("/dashboard")
+      await page.waitForSelector(".swiper-slide", { timeout: 60000 })
+      await page.waitForTimeout(1500)
+      const hoje = await measure()
+      await page.goto("/design-system/financas")
+      await expect(page.getByRole("tablist", { name: "Finanças" })).toBeVisible({ timeout: 60000 })
+      const target = page.getByRole("tab", { name: "Metas", exact: true })
+      await expect(async () => {
+        await target.click()
+        await expect(target).toHaveAttribute("aria-selected", "true", { timeout: 1500 })
+      }).toPass({ timeout: 20000 })
+      await page.waitForTimeout(1500)
+      const fin = await measure()
+      expect(fin.swiper).toBe(hoje.swiper)
+      expect(fin.overflow).toBe(hoje.overflow)
+      for (const k of ["active", "next", "prev"] as const) {
+        expect(fin[k]?.radius).toBe(hoje[k]?.radius)
+        expect(Math.abs((fin[k]?.width ?? 0) - (hoje[k]?.width ?? 0))).toBeLessThanOrEqual(1)
+      }
+      expect(fin.scroll).toBe(true)
+      expect(hoje.scroll).toBe(true)
+      await ctx.close()
+    })
+  }
+})
+
 test.describe("phone behaviors", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
   test.beforeEach(async ({ context, baseURL }) => consent(context, baseURL!))
@@ -878,9 +1055,10 @@ test.describe("phone behaviors", () => {
   test("Visão geral: order of the blocks, Pagar + Desfazer, Últimas movimentações", async ({ page }) => {
     await open(page)
     const blocks = page.locator("[data-testid=overview-grid] > *")
-    await expect(blocks).toHaveCount(7)
+    await expect(blocks).toHaveCount(8)
     const labels = await blocks.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("aria-label")))
-    expect(labels).toEqual(["finance-deck", "accounts-card", "spending-card", "cashflow-card", "watch-list", "goals-card", "recent-card"])
+    // Orçamento is a normal card in the page flow, right under the deck, not a slide.
+    expect(labels).toEqual(["finance-deck", "budget-card", "accounts-card", "spending-card", "cashflow-card", "watch-list", "goals-card", "recent-card"])
     const chart = page.getByTestId("cashflow-chart")
     await chart.locator("[data-month]").first().tap()
     await expect(chart.locator("[data-month]").first()).toHaveAttribute("aria-pressed", "true")
