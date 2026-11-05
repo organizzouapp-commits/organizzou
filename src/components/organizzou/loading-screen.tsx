@@ -1,7 +1,7 @@
-import { AnimatedLogo } from "@/components/organizzou/animated-logo"
 import { cn } from "@/lib/utils"
 
 import { SplashGate } from "./splash-gate"
+import { SplashLogo } from "./splash/splash-logo"
 
 type Props = { delayed?: boolean; preload?: boolean; className?: string }
 
@@ -19,10 +19,10 @@ function StillLogo() {
 }
 
 /** The screen itself, with no gate: the hand-off overlay draws this one. */
-export function LoadingScreenView({ delayed = false, preload = false, className, still = false }: Props & { still?: boolean }) {
+export function LoadingScreenView({ delayed = false, className, still = false, fallback = true }: Props & { still?: boolean; /** A route loading state (hidden while the post-login splash is on); false for the hand-off overlay itself. */ fallback?: boolean }) {
   return (
-    <div role="status" aria-label="Carregando" className={cn("fixed inset-0 z-[100] flex items-center justify-center bg-background", delayed && "loading-delayed", className)}>
-      {still ? <StillLogo /> : <AnimatedLogo variant="loading" size="fluid" preload={preload} />}
+    <div role="status" aria-label="Carregando" data-fallback-splash={fallback ? "" : undefined} className={cn("fixed inset-0 z-[100] flex items-center justify-center bg-background", delayed && "loading-delayed", className)}>
+      {still ? <StillLogo /> : <SplashLogo />}
     </div>
   )
 }

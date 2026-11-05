@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { SPLASH_RETURN_COOKIE, SPLASH_START_COOKIE } from "@/components/organizzou/splash/splash-boot"
 import { safeNextPath } from "@/lib/safe-next"
 import { createClient } from "@/lib/supabase/server"
 
@@ -14,7 +15,13 @@ export async function GET(request: NextRequest) {
   if (code && !searchParams.has("error")) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) return NextResponse.redirect(`${origin}${next}`)
+    if (!error) {
+      // ONE 302, straight to the final URL. If the login started the post-login splash, the return is stamped so the dashboard document
+      // continues it (see lib/splash-resume.ts); the cookie is readable by the page's boot script, not httpOnly.
+      const response = NextResponse.redirect(`${origin}${next}`)
+      if (request.cookies.has(SPLASH_START_COOKIE)) response.cookies.set(SPLASH_RETURN_COOKIE, String(Date.now()), { path: "/", maxAge: 60, sameSite: "lax", httpOnly: false })
+      return response
+    }
   }
 
   return NextResponse.redirect(failure ? `${origin}/entrar?error=oauth` : `${origin}/entrar?erro=link`)

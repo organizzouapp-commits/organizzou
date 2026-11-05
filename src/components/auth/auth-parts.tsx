@@ -7,6 +7,7 @@ import { EyeIcon, EyeOffIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { startLoadingHandoff } from "@/components/organizzou/loading-handoff"
+import { markSplashStart } from "@/components/organizzou/splash/splash-controller"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signInWithGoogle } from "@/features/auth/actions"
@@ -50,6 +51,9 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
               const result = await signInWithGoogle(next)
               if (result.ok) {
                 setRedirecting(true)
+                // The page is about to be replaced by Google's and then by the dashboard (full page loads): leave the start time where the next
+                // documents can read it, so they continue THIS splash instead of starting another one.
+                markSplashStart()
                 startLoadingHandoff()
                 window.location.assign(result.url)
               } else {

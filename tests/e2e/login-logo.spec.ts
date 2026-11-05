@@ -26,12 +26,11 @@ async function installProbe(page: Page) {
     w.__logo = { added: 0, topmost: [], seen: new WeakMap(), bare: 0 }
     let next = 0
     const counted = new WeakSet<Element>()
-    const isLogo = (el: Element): el is HTMLImageElement => el instanceof HTMLImageElement && /organizzou-logo-carregamento/.test(el.getAttribute("src") ?? "")
     new MutationObserver((records) => {
       for (const r of records) r.addedNodes.forEach((n) => {
         if (!(n instanceof Element)) return
         // One loader instance = one [role=status] "Carregando" root (each holds a dark and a light <img>).
-        for (const root of [n, ...Array.from(n.querySelectorAll("[role=status]"))]) if (root.getAttribute("role") === "status" && root.getAttribute("aria-label") === "Carregando" && root.querySelector("img") && !counted.has(root)) {
+        for (const root of [n, ...Array.from(n.querySelectorAll("[role=status]"))]) if (root.id !== "org-splash" && root.getAttribute("role") === "status" && root.getAttribute("aria-label") === "Carregando" && root.querySelector(".org-splash-logo, img") && !counted.has(root)) {
           counted.add(root)
           w.__logo.added += 1
         }
@@ -43,12 +42,13 @@ async function installProbe(page: Page) {
         const shell = document.querySelector("[data-app-scroll]")
         if (!shell || (shell.textContent ?? "").trim().length <= 20 || document.querySelector(".page-skeleton")) w.__logo.bare += 1
       }
-      const logos = Array.from(document.querySelectorAll("img")).filter(isLogo).filter((i) => getComputedStyle(i).display !== "none")
+      // The logo is an inline SVG now (.org-splash-logo), the same markup in the hand-off overlay, the route loaders and the server-rendered splash.
+      const logos = Array.from(document.querySelectorAll(".org-splash-logo")).filter((i) => i.getClientRects().length > 0)
       for (const img of logos) {
         const box = img.getBoundingClientRect()
         if (box.width === 0) continue
         const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
-        if (top === img) {
+        if (top && img.contains(top)) {
           if (!w.__logo.seen.has(img)) w.__logo.seen.set(img, `logo-${(next += 1)}`)
           const id = w.__logo.seen.get(img)!
           if (!w.__logo.topmost.includes(id)) w.__logo.topmost.push(id)
@@ -106,7 +106,7 @@ test("reduced motion: still a single logo", async ({ browser, baseURL }) => {
   // The still logotype, no animated SVG at all.
   const overlay = page.locator("[data-handoff]")
   await expect(overlay.locator("img[src*='logotipo']").first()).toBeAttached()
-  await expect(overlay.locator("img[src*='carregamento']")).toHaveCount(0)
+  await expect(overlay.locator(".org-splash-logo")).toHaveCount(0)
   await page.waitForURL(/\/dashboard$/, { timeout: 30000 })
   await expect(page.locator("[data-handoff]")).toHaveCount(0, { timeout: 30000 })
   const probe = await page.evaluate(() => (window as unknown as { __logo: Probe }).__logo)

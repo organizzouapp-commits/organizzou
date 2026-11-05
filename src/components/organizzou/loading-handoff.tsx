@@ -60,7 +60,7 @@ function subscribe(onChange: () => void) {
 
 /** The logo never re-renders while it plays: this subtree has no props and no state. */
 const Logo = memo(function Logo({ still }: { still: boolean }) {
-  return <LoadingScreenView className="z-auto" still={still} />
+  return <LoadingScreenView className="z-auto" still={still} fallback={false} />
 })
 
 /** Mounted once in the root layout, so it survives the /login -> /dashboard navigation without restarting the animation. */
@@ -104,7 +104,7 @@ export function LoadingHandoff() {
         const shell = document.querySelector("[data-app-scroll]")
         // Ready = on the dashboard, the shell is there, no skeleton or loader is still on screen and the page has content: the wallpaper alone
         // is never what shows when the overlay leaves.
-        const painted = window.location.pathname === target && Boolean(shell) && !shell?.querySelector(".page-skeleton, [aria-busy=true]") && (shell?.textContent?.trim().length ?? 0) > 20 && !document.querySelector("[role=status][aria-label=Carregando]:not([data-handoff] *)")
+        const painted = window.location.pathname === target && Boolean(shell) && !shell?.querySelector(".page-skeleton, [aria-busy=true]") && (shell?.textContent?.trim().length ?? 0) > 20 && !document.querySelector("[data-fallback-splash]")
         if (painted || performance.now() - began >= ARRIVE_MAX_MS) {
           window.clearInterval(poll)
           // Two frames, so the content is on the screen before the overlay starts to fade.

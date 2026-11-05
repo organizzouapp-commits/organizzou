@@ -3,6 +3,9 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Geist_Mono, Outfit } from "next/font/google";
 import { LoadingHandoff } from "@/components/organizzou/loading-handoff";
+import { SplashController } from "@/components/organizzou/splash/splash-controller";
+import { SplashDebugPanel } from "@/components/organizzou/splash/splash-debug";
+import { SplashShell } from "@/components/organizzou/splash/splash-shell";
 import { PRELOADER_BOOT } from "@/components/site/preloader-boot";
 import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -57,12 +60,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
+          {/* The post-login splash: in the server HTML, shown before first paint when this document continues a login (Google). */}
+          <SplashShell />
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
           <CookieConsent />
           <Suspense fallback={null}>
             <LoadingHandoff />
           </Suspense>
+          <SplashController />
+          <SplashDebugPanel />
         </ThemeProvider>
       </body>
     </html>
