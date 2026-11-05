@@ -11,31 +11,36 @@ import { getNotifications } from "@/features/notifications/queries"
 import { getUserPlan } from "@/lib/plan-server"
 import { bypassAuth } from "@/lib/supabase/proxy"
 import { parsePlan } from "@/lib/plans"
+import { reportTimings, timed, withTimings } from "@/lib/server-timing"
 import { getSession } from "@/lib/supabase/session"
 
 // The app is private: keep it out of search results (robots.txt disallows /dashboard too).
 export const metadata: Metadata = { robots: { index: false, follow: false } }
 
 async function ShellLoader({ children }: { children: React.ReactNode }) {
-  const { supabase, userId, email, isAdmin } = await getSession()
+  return withTimings(() => loadShell(children))
+}
+
+async function loadShell(children: React.ReactNode) {
+  const { supabase, userId, email, isAdmin } = await timed("getSession (claims)", getSession())
 
   // Independent reads: run them together.
   const loose = supabase as unknown as SupabaseClient
   const [profileResult, plan, openTasks, notifications, probe] = await Promise.all([
-    supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle(),
-    getUserPlan(supabase, userId),
-    bypassAuth ? 0 : openTaskCount(supabase),
-    getNotifications(loose),
+    timed("profiles", supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()),
+    timed("plan", getUserPlan(supabase, userId)),
+    timed("open tasks (boards, then tasks)", bypassAuth ? 0 : openTaskCount(supabase)),
+    timed("notifications", getNotifications(loose)),
     // One cheap probe: are the module tables there yet? (The database update can land after the app update.)
-    loose.from("habits").select("id", { head: true, count: "exact" }),
+    timed("modules probe", loose.from("habits").select("id", { head: true, count: "exact" })),
   ])
   const dataPending = probe.error?.code === "PGRST205" || probe.error?.code === "42P01"
   let profile = profileResult.data
   // An account that has no profile (created before provisioning existed) is repaired once, here: the database function only
   // fills what is missing, for the signed-in person.
   if (!bypassAuth && !profile) {
-    await supabase.rpc("provision_me")
-    profile = (await supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()).data
+    await timed("provision_me", supabase.rpc("provision_me"))
+    profile = (await timed("profiles (again)", supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle())).data
   }
   // Development only (the same switch that skips login): flip the plan by cookie to test every sidebar state.
   const jar = await cookies()
@@ -47,6 +52,7 @@ async function ShellLoader({ children }: { children: React.ReactNode }) {
   const stored = (await cookies()).get(sidebarCookie)?.value
   const sidebarOpen = stored === "true" ? true : stored === "false" ? false : null
 
+  reportTimings("dashboard layout")
   return (
     <AppShell
       nav="app"

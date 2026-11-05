@@ -4,7 +4,8 @@ import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
-import { startLoadingHandoff } from "@/components/organizzou/loading-handoff"
+import { startLoadingHandoff, stopLoadingHandoff } from "@/components/organizzou/loading-handoff"
+import { splashLog } from "@/components/organizzou/splash/splash-debug"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,15 +32,29 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
   } = useForm<SignInInput>({ resolver: zodResolver(signInSchema) })
 
   function onSubmit(values: SignInInput) {
+    // One submit at a time: a second Enter or click while the first is in flight does nothing.
+    if (pending) return
+    splashLog("login-submit-clicked")
     setError(null)
     startTransition(async () => {
-      const result = await signIn(values)
-      if (!result.ok) {
-        setError(result.error)
-        return
+      try {
+        splashLog("signin-request-sent")
+        const sentAt = performance.now()
+        const result = await signIn(values)
+        splashLog("signin-response", { ok: result.ok, ms: Math.round(performance.now() - sentAt) })
+        if (!result.ok) {
+          // A failed login never leaves an overlay behind.
+          stopLoadingHandoff()
+          setError(result.error)
+          return
+        }
+        // The overlay (root layout) prefetches the destination, navigates (replace + refresh) when the logo intro has played and leaves when the
+        // dashboard shell says it is ready, or at its hard limit. If the navigation stalls it falls back to a full page load.
+        startLoadingHandoff(next)
+      } catch {
+        stopLoadingHandoff()
+        setError("Não foi possível entrar agora. Tente de novo.")
       }
-      // The overlay (root layout) prefetches the destination and navigates only after the logo intro has played.
-      startLoadingHandoff(next)
     })
   }
 

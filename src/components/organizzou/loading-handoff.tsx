@@ -2,14 +2,21 @@
 
 import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
+import { shouldHardNavigate, splashDue } from "@/lib/splash-machine"
 import { cn } from "@/lib/utils"
 
 import { LOGO_INTRO_MS, LOGO_REDUCED_MOTION_MS } from "./logo-timing"
 import { LoadingScreenView } from "./loading-screen"
 import { markSplashPlayed } from "./splash-gate"
+import { markSplashStart } from "./splash/splash-controller"
+import { splashLog } from "./splash/splash-debug"
+import { splash } from "./splash/splash-store"
 
-const ARRIVE_MAX_MS = 45000 // after navigating: a very slow connection keeps the splash rather than showing the bare wallpaper or a second loader; only a navigation that never arrives gives up
+/** The hard limit, counted from the start of the hand-off: after it the overlay fades out whatever the page is doing (the page that is there is shown). */
+const MAX_MS = 8000
+const EXTENDED_MS = 20000 // only while the dashboard route has committed but its shell has not mounted yet
 const NO_TARGET_MS = 8000 // Google sign-in leaves the page by itself; this only guards a failed redirect
 const FADE_MS = 400
 
@@ -22,14 +29,21 @@ function setState(next: State) {
 }
 
 /**
- * Show the full-screen loading logotype after a successful login. With an href the overlay owns the navigation: it prefetches
- * the destination at once, but only navigates when the logo's intro has fully played (measured from the moment the animation
- * starts), then fades out once the destination is on screen. Without an href (Google leaves the page itself) it just covers
- * the screen.
+ * Show the full-screen loading logotype after a successful login. With an href the overlay owns the navigation: it prefetches the
+ * destination at once, navigates immediately (under the opaque overlay) and leaves when the dashboard shell says it is ready (splash-store) and
+ * the logo's intro has played, or at the hard limit. Without an href (Google leaves the page itself) it just covers the screen.
  */
 export function startLoadingHandoff(href?: string) {
   markSplashPlayed()
+  splash.markPending()
   setState({ active: true, href: href ?? null })
+}
+
+/** A sign-in that failed after all: the overlay goes away at once (no fade, nothing to wait for). */
+export function stopLoadingHandoff() {
+  if (!state.active) return
+  splash.markDismissed()
+  setState({ active: false, href: null })
 }
 
 // Test hook (never in production builds): lets Playwright start the hand-off without a real sign-in.
@@ -81,51 +95,83 @@ export function LoadingHandoff() {
     const timers: number[] = []
     let poll = 0
     let cancelled = false
+    let navigatedAt: number | null = null
+    let hardNavigated = false
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const introMs = reduced ? LOGO_REDUCED_MOTION_MS : LOGO_INTRO_MS
+    const began = Date.now()
+    const target = href ? new URL(href, window.location.origin) : null
+    const startUrl = window.location.href
+    splashLog("handoff-start", { href, introMs })
 
-    const finish = () => {
+    let reason = ""
+    const finish = (why: string) => {
       if (cancelled) return
-      setFading(true)
-      timers.push(
-        window.setTimeout(() => {
-          setState({ active: false, href: null })
-          setFading(false)
-        }, FADE_MS)
+      reason = why
+      window.clearInterval(poll)
+      splashLog("handoff-fade", { why, afterMs: Date.now() - began })
+      // Two frames, so what is behind is on the screen before the overlay starts to fade.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (cancelled) return
+          setFading(true)
+          timers.push(
+            window.setTimeout(() => {
+              splash.markDismissed()
+              setState({ active: false, href: null })
+              setFading(false)
+              splashLog("handoff-removed", { reason, afterMs: Date.now() - began })
+            }, FADE_MS)
+          )
+        })
       )
     }
 
+    // The client navigation (replace, so Back does not return to the login), then a refresh so the server components read the new cookies.
     const navigate = () => {
-      if (cancelled || !href) return
-      router.push(href)
-      const target = new URL(href, window.location.origin).pathname
-      const began = performance.now()
-      poll = window.setInterval(() => {
-        const shell = document.querySelector("[data-app-scroll]")
-        // Ready = on the dashboard, the shell is there, no skeleton or loader is still on screen and the page has content: the wallpaper alone
-        // is never what shows when the overlay leaves.
-        const painted = window.location.pathname === target && Boolean(shell) && !shell?.querySelector(".page-skeleton, [aria-busy=true]") && (shell?.textContent?.trim().length ?? 0) > 20 && !document.querySelector("[data-fallback-splash]")
-        if (painted || performance.now() - began >= ARRIVE_MAX_MS) {
-          window.clearInterval(poll)
-          // Two frames, so the content is on the screen before the overlay starts to fade.
-          requestAnimationFrame(() => requestAnimationFrame(finish))
-        }
-      }, 100)
+      if (cancelled || !target) return
+      navigatedAt = Date.now()
+      splashLog("router-replace-called", { to: target.pathname })
+      router.replace(`${target.pathname}${target.search}`)
+      router.refresh()
     }
 
-    // The intro clock starts when the animated SVG is actually painted (its load), not when the button was clicked.
-    const start = (animationStart: number) => {
-      if (!href) {
-        timers.push(window.setTimeout(finish, NO_TARGET_MS))
-        return
+    poll = window.setInterval(() => {
+      const now = Date.now()
+      const due = splashDue(splash.state(), now, { minMs: introMs, maxMs: target ? MAX_MS : NO_TARGET_MS })
+      if (due === "dismiss") return finish("ready-signal")
+      if (due === "timeout") {
+        // The hard limit shows the page that is there, but never a bare wallpaper: if the dashboard route has committed and its shell is still not
+        // mounted, hold a little longer (up to EXTENDED_MS in all) instead of revealing nothing.
+        const onTarget = target !== null && window.location.pathname.startsWith(target.pathname)
+        if (splash.state().phase === "ready") return finish("ready-signal")
+        if (onTarget && !splash.shellMounted() && now - began < EXTENDED_MS) return
+        return finish("timeout")
       }
-      timers.push(window.setTimeout(navigate, Math.max(0, animationStart + introMs - performance.now())))
-    }
+      if (target && navigatedAt !== null) {
+        const here = window.location
+        // The dashboard sent a signed-in person back to the login (a bounce with ?next=): say so instead of spinning.
+        if (here.pathname.startsWith("/login") && here.href !== startUrl && now - navigatedAt > 1200) {
+          splashLog("bounced-to-login", { url: here.href })
+          toast.error("Não foi possível abrir o painel. Entre de novo.")
+          splash.markDismissed()
+          setState({ active: false, href: null })
+          return
+        }
+        // The client navigation went nowhere: do it for real (a full page load, which is how the Google flow arrives).
+        if (!hardNavigated && shouldHardNavigate(now, navigatedAt, here.pathname, target.pathname)) {
+          hardNavigated = true
+          splashLog("hard-navigation", { to: target.href })
+          // A full page load is a new document: leave the start time (like the Google flow) so it continues this splash instead of starting another.
+          markSplashStart(began)
+          window.location.assign(target.href)
+        }
+      }
+    }, 100)
 
-    if (href) router.prefetch(href)
-    const visible = Array.from(host.current?.querySelectorAll("img") ?? []).find((img) => getComputedStyle(img).display !== "none")
-    if (!visible || visible.complete) start(performance.now())
-    else visible.addEventListener("load", () => start(performance.now()), { once: true })
+    // The navigation starts AT ONCE, under the opaque overlay, in parallel with the intro (it used to wait for the intro, which added the whole
+    // intro to the time to the dashboard). The overlay still stays until the intro has played AND the shell has said it is ready.
+    if (target) timers.push(window.setTimeout(navigate, 0))
 
     return () => {
       cancelled = true

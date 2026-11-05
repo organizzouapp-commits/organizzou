@@ -54,7 +54,9 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
   })
 
   // getClaims validates the JWT signature and refreshes the session when needed.
+  const authStart = performance.now()
   const { data } = await supabase.auth.getClaims()
+  const authMs = performance.now() - authStart
   const isAuthenticated = Boolean(data?.claims)
   const { pathname } = request.nextUrl
 
@@ -92,5 +94,7 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
     response.cookies.set(SEEN_COOKIE, "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: SEEN_TTL_SECONDS, path: "/" })
   }
 
+  // The middleware's own part of the request (the session check), visible in the browser's Network tab.
+  response.headers.set("Server-Timing", `auth;desc="proxy getClaims";dur=${authMs.toFixed(1)}`)
   return response
 }

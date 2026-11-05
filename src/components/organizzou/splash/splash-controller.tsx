@@ -3,10 +3,12 @@
 import { useEffect } from "react"
 
 import { LOGO_INTRO_MS } from "../logo-timing"
+import { splashDue } from "@/lib/splash-machine"
 import { splashLog } from "./splash-debug"
+import { splash } from "./splash-store"
 import { SPLASH_RETURN_COOKIE, SPLASH_START_COOKIE } from "./splash-boot"
 
-const SAFETY_MS = 45_000
+const SAFETY_MS = 8_000 // the hard limit: after this the page that is there is shown, ready or not
 const FADE_MS = 400
 
 const clearCookies = () => {
@@ -14,20 +16,20 @@ const clearCookies = () => {
 }
 
 /** Called right before the browser leaves for Google: from here on every document that starts within 20 s resumes the same splash. */
-export function markSplashStart() {
-  document.cookie = `${SPLASH_START_COOKIE}=${Date.now()}; Max-Age=300; Path=/; SameSite=Lax`
+export function markSplashStart(at = Date.now()) {
+  document.cookie = `${SPLASH_START_COOKIE}=${at}; Max-Age=300; Path=/; SameSite=Lax`
 }
 
 /**
- * Takes the server-rendered splash off the screen, once: when the dashboard has real content painted (the shell is there, no skeleton or
- * loader is still showing, the page has text) and the intro has had time to finish, or after the safety timeout. Then clears the cookies.
+ * Takes the server-rendered splash off the screen, once: when the dashboard shell has said it is ready (splash-store) and the intro has had
+ * time to finish, or at the hard limit. Then clears the cookies.
  */
 export function SplashController() {
   useEffect(() => {
     const root = document.documentElement
     if (!root.hasAttribute("data-splash")) return
-    const splash = document.getElementById("org-splash")
-    if (!splash) return
+    const splashEl = document.getElementById("org-splash")
+    if (!splashEl) return
     const began = performance.now()
     const elapsedAtBoot = (parseFloat(getComputedStyle(root).getPropertyValue("--splash-elapsed")) || 0) * 1000
     const reduced = root.hasAttribute("data-splash-final")
@@ -44,13 +46,14 @@ export function SplashController() {
       // Two frames, so the content is on screen before the fade starts.
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          splash.setAttribute("data-leaving", "")
+          splash.markDismissed()
+          splashEl.setAttribute("data-leaving", "")
           timers.push(
             window.setTimeout(() => {
               root.removeAttribute("data-splash")
               root.removeAttribute("data-splash-final")
               root.style.removeProperty("--splash-elapsed")
-              splash.removeAttribute("data-leaving")
+              splashEl.removeAttribute("data-leaving")
               clearCookies()
               splashLog("splash-removed", { afterMs: Math.round(performance.now() - began) })
             }, FADE_MS)
@@ -58,14 +61,18 @@ export function SplashController() {
         })
       )
     }
+    // This document continues a login that started elapsedAtBoot ago: the same state machine as the hand-off overlay, adopted here.
+    splash.markPending({ adopt: true, at: Date.now() - elapsedAtBoot })
     const poll = window.setInterval(() => {
-      const now = performance.now() - began
-      const shell = document.querySelector("[data-app-scroll]")
-      // Fallback loaders are hidden by CSS while the splash is on, but if one is still mounted the page is not ready.
-      const loading = Boolean(shell?.querySelector(".page-skeleton, [aria-busy=true]")) || Boolean(document.querySelector("[data-fallback-splash]"))
-      const painted = Boolean(shell) && !loading && (shell?.textContent?.trim().length ?? 0) > 20
-      if (painted && now >= minimum) finish("painted")
-      else if (now >= SAFETY_MS) finish("safety-timeout")
+      const due = splashDue(splash.state(), Date.now(), { minMs: reduced ? 0 : LOGO_INTRO_MS, maxMs: SAFETY_MS + elapsedAtBoot })
+      splashLog("due", { due })
+      if (due === "dismiss") finish("ready")
+      else if (due === "timeout") {
+        // Same rule as the hand-off overlay: the hard limit never reveals a bare wallpaper, so hold (up to 20 s in all) until the shell is there.
+        if (splash.state().phase === "ready") finish("ready")
+        else if (!splash.shellMounted() && performance.now() - began < 20_000) return
+        else finish("safety-timeout")
+      }
     }, 100)
     return () => {
       window.clearInterval(poll)

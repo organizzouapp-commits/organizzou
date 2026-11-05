@@ -9,6 +9,8 @@ import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
+import { splashLog } from "@/components/organizzou/splash/splash-debug"
+import { splash } from "@/components/organizzou/splash/splash-store"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
@@ -139,6 +141,11 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   const [othersOpen, setOthersOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  // The post-login splash leaves when the shell is here: the one explicit signal (see splash/splash-store.ts).
+  useEffect(() => {
+    splashLog("shell-mounted", { path: window.location.pathname })
+    splash.markReady()
+  }, [])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [signOutOpen, setSignOutOpen] = useState(false)

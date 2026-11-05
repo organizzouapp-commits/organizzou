@@ -69,7 +69,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <LoadingHandoff />
           </Suspense>
           <SplashController />
-          <SplashDebugPanel />
+          <Suspense fallback={null}>
+            <SplashDebugPanel />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

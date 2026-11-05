@@ -20,15 +20,15 @@ async function timeToDashboard(page: Page) {
   const t0 = Date.now()
   await page.evaluate(() => (window as unknown as { __startLoadingHandoff: (href: string) => void }).__startLoadingHandoff("/dashboard"))
   await expect(page.getByRole("status", { name: "Carregando" })).toBeVisible()
-  await page.waitForURL(/\/dashboard$/, { timeout: 15000 })
+  // The navigation starts at once under the opaque overlay; what the intro protects is how long the logo stays: until it has played AND the shell is ready.
+  await expect(page.locator("[data-handoff]")).toHaveCount(0, { timeout: 15000 })
+  await page.waitForURL(/\/dashboard$/)
   return Date.now() - t0
 }
 
-test("does not navigate before the logo intro has played", async ({ page }) => {
+test("the logo stays until its intro has played, then the dashboard is there", async ({ page }) => {
   const elapsed = await timeToDashboard(page)
   expect(elapsed).toBeGreaterThanOrEqual(INTRO_MS - 100)
-  // The overlay is still there while the dashboard mounts, and fades out afterwards.
-  await expect(page.getByRole("status", { name: "Carregando" })).toHaveCount(0, { timeout: 8000 })
   await expect(page.locator("[data-app-scroll]")).toBeVisible()
 })
 
