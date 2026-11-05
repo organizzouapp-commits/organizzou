@@ -22,6 +22,8 @@ import { formatBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 import { useFinance, type TxSort } from "./context"
+import { FinanceDeck, type FinanceSlide } from "./finance-deck"
+import { IncomeStat, SurplusStat } from "./overview"
 import { ScrollRow } from "./scroll-row"
 import { BentoCard, BentoStat, CategoryDonut, SegmentedPills } from "./bento"
 import { derive, variation } from "./derive"
@@ -419,12 +421,13 @@ export function TransactionsSide() {
   )
 }
 
-/** Phones: the hero and the two tiles above the filters. */
+/** Phones: Saídas do mês, Entradas, Saldo do mês and Por categoria as one card deck. */
 export function TransactionsTop() {
-  return (
-    <div className="flex flex-col gap-3">
-      <SpendHero />
-      <TransactionStats compact />
-    </div>
-  )
+  const slides: FinanceSlide[] = [
+    { id: "saidas", hero: true, node: <SpendHero /> },
+    { id: "entradas", node: <IncomeStat /> },
+    { id: "saldo-mes", node: <SurplusStat /> },
+    { id: "categoria", node: <SpendDonut /> },
+  ]
+  return <FinanceDeck slides={slides} initialHeight={300} />
 }

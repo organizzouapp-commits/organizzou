@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 
 import { BentoStat, Sparkline } from "./bento"
 import { useFinance } from "./context"
+import { FinanceDeck, type FinanceSlide } from "./finance-deck"
 import { EmptyBlock, GOAL_ICONS, HeroCard, MoneyText, ProgressRing, RowMenu } from "./parts"
 
 /** Months left until a deadline (at least one) and the monthly amount that reaches the goal. */
@@ -57,7 +58,7 @@ export function useGoalSets() {
 
 // ------------------------------------------------------------------ summary
 
-export function GoalsHero({ compact = false }: { compact?: boolean }) {
+export function GoalsHero({ variant = "dense" }: { variant?: "dense" | "deck" }) {
   const f = useFinance()
   const saved = f.goals.reduce((sum, g) => sum + g.current_cents, 0)
   const target = f.goals.reduce((sum, g) => sum + g.target_cents, 0)
@@ -65,37 +66,60 @@ export function GoalsHero({ compact = false }: { compact?: boolean }) {
   return (
     <HeroCard
       label="Guardado nas metas"
-      shortLabel="Guardado"
-      density={compact ? "compact" : "dense"}
+      density={variant === "deck" ? "default" : "dense"}
       value={<MoneyText cents={saved} dimDecimals />}
       progress={{ value: pct, label: "Guardado nas metas" }}
       footer={`${pct}% de ${formatBRL(target)} · ${f.goals.length} ${f.goals.length === 1 ? "meta" : "metas"}`}
       onArrow={() => document.querySelector("[data-group=active]")?.scrollIntoView({ behavior: "smooth", block: "start" })}
       arrowLabel="Ir para as metas em andamento"
-      className={compact ? "h-full" : "md:h-[168px]"}
+      className={variant === "deck" ? undefined : "md:h-[168px]"}
     />
   )
 }
 
-/** Falta guardar, Aporte por mês and Próximo prazo: same structure as the hero, 168px tall on desktop. */
-export function GoalStats({ compact = false }: { compact?: boolean }) {
+function useGoalFigures() {
   const f = useFinance()
   const { open } = useGoalSets()
   const missing = open.reduce((sum, g) => sum + (g.target_cents - g.current_cents), 0)
   const monthly = open.filter((g) => g.deadline).reduce((sum, g) => sum + projection(g, f.today).monthly, 0)
   const next = [...open].filter((g) => g.deadline).sort((a, b) => a.deadline!.localeCompare(b.deadline!))[0]
-  const fixed = compact ? "h-full" : "md:h-[168px]"
+  return { open, missing, monthly, next }
+}
+
+export function MissingStat({ className }: { className?: string }) {
+  const { open, missing } = useGoalFigures()
+  return (
+    <BentoStat className={className} label="Falta guardar" icon={WalletIcon} chip={`${open.length} ${open.length === 1 ? "meta" : "metas"}`}>
+      <MoneyText cents={missing} dimDecimals />
+    </BentoStat>
+  )
+}
+
+export function MonthlyStat({ className }: { className?: string }) {
+  const { monthly } = useGoalFigures()
+  return (
+    <BentoStat className={className} label="Aporte por mês" icon={PiggyBankIcon} chip="para chegar nos prazos">
+      <MoneyText cents={monthly} dimDecimals />
+    </BentoStat>
+  )
+}
+
+export function NextDeadlineStat({ className }: { className?: string }) {
+  const { next } = useGoalFigures()
+  return (
+    <BentoStat className={className} label="Próximo prazo" icon={CalendarClockIcon} chip={next?.name ?? "nenhum prazo"}>
+      <span>{next?.deadline ? format(parseISO(next.deadline), "d MMM yyyy", { locale: ptBR }).replace(".", "") : "—"}</span>
+    </BentoStat>
+  )
+}
+
+/** Falta guardar, Aporte por mês and Próximo prazo: same structure as the hero, 168px tall on desktop. */
+export function GoalStats() {
   return (
     <>
-      <BentoStat compact={compact} className={fixed} label="Falta guardar" icon={WalletIcon} chip={`${open.length} ${open.length === 1 ? "meta" : "metas"}`}>
-        <MoneyText cents={missing} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} className={fixed} label="Aporte por mês" icon={PiggyBankIcon} chip="para chegar nos prazos">
-        <MoneyText cents={monthly} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} className={cn(fixed, !compact && "col-span-2 xl:col-span-1")} label="Próximo prazo" icon={CalendarClockIcon} chip={next?.name ?? "nenhum prazo"}>
-        <span>{next?.deadline ? format(parseISO(next.deadline), "d MMM yyyy", { locale: ptBR }).replace(".", "") : "—"}</span>
-      </BentoStat>
+      <MissingStat className="md:h-[168px]" />
+      <MonthlyStat className="md:h-[168px]" />
+      <NextDeadlineStat className="md:h-[168px] col-span-2 xl:col-span-1" />
     </>
   )
 }
@@ -333,12 +357,15 @@ export function GoalsMobile() {
   const { open, done } = useGoalSets()
   const [activeOpen, setActiveOpen] = useState(true)
   const order = open.map((g) => g.id)
+  const deckSlides: FinanceSlide[] = [
+    { id: "guardado", hero: true, node: <GoalsHero variant="deck" /> },
+    { id: "falta", node: <MissingStat /> },
+    { id: "aporte", node: <MonthlyStat /> },
+    { id: "prazo", node: <NextDeadlineStat /> },
+  ]
   return (
     <div data-testid="goals-main" className="flex flex-col gap-3">
-      <div data-testid="goal-stats" className="grid auto-rows-fr grid-cols-2 gap-3">
-        <GoalsHero compact />
-        <GoalStats compact />
-      </div>
+      <FinanceDeck slides={deckSlides} initialHeight={220} />
       <section data-group="active" aria-label="Em andamento" className="flex flex-col">
         <ActiveHeader count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
         <Collapse open={activeOpen}>

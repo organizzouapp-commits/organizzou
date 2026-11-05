@@ -13,6 +13,7 @@ import { BentoCard, BentoStat, CategoryDonut, MonthTimeline, SegmentedPills } fr
 import { BillMini, dueText } from "./bill-mini"
 import { useFinance } from "./context"
 import { derive } from "./derive"
+import { FinanceDeck, type FinanceSlide } from "./finance-deck"
 import { AddPill, CardStack, DayBadge, EmptyBlock, FinanceListItem, HeroCard, MoneyText, StatusChip } from "./parts"
 
 /** The desktop bill card (series A): badge, name, subtitle, amount, pill, ⋯. */
@@ -67,30 +68,52 @@ function BillGroup({ id, label, views, defaultOpen }: { id: string; label: strin
   )
 }
 
-/** Pagas, A pagar and Atrasadas: the same structure as the hero (label + icon circle on top, value, chip at the bottom), 168px tall on desktop. */
-function Stats({ compact }: { compact: boolean }) {
+const count = (n: number) => `${n} ${n === 1 ? "conta" : "contas"}`
+
+function PaidStat({ compact, className }: { compact: boolean; className?: string }) {
   const f = useFinance()
   const d = derive(f)
-  const count = (n: number) => `${n} ${n === 1 ? "conta" : "contas"}`
-  const fixed = compact ? "h-full" : "md:h-[168px]"
+  return (
+    <BentoStat compact={compact} className={className} label="Pagas" icon={CheckCheckIcon} chip={count(d.paid.length)}>
+      <MoneyText cents={d.paidTotal} dimDecimals />
+    </BentoStat>
+  )
+}
+
+function ToPayStat({ compact, className }: { compact: boolean; className?: string }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoStat compact={compact} className={className} label="A pagar" icon={WalletIcon} chip={count(d.toPay.length)}>
+      <MoneyText cents={d.toPayTotal - d.overdueTotal} dimDecimals />
+    </BentoStat>
+  )
+}
+
+function OverdueStat({ compact, className }: { compact: boolean; className?: string }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoStat compact={compact} className={className} label="Atrasadas" icon={CircleAlertIcon} chip={count(d.overdue.length)}>
+      <MoneyText cents={d.overdueTotal} dimDecimals />
+    </BentoStat>
+  )
+}
+
+/** Pagas, A pagar and Atrasadas: the same structure as the hero (label + icon circle on top, value, chip at the bottom), 168px tall on desktop. */
+function Stats() {
   return (
     <>
-      <BentoStat compact={compact} className={fixed} label="Pagas" icon={CheckCheckIcon} chip={count(d.paid.length)}>
-        <MoneyText cents={d.paidTotal} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} className={fixed} label="A pagar" icon={WalletIcon} chip={count(d.toPay.length)}>
-        <MoneyText cents={d.toPayTotal - d.overdueTotal} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} className={fixed} label="Atrasadas" icon={CircleAlertIcon} chip={count(d.overdue.length)}>
-        <MoneyText cents={d.overdueTotal} dimDecimals />
-      </BentoStat>
+      <PaidStat compact={false} className="md:h-[168px]" />
+      <ToPayStat compact={false} className="md:h-[168px]" />
+      <OverdueStat compact={false} className="md:h-[168px]" />
     </>
   )
 }
 
 const goList = () => document.querySelector("[data-testid=bills-main]")?.scrollIntoView({ behavior: "smooth", block: "start" })
 
-function Hero({ compact = false }: { compact?: boolean }) {
+function Hero({ variant = "dense" }: { variant?: "dense" | "deck" }) {
   const f = useFinance()
   const d = derive(f)
   const pct = d.fixedTotal === 0 ? 0 : (d.paidTotal / d.fixedTotal) * 100
@@ -103,8 +126,8 @@ function Hero({ compact = false }: { compact?: boolean }) {
       footer={`${p} ${p === 1 ? "paga" : "pagas"} · ${d.unpaidCount} ${d.unpaidCount === 1 ? "pendente" : "pendentes"}`}
       onArrow={goList}
       arrowLabel="Ir para a lista de contas"
-      density={compact ? "compact" : "dense"}
-      className={compact ? "h-full" : "md:h-[168px]"}
+      density={variant === "deck" ? "default" : "dense"}
+      className={variant === "deck" ? undefined : "md:h-[168px]"}
     />
   )
 }
@@ -230,15 +253,18 @@ export function BillsTab() {
     setDay: (chosen: number) => (setModeState("day"), setDayState(chosen)),
   }
   const activeDay = mode === "day" ? day : null
+  const deckSlides: FinanceSlide[] = [
+    { id: "total", hero: true, node: <Hero variant="deck" /> },
+    { id: "pagas", node: <PaidStat compact={false} /> },
+    { id: "a-pagar", node: <ToPayStat compact={false} /> },
+    { id: "atrasadas", node: <OverdueStat compact={false} /> },
+  ]
 
   if (f.isMobile) {
     return (
       <DayFilterContext.Provider value={filter}>
         <div className="flex flex-col gap-3">
-          <div data-testid="bill-stats" className="grid auto-rows-fr grid-cols-2 gap-3">
-            <Hero compact />
-            <Stats compact />
-          </div>
+          <FinanceDeck slides={deckSlides} initialHeight={220} />
           <TimelineCard />
           <Lists day={activeDay} />
         </div>
@@ -253,7 +279,7 @@ export function BillsTab() {
         </div>
         <div className="md:col-span-2 lg:col-span-8 xl:col-span-8">
           <div data-testid="bill-stats" className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-3">
-            <Stats compact={false} />
+            <Stats />
           </div>
         </div>
         <div className="md:col-span-2 lg:col-span-8 xl:col-span-12">

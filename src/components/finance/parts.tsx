@@ -228,7 +228,7 @@ export function HeroCard({
   const dense = density === "dense"
   const compact = density === "compact"
   return (
-    <section aria-label={label} data-hero-card data-density={density} className={cn("flex min-w-0 flex-col rounded-[20px] bg-highlight text-highlight-foreground", compact ? "gap-1.5 p-3" : dense ? "gap-2 p-5" : "gap-3 p-5", className)}>
+    <section aria-label={label} data-hero-card data-density={density} className={cn("flex min-w-0 flex-col rounded-[20px] border border-transparent bg-highlight text-highlight-foreground", compact ? "gap-1.5 p-3" : dense ? "gap-2 p-5" : "gap-3 p-5", className)}>
       <div className="flex items-center justify-between gap-2">
         <span className={cn("truncate font-semibold tracking-[0.1em] uppercase", compact ? "text-[10px] leading-4 tracking-[0.08em]" : "text-[11px] leading-4")}>{compact ? (shortLabel ?? label) : label}</span>
         {onArrow ? (

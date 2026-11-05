@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { niceAxis, tickLabel } from "./bento"
 import { MoneyText } from "./parts"
 
-const INK = "var(--highlight-foreground)"
+const INK = "currentColor"
 const TONES = [1, 0.7, 0.45, 0.25]
 const AXIS = 44
 
@@ -82,8 +82,8 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-2 bottom-6">
             {ticks.map((t) => (
               <div key={t} data-tick className="absolute inset-x-0 flex items-center gap-2" style={{ bottom: `${at(t * step)}%`, transform: "translateY(50%)" }}>
-                <span className="tabular w-9 shrink-0 text-right text-[11px] leading-4 whitespace-nowrap text-highlight-foreground/60">{t === 0 ? "0" : `${t < 0 ? "−" : ""}${tickLabel(Math.abs(t) * step)}`}</span>
-                <span className={cn("flex-1 border-t", t === 0 ? "border-highlight-foreground/35" : "border-dashed border-highlight-foreground/20")} />
+                <span className="tabular w-9 shrink-0 text-right text-[11px] leading-4 whitespace-nowrap text-current/60">{t === 0 ? "0" : `${t < 0 ? "−" : ""}${tickLabel(Math.abs(t) * step)}`}</span>
+                <span className={cn("flex-1 border-t", t === 0 ? "border-current/35" : "border-dashed border-current/20")} />
               </div>
             ))}
           </div>
@@ -116,7 +116,7 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
                     select(history[next].month)
                     ;(e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus()
                   }}
-                  className="relative h-full min-w-0 flex-1 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-highlight-foreground/40"
+                  className="relative h-full min-w-0 flex-1 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-current/40"
                 >
                   <span className="absolute inset-x-0 top-2 bottom-6 flex justify-center">
                     <span className="relative w-[46%] max-w-9">
@@ -141,7 +141,7 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
                       )}
                     </span>
                   </span>
-                  <span className={cn("absolute inset-x-0 bottom-0 h-6 pt-1 text-center text-[12px] leading-5 capitalize", on ? "font-bold" : "text-highlight-foreground/60")}>{monthName(m.month, "MMM")}</span>
+                  <span className={cn("absolute inset-x-0 bottom-0 h-6 pt-1 text-center text-[12px] leading-5 capitalize", on ? "font-bold" : "text-current/60")}>{monthName(m.month, "MMM")}</span>
                 </button>
               )
             })}
@@ -168,25 +168,25 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
           ) : null}
         </div>
       ) : (
-        <p data-testid="balance-empty" className="text-[13px] leading-5 text-highlight-foreground/70">
+        <p data-testid="balance-empty" className="text-[13px] leading-5 text-current/70">
           Sem histórico suficiente ainda
         </p>
       )}
 
-      <div className="flex items-baseline justify-between gap-3 border-t border-highlight-foreground/15 pt-2 text-[12px] leading-4 text-highlight-foreground/75">
+      <div className="flex items-baseline justify-between gap-3 border-t border-current/15 pt-2 text-[12px] leading-4 text-current/75">
         <span data-testid="balance-legend-month">De onde vem · {monthName(selected.month, "MMMM")}</span>
-        <MoneyText cents={selected.total} tone="value" className="font-semibold text-highlight-foreground" />
+        <MoneyText cents={selected.total} tone="value" className="font-semibold" />
       </div>
       <ul data-testid="balance-legend" className="grid grid-cols-1 gap-x-5 gap-y-0.5 @[300px]:grid-cols-2">
         {sorted(selected).map((p) => {
           const pressed = isolate === p.id
           return (
             <li key={p.id}>
-              <button type="button" aria-pressed={pressed} data-legend-account={p.id} onClick={() => setIsolate(pressed ? null : p.id)} className={cn("relative grid h-8 w-full grid-cols-[10px_minmax(0,1fr)_auto_34px] items-center gap-2 rounded-lg text-left text-[13px] leading-5 outline-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-highlight-foreground/40", pressed && "bg-highlight-foreground/10 font-semibold", isolate && !pressed && "opacity-60")}>
+              <button type="button" aria-pressed={pressed} data-legend-account={p.id} onClick={() => setIsolate(pressed ? null : p.id)} className={cn("relative grid h-8 w-full grid-cols-[10px_minmax(0,1fr)_auto_34px] items-center gap-2 rounded-lg text-left text-[13px] leading-5 outline-none after:absolute after:inset-x-0 after:-inset-y-1 focus-visible:ring-3 focus-visible:ring-current/40", pressed && "bg-current/10 font-semibold", isolate && !pressed && "opacity-60")}>
                 <span aria-hidden className="size-2.5 rounded-[3px]" style={toneStyle(rank(p.id))} />
                 <span className="truncate">{p.name}</span>
                 <MoneyText cents={p.value} tone="value" className="text-right" />
-                <span className="tabular text-right text-[12px] text-highlight-foreground/70">{p.value > 0 && selected.total > 0 ? `${Math.round((p.value / selected.total) * 100)}%` : ""}</span>
+                <span className="tabular text-right text-[12px] text-current/70">{p.value > 0 && selected.total > 0 ? `${Math.round((p.value / selected.total) * 100)}%` : ""}</span>
               </button>
             </li>
           )
