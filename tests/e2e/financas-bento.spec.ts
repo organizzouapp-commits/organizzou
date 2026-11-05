@@ -632,7 +632,12 @@ test.describe("desktop 1440", () => {
     const lastCol = months.last()
     await expect(lastCol.locator("[data-segment]:not([data-negative])")).toHaveCount(3)
     await expect(lastCol.locator("[data-segment][data-negative]")).toHaveCount(1)
-    await expect(chart.locator("[data-total-dot]")).toHaveCount(6)
+    // Fluxo de caixa language: one pill column per month, the other months hatched, dashed grid with y labels, no line and no dots.
+    await expect(chart.locator("[data-hatched]").first()).toBeVisible()
+    expect(await chart.locator("[data-hatched]").first().evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("repeating-linear-gradient")
+    await expect(chart.locator("[data-total-dot], polyline")).toHaveCount(0)
+    expect(await chart.locator("[data-tick]").count()).toBeGreaterThanOrEqual(3)
+    await expect(chart.locator("[data-tick]").first()).toContainText(/^−|mil|d/)
     await expect(chart.getByTestId("balance-plot")).toHaveAttribute("aria-label", /Saldo total em .*: .*composto por .*Carteira − R\$/)
     // Legend: swatch, name, value and % for the selected month; the negative one has no %.
     const legend = chart.getByTestId("balance-legend").locator("li")
@@ -659,7 +664,7 @@ test.describe("desktop 1440", () => {
     await nubank.click()
     await expect(nubank).toHaveAttribute("aria-pressed", "true")
     const opacities = await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => [e.getAttribute("data-segment"), getComputedStyle(e).opacity]))
-    expect(new Set(opacities.map((o) => o[1]))).toEqual(new Set(["0.18", "1"]))
+    expect(new Set(opacities.map((o) => o[1]))).toEqual(new Set(["0.2", "1"]))
     await nubank.click()
     await expect(nubank).toHaveAttribute("aria-pressed", "false")
     expect(new Set(await lastCol.locator("[data-segment]").evaluateAll((els) => els.map((e) => getComputedStyle(e).opacity)))).toEqual(new Set(["1"]))

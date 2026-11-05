@@ -92,7 +92,7 @@ export type CashflowMonth = { key: string; label: string; income: number; expens
 const HATCH = "repeating-linear-gradient(135deg, color-mix(in oklab, var(--foreground) 30%, transparent) 0 1.5px, transparent 1.5px 5px)"
 
 /** A "nice" axis: the step (500, 1.000, 2.500, 5.000, ...) and how many steps reach the tallest bar (cents in, cents out). */
-function niceAxis(maxCents: number) {
+export function niceAxis(maxCents: number) {
   const reais = Math.max(1, maxCents / 100)
   const steps = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000]
   const step = steps.find((s) => reais / s <= 4) ?? 100000
@@ -100,7 +100,7 @@ function niceAxis(maxCents: number) {
   return { step: step * 100, count }
 }
 
-const tickLabel = (cents: number) => {
+export const tickLabel = (cents: number) => {
   const reais = cents / 100
   return reais >= 1000 ? `${(reais / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : String(reais)
 }
