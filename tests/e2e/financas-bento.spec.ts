@@ -813,14 +813,26 @@ for (const [label, size] of [["360", { width: 360, height: 780 }], ["390", { wid
         expect(await contrast(page, await computed(hero, "color"), await computed(hero, "background-color"))).toBeGreaterThan(4.5)
       })
 
-      test("Metas: Nova meta… is the full-width add pill under the group header; goal cards are compact and without a visible grip", async ({ page }) => {
+      test("Metas: Nova meta… is the full-width add pill between the deck and the Em andamento header; goal cards are compact and without a visible grip", async ({ page }) => {
         await open(page, "Metas", true)
-        const pill = page.locator("[data-group=active]").getByRole("button", { name: "Nova meta…" })
+        await page.waitForTimeout(1200) // the deck settles to the height of its card in front
+        const pill = page.getByRole("button", { name: "Nova meta…" })
         const header = (await page.locator("[data-group=active] [data-group-header]").boundingBox())!
+        const deck = (await page.getByTestId("finance-deck").first().boundingBox())!
         const box = (await pill.boundingBox())!
         expect(Math.round(box.height)).toBe(44)
-        expect(box.y).toBeGreaterThan(header.y + header.height / 2)
-        expect(box.width).toBeGreaterThan(size.width - 48)
+        // Below the swiper (and its dots), above the group header, 16px gutters like the rest of the page, 16px to the header.
+        expect(box.y).toBeGreaterThanOrEqual(deck.y + deck.height - 20)
+        expect(box.y + box.height).toBeLessThanOrEqual(header.y)
+        expect(Math.round(header.y - (box.y + box.height))).toBe(16)
+        expect(Math.round(box.x)).toBe(16)
+        expect(Math.round(box.x + box.width)).toBe(size.width - 16)
+        // Still there, in the same place, with the group collapsed.
+        await page.locator("[data-group=active] [data-group-header]").click()
+        await expect(page.locator("[data-group=active] [data-group-header]")).toHaveAttribute("aria-expanded", "false")
+        const again = (await pill.boundingBox())!
+        expect(Math.round(again.y)).toBe(Math.round(box.y))
+        await page.locator("[data-group=active] [data-group-header]").click()
         expect(await computed(pill, "border-top-style")).toBe("dashed")
         const cards = page.locator("[data-group=active] [data-goal]")
         await expect(cards).toHaveCount(3)

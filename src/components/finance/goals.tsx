@@ -383,11 +383,12 @@ export function GoalsMobile() {
     { id: "prazo", node: <NextDeadlineStat /> },
   ]
   return (
-    <div data-testid="goals-main" className="flex flex-col gap-3">
+    <div data-testid="goals-main" className="flex flex-col gap-4">
       <FinanceDeck slides={deckSlides} initialHeight={220} />
+      {/* Right under the deck dots (whose touch area already leaves ~18px below them), above the group, collapsed or not. */}
+      <AddTaskPill label="Nova meta…" onPress={f.openNewGoal} className="-mt-[18px]" />
       <section data-group="active" aria-label="Em andamento" className="flex flex-col">
         <ActiveHeader count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
-        <AddTaskPill label="Nova meta…" onPress={f.openNewGoal} className="mb-3" />
         <Collapse open={activeOpen}>
           <SortableGoals goals={open} layout="list">
             <div data-group-rows className="flex flex-col gap-3 pb-2">
