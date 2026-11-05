@@ -433,7 +433,7 @@ function SpendDonut() {
   for (const t of f.transactions) if (t.kind === "out" && t.occurred_on.slice(0, 7) === f.month && t.category_id) counts.set(t.category_id, (counts.get(t.category_id) ?? 0) + 1)
   const segments = d.categories.filter((c) => c.spent > 0).map((c) => ({ id: c.category.id, name: c.category.name, value: c.spent, count: counts.get(c.category.id) ?? 0 }))
   return (
-    <BentoCard title="Por categoria" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
+    <BentoCard title="Por categoria" data-testid="category-card" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
       <CategoryDonut segments={segments} label="Saídas por categoria" />
     </BentoCard>
   )
@@ -450,13 +450,17 @@ export function TransactionsSide() {
   )
 }
 
-/** Phones: Saídas do mês, Entradas, Saldo do mês and Por categoria as one card deck. */
+/** Phones: Saídas do mês, Entradas and Saldo do mês as the card deck, then Por categoria as a normal card. */
 export function TransactionsTop() {
   const slides: FinanceSlide[] = [
     { id: "saidas", hero: true, node: <SpendHero /> },
     { id: "entradas", node: <IncomeStat /> },
     { id: "saldo-mes", node: <SurplusStat /> },
-    { id: "categoria", node: <SpendDonut /> },
   ]
-  return <FinanceDeck slides={slides} initialHeight={300} />
+  return (
+    <div className="flex flex-col gap-3">
+      <FinanceDeck slides={slides} initialHeight={300} />
+      <SpendDonut />
+    </div>
+  )
 }
