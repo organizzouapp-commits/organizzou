@@ -9,6 +9,8 @@ import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
+import { splashLog } from "@/components/organizzou/splash/splash-debug"
+import { splash } from "@/components/organizzou/splash/splash-store"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
@@ -95,8 +97,9 @@ function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomB
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
-  // On phones the Tarefas page title IS its list switcher (in the page), so the shell heading steps aside there.
-  const ownsTitle = usePathname().startsWith("/dashboard/tarefas")
+  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there.
+  const pathname = usePathname()
+  const ownsTitle = pathname.startsWith("/dashboard/tarefas") || pathname.startsWith("/dashboard/financas")
   return (
     <div className={cn("flex min-w-0 flex-col pt-4 pb-4 md:pt-6 md:pb-5", ownsTitle && "max-md:hidden")}>
       <h1 className="truncate pb-0.5 text-[26px] leading-tight font-semibold tracking-[-0.02em] md:text-[30px]">{title}</h1>
@@ -138,6 +141,12 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   const [othersOpen, setOthersOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  // The post-login splash leaves when the shell is here: the one explicit signal (see splash/splash-store.ts).
+  useEffect(() => {
+    splashLog("shell-mounted", { path: window.location.pathname })
+    splash.markReady()
+    return () => splash.markShellGone()
+  }, [])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [signOutOpen, setSignOutOpen] = useState(false)

@@ -463,3 +463,12 @@ Foco visível sempre. pt-BR em datas e moeda (`R$ 1.234,56`).
 
 Calmo, direto, em segunda pessoa. "Tudo certo por hoje." · "3 tarefas para hoje." · "Gasto registrado."
 Erros dizem o que fazer: "Não consegui salvar. Verifique a conexão e tente de novo."
+
+## Exceção: vidro nas telas de autenticação
+
+O vidro fosco é permitido **somente** nas telas de autenticação (`/login`, `/cadastro`, `/recuperar-senha`), como exceção à regra de não usar desfoque no app. Não vale para nenhuma outra tela.
+
+- **Mesmo vidro no desktop e no celular**: classe `.auth-glass` (borda de 1 px em `--border` a 55 %, via `::after`) + `PanelGlass` (`auth-shell.tsx`): a cópia **pré-desfocada** da foto (`auth-panel-frost.webp` no desktop, `auth-panel-frost-mobile.webp` no celular, ambas geradas por `npm run glass-bg`, desfoque ~20 px), alinhada ao pixel com a foto nítida, e a tinta do tema `--auth-glass-bg` (escuro: Tinta; claro: Papel). **Não há `backdrop-filter` em tempo de execução**: uma única camada de imagem, sem animação de desfoque nem desfoques aninhados, leve em celulares simples.
+- **Desktop**: tinta a 16 %. **Celular** (`.auth-glass-m`, o painel do título e a aba "Entrar" da tela de boas-vindas): tinta mais forte, claro Papel 48 % e escuro Tinta 44 %, porque esses painéis ficam na parte mais viva da foto. O valor foi o menor que mantém o texto a **≥ 4,5:1** sobre os pixels mais claros/escuros atrás dele (medido em `tests/e2e/login-mobile-restore.spec.ts`).
+- **Texto e logo** seguem o tema pelo token `foreground` (escuro: Papel; claro: Tinta). A aba "Criar conta" é Lima com texto Tinta nos dois temas.
+- **`prefers-reduced-transparency: reduce`**: a imagem some e a tinta vira o fundo opaco (`--auth-glass-bg: var(--background)`).

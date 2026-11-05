@@ -45,9 +45,6 @@ type CopyKey = keyof typeof COPY
 // One easing for every movement in the shell (DESIGN-SYSTEM §6).
 const EASE = "ease-[cubic-bezier(0.2,0.8,0.2,1)]"
 
-/** Text on the photo follows the theme, matching the logo: dark theme -> Tinta (logo-preta), light theme -> Papel (logo-branca). */
-const ON_PHOTO = "text-palette-papel dark:text-palette-tinta"
-
 const glass =
   "border border-foreground/15 bg-foreground/10"
 
@@ -78,12 +75,12 @@ function ThemedLogo({ className, inverse = true }: { className: string; inverse?
  * separate layers (the border is a ::after overlay in globals.css, so the image never bleeds over the rounded corners).
  * Placement is written straight to the DOM (no React state, no re-render) and re-measured while the card animates.
  */
-function PanelGlass() {
+function PanelGlass({ scrim = "bottom" }: { /** "bottom": the desktop card (a scrim behind the copy at the bottom); "none": a small panel or tab. */ scrim?: "bottom" | "none" }) {
   const img = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     const el = img.current
-    const host = el?.parentElement
+    const host = el?.closest<HTMLElement>(".auth-glass")
     if (!el || !host) return
     let raf = 0
     let until = performance.now() + 2200
@@ -114,11 +111,14 @@ function PanelGlass() {
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img ref={img} src="/images/auth-panel-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
+      {/* Art direction like the photo behind it (phones download only the phone copy, which has the phone photo's aspect so every pixel lines up). */}
+      <picture>
+        <source media="(max-width: 767px)" srcSet="/images/auth-panel-frost-mobile.webp" />
+        <img ref={img} src="/images/auth-panel-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
+      </picture>
       <span aria-hidden className="auth-glass-tint pointer-events-none absolute inset-0 -z-10" />
       {/* Soft scrim behind the text block only (transparent at the top to ~35% tint at the bottom): keeps AA contrast on the lighter glass. */}
-      <span aria-hidden className="auth-glass-scrim pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-3/5" />
+      {scrim === "bottom" ? <span aria-hidden className="auth-glass-scrim pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-3/5" /> : null}
     </>
   )
 }
@@ -225,18 +225,20 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
     <div
       inert={hidden}
       aria-hidden={hidden}
-      className={cn("fixed inset-0 z-10 flex flex-col transition-opacity duration-500 lg:hidden", ON_PHOTO, hidden && "opacity-0")}
+      className={cn("fixed inset-0 z-10 flex flex-col text-foreground transition-opacity duration-500 lg:hidden", hidden && "opacity-0")}
     >
       <div className="relative flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
         <div>
-          <ThemedLogo className="h-10" />
+          {/* The logo follows the theme like the text: Papel letters in dark, Tinta letters in light (both files in the markup, toggled by CSS). */}
+          <ThemedLogo className="h-10" inverse={false} />
         </div>
-        {/* The photo stays untouched, so the text sits on a solid surface (a card), not on a scrim over the photo. */}
-        <div className="mt-2 flex w-full max-w-sm flex-col items-center gap-2 rounded-[28px] bg-background px-6 py-5 text-foreground">
-          <h2 className={cn("text-[30px] leading-[38px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
+        {/* The same frosted glass as the desktop card (.auth-glass + PanelGlass: the pre-blurred photo, the tint of the theme, the 1 px border); the text is the foreground token, Papel in dark and Tinta in light. */}
+        <div className="auth-glass auth-glass-m relative isolate mt-2 flex w-full max-w-sm flex-col items-center gap-2 overflow-hidden rounded-[28px] p-6">
+          <PanelGlass scrim="none" />
+          <h2 className={cn("relative text-[30px] leading-[38px] font-semibold tracking-[-0.02em]", R)} style={rs(1)}>
             Sua vida, organizada.
           </h2>
-          <p className={cn("text-base leading-6 text-muted-foreground", R)} style={rs(2)}>
+          <p className={cn("relative text-base leading-6", R)} style={rs(2)}>
             Tudo do seu dia em um só lugar.
           </p>
         </div>
@@ -246,11 +248,12 @@ function MobileWelcome({ hidden, onOpen }: { hidden: boolean; onOpen: (target: T
           type="button"
           onClick={() => onOpen("login")}
           className={cn(
-            "bg-background pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-foreground outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 active:bg-accent",
+            "auth-glass auth-glass-m relative isolate overflow-hidden rounded-tr-[28px] pb-[env(safe-area-inset-bottom)] text-base leading-6 font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:opacity-80",
             authMotion
           )}
         >
-          Entrar
+          <PanelGlass scrim="none" />
+          <span className="relative">Entrar</span>
         </button>
         <button
           type="button"

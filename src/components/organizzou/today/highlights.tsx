@@ -1,21 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { SectionHeader } from "@/components/organizzou/SectionHeader"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
-import { A11y, EffectCards, Keyboard } from "swiper/modules"
-import { Swiper, SwiperSlide } from "swiper/react"
-import type { Swiper as SwiperInstance } from "swiper/types"
+import { HighlightDeck } from "@/components/organizzou/highlight-deck"
 
 import { Button } from "@/components/ui/button"
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel"
-import { cn } from "@/lib/utils"
 
 import { StatToneProvider } from "./stat-card"
-
-import "swiper/css"
-import "swiper/css/effect-cards"
-import "swiper/css/a11y"
 
 export type HighlightItem = { id: string; node: React.ReactNode }
 
@@ -25,13 +18,6 @@ const toneOf = (index: number, front: number) => (index === front ? ("highlight"
 const GAP = 16
 const MIN_CARD = 240
 const MAX_CARD = 320
-
-const subscribeReduced = (onChange: () => void) => {
-  const query = window.matchMedia("(prefers-reduced-motion: reduce)")
-  query.addEventListener("change", onChange)
-  return () => query.removeEventListener("change", onChange)
-}
-const reducedNow = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 // ---------------------------------------------------------------------------------------------------------------------
 // ≥ 768 px: one row, as many cards as fit (240–320 px each, equal height), prev/next arrows and drag/trackpad scroll.
@@ -122,113 +108,19 @@ export function HighlightArrows({ api }: { api: CarouselApi | undefined }) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// < 768 px: stacked cards (Swiper EffectCards). The active card is on top with the normal card surface, the others fan out behind
-// it; slide shadows are off (no shadows on dark) and the surfaces and 1 px borders keep them apart.
+// < 768 px: the shared card deck (HighlightDeck). The card in front is Lima with the normal card surface, the others fan out behind it.
 
-const MAX_DOTS = 7
-
-/** A window of at most 7 dots around the active one, so 16 cards never become a 16-dot row. */
-function dotWindow(count: number, active: number) {
-  if (count <= MAX_DOTS) return Array.from({ length: count }, (_, i) => i)
-  const start = Math.min(Math.max(0, active - Math.floor(MAX_DOTS / 2)), count - MAX_DOTS)
-  return Array.from({ length: MAX_DOTS }, (_, i) => start + i)
-}
-
-function Pager({ count, active, onGo }: { count: number; active: number; onGo: (index: number) => void }) {
-  return (
-    <div className="flex flex-col items-center gap-0.5 pt-3">
-      <p aria-live="polite" className="tabular text-[13px] leading-5 text-muted-foreground">
-        {active + 1} de {count}
-      </p>
-      <div role="tablist" aria-label="Escolher destaque" className="flex items-center">
-        {dotWindow(count, active).map((index) => (
-          <button key={index} type="button" role="tab" aria-selected={index === active} aria-label={`Destaque ${index + 1} de ${count}`} onClick={() => onGo(index)} className="group flex h-11 min-w-6 items-center justify-center outline-none">
-            <span
-              className={cn(
-                "h-2 rounded-full border border-border transition-[width,background-color] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group-focus-visible:ring-3 group-focus-visible:ring-ring/50 motion-reduce:transition-none",
-                index === active ? "w-5 border-transparent bg-highlight" : "w-2 bg-muted"
-              )}
-            />
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** The deck is a fixed 78vw (max 320 px) by 172 px box, so server HTML and client render have the same size: no layout jump. */
-const deckBox = "mx-auto h-[172px] w-[78vw] max-w-[320px]"
-
+/** The deck is a fixed 172 px high, so server HTML and client render have the same size: no layout jump. */
 function CardsDeck({ items }: { items: HighlightItem[] }) {
-  const reduced = useSyncExternalStore(subscribeReduced, reducedNow, () => false)
-  const [swiper, setSwiper] = useState<SwiperInstance | null>(null)
-  const [active, setActive] = useState(0)
-  const go = useCallback((index: number) => swiper?.slideToLoop(index), [swiper])
-  const strip = useRef<HTMLDivElement>(null)
-  const [firstSeen, setFirstSeen] = useState(0)
-
-  // Flat strip: the first card that is mostly visible is the Lima one.
-  useEffect(() => {
-    const root = strip.current
-    if (!reduced || !root) return
-    const visible = new Set<number>()
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const index = Number((entry.target as HTMLElement).dataset.index)
-          if (entry.isIntersecting) visible.add(index)
-          else visible.delete(index)
-        }
-        if (visible.size > 0) setFirstSeen(Math.min(...visible))
-      },
-      { root, threshold: 0.6 }
-    )
-    root.querySelectorAll("[data-index]").forEach((node) => observer.observe(node))
-    return () => observer.disconnect()
-  }, [reduced, items.length])
-
-  if (reduced) {
-    // prefers-reduced-motion: a plain strip you scroll sideways, no 3D, no stacking.
-    return (
-      <div className="flex flex-col">
-        <div ref={strip} role="region" aria-roledescription="carousel" aria-label="Destaques" tabIndex={0} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {items.map((item, index) => (
-            <div key={item.id} data-index={index} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${items.length}`} className="h-[172px] w-[78vw] max-w-[320px] shrink-0 snap-center">
-              <StatToneProvider tone={toneOf(index, firstSeen)}>
-                <div className="h-full rounded-[20px]">{item.node}</div>
-              </StatToneProvider>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col overflow-x-clip">
-      <Swiper
-        modules={[EffectCards, Keyboard, A11y]}
-        effect="cards"
-        grabCursor
-        loop={items.length > 2}
-        keyboard={{ enabled: true, onlyInViewport: true }}
-        cardsEffect={{ slideShadows: false, perSlideOffset: 9, perSlideRotate: 2, rotate: true }}
-        a11y={{ containerMessage: "Destaques do dia", containerRoleDescriptionMessage: "carrossel", itemRoleDescriptionMessage: "item", slideLabelMessage: "{{index}} de {{slidesLength}}", prevSlideMessage: "Destaque anterior", nextSlideMessage: "Próximo destaque" }}
-        onSwiper={setSwiper}
-        onSlideChange={(s) => setActive(s.realIndex)}
-        className={cn(deckBox, "overflow-visible! [&_.swiper-slide]:rounded-[20px]")}
-      >
-        {items.map((item, index) => (
-          <SwiperSlide key={item.id}>
-            <StatToneProvider tone={toneOf(index, active)}>
-              <div className="h-full rounded-[20px]">{item.node}</div>
-            </StatToneProvider>
-          </SwiperSlide>
-        ))}
-      </Swiper>
-      <Pager count={items.length} active={active} onGo={go} />
-    </div>
-  )
+  const slides = items.map((item) => ({
+    id: item.id,
+    render: (front: boolean) => (
+      <StatToneProvider tone={front ? "highlight" : "default"}>
+        <div className="h-full rounded-[20px]">{item.node}</div>
+      </StatToneProvider>
+    ),
+  }))
+  return <HighlightDeck slides={slides} label="Destaques do dia" stripLabel="Destaques" noun="destaque" height={172} />
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

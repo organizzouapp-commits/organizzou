@@ -46,6 +46,7 @@ import type { CalendarViewId } from "@/components/calendar/agenda-screen"
 import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { InlineInput } from "./inline-input"
 import { ExpandingSearch, SearchField, ToolbarSort } from "./toolbar-controls"
+import { ViewTabs, type ViewTab } from "./view-tabs"
 import { dashedPillClass, PillTabs } from "./pill-tabs"
 import type { GroupBy } from "./list-view"
 import { useLabelColors } from "./label-colors-context"
@@ -287,38 +288,13 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
     </div>
   )
 
-  // Neutral segmented control: the ACTIVE view is foreground 14% with weight 600, never Lima.
-  const views: { id: ViewMode; label: string; icon: typeof ListIcon }[] = [
+  // Neutral segmented control (shared with Finanças): the ACTIVE view is foreground 14% with weight 600, never Lima.
+  const views: ViewTab<ViewMode>[] = [
     { id: "kanban", label: "Kanban", icon: SquareKanbanIcon },
     { id: "lista", label: "Lista", icon: ListIcon },
     { id: "calendario", label: "Agenda", icon: CalendarDaysIcon },
   ]
-  const viewTabs = (
-    <div role="tablist" aria-label="Visão" className={cn("grid min-w-0 grid-cols-3 items-center gap-0.5 rounded-full bg-muted p-1 md:flex md:h-10", isMobile ? "h-10 w-full gap-0 p-0" : "")}>
-      {views.map(({ id, label, icon: Icon }) => {
-        const on = props.view === id
-        return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={on}
-            aria-label={label}
-            title={label}
-            data-view-tab={id}
-            onClick={() => props.onViewChange(id)}
-            className={cn(
-              "flex h-full min-w-0 items-center justify-center gap-1.5 rounded-full px-1 text-[14px] whitespace-nowrap outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:px-3 min-[1536px]:px-4",
-              on ? "bg-foreground/14 font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon aria-hidden strokeWidth={1.75} className={isMobile ? "size-[18px] shrink-0" : "size-4"} />
-            {isMobile ? <span className="min-w-0 truncate text-[13px] leading-5 font-semibold">{label}</span> : <span className="max-[1535px]:sr-only">{label}</span>}
-          </button>
-        )
-      })}
-    </div>
-  )
+  const viewTabs = <ViewTabs tabs={views} value={props.view} onChange={props.onViewChange} ariaLabel="Visão" isMobile={isMobile} />
 
   // Editable shortcut chips with PENDING counts; hidden at 0 unless pinned (or active). Lima = active.
   const chips = (

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { SearchIcon, SlidersHorizontalIcon } from "lucide-react"
+import { ArrowLeftRightIcon, LayoutGridIcon, RepeatIcon, SearchIcon, SlidersHorizontalIcon, TargetIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { LabelColorsProvider, useLabelColorsStore } from "@/components/tasks/label-colors-context"
 import { PillTabs } from "@/components/tasks/pill-tabs"
+import { ViewTabs, type ViewTab } from "@/components/tasks/view-tabs"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +38,13 @@ import { FiltersSheet, TransactionsFilterRow, TransactionsMain, TransactionsSide
 export type { FinanceInitial } from "./context"
 
 const USER = "00000000-0000-4000-8000-000000000001"
+
+const MOBILE_TABS: ViewTab<TabId>[] = [
+  { id: "visao", label: "Geral", icon: LayoutGridIcon },
+  { id: "lancamentos", label: "Lançamentos", icon: ArrowLeftRightIcon },
+  { id: "fixas", label: "Fixas", icon: RepeatIcon },
+  { id: "metas", label: "Metas", icon: TargetIcon },
+]
 
 const TABS: { id: TabId; label: string; short: string }[] = [
   { id: "visao", label: "Visão geral", short: "Geral" },
@@ -408,18 +416,18 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="financas" data-tab={tab}>
         {isMobile ? (
           <>
-            <section aria-label="Finanças" data-testid="financas-header-block" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-3">
-              <div className="flex h-11 items-center gap-2">
+            <section aria-label="Finanças" data-testid="financas-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+              <div className="flex h-9 items-center gap-2">
                 {searchOpen && tab === "lancamentos" ? (
                   <>
-                    <Input autoFocus type="search" value={filters.query} onChange={(e) => setFilters({ query: e.target.value })} aria-label="Buscar lançamentos" placeholder="Buscar lançamentos" className="h-11 min-w-0 flex-1 rounded-full" />
-                    <Button variant="ghost" className="h-11" onClick={() => (setFilters({ query: "" }), setSearchOpen(false))}>
+                    <Input autoFocus type="search" value={filters.query} onChange={(e) => setFilters({ query: e.target.value })} aria-label="Buscar lançamentos" placeholder="Buscar lançamentos" className="h-9 min-w-0 flex-1 rounded-full" />
+                    <Button variant="ghost" className="h-9" onClick={() => (setFilters({ query: "" }), setSearchOpen(false))}>
                       Fechar
                     </Button>
                   </>
                 ) : (
                   <>
-                    <h2 className="min-w-0 flex-1 truncate text-[18px] leading-7 font-semibold">Finanças</h2>
+                    <h2 className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold">Finanças</h2>
                     {tab === "lancamentos" ? (
                       <>
                         <Button variant="outline" size="icon" aria-label="Buscar lançamentos" className="relative size-9 after:absolute after:-inset-1" onClick={() => setSearchOpen(true)}>
@@ -434,7 +442,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
                   </>
                 )}
               </div>
-              {tabs}
+              <ViewTabs tabs={MOBILE_TABS} value={tab} onChange={setTab} ariaLabel="Finanças" isMobile columns={4} weighted dataAttr="data-finance-tab" />
               {tab === "lancamentos" ? <TransactionsFilterRow /> : null}
             </section>
             {usesMonth ? <div className="px-1">{toolbar}</div> : null}

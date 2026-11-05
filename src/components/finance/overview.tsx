@@ -16,6 +16,7 @@ import { BillMini } from "./bill-mini"
 import { useFinance } from "./context"
 import { derive, variation } from "./derive"
 import { AccountMenu } from "./accounts"
+import { FinanceDeck, type FinanceSlide } from "./finance-deck"
 import { BalanceChart } from "./balance-chart"
 import { accountIcon, accountIconKey } from "./dialogs"
 import { GoalRing, useGoalSets } from "./goals"
@@ -25,7 +26,7 @@ import type { AccountRow } from "@/features/finance/types"
 
 // ------------------------------------------------------------------ hero and stats
 
-export function BalanceHero() {
+export function BalanceHero({ fill = true }: { fill?: boolean }) {
   const f = useFinance()
   const d = derive(f)
   const history = useMemo(() => balanceHistory(f.accounts, f.transactions, f.month, 6), [f.accounts, f.transactions, f.month])
@@ -37,33 +38,61 @@ export function BalanceHero() {
       support={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"} · ${formatBalance(d.month.surplus)} no mês`}
       onArrow={() => f.goTab("lancamentos")}
       arrowLabel="Ver lançamentos"
-      className="h-full"
+      className={fill ? "h-full" : undefined}
     >
       <BalanceChart key={f.month} history={history} className="mt-2" />
     </HeroCard>
   )
 }
 
-/** Entradas, Saídas, Saldo do mês (the signed result) and what is still to pay in fixed bills. */
-export function StatGrid({ compact = false }: { compact?: boolean }) {
+export function IncomeStat({ compact = false, className }: { compact?: boolean; className?: string }) {
   const f = useFinance()
   const d = derive(f)
-  const incomeVar = variation(d.month.income, d.previous.income)
-  const expenseVar = variation(d.month.expense, d.previous.expense)
+  return (
+    <BentoStat compact={compact} className={className} label="Entradas" icon={ArrowUpRightIcon} chip={variation(d.month.income, d.previous.income) ?? "este mês"}>
+      <MoneyText cents={d.month.income} dimDecimals />
+    </BentoStat>
+  )
+}
+
+export function ExpenseStat({ compact = false, className }: { compact?: boolean; className?: string }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoStat compact={compact} className={className} label="Saídas" icon={ArrowDownRightIcon} chip={variation(d.month.expense, d.previous.expense) ?? "este mês"}>
+      <MoneyText cents={d.month.expense} dimDecimals />
+    </BentoStat>
+  )
+}
+
+export function SurplusStat({ compact = false, className }: { compact?: boolean; className?: string }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoStat compact={compact} className={className} label="Saldo do mês" icon={ScaleIcon} chip="entradas − saídas">
+      <MoneyText cents={d.month.surplus} tone="value" dimDecimals />
+    </BentoStat>
+  )
+}
+
+export function FixedToPayStat({ compact = false, className }: { compact?: boolean; className?: string }) {
+  const f = useFinance()
+  const d = derive(f)
+  return (
+    <BentoStat compact={compact} className={className} label="Fixas a pagar" icon={ReceiptIcon} chip={`${d.unpaidCount} ${d.unpaidCount === 1 ? "conta" : "contas"}`}>
+      <MoneyText cents={d.toPayTotal} dimDecimals />
+    </BentoStat>
+  )
+}
+
+/** Entradas, Saídas, Saldo do mês (the signed result) and what is still to pay in fixed bills. */
+export function StatGrid({ compact = false }: { compact?: boolean }) {
   return (
     <div data-testid="stat-grid" className="grid auto-rows-fr grid-cols-2 gap-3 md:gap-4">
-      <BentoStat compact={compact} label="Entradas" icon={ArrowUpRightIcon} chip={incomeVar ?? "este mês"}>
-        <MoneyText cents={d.month.income} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} label="Saídas" icon={ArrowDownRightIcon} chip={expenseVar ?? "este mês"}>
-        <MoneyText cents={d.month.expense} dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} label="Saldo do mês" icon={ScaleIcon} chip="entradas − saídas">
-        <MoneyText cents={d.month.surplus} tone="value" dimDecimals />
-      </BentoStat>
-      <BentoStat compact={compact} label="Fixas a pagar" icon={ReceiptIcon} chip={`${d.unpaidCount} ${d.unpaidCount === 1 ? "conta" : "contas"}`}>
-        <MoneyText cents={d.toPayTotal} dimDecimals />
-      </BentoStat>
+      <IncomeStat compact={compact} />
+      <ExpenseStat compact={compact} />
+      <SurplusStat compact={compact} />
+      <FixedToPayStat compact={compact} />
     </div>
   )
 }
@@ -94,11 +123,11 @@ function SpendRow({ row }: { row: ReturnType<typeof derive>["categories"][number
 }
 
 /** The budget card: the 128px ring centered with "% usado", then "R$ X de R$ Y" and what is left. `rows` adds that many category rows (phones). */
-export function BudgetBento({ rows = 0 }: { rows?: number }) {
+export function BudgetBento({ rows = 0, fill = true }: { rows?: number; fill?: boolean }) {
   const f = useFinance()
   const d = derive(f)
   return (
-    <BentoCard title="Orçamento" onArrow={f.openLimits} arrowLabel="Editar limites" data-testid="budget-card" className="h-full">
+    <BentoCard title="Orçamento" onArrow={f.openLimits} arrowLabel="Editar limites" data-testid="budget-card" className={fill ? "h-full" : undefined}>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-1 text-center">
         <BudgetRing value={d.budgetPct} label="Orçamento usado" />
         <div className="flex flex-col gap-0.5">
@@ -244,24 +273,31 @@ export function AccountsBento() {
   )
 }
 
-/** Phones: the wallets in a horizontal carousel with a dashed "Adicionar" card. */
+/** Phones: the wallets as a card deck (one in front, neighbors behind, "N de M" and dots); the last card is the dashed "Adicionar conta…". */
 export function AccountsCarousel() {
   const f = useFinance()
-  return (
-    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} actions={<ManageButton />} data-testid="accounts-card">
-      <div data-testid="accounts-carousel" className="scroll-soft -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
-        {f.accounts.map((a) => (
-          <Wallet key={a.id} account={a} className="w-[152px] shrink-0 snap-start" />
-        ))}
-        <button type="button" data-add-task-pill onClick={f.openNewAccount} className="flex w-[152px] shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-border p-3 text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+  const slides = [
+    ...f.accounts.map((a) => ({ id: a.id, node: <Wallet account={a} className="min-h-[150px] rounded-[20px]" /> })),
+    {
+      id: "add",
+      node: (
+        <button type="button" data-add-task-pill data-last-slide onClick={f.openNewAccount} className="flex min-h-[150px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-border bg-card p-3 text-[14px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <PlusIcon aria-hidden strokeWidth={1.75} className="size-5" />
           Adicionar conta…
         </button>
+      ),
+    },
+  ]
+  return (
+    <BentoCard title="Contas e bancos" subtitle={`${f.accounts.length} ${f.accounts.length === 1 ? "conta" : "contas"}`} actions={<ManageButton />} data-testid="accounts-card">
+      <div data-testid="accounts-carousel">
+        <FinanceDeck slides={slides} title={null} label="Contas e bancos" noun="conta" initialHeight={150} widthClass="w-[72%] max-w-[260px]" />
       </div>
     </BentoCard>
   )
 }
 
+/** Goals in progress, nearest deadline first. */
 export function GoalsBento() {
   const f = useFinance()
   const { open, done } = useGoalSets()
@@ -289,26 +325,44 @@ export function GoalsBento() {
   )
 }
 
-/** Phones: a carousel of ring cards. */
+/** Phones: the goals as a card deck, one per goal and a last "Ver todas" card. */
 export function GoalsCarousel() {
   const f = useFinance()
   const goals = useGoalSets().open
+  const slides = [
+    ...goals.map((g) => ({
+      id: g.id,
+      node: (
+        <div data-goal={g.id} className="flex min-h-[170px] flex-col gap-2 rounded-[20px] border border-border bg-card p-3.5">
+          <div className="flex items-center gap-3">
+            <GoalRing goal={g} size={64} />
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-[15px] leading-6 font-medium">{g.name}</span>
+              <span className="tabular text-[12px] leading-4 text-muted-foreground">
+                {formatBRL(g.current_cents)} de {formatBRL(g.target_cents)}
+              </span>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="mt-auto w-full" onClick={() => f.fundGoal(g)}>
+            <PlusIcon strokeWidth={1.75} /> Guardar
+          </Button>
+        </div>
+      ),
+    })),
+    {
+      id: "all",
+      node: (
+        <button type="button" data-last-slide onClick={() => f.goTab("metas")} className="flex min-h-[170px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border border-dashed border-border bg-card p-3 text-[14px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <ArrowUpRightIcon aria-hidden strokeWidth={1.75} className="size-5" />
+          Ver todas as metas
+        </button>
+      ),
+    },
+  ]
   return (
     <BentoCard title="Metas" subtitle={`${goals.length} em andamento`} onArrow={() => f.goTab("metas")} arrowLabel="Ver metas" data-testid="goals-card">
-      <div data-testid="goals-carousel" className="scroll-soft -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
-        {goals.map((g) => (
-          <div key={g.id} data-goal={g.id} className="flex w-[168px] shrink-0 snap-start flex-col gap-2 rounded-[14px] border border-border p-3">
-            <GoalRing goal={g} size={64} />
-            <span className="truncate text-[15px] leading-6 font-medium">{g.name}</span>
-            <span className="tabular truncate text-[12px] leading-4 text-muted-foreground">
-              {formatBRL(g.current_cents)} de {formatBRL(g.target_cents)}
-            </span>
-            <Button variant="outline" size="sm" className="w-full" onClick={() => f.fundGoal(g)}>
-              <PlusIcon strokeWidth={1.75} /> Guardar
-            </Button>
-          </div>
-        ))}
-        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : null}
+      <div data-testid="goals-carousel">
+        {goals.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhuma meta em andamento.</p> : <FinanceDeck slides={slides} title={null} label="Metas" noun="meta" initialHeight={170} widthClass="w-[72%] max-w-[260px]" />}
       </div>
     </BentoCard>
   )
@@ -376,14 +430,21 @@ export function OverviewDesktop() {
   )
 }
 
-/** Phones: one column, 12px apart. */
+/** Phones: the highlights as one deck (Saldo total in front with its chart), then the rest of the cards, normal ones, one under the other. */
 export function OverviewMobile() {
+  const slides: FinanceSlide[] = [
+    { id: "saldo", hero: true, node: <BalanceHero fill={false} /> },
+    { id: "entradas", node: <IncomeStat /> },
+    { id: "saidas", node: <ExpenseStat /> },
+    { id: "saldo-mes", node: <SurplusStat /> },
+    { id: "fixas", node: <FixedToPayStat /> },
+  ]
   return (
     <div data-testid="overview-grid" className="flex flex-col gap-3">
-      <BalanceHero />
-      <StatGrid compact />
+      <FinanceDeck slides={slides} initialHeight={430} />
+      <BudgetBento fill={false} />
       <AccountsCarousel />
-      <BudgetBento rows={3} />
+      <SpendingBento />
       <CashflowBento />
       <WatchBento />
       <GoalsCarousel />

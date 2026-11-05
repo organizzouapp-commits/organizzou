@@ -417,6 +417,14 @@ html[data-preloader="show"] :is(.site-zoom, .site-up, .site-left, .site-right) {
 .dark { --auth-glass-bg: color-mix(in oklab, var(--palette-tinta) 16%, transparent); --auth-glass-scrim: color-mix(in oklab, var(--palette-tinta) 35%, transparent); }
 @media (prefers-reduced-transparency: reduce) {
   :root, .dark { --auth-glass-bg: var(--background); --auth-glass-scrim: transparent; }
+  /* No frosted copy of the photo either: a plain, opaque panel. */
+  .auth-glass picture { display: none; }
+}
+/* Phones: the small glass panels (headline, Entrar tab) sit on the photo's busiest part, so their tint is stronger than the desktop card's. Same hue per theme, one fill, one frosted copy of the photo: no backdrop-filter, nothing animated. */
+.auth-glass-m { --auth-glass-bg: color-mix(in oklab, var(--palette-papel) 48%, transparent); }
+.dark .auth-glass-m { --auth-glass-bg: color-mix(in oklab, var(--palette-tinta) 44%, transparent); }
+@media (prefers-reduced-transparency: reduce) {
+  .auth-glass-m, .dark .auth-glass-m { --auth-glass-bg: var(--background); }
 }
 
 /* The phone assistant button gets out of the way of any open dialog, sheet or drawer (task details, pickers, creation sheets). */
@@ -457,3 +465,13 @@ body:has([data-vaul-drawer][data-state="open"]) [data-testid="assistant-fab"] {
   width: 0;
   height: 0;
 }
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+   Post-login splash (see components/organizzou/splash). It is in the server HTML of every page and shown only while the inline boot script has
+   set <html data-splash>: opaque theme background above the wallpaper and the whole app, no dependency on hydration, so no page of the login chain
+   ever shows the wallpaper alone. The route loading states stay out of its way. <html data-splash-final>: the intro is over, a static logo. */
+#org-splash { display: none; position: fixed; inset: 0; z-index: 200; align-items: center; justify-content: center; background-color: var(--background); }
+html[data-splash] #org-splash { display: flex; }
+html[data-splash] [data-fallback-splash] { display: none !important; }
+#org-splash[data-leaving] { opacity: 0; pointer-events: none; transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { #org-splash[data-leaving] { transition: none; } }

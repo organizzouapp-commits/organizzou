@@ -8,7 +8,7 @@ import { toast } from "sonner"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { ManageablePicker } from "@/components/tasks/manageable-picker"
-import { PillTabs, dashedPillClass } from "@/components/tasks/pill-tabs"
+import { PillTabs, dashedPillClass, pillClass } from "@/components/tasks/pill-tabs"
 import { AddTaskPill } from "@/components/tasks/quick-add"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { ExpandingSearch, ToolbarSort } from "@/components/tasks/toolbar-controls"
@@ -22,6 +22,8 @@ import { formatBRL } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 import { useFinance, type TxSort } from "./context"
+import { FinanceDeck, type FinanceSlide } from "./finance-deck"
+import { IncomeStat, SurplusStat } from "./overview"
 import { ScrollRow } from "./scroll-row"
 import { BentoCard, BentoStat, CategoryDonut, SegmentedPills } from "./bento"
 import { derive, variation } from "./derive"
@@ -281,13 +283,42 @@ function TransactionsToolbar() {
   )
 }
 
-/** Phones: the header card's pill rows: the kinds on the first line, the categories on a second line that scrolls sideways (no scrollbar). */
+/**
+ * Phones: row 3 of the header card, like the Tarefas chips ("Todas 8 | A fazer 3"): Todos | Entradas | Saídas, then the categories with their
+ * counts and the dashed Editar, all filled neutral pills (Lima when on) in ONE row that scrolls sideways by touch: no scrollbar, no chevrons.
+ */
 export function TransactionsFilterRow() {
+  const f = useFinance()
+  const counts = useTxCounts()
   const [picker, setPicker] = useState(false)
   return (
-    <div data-testid="filter-row" className="flex flex-col gap-2">
-      <KindPills className="w-fit max-w-full" />
-      <CategoryScroller pinnedEdit={false} onMore={() => setPicker(true)} />
+    <div data-testid="filter-row">
+      <div data-pill-row role="group" aria-label="Filtros de lançamentos" className="no-scrollbar flex h-9 snap-x items-center gap-2 overflow-x-auto">
+        <div role="group" aria-label="Filtrar por tipo" className="flex shrink-0 gap-2">
+          {KIND_ITEMS.map((k) => {
+            const on = f.filters.kind === k.id
+            return (
+              <button key={k.id} type="button" aria-pressed={on} data-pill data-pill-active={on} onClick={() => f.setFilters({ kind: k.id as "all" | "in" | "out" })} className={pillClass(on)}>
+                {k.label}
+                <span className={cn("tabular", on ? "opacity-70" : "")}>{counts[k.id as "all" | "in" | "out"]}</span>
+              </button>
+            )
+          })}
+        </div>
+        <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+        <div role="group" aria-label="Filtrar por categoria" className="flex shrink-0 gap-2">
+          {f.categories.map((c) => {
+            const on = f.filters.category === c.id
+            return (
+              <button key={c.id} type="button" aria-pressed={on} data-pill data-pill-active={on} onClick={() => f.setFilters({ category: on ? "all" : c.id })} className={pillClass(on)}>
+                {c.name}
+                <span className={cn("tabular", on ? "opacity-70" : "")}>{counts.categories.get(c.id) ?? 0}</span>
+              </button>
+            )
+          })}
+          <EditCategoriesButton onClick={() => setPicker(true)} />
+        </div>
+      </div>
       <CategoryPickerSheet open={picker} onOpenChange={setPicker} />
     </div>
   )
@@ -297,7 +328,7 @@ function QuickAdd() {
   const f = useFinance()
   return (
     <AddTaskPill
-      label="Adicionar lançamento… ex.: mercado 45,90 ou + salário 5000"
+      label={f.isMobile ? "Adicionar… ex.: mercado 45,90" : "Adicionar lançamento… ex.: mercado 45,90 ou + salário 5000"}
       inputLabel="Adicionar lançamento rápido"
       placeholder="mercado 45,90  ou  + salário 5000"
       onAdd={async (text) => {
@@ -402,7 +433,7 @@ function SpendDonut() {
   for (const t of f.transactions) if (t.kind === "out" && t.occurred_on.slice(0, 7) === f.month && t.category_id) counts.set(t.category_id, (counts.get(t.category_id) ?? 0) + 1)
   const segments = d.categories.filter((c) => c.spent > 0).map((c) => ({ id: c.category.id, name: c.category.name, value: c.spent, count: counts.get(c.category.id) ?? 0 }))
   return (
-    <BentoCard title="Por categoria" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
+    <BentoCard title="Por categoria" data-testid="category-card" onArrow={() => f.goTab("visao")} arrowLabel="Ver na visão geral">
       <CategoryDonut segments={segments} label="Saídas por categoria" />
     </BentoCard>
   )
@@ -419,12 +450,17 @@ export function TransactionsSide() {
   )
 }
 
-/** Phones: the hero and the two tiles above the filters. */
+/** Phones: Saídas do mês, Entradas and Saldo do mês as the card deck, then Por categoria as a normal card. */
 export function TransactionsTop() {
+  const slides: FinanceSlide[] = [
+    { id: "saidas", hero: true, node: <SpendHero /> },
+    { id: "entradas", node: <IncomeStat /> },
+    { id: "saldo-mes", node: <SurplusStat /> },
+  ]
   return (
     <div className="flex flex-col gap-3">
-      <SpendHero />
-      <TransactionStats compact />
+      <FinanceDeck slides={slides} initialHeight={300} />
+      <SpendDonut />
     </div>
   )
 }

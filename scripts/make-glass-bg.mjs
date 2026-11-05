@@ -4,6 +4,7 @@
 //   public/images/app-bg.webp, app-bg-mobile.webp   lightly blurred photo = the fixed full-screen base layer (AppBackground)
 //   public/images/app-bg-frost.webp                 heavily blurred photo = the copy painted INSIDE the big frame (FrameGlass)
 //   public/images/auth-panel-frost.webp             lightly frosted photo = the copy painted inside the LOGIN highlight card (PanelGlass)
+//   public/images/auth-panel-frost-mobile.webp      the same for phones: the headline panel and the Entrar tab of the welcome screen (PanelGlass)
 //   public/images/app-bg-mobile-glass-dark.webp    phone photo, heavy blur + ~68% less saturation + ~50% brightness (GlassSurface, dark theme)
 //   public/images/app-bg-mobile-glass-light.webp    same, desaturated and lightened (GlassSurface, light theme)
 //
@@ -36,6 +37,7 @@ const jobs = [
   { from: "auth-background-mobile.png", to: "app-bg-mobile.webp", width: 900, blur: BASE_BLUR, quality: 80 },
   { from: "auth-background.png", to: "app-bg-frost.webp", width: 960, blur: FROST_BLUR, quality: 85 },
   { from: "auth-background.png", to: "auth-panel-frost.webp", width: 1671, blur: AUTH_PANEL_BLUR, quality: 82 },
+  { from: "auth-background-mobile.png", to: "auth-panel-frost-mobile.webp", width: 900, blur: AUTH_PANEL_BLUR, quality: 82 },
   { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-dark.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_DARK },
   { from: "auth-background-mobile.png", to: "app-bg-mobile-glass-light.webp", width: 600, blur: FROST_BLUR, quality: 85, modulate: GLASS_LIGHT },
 ]
