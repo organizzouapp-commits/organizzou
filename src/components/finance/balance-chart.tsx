@@ -177,7 +177,8 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
       )}
 
       {/* Screen readers get the same numbers the tooltip shows, for every month. */}
-      <table className="sr-only" data-testid="balance-table">
+      <div className="sr-only">
+      <table data-testid="balance-table">
         <caption>Saldo total por mês e por conta</caption>
         <tbody>
           {history.map((m) => (
@@ -189,6 +190,7 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

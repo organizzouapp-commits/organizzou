@@ -1075,10 +1075,10 @@ test.describe("phone behaviors", () => {
     await expect(page.getByRole("tab", { name: "Lançamentos", exact: true })).toHaveAttribute("aria-selected", "true")
   })
 
-  test("Lançamentos: deck of four, quick add under it, swipe left deletes, filter sheet with count", async ({ page }) => {
+  test("Lançamentos: deck of three, quick add under it, swipe left deletes, filter sheet with count", async ({ page }) => {
     await open(page, "Lançamentos", true)
     await expect(page.locator("[data-hero-card]").first()).toContainText("Saídas do mês")
-    await expect(counter(page.getByTestId("finance-deck"))).toHaveText("1 de 4")
+    await expect(counter(page.getByTestId("finance-deck"))).toHaveText("1 de 3")
     const rowY = (await page.getByTestId("filter-row").boundingBox())!.y
     expect((await page.locator("[data-add-task-pill]").first().boundingBox())!.y).toBeGreaterThan(rowY)
     expect(await noPageScroll(page)).toBe(true)
