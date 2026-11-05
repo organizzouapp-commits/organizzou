@@ -6,10 +6,10 @@ import { SortableContext, arrayMove, rectSortingStrategy, useSortable, verticalL
 import { CSS } from "@dnd-kit/utilities"
 import { differenceInCalendarDays, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CalendarClockIcon, GripVerticalIcon, PiggyBankIcon, PlusIcon, StarIcon, TargetIcon, WalletIcon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, CalendarClockIcon, GripVerticalIcon, PiggyBankIcon, PlusIcon, StarIcon, TargetIcon, WalletIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
-import { ADD_PILL } from "@/components/tasks/quick-add"
+import { ADD_PILL, AddTaskPill } from "@/components/tasks/quick-add"
 import { useTaskSensors } from "@/components/tasks/task-dnd"
 import { runningTotal } from "@/features/finance/goal-history"
 import { applyGoalOrder } from "@/features/finance/goal-layout"
@@ -127,7 +127,7 @@ export function GoalStats() {
 // ------------------------------------------------------------------ sortable
 
 /** One draggable goal. The grip (a button) is the handle for mouse, touch (long press) and keyboard (Space, arrows, Space). */
-function SortableGoal({ goal, className, children }: { goal: FinancialGoalRow; className?: string; children: (grip: React.ReactNode, dragging: boolean) => React.ReactNode }) {
+function SortableGoal({ goal, className, children }: { goal: FinancialGoalRow; className?: string; children: (grip: React.ReactNode, touch: Pick<React.HTMLAttributes<HTMLElement>, "onTouchStart">) => React.ReactNode }) {
   const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: goal.id, transition: { duration: reduce ? 0 : 400, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" } })
   const grip = (
@@ -138,14 +138,14 @@ function SortableGoal({ goal, className, children }: { goal: FinancialGoalRow; c
       {...listeners}
       data-grip
       aria-label={`Reordenar ${goal.name}`}
-      className="relative flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-full opacity-70 outline-none after:absolute after:-inset-1.5 hover:bg-foreground/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
+      className="relative flex size-8 shrink-0 cursor-grab touch-none max-md:hidden items-center justify-center rounded-full opacity-70 outline-none after:absolute after:-inset-1.5 hover:bg-foreground/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
     >
       <GripVerticalIcon aria-hidden strokeWidth={1.75} className="size-4" />
     </button>
   )
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} data-sortable-goal={goal.id} className={cn("min-w-0 [&>*]:h-full", isDragging && "relative z-20 opacity-90", className)}>
-      {children(grip, isDragging)}
+      {children(grip, { onTouchStart: listeners?.onTouchStart as React.TouchEventHandler<HTMLElement> | undefined })}
     </div>
   )
 }
@@ -194,11 +194,18 @@ function EmptySpark({ compact, dark }: { compact: boolean; dark: boolean }) {
  * the projection and a Lima Guardar pill. The featured goal is the dark card; `compact` is the 3-column variant (ring 80, amount 20,
  * sparkline 48, Guardar full width at the bottom).
  */
-export function GoalCard({ goal, grip, featured = false, compact = false, order }: { goal: FinancialGoalRow; grip?: React.ReactNode; featured?: boolean; compact?: boolean; order: string[] }) {
+export function GoalCard({ goal, grip, touch, featured = false, compact = false, mobile = false, order }: { goal: FinancialGoalRow; grip?: React.ReactNode; touch?: Pick<React.HTMLAttributes<HTMLElement>, "onTouchStart">; featured?: boolean; compact?: boolean; /** The phone size: padding 14, ring 64, amount 20, sparkline 48, a 36px Guardar beside the projection. Reorder is a long press on the card. */ mobile?: boolean; order: string[] }) {
   const f = useFinance()
   const { text } = projection(goal, f.today)
   const points = runningTotal(goal.current_cents, f.goalHistory[goal.id] ?? [])
   const muted = featured ? "text-palette-papel/70" : "text-muted-foreground"
+  const small = compact || mobile
+  const index = order.indexOf(goal.id)
+  const move = (delta: -1 | 1) => {
+    const next = [...order]
+    next.splice(index + delta, 0, ...next.splice(index, 1))
+    f.setGoalOrder(next)
+  }
   return (
     <section
       aria-label={goal.name}
@@ -206,18 +213,20 @@ export function GoalCard({ goal, grip, featured = false, compact = false, order 
       data-done="false"
       data-featured={featured ? "" : undefined}
       data-compact={compact ? "" : undefined}
-      className={cn("relative flex min-w-0 flex-col rounded-[20px] border border-border", compact ? "gap-3 p-4" : "gap-4 p-5", featured ? "bg-palette-tinta text-palette-papel dark:bg-palette-grafite" : "bg-card")}
+      data-mobile={mobile ? "" : undefined}
+      {...(mobile ? touch : undefined)}
+      className={cn("relative flex min-w-0 flex-col rounded-[20px] border border-border", mobile ? "gap-3 p-3.5" : compact ? "gap-3 p-4" : "gap-4 p-5", featured ? "bg-palette-tinta text-palette-papel dark:bg-palette-grafite" : "bg-card")}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden className={cn("flex shrink-0 items-center justify-center rounded-full border", compact ? "size-9" : "size-10", featured ? "border-palette-papel/25" : "border-border bg-muted/50")}>
-            <GoalGlyph goal={goal} className={compact ? "size-4" : "size-[18px]"} />
+          <span aria-hidden className={cn("flex shrink-0 items-center justify-center rounded-full border", small ? "size-9" : "size-10", featured ? "border-palette-papel/25" : "border-border bg-muted/50")}>
+            <GoalGlyph goal={goal} className={small ? "size-4" : "size-[18px]"} />
           </span>
           <div className="flex min-w-0 flex-col">
-            <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className={cn("truncate text-left font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50", compact ? "text-[15px] leading-6" : "text-[17px] leading-6")}>
+            <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className={cn("truncate text-left font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50", small ? "text-[15px] leading-6" : "text-[17px] leading-6")}>
               {goal.name}
             </button>
-            <span className={cn("truncate text-[13px] leading-5", muted)}>{deadlineText(goal)}</span>
+            <span className={cn("truncate leading-5", mobile ? "text-[12px]" : "text-[13px]", muted)}>{deadlineText(goal)}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -225,22 +234,31 @@ export function GoalCard({ goal, grip, featured = false, compact = false, order 
           <RowMenu
             icon="arrow"
             title={goal.name}
-            extra={featured ? undefined : [{ label: "Destacar", icon: StarIcon, onSelect: () => f.featureGoal(goal, order) }]}
+            extra={[
+              ...(featured ? [] : [{ label: "Destacar", icon: StarIcon, onSelect: () => f.featureGoal(goal, order) }]),
+              ...(index > 0 ? [{ label: "Mover para cima", icon: ArrowUpIcon, onSelect: () => move(-1) }] : []),
+              ...(index >= 0 && index < order.length - 1 ? [{ label: "Mover para baixo", icon: ArrowDownIcon, onSelect: () => move(1) }] : []),
+            ]}
             onEdit={() => f.editGoal(goal)}
             onDelete={() => f.removeGoal(goal)}
             className={featured ? "text-palette-papel hover:bg-palette-papel/10 hover:text-palette-papel" : undefined}
           />
         </div>
       </div>
-      <div className={cn("flex items-center", compact ? "gap-4" : "gap-5")}>
-        <GoalRing goal={goal} size={compact ? 80 : 120} tone={featured ? "inverse" : "default"} />
+      <div className={cn("flex items-center", small ? "gap-4" : "gap-5")}>
+        <GoalRing goal={goal} size={mobile ? 64 : compact ? 80 : 120} tone={featured ? "inverse" : "default"} />
         <div className="flex min-w-0 flex-col gap-1">
-          <MoneyText cents={goal.current_cents} dimDecimals className={cn("font-semibold", compact ? "text-[20px] leading-7" : "text-[28px] leading-9")} />
-          <span className={cn("tabular truncate text-[13px] leading-5", muted)}>de {formatBRL(goal.target_cents)}</span>
+          <MoneyText cents={goal.current_cents} dimDecimals className={cn("font-semibold", small ? "text-[20px] leading-7" : "text-[28px] leading-9")} />
+          <span className={cn("tabular truncate leading-5", mobile ? "text-[12px]" : "text-[13px]", muted)}>de {formatBRL(goal.target_cents)}</span>
         </div>
       </div>
-      {points.length >= 2 ? <Sparkline points={points} label={`Aportes em ${goal.name}`} tone={featured ? "inverse" : "default"} className={compact ? "h-12" : "h-16"} /> : <EmptySpark compact={compact} dark={featured} />}
-      {compact ? (
+      {points.length >= 2 ? <Sparkline points={points} label={`Aportes em ${goal.name}`} tone={featured ? "inverse" : "default"} className={small ? "h-12" : "h-16"} /> : <EmptySpark compact={small} dark={featured} />}
+      {mobile ? (
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <p className={cn("line-clamp-2 min-w-0 flex-1 text-[12px] leading-4", featured ? "text-palette-papel/80" : "text-muted-foreground")}>{text}</p>
+          <GuardarPill goal={goal} className="h-9 shrink-0 px-4" />
+        </div>
+      ) : compact ? (
         <>
           <p className={cn("line-clamp-2 text-[13px] leading-5", featured ? "text-palette-papel/80" : "text-muted-foreground")}>{text}</p>
           <GuardarPill goal={goal} className="mt-auto h-9 w-full" />
@@ -306,9 +324,9 @@ function ActiveHeader({ count, open, onToggle }: { count: number; open: boolean;
   return (
     <div className="flex items-center justify-between gap-3">
       <GroupHeader label="Em andamento" count={count} open={open} onToggle={onToggle} />
-      <button type="button" data-new-goal data-add-task-pill aria-label="Nova meta" onClick={f.openNewGoal} className={cn(ADD_PILL, "h-9 w-auto shrink-0 justify-center px-4 after:absolute after:inset-x-0 after:-inset-y-1 max-[419px]:size-11 max-[419px]:px-0 md:h-9")}>
+      <button type="button" data-new-goal data-add-task-pill aria-label="Nova meta" onClick={f.openNewGoal} className={cn(ADD_PILL, "h-9 w-auto shrink-0 justify-center px-4 after:absolute after:inset-x-0 after:-inset-y-1 max-md:hidden md:h-9")}>
         <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
-        <span className="max-[419px]:sr-only">Nova meta</span>
+        <span>Nova meta</span>
       </button>
     </div>
   )
@@ -354,6 +372,7 @@ export function GoalsDesktop() {
 
 /** Phones: the 2x2 top cards, Em andamento as stacked full-width cards (the first one dark), Alcançadas collapsed. */
 export function GoalsMobile() {
+  const f = useFinance()
   const { open, done } = useGoalSets()
   const [activeOpen, setActiveOpen] = useState(true)
   const order = open.map((g) => g.id)
@@ -368,12 +387,13 @@ export function GoalsMobile() {
       <FinanceDeck slides={deckSlides} initialHeight={220} />
       <section data-group="active" aria-label="Em andamento" className="flex flex-col">
         <ActiveHeader count={open.length} open={activeOpen} onToggle={() => setActiveOpen((v) => !v)} />
+        <AddTaskPill label="Nova meta…" onPress={f.openNewGoal} className="mb-3" />
         <Collapse open={activeOpen}>
           <SortableGoals goals={open} layout="list">
             <div data-group-rows className="flex flex-col gap-3 pb-2">
               {open.map((g, i) => (
                 <SortableGoal key={g.id} goal={g}>
-                  {(grip) => <GoalCard goal={g} grip={grip} featured={i === 0} order={order} />}
+                  {(grip, touch) => <GoalCard goal={g} grip={grip} touch={touch} featured={i === 0} mobile order={order} />}
                 </SortableGoal>
               ))}
             </div>
