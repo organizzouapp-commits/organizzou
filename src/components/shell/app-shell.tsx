@@ -145,6 +145,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   useEffect(() => {
     splashLog("shell-mounted", { path: window.location.pathname })
     splash.markReady()
+    return () => splash.markShellGone()
   }, [])
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")

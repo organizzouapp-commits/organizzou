@@ -3,12 +3,11 @@
 import { useEffect } from "react"
 
 import { LOGO_INTRO_MS } from "../logo-timing"
-import { splashDue } from "@/lib/splash-machine"
+import { SPLASH_MAX_MS, splashStep } from "@/lib/splash-machine"
 import { splashLog } from "./splash-debug"
 import { splash } from "./splash-store"
 import { SPLASH_RETURN_COOKIE, SPLASH_START_COOKIE } from "./splash-boot"
 
-const SAFETY_MS = 8_000 // the hard limit: after this the page that is there is shown, ready or not
 const FADE_MS = 400
 
 const clearCookies = () => {
@@ -38,43 +37,59 @@ export function SplashController() {
     splashLog("controller-mounted", { elapsedAtBoot, minimum, final: reduced })
     let timers: number[] = []
     let finished = false
+    const remove = (why: string) => {
+      try {
+        root.removeAttribute("data-splash")
+        root.removeAttribute("data-splash-final")
+        root.style.removeProperty("--splash-elapsed")
+        splashEl.removeAttribute("data-leaving")
+        clearCookies()
+        splashLog("splash-removed", { why, afterMs: Math.round(performance.now() - began) })
+      } finally {
+        splash.markDismissed()
+      }
+    }
+    /** The one way out: idempotent; timers only (no requestAnimationFrame, which pauses in a hidden tab); removed in a finally. */
     const finish = (why: string) => {
       if (finished) return
       finished = true
-      window.clearInterval(poll)
-      splashLog("splash-fade-start", { why, afterMs: Math.round(performance.now() - began) })
-      // Two frames, so the content is on screen before the fade starts.
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          splash.markDismissed()
-          splashEl.setAttribute("data-leaving", "")
-          timers.push(
-            window.setTimeout(() => {
-              root.removeAttribute("data-splash")
-              root.removeAttribute("data-splash-final")
-              root.style.removeProperty("--splash-elapsed")
-              splashEl.removeAttribute("data-leaving")
-              clearCookies()
-              splashLog("splash-removed", { afterMs: Math.round(performance.now() - began) })
-            }, FADE_MS)
-          )
-        })
-      )
+      try {
+        window.clearInterval(poll)
+        document.removeEventListener("visibilitychange", tick)
+        window.removeEventListener("pageshow", tick)
+        splashLog("splash-fade-start", { why, afterMs: Math.round(performance.now() - began) })
+        if (document.hidden) return remove(why)
+        splashEl.setAttribute("data-leaving", "")
+        timers.push(window.setTimeout(() => remove(why), FADE_MS))
+      } catch {
+        remove(why)
+      }
     }
     // This document continues a login that started elapsedAtBoot ago: the same state machine as the hand-off overlay, adopted here.
     splash.markPending({ adopt: true, at: Date.now() - elapsedAtBoot })
+    let onTargetSince: number | null = null
+    function tick() {
+      if (finished) return
+      const now = Date.now()
+      onTargetSince = window.location.pathname.startsWith("/dashboard") ? (onTargetSince ?? now) : null
+      // maxMs counts from pendingAt, which already includes the time before this document started: 6 s in all.
+      const step = splashStep({ state: splash.state(), now, minMs: reduced ? 0 : LOGO_INTRO_MS, maxMs: SPLASH_MAX_MS, shellMounted: splash.shellMounted(), onTargetSince, navigatedAt: null, reloaded: true })
+      splashLog("due", { due: step })
+      if (step === "dismiss") finish(splash.state().phase === "ready" ? "ready" : "pathname-fallback")
+      else if (step === "timeout") finish("safety-timeout")
+    }
     const poll = window.setInterval(() => {
-      const due = splashDue(splash.state(), Date.now(), { minMs: reduced ? 0 : LOGO_INTRO_MS, maxMs: SAFETY_MS + elapsedAtBoot })
-      splashLog("due", { due })
-      if (due === "dismiss") finish("ready")
-      else if (due === "timeout") {
-        // Same rule as the hand-off overlay: the hard limit never reveals a bare wallpaper, so hold (up to 20 s in all) until the shell is there.
-        if (splash.state().phase === "ready") finish("ready")
-        else if (!splash.shellMounted() && performance.now() - began < 20_000) return
-        else finish("safety-timeout")
+      try {
+        tick()
+      } catch {
+        finish("error")
       }
     }, 100)
+    document.addEventListener("visibilitychange", tick)
+    window.addEventListener("pageshow", tick)
     return () => {
+      document.removeEventListener("visibilitychange", tick)
+      window.removeEventListener("pageshow", tick)
       window.clearInterval(poll)
       timers.forEach((t) => window.clearTimeout(t))
       timers = []

@@ -1,10 +1,10 @@
 "use client"
 
 import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { shouldHardNavigate, splashDue } from "@/lib/splash-machine"
+import { SPLASH_MAX_MS, splashStep } from "@/lib/splash-machine"
 import { cn } from "@/lib/utils"
 
 import { LOGO_INTRO_MS, LOGO_REDUCED_MOTION_MS } from "./logo-timing"
@@ -14,9 +14,6 @@ import { markSplashStart } from "./splash/splash-controller"
 import { splashLog } from "./splash/splash-debug"
 import { splash } from "./splash/splash-store"
 
-/** The hard limit, counted from the start of the hand-off: after it the overlay fades out whatever the page is doing (the page that is there is shown). */
-const MAX_MS = 8000
-const EXTENDED_MS = 20000 // only while the dashboard route has committed but its shell has not mounted yet
 const NO_TARGET_MS = 8000 // Google sign-in leaves the page by itself; this only guards a failed redirect
 const FADE_MS = 400
 
@@ -85,18 +82,30 @@ export function LoadingHandoff() {
     () => state
   )
   const router = useRouter()
+  const pathname = usePathname()
+  const routerRef = useRef(router)
+  const tickRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    routerRef.current = router
+  })
   // prefers-reduced-motion: the still logotype, no animation at all.
   const reducedMotion = useSyncExternalStore(subscribeReduced, reducedNow, () => false)
   const [fading, setFading] = useState(false)
   const host = useRef<HTMLDivElement>(null)
 
+  // Every route commit is also a moment to decide (no waiting for the next poll).
+  useEffect(() => {
+    tickRef.current?.()
+  }, [pathname])
+
   useEffect(() => {
     if (!active) return
     const timers: number[] = []
     let poll = 0
-    let cancelled = false
+    let done = false
     let navigatedAt: number | null = null
-    let hardNavigated = false
+    let onTargetSince: number | null = null
+    let reloaded = false
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const introMs = reduced ? LOGO_REDUCED_MOTION_MS : LOGO_INTRO_MS
     const began = Date.now()
@@ -104,81 +113,100 @@ export function LoadingHandoff() {
     const startUrl = window.location.href
     splashLog("handoff-start", { href, introMs })
 
-    let reason = ""
-    const finish = (why: string) => {
-      if (cancelled) return
-      reason = why
+    const stopWatching = () => {
       window.clearInterval(poll)
-      splashLog("handoff-fade", { why, afterMs: Date.now() - began })
-      // Two frames, so what is behind is on the screen before the overlay starts to fade.
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          if (cancelled) return
-          setFading(true)
-          timers.push(
-            window.setTimeout(() => {
-              splash.markDismissed()
-              setState({ active: false, href: null })
-              setFading(false)
-              splashLog("handoff-removed", { reason, afterMs: Date.now() - began })
-            }, FADE_MS)
-          )
-        })
-      )
+      document.removeEventListener("visibilitychange", tick)
+      window.removeEventListener("pageshow", tick)
+      tickRef.current = null
+    }
+    const remove = (why: string) => {
+      try {
+        splash.markDismissed()
+        splashLog("handoff-removed", { reason: why, afterMs: Date.now() - began })
+      } finally {
+        // Whatever happened above, the overlay goes.
+        setState({ active: false, href: null })
+        setFading(false)
+      }
+    }
+    /** The ONE way out: idempotent, callable from the poll, the pathname effect, visibilitychange/pageshow and the hard limit; the overlay is removed in a finally. */
+    const dismiss = (why: string) => {
+      if (done) return
+      done = true
+      try {
+        stopWatching()
+        splashLog("handoff-fade", { why, afterMs: Date.now() - began })
+        // A hidden tab never runs transitions: no fade there. Timers (not requestAnimationFrame, which pauses) drive everything.
+        if (document.hidden) return remove(why)
+        setFading(true)
+        timers.push(window.setTimeout(() => remove(why), FADE_MS))
+      } catch {
+        remove(why)
+      }
     }
 
     // The client navigation (replace, so Back does not return to the login), then a refresh so the server components read the new cookies.
     const navigate = () => {
-      if (cancelled || !target) return
+      if (done || !target) return
       navigatedAt = Date.now()
       splashLog("router-replace-called", { to: target.pathname })
-      router.replace(`${target.pathname}${target.search}`)
-      router.refresh()
+      routerRef.current.replace(`${target.pathname}${target.search}`)
     }
 
-    poll = window.setInterval(() => {
+    function tick() {
+      if (done) return
       const now = Date.now()
-      const due = splashDue(splash.state(), now, { minMs: introMs, maxMs: target ? MAX_MS : NO_TARGET_MS })
-      if (due === "dismiss") return finish("ready-signal")
-      if (due === "timeout") {
-        // The hard limit shows the page that is there, but never a bare wallpaper: if the dashboard route has committed and its shell is still not
-        // mounted, hold a little longer (up to EXTENDED_MS in all) instead of revealing nothing.
-        const onTarget = target !== null && window.location.pathname.startsWith(target.pathname)
-        if (splash.state().phase === "ready") return finish("ready-signal")
-        if (onTarget && !splash.shellMounted() && now - began < EXTENDED_MS) return
-        return finish("timeout")
+      const here = window.location
+      const onTarget = target !== null && (here.pathname === target.pathname || here.pathname.startsWith(`${target.pathname}/`))
+      onTargetSince = onTarget ? (onTargetSince ?? now) : null
+      // The dashboard sent a signed-in person back to the login (a bounce with ?next=): say so instead of spinning.
+      if (target && navigatedAt !== null && here.pathname.startsWith("/login") && here.href !== startUrl && now - navigatedAt > 1200) {
+        splashLog("bounced-to-login", { url: here.href })
+        toast.error("Não foi possível abrir o painel. Entre de novo.")
+        return dismiss("bounced")
       }
-      if (target && navigatedAt !== null) {
-        const here = window.location
-        // The dashboard sent a signed-in person back to the login (a bounce with ?next=): say so instead of spinning.
-        if (here.pathname.startsWith("/login") && here.href !== startUrl && now - navigatedAt > 1200) {
-          splashLog("bounced-to-login", { url: here.href })
-          toast.error("Não foi possível abrir o painel. Entre de novo.")
-          splash.markDismissed()
-          setState({ active: false, href: null })
-          return
-        }
-        // The client navigation went nowhere: do it for real (a full page load, which is how the Google flow arrives).
-        if (!hardNavigated && shouldHardNavigate(now, navigatedAt, here.pathname, target.pathname)) {
-          hardNavigated = true
-          splashLog("hard-navigation", { to: target.href })
-          // A full page load is a new document: leave the start time (like the Google flow) so it continues this splash instead of starting another.
-          markSplashStart(began)
-          window.location.assign(target.href)
-        }
+      const step = splashStep({
+        state: splash.state(),
+        now,
+        minMs: introMs,
+        maxMs: target ? SPLASH_MAX_MS : NO_TARGET_MS,
+        shellMounted: splash.shellMounted(),
+        onTargetSince,
+        navigatedAt,
+        reloaded,
+      })
+      if (step === "dismiss") return dismiss(splash.state().phase === "ready" ? "ready-signal" : "pathname-fallback")
+      if (step === "timeout") return dismiss("timeout")
+      if (step === "reload" && target) {
+        // What F5 does: a full page load, which continues this same splash from the cookie (the server renders it).
+        reloaded = true
+        splashLog("hard-navigation", { to: target.href, onTarget: onTargetSince !== null })
+        markSplashStart(began)
+        window.location.assign(target.href)
+      }
+    }
+    tickRef.current = tick
+    poll = window.setInterval(() => {
+      try {
+        tick()
+      } catch {
+        dismiss("error")
       }
     }, 100)
+    document.addEventListener("visibilitychange", tick)
+    window.addEventListener("pageshow", tick)
 
-    // The navigation starts AT ONCE, under the opaque overlay, in parallel with the intro (it used to wait for the intro, which added the whole
-    // intro to the time to the dashboard). The overlay still stays until the intro has played AND the shell has said it is ready.
+    // The navigation starts AT ONCE, under the opaque overlay, in parallel with the intro.
     if (target) timers.push(window.setTimeout(navigate, 0))
+    // A shell that was already there (cached / fast dashboard) is handled by the first tick as well.
+    timers.push(window.setTimeout(tick, 0))
 
     return () => {
-      cancelled = true
-      window.clearInterval(poll)
+      done = true
+      stopWatching()
       timers.forEach((t) => window.clearTimeout(t))
     }
-  }, [active, href, router])
+  }, [active, href])
 
   if (!active) return null
   return (
