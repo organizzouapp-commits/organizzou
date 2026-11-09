@@ -10,20 +10,19 @@ import {
   Settings2Icon,
   PlusIcon,
 } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { HojeTab, useGroups, type HojeActions } from "@/components/habits/hoje-tab"
+import { EstatisticasTab, PeriodSwitch } from "@/components/habits/estatisticas-tab"
+import { type Period } from "@/features/habits/stats"
 import { HistoricoTab, HistoryFilter, HistoryModeSwitch, type HistoryMode } from "@/components/habits/historico-tab"
 import { MonthToolbar } from "@/components/finance/parts"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import {
   Dialog,
   DialogContent,
@@ -40,12 +39,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  bestStreak,
-  consistency,
-  dayCompletion,
   isDone,
   shiftDay,
 } from "@/features/habits/stats"
@@ -70,8 +65,6 @@ function stepFor(habit: HabitRow) {
   return 5
 }
 
-const chartConfig = { rate: { label: "Constância", color: "var(--chart-1)" } } satisfies ChartConfig
-
 export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[] }) {
   const today = dayOf(nowIso)
   const [habits, setHabits] = usePersistedRows<HabitRow>("habits", initialHabits)
@@ -83,14 +76,13 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   const [hMonth, setHMonth] = useState(today.slice(0, 7))
   const [hMode, setHMode] = useState<HistoryMode>("mes")
   const [hDay, setHDay] = useState(today)
+  const [sPeriod, setSPeriod] = useState<Period>(30)
   const [tab, setTab] = useState<TabId>("hoje")
   // The day shown in the Hoje list: today by default, any earlier day through the arrows (never the future).
   const [selected, setSelected] = useState(today)
   const [editing, setEditing] = useState<HabitRow | null>(null)
   const isMobile = useIsMobile()
   const groups = useGroups()
-
-  const active = habits.filter((h) => !h.paused)
 
   function setQty(habit: HabitRow, qty: number, day = selected) {
     setLogs((current) => {
@@ -128,19 +120,6 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
     setHabits((current) => current.filter((h) => h.id !== habit.id))
     toast("Hábito excluído.")
   }
-
-  // ------------------------------------------------------------ stats
-  const best = Math.max(0, ...habits.map((h) => bestStreak(h, logs, today)))
-  const overall = active.length === 0 ? 0 : Math.round(active.reduce((sum, h) => sum + consistency(h, logs, today), 0) / active.length)
-  const monthCheckins = logs.filter((l) => l.log_date.startsWith(today.slice(0, 7))).length
-  const weekly = Array.from({ length: 8 }, (_, index) => {
-        const weekEnd = shiftDay(today, -(7 - index - 1) * 7)
-        const values = Array.from({ length: 7 }, (_, d) => dayCompletion(habits, logs, shiftDay(weekEnd, -d))).filter(
-          (v): v is number => v !== null
-        )
-        const rate = values.length === 0 ? 0 : Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100)
-        return { semana: format(parseISO(weekEnd), "dd/MM"), rate }
-      })
 
   usePrimaryAction("Novo hábito", () => setCreating(true))
 
@@ -224,6 +203,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
             {tabs}
           </section>
           {dayNav ? <div className="px-1">{dayNav}</div> : null}
+          {tab === "estatisticas" ? <PeriodSwitch value={sPeriod} onChange={setSPeriod} className="w-full [&>button]:flex-1" /> : null}
           {tab === "historico" ? (
             <>
               {monthBar ? <div className="px-1">{monthBar}</div> : null}
@@ -238,6 +218,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {dayNav}
+          {tab === "estatisticas" ? <PeriodSwitch value={sPeriod} onChange={setSPeriod} /> : null}
           {tab === "historico" ? (
             <div className="flex flex-wrap items-center gap-3">
               {filter}
@@ -253,39 +234,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
         <HistoricoTab habits={habits} logs={logs} today={today} habitId={hHabit} month={hMonth} mode={hMode} onMode={setHMode} day={hDay} onDay={setHDay} isMobile={isMobile} onToggle={toggleFixed} onStep={stepGoal} />
       ) : null}
 
-      {tab === "estatisticas" ? (
-          <Bento>
-          <KpiCard tone="highlight" label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Hábitos ativos" value={`${active.length}`} support={`${habits.length - active.length} pausado`} className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Check-ins no mês" value={`${monthCheckins}`} support="registros" className="col-span-6 @min-[1040px]:col-span-3" />
-          <BentoCard title="Constância por semana" className="col-span-12 @min-[900px]:col-span-7 @min-[900px]:h-full">
-            <ChartContainer config={chartConfig} className="aspect-auto h-72 w-full @min-[900px]:h-full @min-[900px]:min-h-72">
-              <BarChart data={weekly} margin={{ left: -16, right: 4 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.5} />
-                <XAxis dataKey="semana" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis domain={[0, 100]} tickLine={false} axisLine={false} unit="%" />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="rate" fill="var(--color-rate)" radius={6} />
-              </BarChart>
-            </ChartContainer>
-          </BentoCard>
-          <BentoCard title="Por hábito" className="col-span-12 @min-[900px]:col-span-5 @min-[900px]:h-full" bodyClassName="flex flex-col justify-between gap-4">
-            {habits.map((habit) => {
-              const rate = consistency(habit, logs, today)
-              return (
-                <div key={habit.id} className="flex flex-col gap-2">
-                  <div className="tabular flex justify-between text-[13px] leading-5">
-                    <span>{habit.name}</span>
-                    <span className="text-muted-foreground">{rate}%</span>
-                  </div>
-                  <Progress value={rate} aria-label={`Constância de ${habit.name}`} />
-                </div>
-              )
-            })}
-          </BentoCard>
-          </Bento>
-      ) : null}
+      {tab === "estatisticas" ? <EstatisticasTab habits={habits} logs={logs} today={today} period={sPeriod} isMobile={isMobile} onEdit={setEditing} /> : null}
 
       <NewHabitDialog
         open={creating}

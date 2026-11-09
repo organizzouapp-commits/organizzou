@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { fourWeekCells, averageRate, bestStreak, blockStarts, completionLevel, dayRecord, dayStrip, habitDayKind, monthCells, windowRate, consistency, consistencyDelta, currentStreak, dailyRates, dayCompletion, dayState, isDone, isScheduled, overallConsistency, recordStreak, shiftDay, topStreaks, weekStrip } from "./stats"
+import { bestAndWorstWeekday, bestStreakOf, habitStats, insightsFor, monthCheckins, scheduledIn, weekdayStats, weeklyRates, weeksFor, fourWeekCells, averageRate, bestStreak, blockStarts, completionLevel, dayRecord, dayStrip, habitDayKind, monthCells, windowRate, consistency, consistencyDelta, currentStreak, dailyRates, dayCompletion, dayState, isDone, isScheduled, overallConsistency, recordStreak, shiftDay, topStreaks, weekStrip } from "./stats"
 import type { HabitLogRow, HabitRow } from "./types"
 
 const stamp = { created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z" }
@@ -192,5 +192,72 @@ describe("fourWeekCells", () => {
     expect(cells).toHaveLength(28)
     expect(cells[0].day).toBe("2026-02-15")
     expect(cells[27].day).toBe("2026-03-14")
+  })
+})
+
+describe("Rotina > Estatísticas helpers", () => {
+  const a = habit({ id: "a", name: "A" })
+  const b = habit({ id: "b", name: "B" })
+  const logsFor = (id: string, from: number, to: number) => Array.from({ length: to - from }, (_, i) => log(id, shiftDay(TODAY, -(from + i))))
+
+  it("weeksFor follows the period and scheduledIn counts only the period", () => {
+    expect([7, 30, 90].map(weeksFor)).toEqual([4, 8, 12])
+    expect(scheduledIn(a, TODAY, 7)).toBe(7)
+    expect(scheduledIn(habit({ weekdays: [1] }), TODAY, 14)).toBe(2)
+  })
+
+  it("period filtering: a log outside the period does not count", () => {
+    const logs = logsFor("a", 7, 14) // only the week BEFORE the last 7 days
+    expect(overallConsistency([a], logs, TODAY, 7)).toBe(0)
+    expect(overallConsistency([a], logs, TODAY, 14)).toBe(50)
+  })
+
+  it("weekdayStats: per-weekday % and best / hardest weekday (ties: the earlier one, Monday first)", () => {
+    // Only Tuesdays (weekday 2) are done in the last 14 days.
+    const logs = [log("a", "2026-03-10"), log("a", "2026-03-03")]
+    const stats = weekdayStats([a], logs, TODAY, 14)
+    expect(stats[2]).toMatchObject({ done: 2, total: 2, rate: 100 })
+    expect(stats[3]).toMatchObject({ done: 0, total: 2, rate: 0 })
+    const { best, worst } = bestAndWorstWeekday(stats)!
+    expect(best.weekday).toBe(2)
+    expect(worst.weekday).toBe(1) // 0% ties: Monday comes first
+    expect(bestAndWorstWeekday(weekdayStats([], [], TODAY, 14))).toBeNull()
+  })
+
+  it("weeklyRates: rolling blocks ending today, the last is the current week, empty leading weeks are dropped", () => {
+    const logs = logsFor("a", 0, 7) // the current week fully done
+    const weeks = weeklyRates([a], logs, TODAY, 4)
+    expect(weeks).toHaveLength(4)
+    expect(weeks[3]).toEqual({ start: "2026-03-04", end: TODAY, rate: 100 })
+    expect(weeks[2].rate).toBe(0)
+    expect(weeklyRates([habit({ weekdays: [] })], [], TODAY, 4)).toEqual([])
+  })
+
+  it("habitStats: delta against the previous period, best first, paused last", () => {
+    const logs = [...logsFor("a", 0, 7), ...logsFor("a", 7, 10), ...logsFor("b", 0, 2)]
+    const stats = habitStats([b, habit({ id: "p", name: "P", paused: true }), a], logs, TODAY, 7)
+    expect(stats.map((s) => s.habit.id)).toEqual(["a", "b", "p"])
+    expect(stats[0]).toMatchObject({ rate: 100, previous: 43, delta: 57 })
+    expect(stats[1].delta).toBe(29)
+  })
+
+  it("insightsFor applies the three rules in order, skips the ones that do not apply and caps at three", () => {
+    const logs = [...logsFor("a", 0, 7), ...logsFor("b", 0, 2)]
+    const insights = insightsFor([a, b], logs, TODAY, 7)
+    expect(insights.map((i) => i.kind)).toEqual(["weekday", "improved", "below"])
+    expect(insights[0].action).toBe("Ajustar dias")
+    expect(insights[1].title).toBe("A subiu 100 pts")
+    expect(insights[2]).toMatchObject({ title: "B está abaixo de 60%", action: "Editar hábito", habitId: "b" })
+    // Everything is done and stable: nothing to say.
+    const all = [...logsFor("a", 0, 14), ...logsFor("b", 0, 14)]
+    expect(insightsFor([a, b], all, TODAY, 7)).toEqual([])
+    expect(insightsFor([], [], TODAY, 7)).toEqual([])
+  })
+
+  it("bestStreakOf and monthCheckins", () => {
+    const logs = [...logsFor("a", 0, 5), log("b", "2026-02-27")]
+    expect(bestStreakOf([a, b], logs, TODAY, 30)).toMatchObject({ days: 5 })
+    expect(bestStreakOf([a], [], TODAY, 30)).toBeNull()
+    expect(monthCheckins(logs, TODAY)).toBe(5)
   })
 })
