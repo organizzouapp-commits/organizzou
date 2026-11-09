@@ -1,40 +1,28 @@
 "use client"
 
-import { useState } from "react"
-import { BellIcon, EllipsisIcon, InfoIcon, PlusIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { EllipsisIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { BentoCard } from "@/components/organizzou/Bento"
+import { InfoLine, LembretesTab } from "@/components/notes/lembretes-tab"
 import { NotasTab } from "@/components/notes/notas-tab"
+import { RescheduleSheet, ReminderSheet, blankDraft, draftInstant, draftOf, type ReminderDraft } from "@/components/notes/reminder-sheets"
 import { useNotes } from "@/components/notes/use-notes"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
-import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
+import { groupReminders, localReminderMetaRepo, nextOccurrence, parseReminderText, type ReminderMetaMap } from "@/features/notes/reminders"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
-import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
+import { newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
@@ -47,7 +35,6 @@ const TAB_ITEMS = [
 export type NotesInitial = { folders: NoteFolderRow[]; notes: NoteRow[]; reminders: ReminderRow[] }
 
 export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: NotesInitial }) {
-  const today = dayOf(nowIso)
   const now = new Date(nowIso)
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<TabId>("notas")
@@ -55,11 +42,24 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const [notes, setNotes] = usePersistedRows<NoteRow>("notes", initial.notes, { debounceMs: 800 })
   const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
   const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
-  const [creatingReminder, setCreatingReminder] = useState(false)
+  const [reminderDraft, setReminderDraft] = useState<ReminderDraft | null>(null)
+  const [rescheduling, setRescheduling] = useState<{ ids: string[]; title: string } | null>(null)
+  const [reminderMetas, setReminderMetas] = useState<ReminderMetaMap>({})
+  useEffect(() => {
+    // localStorage only exists in the browser; read after mount so the server and the first client render match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReminderMetas(localReminderMetaRepo.load())
+  }, [])
+  const updateMetas = (change: (current: ReminderMetaMap) => ReminderMetaMap) =>
+    setReminderMetas((current) => {
+      const next = change(current)
+      localReminderMetaRepo.save(next)
+      return next
+    })
   const c = useNotes({ notes, setNotes, folders, setFolders })
 
   // The top bar's primary button follows the tab.
-  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setCreatingReminder(true)))
+  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setReminderDraft(blankDraft(now))))
 
   const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Notas e lembretes" items={TAB_ITEMS} value={tab} onSelect={(item) => {
     // Leaving the Notas tab drops an empty draft.
@@ -68,21 +68,71 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   }} />
 
   // ---------------------------------------------------------- reminders
-  const pending = reminders.filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at))
-  const done = reminders.filter((r) => r.status === "done")
-  const groupOf = (r: ReminderRow) => {
-    const diff = dayDiff(r.remind_at, now, SP_TIMEZONE)
-    return diff < 0 ? "Atrasados" : diff === 0 ? "Hoje" : diff === 1 ? "Amanhã" : "Mais tarde"
+  /** "Pagar boleto amanhã às 9h" creates the reminder; a text that carries no date or time opens the dialog with the title filled in. */
+  function quickReminder(text: string) {
+    if (!text) return setReminderDraft(blankDraft(now))
+    const { title, remindAt } = parseReminderText(text, now)
+    if (remindAt && title) {
+      setReminders((current) => [...current, { id: newId(), user_id: USER, title, remind_at: remindAt, channels: ["push"], status: "pending", note_id: null }])
+      toast.success("Lembrete criado.")
+      return
+    }
+    const draft = blankDraft(now, title)
+    if (remindAt) {
+      const when = draftOf({ id: "", title, remind_at: remindAt }, undefined)
+      setReminderDraft({ ...draft, date: when.date, time: when.time, quick: null })
+    } else setReminderDraft(draft)
   }
-  const groups = ["Atrasados", "Hoje", "Amanhã", "Mais tarde"]
-    .map((label) => ({ label, items: pending.filter((r) => groupOf(r) === label) }))
-    .filter((g) => g.items.length > 0)
 
-  function snooze(reminder: ReminderRow, hours: number) {
-    setReminders((current) =>
-      current.map((r) => (r.id === reminder.id ? { ...r, remind_at: new Date(new Date(r.remind_at).getTime() + hours * 3_600_000).toISOString() } : r))
-    )
-    toast(`Adiado em ${hours === 1 ? "1 hora" : `${hours} horas`}.`)
+  function saveReminder(draft: ReminderDraft) {
+    const remind_at = draftInstant(draft)
+    const id = draft.id ?? newId()
+    if (draft.id) setReminders((current) => current.map((r) => (r.id === id ? { ...r, title: draft.title, remind_at } : r)))
+    else setReminders((current) => [...current, { id, user_id: USER, title: draft.title, remind_at, channels: ["push"], status: "pending", note_id: null }])
+    updateMetas((current) => ({ ...current, [id]: { repeat: draft.repeat === "none" ? undefined : draft.repeat, advance: draft.advance === 0 ? undefined : draft.advance } }))
+    toast.success(draft.id ? "Lembrete atualizado." : "Lembrete criado.")
+  }
+
+  /** Completing a repeating reminder creates its next occurrence; "Desfazer" brings the original back and removes that copy. */
+  function toggleReminder(row: ReminderRow) {
+    if (row.status === "done") {
+      setReminders((current) => current.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)))
+      return
+    }
+    const meta = reminderMetas[row.id]
+    const next = nextOccurrence(row.remind_at, meta?.repeat ?? "none", now)
+    const copyId = next ? newId() : null
+    setReminders((current) => {
+      const done = current.map((r) => (r.id === row.id ? { ...r, status: "done" as const } : r))
+      return next && copyId ? [...done, { ...row, id: copyId, remind_at: next, status: "pending" as const }] : done
+    })
+    if (next && copyId && meta) updateMetas((current) => ({ ...current, [copyId]: meta }))
+    toast("Lembrete concluído.", {
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          setReminders((current) => current.filter((r) => r.id !== copyId).map((r) => (r.id === row.id ? { ...r, status: "pending" as const } : r)))
+          if (copyId) updateMetas((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== copyId)))
+        },
+      },
+    })
+  }
+
+  function applyReschedule(iso: string) {
+    const ids = new Set(rescheduling?.ids ?? [])
+    setReminders((current) => current.map((r) => (ids.has(r.id) ? { ...r, remind_at: iso, status: "pending" } : r)))
+    toast(ids.size === 1 ? "Lembrete reagendado." : `${ids.size} lembretes reagendados.`)
+  }
+
+  function deleteReminder(row: ReminderRow) {
+    setReminders((current) => current.filter((r) => r.id !== row.id))
+    updateMetas((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== row.id)))
+    toast("Lembrete excluído.")
+  }
+
+  function clearDone() {
+    setReminders((current) => current.filter((r) => r.status !== "done"))
+    toast("Concluídos removidos.")
   }
 
   return (
@@ -111,7 +161,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
                 >
                   <PlusIcon strokeWidth={1.75} /> Nova nota
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCreatingReminder(true)}>
+                <DropdownMenuItem onSelect={() => setReminderDraft(blankDraft(now))}>
                   <PlusIcon strokeWidth={1.75} /> Novo lembrete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -122,6 +172,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
+          {tab === "lembretes" ? <InfoLine /> : null}
           {tab === "notas" ? (
             <Button type="button" data-testid="new-note" onClick={c.createNote} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
               <PlusIcon strokeWidth={1.75} /> Nova nota
@@ -133,158 +184,26 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
       {tab === "notas" ? <NotasTab c={c} isMobile={isMobile} /> : null}
 
       {tab === "lembretes" ? (
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="flex max-w-[72ch] items-start gap-2 text-[13px] leading-5 text-muted-foreground">
-              <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
-              Os lembretes avisam você pelo app, na hora marcada.
-            </p>
-            <Button variant="outline" onClick={() => setCreatingReminder(true)}>
-              <PlusIcon strokeWidth={1.75} /> Novo lembrete
-            </Button>
-          </div>
-          <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))" }}>
-            {groups.map((group) => (
-              <BentoCard key={group.label} title={group.label}>
-                {group.items.map((r) => (
-                  <div key={r.id} className="flex min-h-14 items-start gap-3 border-b border-border py-3 last:border-b-0">
-                    <Checkbox
-                      checked={false}
-                      aria-label={`Concluir ${r.title}`}
-                      className="mt-1"
-                      onCheckedChange={() => {
-                        setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)))
-                        toast("Lembrete concluído.")
-                      }}
-                    />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[15px] leading-6 break-words">{r.title}</span>
-                      <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                        {formatDue({ due_at: r.remind_at, due_has_time: true }, now, SP_TIMEZONE)}
-                        {r.channels.includes("push") ? (
-                          <span className="inline-flex items-center gap-1">
-                            <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
-                          </span>
-                        ) : null}
-                      </span>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label={`Mais opções de ${r.title}`}>
-                          <EllipsisIcon strokeWidth={1.75} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Adiar</DropdownMenuLabel>
-                        <DropdownMenuItem onSelect={() => snooze(r, 1)}>Em 1 hora</DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => snooze(r, 3)}>Em 3 horas</DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => snooze(r, 24)}>Amanhã</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ))}
-              </BentoCard>
-            ))}
-            {done.length > 0 ? (
-              <BentoCard title="Concluídos">
-                {done.map((r) => (
-                  <div key={r.id} className="flex min-h-12 items-start gap-3 border-b border-border py-2.5 text-muted-foreground last:border-b-0">
-                    <Checkbox
-                      checked
-                      aria-label={`Reabrir ${r.title}`}
-                      className="mt-1"
-                      onCheckedChange={() => setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "pending" } : x)))}
-                    />
-                    <span className="flex-1 text-[15px] leading-6 break-words line-through">{r.title}</span>
-                    <Badge variant="outline">Feito</Badge>
-                  </div>
-                ))}
-              </BentoCard>
-            ) : null}
-          </div>
-        </div>
+        <LembretesTab
+          reminders={reminders}
+          metas={reminderMetas}
+          now={now}
+          isMobile={isMobile}
+          onQuick={quickReminder}
+          onEdit={(row) => setReminderDraft(draftOf(row, reminderMetas[row.id]))}
+          onReschedule={(row) => setRescheduling({ ids: [row.id], title: row.title })}
+          onRescheduleOverdue={() => {
+            const ids = groupReminders(reminders, now).overdue.map((r) => r.id)
+            if (ids.length > 0) setRescheduling({ ids, title: "" })
+          }}
+          onToggle={toggleReminder}
+          onDelete={deleteReminder}
+          onClearDone={clearDone}
+        />
       ) : null}
 
-      <ReminderDialog
-        open={creatingReminder}
-        onOpenChange={setCreatingReminder}
-        today={today}
-        onCreate={(r) => {
-          setReminders((current) => [...current, r])
-          toast.success("Lembrete criado.")
-        }}
-      />
+      <ReminderSheet draft={reminderDraft} now={now} onClose={() => setReminderDraft(null)} onSave={saveReminder} />
+      <RescheduleSheet target={rescheduling ? { count: rescheduling.ids.length, title: rescheduling.title } : null} now={now} onClose={() => setRescheduling(null)} onApply={applyReschedule} />
     </div>
-  )
-}
-
-function ReminderDialog({
-  open,
-  onOpenChange,
-  today,
-  onCreate,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  today: string
-  onCreate: (reminder: ReminderRow) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <ReminderForm today={today} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
-    </Dialog>
-  )
-}
-
-function ReminderForm({ today, onCreate, onClose }: { today: string; onCreate: (reminder: ReminderRow) => void; onClose: () => void }) {
-  const [title, setTitle] = useState("")
-  const [date, setDate] = useState(today)
-  const [time, setTime] = useState("09:00")
-
-  return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!title.trim()) return
-        onCreate({
-          id: newId(),
-          user_id: USER,
-          title: title.trim(),
-          remind_at: toDueIso(date, time, SP_TIMEZONE),
-          channels: ["push"],
-          status: "pending",
-          note_id: null,
-        })
-        onClose()
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Novo lembrete</DialogTitle>
-        <DialogDescription className="sr-only">Defina o que lembrar, quando e onde avisar.</DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="rem-title">O que lembrar</Label>
-        <Input id="rem-title" autoFocus value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="rem-date">Data</Label>
-          <Input id="rem-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="rem-time">Hora</Label>
-          <Input id="rem-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={!title.trim()}>
-          Criar lembrete
-        </Button>
-      </DialogFooter>
-    </form>
   )
 }

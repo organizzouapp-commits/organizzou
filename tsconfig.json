@@ -41,7 +41,9 @@
     ".next-flag/types/**/*.ts",
     ".next-flag/dev/types/**/*.ts",
     ".next-real/types/**/*.ts",
-    ".next-real/dev/types/**/*.ts"
+    ".next-real/dev/types/**/*.ts",
+    ".next-h/types/**/*.ts",
+    ".next-h/dev/types/**/*.ts"
   ],
   "exclude": [
     ".next-preview",

@@ -6,7 +6,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, EllipsisIcon, PencilIcon,
 import { BentoCard } from "@/components/finance/bento"
 import { HeroCard, LIST_CARD } from "@/components/finance/parts"
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
-import { QuickAdd } from "@/components/studies/quick-add"
+import { QuickAdd } from "@/components/organizzou/quick-add"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"

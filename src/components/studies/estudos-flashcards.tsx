@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckCheckIcon, EllipsisIcon, FlameIcon, LibraryIcon, PlusIcon } from "lucide-react"
 
-import { QuickAdd } from "@/components/studies/quick-add"
+import { QuickAdd } from "@/components/organizzou/quick-add"
 import { BentoCard, BentoStat } from "@/components/finance/bento"
 import { AddPill, HeroCard } from "@/components/finance/parts"
 import { HATCH_STYLE } from "@/components/habits/hoje-tab"
