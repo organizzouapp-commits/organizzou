@@ -1,6 +1,8 @@
 // Pure helpers of the "Metas" screen: the summary numbers, the order of the cards and the texts of a goal card.
 // Days are "yyyy-MM-dd" strings in America/Sao_Paulo ("today" comes from dayOf(nowIso)); every date calculation uses the date parts alone.
 import { daysLeft as daysBetween } from "@/features/studies/deadlines"
+import { dayKey } from "@/lib/dates"
+import { SP_TIMEZONE } from "@/lib/sp-time"
 
 import { goalProgress } from "./progress"
 import type { GoalLinkRow, GoalWithDetails } from "./types"
@@ -86,3 +88,66 @@ export function linkText(link: Pick<GoalLinkRow, "done" | "total" | "unit">): st
 
 /** "2 de 3" for the milestones chip. */
 export const milestoneChip = (done: number, total: number) => `${done} de ${total}`
+
+// ------------------------------------------------------------------ completed goals
+
+/** What the screen knows beyond `life_goals`: when a goal was completed. Until supabase/migrations/20261110000005_goal_completed_at.sql is applied (prepared, NOT applied) it lives in localStorage. */
+export type GoalMeta = { completed_at?: string }
+export type GoalMetaMap = Record<string, GoalMeta>
+export type GoalMetaRepo = { load(): GoalMetaMap; save(map: GoalMetaMap): void }
+
+const META_KEY = "organizzou:metas-meta"
+
+export const localGoalMetaRepo: GoalMetaRepo = {
+  load() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(META_KEY) ?? "{}") as unknown
+      if (!parsed || typeof parsed !== "object") return {}
+      const out: GoalMetaMap = {}
+      for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+        const at = value && typeof value === "object" ? (value as Record<string, unknown>).completed_at : undefined
+        if (typeof at === "string") out[id] = { completed_at: at }
+      }
+      return out
+    } catch {
+      return {}
+    }
+  },
+  save(map) {
+    try {
+      localStorage.setItem(META_KEY, JSON.stringify(map))
+    } catch {
+      // Private mode: the date just does not survive the visit.
+    }
+  },
+}
+
+type Completable = Pick<GoalWithDetails, "id" | "deadline" | "created_at" | "updated_at">
+const dayOfIso = (iso: string) => dayKey(iso, SP_TIMEZONE)
+
+/**
+ * The day a goal was completed ("yyyy-MM-dd" in São Paulo). `known` is true when the date was recorded at the moment of completion;
+ * otherwise the last update of the goal is used, which is when it was closed in nearly every case but is only an estimate.
+ */
+export function completedOn(goal: Completable, metas: GoalMetaMap): { day: string; known: boolean } {
+  const recorded = metas[goal.id]?.completed_at
+  return recorded ? { day: dayOfIso(recorded), known: true } : { day: dayOfIso(goal.updated_at), known: false }
+}
+
+/** How many of the goals were completed in the year of `today`. */
+export function completedThisYear(goals: Completable[], metas: GoalMetaMap, today: string): number {
+  return goals.filter((g) => completedOn(g, metas).day.slice(0, 4) === today.slice(0, 4)).length
+}
+
+/** The latest deadline that was met (the goal was completed on or before it); null when none was. */
+export function lastMetDeadline<T extends Completable>(goals: T[], metas: GoalMetaMap): { goal: T; deadline: string } | null {
+  const met = goals.filter((g) => g.deadline && completedOn(g, metas).day <= g.deadline)
+  const last = [...met].sort((a, b) => (b.deadline as string).localeCompare(a.deadline as string) || a.id.localeCompare(b.id))[0]
+  return last ? { goal: last, deadline: last.deadline as string } : null
+}
+
+/** Average days from creating a goal to completing it, over the goals whose completion date was recorded (never the estimates). Null without any. */
+export function averageDaysToComplete(goals: Completable[], metas: GoalMetaMap): number | null {
+  const days = goals.filter((g) => completedOn(g, metas).known).map((g) => Math.max(0, daysBetween(completedOn(g, metas).day, dayOfIso(g.created_at))))
+  return days.length === 0 ? null : Math.round(days.reduce((a, b) => a + b, 0) / days.length)
+}

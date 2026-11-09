@@ -19,7 +19,7 @@ export type GoalDraft = { id?: string; title: string; description: string; deadl
 /** "Nova meta" (or "Editar meta"): a dialog on desktop, a bottom sheet on phones. Which modules feed a goal is chosen when it is created. */
 export function GoalSheet({ draft, today, onClose, onSave }: { draft: GoalDraft | null; today: string; onClose: () => void; onSave: (draft: GoalDraft) => void }) {
   return (
-    <ResponsiveSheet open={Boolean(draft)} onOpenChange={(open) => !open && onClose()} title={draft?.id ? "Editar meta" : "Nova meta"} description="Defina o objetivo e ligue-o aos módulos que alimentam o progresso.">
+    <ResponsiveSheet open={Boolean(draft)} onOpenChange={(open) => !open && onClose()} title={draft?.id ? "Editar meta" : "Nova meta"} description="Defina o objetivo e de onde vem o progresso.">
       {draft ? <GoalForm draft={draft} today={today} onClose={onClose} onSave={onSave} /> : null}
     </ResponsiveSheet>
   )
@@ -56,8 +56,8 @@ function GoalForm({ draft, today, onClose, onSave }: { draft: GoalDraft; today: 
       </div>
       {draft.id ? null : (
         <div className="flex flex-col gap-2">
-          <Label>Alimentada por</Label>
-          <div role="group" aria-label="Alimentada por" className="flex flex-wrap gap-2">
+          <Label>Alimentado por</Label>
+          <div role="group" aria-label="Alimentado por" className="flex flex-wrap gap-2">
             {LINKABLE.map((module) => {
               const Icon = modules[module].icon
               const on = linked.includes(module)
@@ -68,6 +68,7 @@ function GoalForm({ draft, today, onClose, onSave }: { draft: GoalDraft; today: 
               )
             })}
           </div>
+          <p className="text-[13px] leading-5 text-muted-foreground">Sem módulo, você acompanha só pelos marcos.</p>
         </div>
       )}
       <StickyFooter>

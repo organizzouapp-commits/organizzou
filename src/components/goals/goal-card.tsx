@@ -3,6 +3,7 @@
 import { CheckIcon, PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { HatchedProgress } from "@/components/finance/parts"
+import { Button } from "@/components/ui/button"
 import { ActionMenu, type ActionItem } from "@/components/organizzou/action-menu"
 import { modules } from "@/components/organizzou/modules"
 import { QuickAdd } from "@/components/organizzou/quick-add"
@@ -33,7 +34,28 @@ function GoalRing({ value, label, size }: { value: number; label: string; size: 
   )
 }
 
-function MilestoneRow({ milestone, onToggle }: { milestone: GoalMilestoneRow; onToggle: () => void }) {
+/** The completed variant of the ring: a solid Lima circle with a check. */
+function DoneBadge({ title, size }: { title: string; size: number }) {
+  return (
+    <div role="img" aria-label={`${title}: concluída`} data-testid="done-badge" className="flex shrink-0 items-center justify-center rounded-full bg-highlight text-highlight-foreground" style={{ width: size, height: size }}>
+      <CheckIcon aria-hidden strokeWidth={2.25} style={{ width: size * 0.42, height: size * 0.42 }} />
+    </div>
+  )
+}
+
+function MilestoneRow({ milestone, readOnly, onToggle }: { milestone: GoalMilestoneRow; readOnly: boolean; onToggle: () => void }) {
+  if (readOnly) {
+    // A completed goal shows its milestones as they ended up: not editable.
+    return (
+      <li data-milestone={milestone.id} data-done={milestone.done} className="flex min-h-11 items-center gap-3 pl-2.5">
+        <span aria-hidden className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border-2", milestone.done ? "border-highlight bg-highlight text-highlight-foreground" : "border-foreground/30")}>
+          {milestone.done ? <CheckIcon strokeWidth={2.5} className="size-3.5" /> : null}
+        </span>
+        <span className={cn("min-w-0 flex-1 py-1 text-[15px] leading-6 break-words", milestone.done ? "text-muted-foreground line-through" : "text-muted-foreground")}>{milestone.title}</span>
+        <span className="sr-only">{milestone.done ? "feito" : "não feito"}</span>
+      </li>
+    )
+  }
   return (
     <li data-milestone={milestone.id} data-done={milestone.done} className="flex min-h-11 items-center gap-1">
       <button type="button" role="checkbox" aria-checked={milestone.done} aria-label={milestone.done ? `Reabrir marco ${milestone.title}` : `Marcar marco ${milestone.title} como concluído`} onClick={onToggle} className="group relative flex size-11 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
@@ -48,6 +70,8 @@ function MilestoneRow({ milestone, onToggle }: { milestone: GoalMilestoneRow; on
 
 export type GoalCardProps = {
   goal: GoalWithDetails
+  /** "4 de out 2026": when a completed goal was closed (the "done" variant). */
+  completedOn?: string | null
   today: string
   mobile: boolean
   onEdit: () => void
@@ -57,29 +81,41 @@ export type GoalCardProps = {
   onAddMilestone: (title: string) => void
 }
 
-export function GoalCard({ goal, today, mobile, onEdit, onSetStatus, onDelete, onToggleMilestone, onAddMilestone }: GoalCardProps) {
+export function GoalCard({ goal, completedOn, today, mobile, onEdit, onSetStatus, onDelete, onToggleMilestone, onAddMilestone }: GoalCardProps) {
   const progress = goalProgress(goal.links, goal.milestones)
   const active = goal.status === "active"
-  const chips = deadlineChips(goal.deadline, today, active)
+  const chips = active ? deadlineChips(goal.deadline, today, true) : []
   const doneMilestones = goal.milestones.filter((m) => m.done).length
   const inputId = `milestone-${goal.id}`
 
   const items: ActionItem[] = [
     { label: "Editar meta", icon: PencilIcon, run: onEdit },
     active ? { label: "Marcar como concluída", icon: CheckIcon, run: () => onSetStatus("done") } : { label: "Reabrir meta", icon: RotateCcwIcon, run: () => onSetStatus("active") },
-    { label: "Adicionar marco", icon: PlusIcon, run: () => document.getElementById(inputId)?.focus() },
+    ...(active ? [{ label: "Adicionar marco", icon: PlusIcon, run: () => document.getElementById(inputId)?.focus() }] : []),
     { label: "Excluir meta", icon: Trash2Icon, run: onDelete, separated: true },
   ]
 
   return (
     <section aria-label={goal.title} data-goal={goal.id} data-status={goal.status} className="flex h-full min-w-0 flex-col gap-4 rounded-[20px] border border-border bg-card p-4 md:p-6">
       <div className="flex items-start gap-4">
-        <GoalRing value={progress} label={`Progresso de ${goal.title}`} size={mobile ? 72 : 96} />
+        {active ? <GoalRing value={progress} label={`Progresso de ${goal.title}`} size={mobile ? 72 : 96} /> : <DoneBadge title={goal.title} size={mobile ? 72 : 96} />}
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
             <h3 className="min-w-0 text-[16px] leading-6 font-semibold break-words md:text-[18px] md:leading-7">{goal.title}</h3>
             <ActionMenu items={items} mobile={mobile} ariaLabel={`Opções de ${goal.title}`} title={goal.title} className="-mt-2 -mr-2" />
           </div>
+          {!active ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span data-chip="done" className="tabular inline-flex h-6 items-center gap-1 rounded-full bg-highlight px-2 text-[12px] leading-4 font-semibold whitespace-nowrap text-highlight-foreground">
+                <CheckIcon aria-hidden strokeWidth={2.5} className="size-3" /> Concluída
+              </span>
+              {completedOn ? (
+                <span data-chip className={chip}>
+                  concluída em {completedOn}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {chips.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1.5">
               {chips.map((text) => (
@@ -126,14 +162,19 @@ export function GoalCard({ goal, today, mobile, onEdit, onSetStatus, onDelete, o
             </span>
           ) : null}
         </div>
-        {goal.milestones.length === 0 ? <p className="text-[14px] leading-5 text-muted-foreground">Quebre a meta em passos menores.</p> : null}
+        {goal.milestones.length === 0 ? <p className="text-[14px] leading-5 text-muted-foreground">{active ? "Quebre a meta em passos menores." : "Nenhum marco nesta meta."}</p> : null}
         <ul className="flex flex-col">
           {goal.milestones.map((m) => (
-            <MilestoneRow key={m.id} milestone={m} onToggle={() => onToggleMilestone(m.id)} />
+            <MilestoneRow key={m.id} milestone={m} readOnly={!active} onToggle={() => onToggleMilestone(m.id)} />
           ))}
         </ul>
-        <QuickAdd inputId={inputId} label="Adicionar marco…" shortLabel="Adicionar marco…" ariaLabel={`Adicionar marco em ${goal.title}`} isMobile={mobile} onSubmit={(text) => text && onAddMilestone(text)} />
+        {active ? <QuickAdd inputId={inputId} label="Adicionar marco…" shortLabel="Adicionar marco…" ariaLabel={`Adicionar marco em ${goal.title}`} isMobile={mobile} onSubmit={(text) => text && onAddMilestone(text)} /> : null}
       </section>
+      {!active ? (
+        <Button type="button" variant="outline" data-testid="reopen-goal" onClick={() => onSetStatus("active")} className="h-11 w-full rounded-full">
+          <RotateCcwIcon strokeWidth={1.75} /> Reabrir meta
+        </Button>
+      ) : null}
     </section>
   )
 }

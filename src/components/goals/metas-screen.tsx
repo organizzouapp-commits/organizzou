@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { CalendarClockIcon, EllipsisIcon, FlagIcon, PlusIcon, TargetIcon, TrophyIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { CalendarClockIcon, EllipsisIcon, FlagIcon, PlusIcon, TargetIcon, TimerIcon, TrophyIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { BentoStat } from "@/components/finance/bento"
@@ -17,7 +17,7 @@ import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { averageProgress, cappedPercent, milestoneTotals, nextDeadlineGoal, sortGoals } from "@/features/goals/overview"
+import { averageDaysToComplete, averageProgress, cappedPercent, completedOn, completedThisYear, formatDeadline, lastMetDeadline, localGoalMetaRepo, milestoneTotals, nextDeadlineGoal, sortGoals, type GoalMetaMap } from "@/features/goals/overview"
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
@@ -56,6 +56,18 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
   }
   const [draft, setDraft] = useState<GoalDraft | null>(null)
   const [toDelete, setToDelete] = useState<GoalWithDetails | null>(null)
+  // When each goal was completed: localStorage until life_goals has a completed_at column (see overview.ts).
+  const [metas, setMetas] = useState<GoalMetaMap>({})
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMetas(localGoalMetaRepo.load())
+  }, [])
+  const updateMetas = (change: (current: GoalMetaMap) => GoalMetaMap) =>
+    setMetas((current) => {
+      const next = change(current)
+      localGoalMetaRepo.save(next)
+      return next
+    })
 
   const blankDraft = (): GoalDraft => ({ title: "", description: "", deadline: "", modules: ["tarefas"] })
   usePrimaryAction("Nova meta", () => setDraft(blankDraft()))
@@ -71,6 +83,8 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
 
   function setStatus(goal: GoalWithDetails, status: "active" | "done") {
     setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, status } : g)))
+    // Closing a goal records the moment; reopening forgets it.
+    updateMetas((current) => (status === "done" ? { ...current, [goal.id]: { completed_at: new Date().toISOString() } } : Object.fromEntries(Object.entries(current).filter(([id]) => id !== goal.id))))
     toast.success(status === "done" ? "Meta concluída. Parabéns!" : "Meta reaberta.")
   }
 
@@ -136,6 +150,31 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
     </BentoStat>
   )
 
+  // The summary of the Concluídas tab. The average time needs completion dates that were recorded, so it is left out until there are some.
+  const closedMarcos = milestoneTotals(done)
+  const met = lastMetDeadline(done, metas)
+  const averageDays = averageDaysToComplete(done, metas)
+  const doneHero = (
+    <HeroCard key="dhero" className={height} density="dense" label="Concluídas" value={<>{done.length} {dim(done.length === 1 ? "meta" : "metas")}</>} support={`${completedThisYear(done, metas, today)} concluídas este ano`} />
+  )
+  const lastMet = (
+    <BentoStat key="dlast" label="Último prazo cumprido" icon={CalendarClockIcon} className={height} chip={met ? met.goal.title : "Sem prazos cumpridos"}>
+      {met ? formatDeadline(met.deadline) : "—"}
+    </BentoStat>
+  )
+  const doneMarcos = (
+    <BentoStat key="dmarcos" label="Marcos" icon={FlagIcon} className={height} chip="concluídos" footer={<HatchedProgress value={cappedPercent(closedMarcos.done, closedMarcos.total)} label={`Marcos concluídos: ${closedMarcos.done} de ${closedMarcos.total}`} />}>
+      {closedMarcos.done} {dim(`de ${closedMarcos.total}`)}
+    </BentoStat>
+  )
+  const average2 = averageDays === null ? null : (
+    <BentoStat key="davg" label="Tempo médio" icon={TimerIcon} className={height} chip="para concluir uma meta">
+      {averageDays} {dim(averageDays === 1 ? "dia" : "dias")}
+    </BentoStat>
+  )
+  const summary = tab === "ativas" ? [hero, closed, deadline, milestones] : [doneHero, lastMet, doneMarcos, ...(average2 ? [average2] : [])]
+  const slides = tab === "ativas" ? [{ id: "hero", hero: true, node: hero }, { id: "done", node: closed }, { id: "next", node: deadline }, { id: "marcos", node: milestones }] : summary.map((node, i) => ({ id: `d${i}`, hero: i === 0, node }))
+
   const list = tab === "ativas" ? active : done
   const goalCards = (
     <div data-testid="goal-grid" className="grid grid-cols-1 items-stretch gap-4 @min-[880px]:grid-cols-2">
@@ -143,6 +182,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
         <GoalCard
           key={goal.id}
           goal={goal}
+          completedOn={goal.status === "done" ? formatDeadline(completedOn(goal, metas).day) : null}
           today={today}
           mobile={isMobile}
           onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
@@ -191,10 +231,10 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
       )}
 
       {isMobile ? (
-        <FinanceDeck title={null} label="Resumo das metas" noun="resumo" initialHeight={200} slides={[{ id: "hero", hero: true, node: hero }, { id: "done", node: closed }, { id: "next", node: deadline }, { id: "marcos", node: milestones }]} />
+        <FinanceDeck key={tab} title={null} label="Resumo das metas" noun="resumo" initialHeight={200} slides={slides} />
       ) : (
-        <div data-testid="goals-summary" className="grid grid-cols-2 gap-4 @min-[880px]:grid-cols-4">
-          {[hero, closed, deadline, milestones].map((card, i) => (
+        <div data-testid="goals-summary" className={`grid grid-cols-2 gap-4 ${summary.length === 3 ? "@min-[880px]:grid-cols-3" : "@min-[880px]:grid-cols-4"}`}>
+          {summary.map((card, i) => (
             <div key={i} className="flex min-w-0 flex-col [&>*]:flex-1">
               {card}
             </div>
@@ -216,9 +256,13 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
           </Button>
         </div>
       ) : (
-        <p data-testid="done-empty" className="py-6 text-[15px] leading-6 text-muted-foreground">
-          Nenhuma meta concluída ainda.
-        </p>
+        <div data-testid="done-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
+          <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
+            <TrophyIcon strokeWidth={1.75} className="size-5" />
+          </span>
+          <p className="text-[16px] leading-6 font-semibold">Nenhuma meta concluída ainda</p>
+          <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Quando você concluir uma meta, ela fica guardada aqui.</p>
+        </div>
       )}
 
       <GoalSheet draft={draft} today={today} onClose={() => setDraft(null)} onSave={saveGoal} />
