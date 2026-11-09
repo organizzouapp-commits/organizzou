@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation"
 
-import { getSiteUrl, getSupabaseEnv } from "@/lib/supabase/env"
+import { getSiteUrl } from "@/lib/supabase/env"
 import { safeNextPath } from "@/lib/safe-next"
 import { createClient } from "@/lib/supabase/server"
 
+import { isGoogleEnabled } from "./google-settings"
 import { GOOGLE_UNAVAILABLE } from "./messages"
 import {
   forgotPasswordSchema,
@@ -107,18 +108,6 @@ export async function resetPassword(input: ResetPasswordInput): Promise<ActionRe
   if (error) return { ok: false, error: messageFor(error) }
 
   return { ok: true }
-}
-
-async function isGoogleEnabled() {
-  try {
-    const { url, anonKey } = getSupabaseEnv()
-    const response = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey }, cache: "no-store" })
-    if (!response.ok) return false
-    const settings = (await response.json()) as { external?: { google?: boolean } }
-    return settings.external?.google === true
-  } catch {
-    return false
-  }
 }
 
 /** Starts the Google OAuth flow. Supabase sends the user back to /auth/callback, which lands on /hoje. */
