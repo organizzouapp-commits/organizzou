@@ -86,10 +86,10 @@ export async function loadDiet(now: string) {
   const supabase = await client()
   const [foods, mealItems, goal, weights, water] = await Promise.all([
     rows<FoodRow>(supabase, "foods", { order: ["name"] }),
-    rows<MealItemRow & { log_date: string }>(supabase, "meal_items", { since: ["log_date", back(now, 60)], order: ["created_at"] }),
+    rows<MealItemRow & { log_date: string }>(supabase, "meal_items", { since: ["log_date", back(now, 90)], order: ["created_at"] }),
     rows<DietGoalRow>(supabase, "diet_goals"),
     rows<WeightLogRow>(supabase, "weight_logs", { since: ["log_date", back(now, 400)], order: ["log_date"] }),
-    rows<{ id: string; log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", back(now, 60)] }),
+    rows<{ id: string; log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", back(now, 90)] }),
   ])
   return { foods, mealItems, goal: goal[0] ?? null, weights, water }
 }

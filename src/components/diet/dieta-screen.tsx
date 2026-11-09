@@ -4,10 +4,12 @@ import { createContext, useContext, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
 import { ptBR } from "date-fns/locale"
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
+import { HistoricoTab, HistoryPeriodSwitch } from "@/components/diet/dieta-historico"
 import { Meals, SummaryRow } from "@/components/diet/dieta-hoje"
+import { GoalDialog } from "@/components/diet/goal-dialog"
 import { AddPill } from "@/components/finance/parts"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -35,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { shiftDay } from "@/features/habits/stats"
+import type { HistoryPeriod } from "@/features/diet/history"
 import { dayTotals, itemMacros } from "@/features/diet/stats"
 import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -50,7 +53,6 @@ const TAB_ITEMS = [
 ]
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
-const kcalConfig = { kcal: { label: "Calorias", color: "var(--chart-1)" } } satisfies ChartConfig
 const weightConfig = { weight: { label: "Peso (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
 
 /** The food catalog (shared rows plus the person's own; the example list only in the local prototype). */
@@ -79,9 +81,13 @@ export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: Diet
 function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
   const foods = useFoods()
   const today = dayOf(nowIso)
-  const goal = initial.goal ?? DEFAULT_GOAL
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<TabId>("hoje")
+  const [histPeriod, setHistPeriod] = useState<HistoryPeriod>(15)
+  const [editingGoal, setEditingGoal] = useState(false)
+  // The daily goals: one row per person (saved through the same hook as every other table; the row id is only a handle for it).
+  const [goalRows, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", initial.goal ? [{ ...initial.goal, id: "goal" }] : [])
+  const goal: DietGoalRow = goalRows[0] ?? DEFAULT_GOAL
   // The day whose diary is open (today by default; the arrows go back through the days that were loaded, never forward).
   const [day, setDay] = useState(today)
   // The meals of the selected day are what the Hoje tab edits; the earlier days also feed the calories chart.
@@ -105,12 +111,8 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const [editing, setEditing] = useState<MealItemRow | null>(null)
   const [weighing, setWeighing] = useState(false)
   const [period, setPeriod] = useState("90")
-  // Earlier days: from the saved meals (days with no meals logged are not counted as zero), the example series in the prototype.
-  const history = [...new Set(allItems.map((i) => i.log_date).filter((d): d is string => Boolean(d) && d !== today))].sort().map((day) => ({ day, kcal: dayTotals(allItems.filter((i) => i.log_date === day), foods).kcal }))
 
   const totals = dayTotals(items, foods)
-  // The chart of the Histórico tab always ends on today, whatever day the Hoje tab is showing.
-  const todayTotals = dayTotals(allItems.filter((i) => (i.log_date ?? today) === today), foods)
 
   function addItem(meal: MealKind, foodId: string, servings: number) {
     setItems((current) => [...current, { id: newId(), log_date: day, meal, food_id: foodId, servings }])
@@ -123,12 +125,6 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
     toast.success(`${MEAL_LABELS[from]} copiado para ${MEAL_LABELS[to].toLowerCase()}.`)
   }
 
-  const kcalSeries = [
-    ...history.map((h) => ({ label: format(parseISO(h.day), "dd/MM"), kcal: h.kcal })),
-    { label: "Hoje", kcal: todayTotals.kcal },
-  ]
-  const hitDays = kcalSeries.filter((d) => d.kcal <= goal.kcal && d.kcal >= goal.kcal * 0.85).length
-  const averageKcal = Math.round(kcalSeries.reduce((s, d) => s + d.kcal, 0) / kcalSeries.length)
   // One point per day, in date order: the card, the variation and the chart all read the same sorted list.
   const sortedWeights = [...weights].sort((a, b) => a.log_date.localeCompare(b.log_date))
   const periodDays = period === "30" ? 30 : period === "90" ? 90 : 365
@@ -151,6 +147,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const tabs = (
     <PillTabs equal={isMobile} className={isMobile ? "grid-cols-3" : "w-fit max-w-full"} ariaLabel="Dieta" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
   )
+  const periodSwitch = tab === "historico" ? <HistoryPeriodSwitch value={histPeriod} onChange={setHistPeriod} className={isMobile ? "w-full [&>button]:flex-1" : undefined} /> : null
   const dayNav =
     tab === "hoje" ? (
       <div data-testid="diet-day-nav" className="flex h-10 items-center gap-1">
@@ -194,11 +191,13 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
             {tabs}
           </section>
           {dayNav ? <div className="px-1">{dayNav}</div> : null}
+          {periodSwitch}
         </>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {dayNav}
+          {periodSwitch}
         </div>
       )}
 
@@ -240,23 +239,20 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
       ) : null}
 
       {tab === "historico" ? (
-          <Bento>
-          <KpiCard tone="highlight" label="Média diária" value={`${averageKcal}`} support="kcal" className="col-span-12 @min-[560px]:col-span-4" />
-          <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 @min-[560px]:col-span-4" />
-          <KpiCard label="Meta" value={`${goal.kcal}`} support="kcal por dia" className="col-span-6 @min-[560px]:col-span-4" />
-          <BentoCard title="Calorias nos últimos 15 dias" className="col-span-12">
-          <ChartContainer config={kcalConfig} className="aspect-auto h-72 w-full @min-[900px]:h-96">
-            <BarChart data={kcalSeries} margin={{ left: -8, right: 4 }}>
-              <CartesianGrid vertical={false} strokeOpacity={0.5} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} interval={1} />
-              <YAxis tickLine={false} axisLine={false} width={48} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <ReferenceLine y={goal.kcal} stroke="var(--foreground)" strokeDasharray="4 4" strokeOpacity={0.5} />
-              <Bar dataKey="kcal" fill="var(--color-kcal)" radius={6} />
-            </BarChart>
-          </ChartContainer>
-          </BentoCard>
-          </Bento>
+        <HistoricoTab
+          items={allItems}
+          foods={foods}
+          water={waterRows}
+          goal={goal}
+          today={today}
+          period={histPeriod}
+          isMobile={isMobile}
+          onEditGoal={() => setEditingGoal(true)}
+          onOpenDay={(d) => {
+            setDay(d)
+            setTab("hoje")
+          }}
+        />
       ) : null}
 
       {tab === "peso" ? (
@@ -303,6 +299,15 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           </Bento>
       ) : null}
 
+      <GoalDialog
+        open={editingGoal}
+        goal={goal}
+        onOpenChange={setEditingGoal}
+        onSave={(values) => {
+          setGoalRows((rows) => [{ ...(rows[0] ?? { ...DEFAULT_GOAL, id: "goal" }), ...values }])
+          toast.success("Meta atualizada.")
+        }}
+      />
       <FoodSearchDialog meal={adding} onClose={() => setAdding(null)} onAdd={addItem} />
       <EditItemDialog
         item={editing}
