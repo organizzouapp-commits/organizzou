@@ -17,6 +17,25 @@ const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
 
 // ------------------------------------------------------------------ week strip
 
+/** The letter of a workout (A, B, C): "inverse" = Tinta on a Lima cell, "lima" = Lima/Tinta (today's workout), "muted" = soft fill, "outline" = ring only. */
+export function LetterBadge({ letter, tone = "muted", className }: { letter: string; tone?: "inverse" | "lima" | "muted" | "outline"; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full text-[12px] leading-4 font-bold",
+        tone === "inverse" && "bg-highlight-foreground text-highlight",
+        tone === "lima" && "bg-highlight text-highlight-foreground",
+        tone === "muted" && "bg-foreground/10",
+        tone === "outline" && "border border-foreground/30",
+        className
+      )}
+    >
+      {letter}
+    </span>
+  )
+}
+
 export type WeekDay = { key: string; date: Date; letter: string | null; planName: string | null; done: boolean; today: boolean }
 
 /** The week as one summary card: SEG..DOM, the date and the letter of the workout planned for that weekday (or "descanso"). */
@@ -49,9 +68,13 @@ export function WeekStripCard({ days, selected, onSelect, isMobile }: { days: We
                 {format(day.date, "d")}
               </span>
               {day.letter ? (
-                <span aria-hidden className={cn("flex size-6 items-center justify-center rounded-full text-[12px] leading-4 font-bold", day.today ? "bg-highlight-foreground text-highlight" : "bg-foreground/10")}>
-                  {day.done ? <CheckIcon strokeWidth={2.5} className="size-3.5" /> : day.letter}
-                </span>
+                day.done ? (
+                  <span aria-hidden className={cn("flex size-6 items-center justify-center rounded-full", day.today ? "bg-highlight-foreground text-highlight" : "bg-foreground/10")}>
+                    <CheckIcon strokeWidth={2.5} className="size-3.5" />
+                  </span>
+                ) : (
+                  <LetterBadge letter={day.letter} tone={day.today ? "inverse" : "muted"} className="size-6" />
+                )
               ) : (
                 <span aria-hidden className={cn("text-[11px] leading-6", day.today ? "text-highlight-foreground/75" : "text-muted-foreground")}>
                   {isMobile ? "–" : "descanso"}

@@ -5,9 +5,7 @@ import { addDays, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   ChevronDownIcon,
-  CopyIcon,
   DumbbellIcon,
-  PlusIcon,
   Trash2Icon,
   TrophyIcon,
 } from "lucide-react"
@@ -15,10 +13,9 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis, Bar, BarChart } from "rec
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { Bento, bentoCardClass, BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import {
@@ -35,13 +32,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ActionBar, AddExerciseRow, ExerciseCard, SummaryRow, WeekStripCard, exerciseIcon, type PlanChoice, type RestState, type WeekDay } from "@/components/workouts/treino-hoje"
 import { EmptyBlock } from "@/components/finance/parts"
+import { MeusTreinos } from "@/components/workouts/meus-treinos"
+import { PromptDialog } from "@/components/organizzou/PromptDialog"
+import { addWeekday, reorderExercises, toggleWeekday } from "@/features/workouts/plans"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { doneVolume, estimatedMinutes, lastVolume, nextPendingSet, planLetter, restAfterSet, type SetDraft } from "@/features/workouts/session"
 import { loadProgress, personalRecords, weeklyVolume } from "@/features/workouts/stats"
 import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
-import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
@@ -106,7 +105,8 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const [addingTo, setAddingTo] = useState<WorkoutPlanRow | null>(null)
   const [planToDelete, setPlanToDelete] = useState<WorkoutPlanRow | null>(null)
   const [progressExercise, setProgressExercise] = useState(exercises[0]?.id ?? "")
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(plans[0] ? [plans[0].id] : []))
+  /** Plans whose exercise list is fully open on a phone ("Ver todos os N exercícios"). */
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const finishedToday = Boolean(activePlan && sessions.some((s) => s.performed_on === selectedDay && s.completed && s.plan_id === activePlan.id))
 
   /** A new day or a new workout starts a fresh session: nothing typed, checked, swapped or running carries over. */
@@ -126,11 +126,28 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
     resetSession()
   }
 
+  const [editingExercise, setEditingExercise] = useState<PlanExerciseRow | null>(null)
+  const [removingExercise, setRemovingExercise] = useState<PlanExerciseRow | null>(null)
+  const [renaming, setRenaming] = useState<WorkoutPlanRow | null>(null)
+
+  /** The workout happens on these weekdays now (a workout can be on several days). */
+  function setPlanDays(plan: WorkoutPlanRow, weekdays: number[], change: "added" | "removed", day: number) {
+    setPlans((current) => current.map((p) => (p.id === plan.id ? { ...p, weekdays, updated_at: new Date().toISOString() } : p)))
+    toast(change === "added" ? `${plan.name} agora também é ${WEEKDAY_NAMES[day]}.` : `${plan.name} saiu de ${WEEKDAY_NAMES[day]}.`)
+  }
+
+  /** "Iniciar treino": opens Hoje with this workout chosen for today. */
+  function startPlan(plan: WorkoutPlanRow) {
+    setOverrides((current) => ({ ...current, [today]: plan.id }))
+    setSelectedDay(today)
+    resetSession()
+    setTab("hoje")
+  }
+
   function duplicatePlan(plan: WorkoutPlanRow) {
     const copy: WorkoutPlanRow = { ...plan, id: newId(), name: `${plan.name} (cópia)` }
     setPlans((current) => [...current, copy])
     setPlanExercises((current) => [...current, ...current.filter((e) => e.plan_id === plan.id).map((e) => ({ ...e, id: newId(), plan_id: copy.id }))])
-    setExpanded((current) => new Set(current).add(copy.id))
     toast.success("Treino duplicado.")
   }
 
@@ -381,84 +398,36 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
 
         {/* ---------------------------------------------------------- plans */}
       {tab === "treinos" ? (
-          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))" }}>
-            {plans.map((p) => {
-              const list = planExercises.filter((e) => e.plan_id === p.id).sort((a, b) => a.position - b.position)
-              const open = expanded.has(p.id)
-              return (
-                <section key={p.id} aria-label={p.name} className={cn(bentoCardClass(), "flex flex-col gap-4")}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <h3 className="truncate text-[17px] leading-6 font-semibold">{p.name}</h3>
-                      <span className="flex flex-wrap gap-1.5">
-                        {p.weekdays.length === 0 ? <span className="text-[13px] text-muted-foreground">Sem dia fixo</span> : null}
-                        {p.weekdays.map((d) => (
-                          <Badge key={d} variant="secondary">
-                            {WEEKDAY_SHORT[d]}
-                          </Badge>
-                        ))}
-                      </span>
-                    </div>
-                    <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
-                      {list.length} {list.length === 1 ? "exercício" : "exercícios"}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={() =>
-                      setExpanded((current) => {
-                        const next = new Set(current)
-                        if (next.has(p.id)) next.delete(p.id)
-                        else next.add(p.id)
-                        return next
-                      })
-                    }
-                    className="flex min-h-11 items-center justify-between gap-2 rounded-xl text-left text-[15px] outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    {open ? "Ocultar exercícios" : "Ver exercícios"}
-                    <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 transition-transform duration-[400ms] motion-reduce:transition-none", open && "rotate-180")} />
-                  </button>
-                  {open ? (
-                    <div className="flex flex-col">
-                      {list.map((e) => (
-                        <div key={e.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
-                          <span className="flex-1 text-[15px] leading-6">{exerciseName(e.exercise_id)}</span>
-                          <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                            {e.sets} × {e.reps}
-                            {e.target_load_kg ? ` · ${kg(e.target_load_kg)}` : ""}
-                          </span>
-                        </div>
-                      ))}
-                      {list.length === 0 ? <p className="py-3 text-[15px] leading-6 text-muted-foreground">Nenhum exercício ainda.</p> : null}
-                    </div>
-                  ) : null}
-                  <div className="mt-auto flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setAddingTo(p)}>
-                      <PlusIcon strokeWidth={1.75} /> Exercício
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => duplicatePlan(p)}>
-                      <CopyIcon strokeWidth={1.75} /> Duplicar
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setPlanToDelete(p)}>
-                      <Trash2Icon strokeWidth={1.75} /> Excluir
-                    </Button>
-                  </div>
-                </section>
-              )
-            })}
-            <button
-              type="button"
-              onClick={() => setCreatingPlan(true)}
-              className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-[24px] border border-dashed border-border p-6 text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
-            >
-              <PlusIcon aria-hidden strokeWidth={1.75} className="size-6" />
-              Novo treino
-            </button>
-          </div>
+        <MeusTreinos
+          plans={plans}
+          planExercises={planExercises}
+          sets={sets}
+          sessions={sessions}
+          todayWeekday={parseISO(today).getDay()}
+          isMobile={isMobile}
+          exerciseName={exerciseName}
+          showAll={expanded}
+          onToggleShowAll={(id) =>
+            setExpanded((current) => {
+              const next = new Set(current)
+              if (next.has(id)) next.delete(id)
+              else next.add(id)
+              return next
+            })
+          }
+          onCreate={() => setCreatingPlan(true)}
+          onToggleDay={(plan, day) => setPlanDays(plan, toggleWeekday(plan.weekdays, day), plan.weekdays.includes(day) ? "removed" : "added", day)}
+          onDropOnDay={(plan, day) => (plan.weekdays.includes(day) ? toast(`${plan.name} já está nesse dia.`) : setPlanDays(plan, addWeekday(plan.weekdays, day), "added", day))}
+          onReorder={(planId, from, to) => setPlanExercises((current) => reorderExercises(current, planId, from, to))}
+          onAddExercise={setAddingTo}
+          onEditExercise={setEditingExercise}
+          onDuplicate={duplicatePlan}
+          onRename={setRenaming}
+          onDelete={setPlanToDelete}
+          onStart={startPlan}
+        />
       ) : null}
 
-        {/* ------------------------------------------------------ progress */}
       {tab === "evolucao" ? (
           <Bento className="@container">
           <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 @min-[1040px]:col-span-3" />
@@ -542,6 +511,46 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
         onAdd={(row) => {
           setPlanExercises((current) => [...current, row])
           toast.success("Exercício adicionado.")
+        }}
+      />
+      <EditExerciseDialog
+        row={editingExercise}
+        name={editingExercise ? exerciseName(editingExercise.exercise_id) : ""}
+        onClose={() => setEditingExercise(null)}
+        onSave={(row) => {
+          setPlanExercises((current) => current.map((e) => (e.id === row.id ? row : e)))
+          toast("Exercício atualizado.")
+        }}
+        onRemove={(row) => setRemovingExercise(row)}
+      />
+      <ConfirmDialog
+        open={Boolean(removingExercise)}
+        onOpenChange={(open) => !open && setRemovingExercise(null)}
+        title="Remover este exercício?"
+        description={removingExercise ? `“${exerciseName(removingExercise.exercise_id)}” sai do treino. O histórico é mantido.` : ""}
+        confirmLabel="Remover"
+        onConfirm={() => {
+          const row = removingExercise
+          setRemovingExercise(null)
+          if (!row) return
+          setPlanExercises((current) => current.filter((e) => e.id !== row.id))
+          toast("Exercício removido.")
+        }}
+      />
+      <PromptDialog
+        open={Boolean(renaming)}
+        onOpenChange={(open) => !open && setRenaming(null)}
+        title="Renomear treino"
+        label="Nome"
+        initialValue={renaming?.name ?? ""}
+        submitLabel="Renomear"
+        onSubmit={(value) => {
+          const plan = renaming
+          setRenaming(null)
+          const name = value.trim().slice(0, 60)
+          if (!plan || !name) return
+          setPlans((current) => current.map((p) => (p.id === plan.id ? { ...p, name, updated_at: new Date().toISOString() } : p)))
+          toast("Treino renomeado.")
         }}
       />
       <SwapDialog item={swapping} current={swapping ? exerciseOf(swapping) : ""} onClose={() => setSwapping(null)} onSwap={(exerciseId) => swapping && swapExercise(swapping, exerciseId)} />
@@ -765,6 +774,79 @@ function SwapForm({ current, onSwap, onClose }: { current: string; onSwap: (exer
           Cancelar
         </Button>
         <Button type="submit">Substituir</Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+function EditExerciseDialog({ row, name, onClose, onSave, onRemove }: { row: PlanExerciseRow | null; name: string; onClose: () => void; onSave: (row: PlanExerciseRow) => void; onRemove: (row: PlanExerciseRow) => void }) {
+  return (
+    <Dialog open={Boolean(row)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>{row ? <EditExerciseForm row={row} name={name} onSave={onSave} onRemove={onRemove} onClose={onClose} /> : null}</DialogContent>
+    </Dialog>
+  )
+}
+
+function EditExerciseForm({ row, name, onSave, onRemove, onClose }: { row: PlanExerciseRow; name: string; onSave: (row: PlanExerciseRow) => void; onRemove: (row: PlanExerciseRow) => void; onClose: () => void }) {
+  const [sets, setSets] = useState(String(row.sets))
+  const [reps, setReps] = useState(String(row.reps))
+  const [restSeconds, setRestSeconds] = useState(String(row.rest_seconds))
+  const [load, setLoad] = useState(row.target_load_kg ? String(row.target_load_kg).replace(".", ",") : "")
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const parsedLoad = Number(load.replace(",", "."))
+        onSave({
+          ...row,
+          sets: Math.max(1, Number(sets) || 1),
+          reps: Math.max(1, Number(reps) || 1),
+          rest_seconds: Math.max(0, Number(restSeconds) || 0),
+          target_load_kg: Number.isFinite(parsedLoad) && parsedLoad > 0 ? parsedLoad : null,
+        })
+        onClose()
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>{name}</DialogTitle>
+        <DialogDescription>Séries, repetições, descanso e carga inicial deste exercício.</DialogDescription>
+      </DialogHeader>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-sets">Séries</Label>
+          <Input id="edit-sets" inputMode="numeric" value={sets} onChange={(e) => setSets(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-reps">Reps</Label>
+          <Input id="edit-reps" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-rest">Descanso (s)</Label>
+          <Input id="edit-rest" inputMode="numeric" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="edit-load">Carga (kg)</Label>
+          <Input id="edit-load" inputMode="decimal" value={load} placeholder="opcional" onChange={(e) => setLoad(e.target.value)} />
+        </div>
+      </div>
+      <DialogFooter className="sm:justify-between">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            onRemove(row)
+          }}
+        >
+          <Trash2Icon strokeWidth={1.75} /> Remover
+        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit">Salvar</Button>
+        </div>
       </DialogFooter>
     </form>
   )
