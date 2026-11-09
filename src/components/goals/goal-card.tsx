@@ -101,7 +101,7 @@ export function GoalCard({ goal, completedOn, today, mobile, onEdit, onSetStatus
         {active ? <GoalRing value={progress} label={`Progresso de ${goal.title}`} size={mobile ? 72 : 96} /> : <DoneBadge title={goal.title} size={mobile ? 72 : 96} />}
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="min-w-0 text-[16px] leading-6 font-semibold break-words md:text-[18px] md:leading-7">{goal.title}</h3>
+            <h3 title={goal.title} className="line-clamp-2 min-w-0 text-[16px] leading-6 font-semibold break-words md:text-[18px] md:leading-7">{goal.title}</h3>
             <ActionMenu items={items} mobile={mobile} ariaLabel={`Opções de ${goal.title}`} title={goal.title} className="-mt-2 -mr-2" />
           </div>
           {!active ? (
