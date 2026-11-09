@@ -2,10 +2,15 @@
 
 import { createContext, useContext, useState } from "react"
 import { format, parseISO } from "date-fns"
-import { CopyIcon, EllipsisIcon, GlassWaterIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
+import { ptBR } from "date-fns/locale"
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
+import { Meals, SummaryRow } from "@/components/diet/dieta-hoje"
+import { AddPill } from "@/components/finance/parts"
+import { PillTabs } from "@/components/tasks/pill-tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
@@ -24,24 +29,26 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { shiftDay } from "@/features/habits/stats"
-import { dayTotals, formatServings, itemMacros, mealTotals } from "@/features/diet/stats"
+import { dayTotals, itemMacros } from "@/features/diet/stats"
 import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { inTz } from "@/lib/dates"
 import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
-const MEALS = Object.keys(MEAL_LABELS) as MealKind[]
 const GLASS_ML = 250
+type TabId = "hoje" | "historico" | "peso"
+const TAB_ITEMS = [
+  { id: "hoje", label: "Hoje" },
+  { id: "historico", label: "Histórico" },
+  { id: "peso", label: "Peso" },
+]
+const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
 const kcalConfig = { kcal: { label: "Calorias", color: "var(--chart-1)" } } satisfies ChartConfig
 const weightConfig = { weight: { label: "Peso (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
@@ -49,30 +56,6 @@ const weightConfig = { weight: { label: "Peso (kg)", color: "var(--chart-1)" } }
 /** The food catalog (shared rows plus the person's own; the example list only in the local prototype). */
 const FoodsContext = createContext<FoodRow[]>([])
 const useFoods = () => useContext(FoodsContext)
-
-/** Calories ring: remaining kcal in the middle; the arc is foreground (Tinta/Papel), never a thin Lima line. */
-function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
-  const r = 52
-  const c = 2 * Math.PI * r
-  const ratio = Math.min(1, eaten / goal)
-  const remaining = goal - eaten
-  return (
-    <div role="img" aria-label={`${eaten} de ${goal} kcal`} className="relative size-40 shrink-0">
-      <svg viewBox="0 0 128 128" className="size-40 -rotate-90">
-        <circle cx="64" cy="64" r={r} fill="none" strokeWidth="12" className="stroke-muted" />
-        <circle cx="64" cy="64" r={r} fill="none" strokeWidth="12" strokeLinecap="round" className="stroke-foreground" strokeDasharray={c} strokeDashoffset={c * (1 - ratio)} />
-      </svg>
-      <span className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="tabular text-[30px] leading-9 font-semibold tracking-[-0.02em]">{Math.abs(remaining)}</span>
-        <span className="text-[13px] leading-5 text-muted-foreground">kcal {remaining >= 0 ? "restam" : "acima"}</span>
-      </span>
-    </div>
-  )
-}
-
-function liters(ml: number) {
-  return `${(ml / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L`
-}
 
 export type DietInitial = {
   foods: FoodRow[]
@@ -97,22 +80,23 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const foods = useFoods()
   const today = dayOf(nowIso)
   const goal = initial.goal ?? DEFAULT_GOAL
-  // Today's meals are what the screen edits; the earlier days only feed the calories chart.
+  const isMobile = useIsMobile()
+  const [tab, setTab] = useState<TabId>("hoje")
+  // The day whose diary is open (today by default; the arrows go back through the days that were loaded, never forward).
+  const [day, setDay] = useState(today)
+  // The meals of the selected day are what the Hoje tab edits; the earlier days also feed the calories chart.
   const [allItems, setAllItems] = usePersistedRows<MealItemRow>("meal_items", initial.mealItems)
-  const items = allItems.filter((i) => !i.log_date || i.log_date === today)
-  const setItems = (update: (current: MealItemRow[]) => MealItemRow[]) =>
-    setAllItems((all) => {
-      const others = all.filter((i) => i.log_date && i.log_date !== today)
-      return [...others, ...update(all.filter((i) => !i.log_date || i.log_date === today))]
-    })
+  const belongs = (i: MealItemRow) => (i.log_date ?? today) === day
+  const items = allItems.filter(belongs)
+  const setItems = (update: (current: MealItemRow[]) => MealItemRow[]) => setAllItems((all) => [...all.filter((i) => !belongs(i)), ...update(all.filter(belongs))])
   const [waterRows, setWaterRows] = usePersistedRows<{ id: string; log_date: string; ml: number }>("water_logs", initial.water)
-  const water = waterRows.filter((w) => w.log_date === today).reduce((sum, w) => sum + w.ml, 0)
+  const water = waterRows.filter((w) => w.log_date === day).reduce((sum, w) => sum + w.ml, 0)
   const setWater = (update: (current: number) => number) => {
     const next = update(water)
-    if (next > water) setWaterRows((rows) => [...rows, { id: newId(), log_date: today, ml: next - water }])
+    if (next > water) setWaterRows((rows) => [...rows, { id: newId(), log_date: day, ml: next - water }])
     else if (next < water) {
-      // Remove the most recent glass of today.
-      const last = [...waterRows].reverse().find((w) => w.log_date === today)
+      // Remove the most recent glass of the selected day.
+      const last = [...waterRows].reverse().find((w) => w.log_date === day)
       if (last) setWaterRows((rows) => rows.filter((w) => w.id !== last.id))
     }
   }
@@ -125,27 +109,23 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const history = [...new Set(allItems.map((i) => i.log_date).filter((d): d is string => Boolean(d) && d !== today))].sort().map((day) => ({ day, kcal: dayTotals(allItems.filter((i) => i.log_date === day), foods).kcal }))
 
   const totals = dayTotals(items, foods)
+  // The chart of the Histórico tab always ends on today, whatever day the Hoje tab is showing.
+  const todayTotals = dayTotals(allItems.filter((i) => (i.log_date ?? today) === today), foods)
 
   function addItem(meal: MealKind, foodId: string, servings: number) {
-    setItems((current) => [...current, { id: newId(), log_date: today, meal, food_id: foodId, servings }])
+    setItems((current) => [...current, { id: newId(), log_date: day, meal, food_id: foodId, servings }])
     toast.success("Alimento adicionado.")
   }
 
   function copyMeal(from: MealKind, to: MealKind) {
     const source = items.filter((i) => i.meal === from)
-    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: newId(), log_date: today, meal: to }))])
+    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: newId(), log_date: day, meal: to }))])
     toast.success(`${MEAL_LABELS[from]} copiado para ${MEAL_LABELS[to].toLowerCase()}.`)
   }
 
-  const macroRows = [
-    { label: "Proteína", value: totals.protein, goal: goal.protein_g },
-    { label: "Carboidrato", value: totals.carbs, goal: goal.carbs_g },
-    { label: "Gordura", value: totals.fat, goal: goal.fat_g },
-  ]
-
   const kcalSeries = [
     ...history.map((h) => ({ label: format(parseISO(h.day), "dd/MM"), kcal: h.kcal })),
-    { label: "Hoje", kcal: totals.kcal },
+    { label: "Hoje", kcal: todayTotals.kcal },
   ]
   const hitDays = kcalSeries.filter((d) => d.kcal <= goal.kcal && d.kcal >= goal.kcal * 0.85).length
   const averageKcal = Math.round(kcalSeries.reduce((s, d) => s + d.kcal, 0) / kcalSeries.length)
@@ -168,134 +148,98 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const nextMeal: MealKind = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : hour < 18 ? "snack" : "dinner"
   usePrimaryAction("Adicionar alimento", () => setAdding(nextMeal))
 
+  const tabs = (
+    <PillTabs equal={isMobile} className={isMobile ? "grid-cols-3" : "w-fit max-w-full"} ariaLabel="Dieta" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
+  )
+  const dayNav =
+    tab === "hoje" ? (
+      <div data-testid="diet-day-nav" className="flex h-10 items-center gap-1">
+        <Button variant="ghost" size="icon" aria-label="Dia anterior" className="shrink-0" onClick={() => setDay((d) => shiftDay(d, -1))}>
+          <ChevronLeftIcon strokeWidth={1.75} />
+        </Button>
+        <button type="button" data-testid="diet-day-label" aria-label="Ir para hoje" title="Ir para hoje" onClick={() => setDay(today)} className="min-w-0 rounded-full px-2 text-[15px] leading-6 font-semibold whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          {WEEKDAY_NAMES[parseISO(day).getDay()]}, {format(parseISO(day), "d 'de' MMMM", { locale: ptBR })}
+        </button>
+        <Button variant="ghost" size="icon" aria-label="Próximo dia" className="shrink-0" disabled={day >= today} onClick={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))}>
+          <ChevronRightIcon strokeWidth={1.75} />
+        </Button>
+      </div>
+    ) : null
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4" data-testid="dieta" data-tab={tab}>
       <PageHeader />
 
-      <Tabs defaultValue="hoje">
-        <TabsList>
-          <TabsTrigger value="hoje">Hoje</TabsTrigger>
-          <TabsTrigger value="historico">Histórico</TabsTrigger>
-          <TabsTrigger value="peso">Peso</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="hoje" className="pt-5">
-          <div className="@container flex flex-col gap-5">
-            <div className="grid gap-5 @min-[900px]:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-              <BentoCard title="Calorias e macros" bodyClassName="flex flex-col items-center gap-6 @min-[560px]:flex-row">
-                <CalorieRing eaten={totals.kcal} goal={goal.kcal} />
-                <div className="grid w-full min-w-0 flex-1 gap-4">
-                  {macroRows.map((m) => (
-                    <div key={m.label} className="flex flex-col gap-2">
-                      <div className="tabular flex justify-between text-[13px] leading-5">
-                        <span>{m.label}</span>
-                        <span className="text-muted-foreground">
-                          {Math.round(m.value)} / {m.goal} g
-                        </span>
-                      </div>
-                      <Progress value={Math.min(100, (m.value / m.goal) * 100)} aria-label={`${m.label} do dia`} />
-                    </div>
-                  ))}
-                </div>
-              </BentoCard>
-
-              <BentoCard title="Água" bodyClassName="flex h-full flex-col justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{liters(water)}</span>
-                  <span className="tabular text-[13px] leading-5 text-muted-foreground">de {liters(goal.water_ml)} hoje</span>
-                </div>
-                <Progress value={Math.min(100, (water / goal.water_ml) * 100)} aria-label="Água do dia" />
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" aria-label="Remover um copo" disabled={water <= 0} onClick={() => setWater((w) => Math.max(0, w - GLASS_ML))}>
-                    <MinusIcon strokeWidth={1.75} />
+      {isMobile ? (
+        <>
+          <section aria-label="Dieta" data-testid="dieta-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+            <div className="flex h-9 items-center gap-2">
+              <h2 className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold">Dieta</h2>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Opções da dieta" data-testid="dieta-options" className="relative size-9 rounded-full after:absolute after:-inset-1">
+                    <Settings2Icon strokeWidth={1.75} />
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setWater((w) => w + GLASS_ML)
-                      if (water + GLASS_ML >= goal.water_ml && water < goal.water_ml) toast.success("Meta de água batida.")
-                    }}
-                  >
-                    <GlassWaterIcon strokeWidth={1.75} /> + 250 ml
-                  </Button>
-                </div>
-              </BentoCard>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setAdding(nextMeal)}>
+                    <PlusIcon strokeWidth={1.75} /> Adicionar alimento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setWeighing(true)}>
+                    <PlusIcon strokeWidth={1.75} /> Registrar peso
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+            {tabs}
+          </section>
+          {dayNav ? <div className="px-1">{dayNav}</div> : null}
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          {dayNav}
+        </div>
+      )}
 
-            <div className="grid gap-5 @min-[900px]:grid-cols-2 @min-[1400px]:grid-cols-3">
-            {MEALS.map((meal) => {
-              const list = items.filter((i) => i.meal === meal)
-              const subtotal = mealTotals(items, foods, meal)
-              return (
-                <BentoCard
-                  key={meal}
-                  title={MEAL_LABELS[meal]}
-                  actions={
-                    <>
-                    <span className="tabular text-[13px] leading-5 text-muted-foreground">{subtotal.kcal} kcal</span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label={`Opções de ${MEAL_LABELS[meal]}`}>
-                          <EllipsisIcon strokeWidth={1.75} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Duplicar para…</DropdownMenuLabel>
-                        {MEALS.filter((m) => m !== meal).map((target) => (
-                          <DropdownMenuItem key={target} disabled={list.length === 0} onSelect={() => copyMeal(meal, target)}>
-                            <CopyIcon strokeWidth={1.75} /> {MEAL_LABELS[target]}
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          disabled={list.length === 0}
-                          onSelect={() => {
-                            setItems((current) => current.filter((i) => i.meal !== meal))
-                            toast(`${MEAL_LABELS[meal]} limpo.`)
-                          }}
-                        >
-                          <Trash2Icon strokeWidth={1.75} /> Limpar refeição
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    </>
-                  }
-                >
-                  {list.map((entry) => {
-                    const foodRow = foods.find((f) => f.id === entry.food_id)
-                    if (!foodRow) return null
-                    const macros = itemMacros(entry, foodRow)
-                    return (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        onClick={() => setEditing(entry)}
-                        className="flex min-h-14 w-full items-center gap-4 border-b border-border py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                      >
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-[15px] leading-6">{foodRow.name}</span>
-                          <span className="tabular truncate text-[13px] leading-5 text-muted-foreground">
-                            {formatServings(entry.servings)} × {foodRow.serving_label} · P {macros.protein} g · C {macros.carbs} g · G {macros.fat} g
-                          </span>
-                        </span>
-                        <span className="tabular text-[15px]">{macros.kcal} kcal</span>
-                      </button>
-                    )
-                  })}
-                  <div className="pt-2">
-                    <Button variant="ghost" className="justify-start text-muted-foreground" onClick={() => setAdding(meal)}>
-                      <PlusIcon strokeWidth={1.75} /> Adicionar alimento
-                    </Button>
-                  </div>
-                </BentoCard>
-              )
-            })}
-            </div>
-          </div>
-        </TabsContent>
+      {tab === "hoje" ? (
+        <div className="@container flex min-w-0 flex-col gap-4" data-testid="dieta-hoje">
+          <AddPill label={isMobile ? "Buscar alimento…" : "Buscar alimento… ex.: arroz 100 g no almoço"} onClick={() => setAdding(nextMeal)} />
+          <SummaryRow
+            isMobile={isMobile}
+            totals={totals}
+            goal={goal}
+            water={water}
+            glassMl={GLASS_ML}
+            onAddWater={() => {
+              setWater((w) => w + GLASS_ML)
+              if (water + GLASS_ML >= goal.water_ml && water < goal.water_ml) toast.success("Meta de água batida.")
+            }}
+            onRemoveWater={() => setWater((w) => Math.max(0, w - GLASS_ML))}
+          />
+          <Meals
+            items={items}
+            foods={foods}
+            onAdd={setAdding}
+            onEdit={setEditing}
+            onRemove={(entry) => {
+              setItems((current) => current.filter((i) => i.id !== entry.id))
+              toast("Alimento removido.")
+            }}
+            onMove={(entry, to) => {
+              setItems((current) => current.map((i) => (i.id === entry.id ? { ...i, meal: to } : i)))
+              toast(`Movido para ${MEAL_LABELS[to].toLowerCase()}.`)
+            }}
+            onCopy={copyMeal}
+            onClear={(meal) => {
+              setItems((current) => current.filter((i) => i.meal !== meal))
+              toast(`${MEAL_LABELS[meal]} limpo.`)
+            }}
+          />
+        </div>
+      ) : null}
 
-        <TabsContent value="historico" className="pt-5">
+      {tab === "historico" ? (
           <Bento>
           <KpiCard tone="highlight" label="Média diária" value={`${averageKcal}`} support="kcal" className="col-span-12 @min-[560px]:col-span-4" />
           <KpiCard label="Dias na meta" value={`${hitDays}`} support={`de ${kcalSeries.length}`} className="col-span-6 @min-[560px]:col-span-4" />
@@ -313,9 +257,9 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           </ChartContainer>
           </BentoCard>
           </Bento>
-        </TabsContent>
+      ) : null}
 
-        <TabsContent value="peso" className="pt-5">
+      {tab === "peso" ? (
           <Bento>
           <KpiCard tone="highlight" label="Peso atual" value={`${currentWeight.toLocaleString("pt-BR")} kg`} support="último registro" className="col-span-12 @min-[560px]:col-span-4" />
           <KpiCard
@@ -357,8 +301,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           </ChartContainer>
           </BentoCard>
           </Bento>
-        </TabsContent>
-      </Tabs>
+      ) : null}
 
       <FoodSearchDialog meal={adding} onClose={() => setAdding(null)} onAdd={addItem} />
       <EditItemDialog
