@@ -1,26 +1,25 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
-import { LockKeyholeIcon } from "lucide-react"
 
-import { EmptyState } from "@/components/organizzou/EmptyState"
-import { PageHeader } from "@/components/organizzou/PageHeader"
-import { SoonBadge } from "@/components/organizzou/SoonBadge"
+import { PageSkeleton } from "@/components/organizzou/PageSkeleton"
+import { CofreScreen } from "@/components/vault/cofre-screen"
+import { getSession } from "@/lib/supabase/session"
 
 export const metadata: Metadata = { title: "Cofre" }
 
 /**
- * The vault is only worth having with encryption in the browser (a master password nobody else knows), and that is not built yet.
- * Until then this honest page stands in: nothing is stored, nothing is faked, and no table exists that anything could read.
+ * The Cofre runs entirely in the browser (src/features/vault): this server page only tells it which account is signed in, so two accounts of
+ * the same browser keep separate vaults. It reads no vault data, there is no vault table, and nothing about the vault is sent to the server.
  */
+async function VaultGate() {
+  const { userId } = await getSession()
+  return <CofreScreen userId={userId} />
+}
+
 export default function CofrePage() {
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader />
-      <EmptyState
-        icon={LockKeyholeIcon}
-        title="O Cofre ainda não está disponível"
-        description="Ele guardará senhas e documentos criptografados no seu navegador, com uma senha mestra que só você sabe. Enquanto isso não existe, nada é guardado aqui."
-        action={<SoonBadge />}
-      />
-    </div>
+    <Suspense fallback={<PageSkeleton layout="list" />}>
+      <VaultGate />
+    </Suspense>
   )
 }

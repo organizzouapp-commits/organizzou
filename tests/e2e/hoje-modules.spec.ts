@@ -66,12 +66,12 @@ test.describe("structure", () => {
       await context.close()
     }
     expect(orders[0]).toEqual(orders[1])
-    // ONE list under one overline; the cards that need attention come first, the up-to-date one last.
+    // ONE list under one overline, in the SAVED panel order (the default order here): attention no longer reorders the cards.
     expect(orders[0]).toContain("label:Precisa de você")
     const stack = orders[0].filter((x) => x.startsWith("card:"))
     expect(stack).toHaveLength(6)
     expect(stack).toContain("card:dieta")
-    expect(stack.slice(-1)).toEqual(["card:dieta"])
+    expect(stack).toEqual(["card:notas", "card:financas", "card:dieta", "card:treino", "card:estudos", "card:humor"])
   })
 
   test("no 'No ritmo' label anywhere; Dieta e água sits inside the single list", async ({ page, context, baseURL }) => {
@@ -511,4 +511,34 @@ test.describe("notifications panel", () => {
     await page.getByRole("button", { name: /^Notificações/ }).click({ timeout: 60000 })
     await expect(page.getByText("Nada novo por aqui.")).toBeVisible()
   })
+})
+
+test.describe("saved panel order", () => {
+  const SAVED = { version: 2, highlights: [], panels: [{ id: "notas", visible: true }, { id: "seu-dia", visible: true }, { id: "financas", visible: true }, { id: "dieta", visible: true }, { id: "treino", visible: true }, { id: "estudos", visible: true }, { id: "humor", visible: false }], collapsedGroups: {}, overdueSeen: [], expandedPanels: [] }
+  const visualOrder = (page: Page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("[data-panel]")]
+        .map((el) => ({ id: el.getAttribute("data-panel")!, top: el.getBoundingClientRect().top }))
+        .sort((a, b) => a.top - b.top)
+        .map((x) => x.id)
+    )
+
+  for (const [name, options] of [["phone", phone], ["desktop", desktop]] as const) {
+    test(`${name}: the page follows the saved order and skips hidden panels`, async ({ browser, baseURL }) => {
+      const context = await browser.newContext(options)
+      await consent(context, baseURL!)
+      await context.addInitScript((saved) => localStorage.setItem("organizzou:hoje-prefs", JSON.stringify(saved)), SAVED)
+      const page = await context.newPage()
+      await openFixture(page)
+      await page.waitForTimeout(500)
+      const order = await visualOrder(page)
+      expect(order).not.toContain("humor")
+      if (name === "phone") expect(order).toEqual(["notas", "seu-dia", "financas", "dieta", "treino", "estudos"])
+      else {
+        // "Seu dia" is the big column; the side column starts with Notas e lembretes, then the rest in the saved order.
+        expect(order.filter((id) => id !== "seu-dia")).toEqual(["notas", "financas", "dieta", "treino", "estudos"])
+      }
+      await context.close()
+    })
+  }
 })

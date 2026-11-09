@@ -1,26 +1,41 @@
-// Mirrors the planned `vault` schema (docs/PLAN-PHASE-0.md §4.2). In production every field below
-// except id/folder_id/type is encrypted in the browser and stored as `ciphertext` + `iv`.
+// The Cofre (vault). Everything here runs in the browser: the master password and the keys never leave it, and the only thing that is
+// stored is ciphertext (see crypto.ts and storage.ts). Nothing of this is read by the server, the assistant or any analytics.
 export type VaultItemType = "login" | "card" | "document" | "secure_note"
 
+export const VAULT_TYPES: VaultItemType[] = ["login", "card", "document", "secure_note"]
+
 export const VAULT_TYPE_LABELS: Record<VaultItemType, string> = {
-  login: "Login",
+  login: "Senha",
   card: "Cartão",
   document: "Documento",
   secure_note: "Nota segura",
 }
 
-export type VaultFolderRow = { id: string; name: string }
+/** A file attached to a document. Its bytes are encrypted and stored apart; only these details live in the item's own ciphertext. */
+export type VaultFileInfo = { name: string; mime: string; size: number }
 
-export type VaultItemRow = {
+/** One item as the person sees it (decrypted, in memory while the vault is unlocked). */
+export type VaultItem = {
   id: string
-  folder_id: string | null
   type: VaultItemType
-  /** Decrypted payload. */
   name: string
-  /** Ordered label → value pairs shown in the detail view. Secret fields are listed in `secrets`. */
-  fields: { label: string; value: string }[]
-  secrets: string[]
-  /** For logins: the field that holds the password. */
+  // login
+  username?: string
   password?: string
+  url?: string
+  // card
+  holder?: string
+  number?: string
+  expiry?: string
+  cvv?: string
+  // secure note
+  text?: string
+  // any type
+  notes?: string
+  // document
+  file?: VaultFileInfo
   updated_at: string
 }
+
+/** The largest file a document can hold (it is encrypted in memory and kept in the browser's storage). */
+export const MAX_FILE_BYTES = 5 * 1024 * 1024

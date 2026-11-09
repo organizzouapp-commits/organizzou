@@ -21,3 +21,8 @@ export function dayOf(now: Date | string, offsetDays = 0) {
 export function newId() {
   return crypto.randomUUID()
 }
+
+/** "07:10": the São Paulo wall-clock time of an ISO instant. */
+export function clockOf(iso: string) {
+  return format(new TZDate(new Date(iso), SP_TIMEZONE), "HH:mm")
+}

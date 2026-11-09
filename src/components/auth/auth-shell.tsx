@@ -112,8 +112,9 @@ function PanelGlass({ scrim = "bottom" }: { /** "bottom": the desktop card (a sc
   return (
     <>
       {/* Art direction like the photo behind it (phones download only the phone copy, which has the phone photo's aspect so every pixel lines up). */}
-      <picture>
-        <source media="(max-width: 767px)" srcSet="/images/auth-panel-frost-mobile.webp" />
+      {/* On the desktop card (scrim="bottom") the <picture> must not be a flex item of the card, or (with its <source>, which Tailwind's preflight makes display:block) justify-between spreads three items and the logo drops to the middle. The phone panels keep it (their spacing was tuned with it). */}
+      <picture className={scrim === "bottom" ? "contents" : undefined}>
+        <source className="hidden" media="(max-width: 767px)" srcSet="/images/auth-panel-frost-mobile.webp" />
         <img ref={img} src="/images/auth-panel-frost.webp" alt="" aria-hidden decoding="async" className="pointer-events-none absolute top-0 left-0 -z-10 h-dvh w-screen max-w-none object-cover object-center" />
       </picture>
       <span aria-hidden className="auth-glass-tint pointer-events-none absolute inset-0 -z-10" />

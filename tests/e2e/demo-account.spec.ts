@@ -40,7 +40,7 @@ test.describe("a clean account: every module shows its empty state", () => {
     { path: "/notas", empty: "Nenhuma nota" },
     { path: "/metas", empty: "Nenhuma meta ainda", action: "Criar a primeira meta" },
     { path: "/diario", empty: "Como foi hoje?" },
-    { path: "/cofre", empty: "O Cofre ainda não está disponível" },
+    { path: "/cofre", empty: "Crie a senha mestra" },
   ]
 
   for (const { path, empty, action, tab } of modules) {

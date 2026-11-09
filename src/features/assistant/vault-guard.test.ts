@@ -52,7 +52,7 @@ describe("vault guard", () => {
     }
   })
 
-  it("no vault table exists in any migration (the Cofre is Em breve)", () => {
+  it("no vault table exists in any migration (the Cofre keeps ciphertext in the browser only)", () => {
     const dir = join(ROOT, "..", "supabase", "migrations")
     const sql = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8")).join("\n")
     expect(sql).not.toMatch(/create table[^;]*\b(vault|cofre)/i)

@@ -38,7 +38,7 @@ export function BentoCard({ title, subtitle, onArrow, arrowLabel, actions, child
 }
 
 /** The bento stat: an uppercase label with an icon circle at the top right, the big number (cents dimmed) and an outlined helper chip. */
-export function BentoStat({ label, icon: Icon, children, chip, chipIcon: ChipIcon, compact = false, className }: { label: string; icon: LucideIcon; children: React.ReactNode; chip?: string; chipIcon?: LucideIcon; compact?: boolean; className?: string }) {
+export function BentoStat({ label, icon: Icon, children, chip, chipIcon: ChipIcon, footer, compact = false, className }: { label: string; icon: LucideIcon; children: React.ReactNode; chip?: string; chipIcon?: LucideIcon; /** Anything under the chip (a Sparkline). */ footer?: React.ReactNode; compact?: boolean; className?: string }) {
   return (
     <section aria-label={label} data-stat-tile data-bento-stat className={cn(SUMMARY_CARD, "flex min-w-0 flex-col", compact ? "gap-1.5 p-3" : "gap-2 p-4 md:p-5", className)}>
       <div className="flex items-center justify-between gap-2">
@@ -54,6 +54,7 @@ export function BentoStat({ label, icon: Icon, children, chip, chipIcon: ChipIco
           <span className="truncate">{chip}</span>
         </span>
       ) : null}
+      {footer}
     </section>
   )
 }

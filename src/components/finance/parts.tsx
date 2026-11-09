@@ -198,6 +198,7 @@ export function HeroCard({
   density = "default",
   support,
   children,
+  actions,
   progress,
   captions,
   footer,
@@ -216,6 +217,8 @@ export function HeroCard({
   /** The helper line right under the value. */
   support?: string
   children?: React.ReactNode
+  /** Pills between the value block and the bar ("Trocar treino"). */
+  actions?: React.ReactNode
   progress?: { value: number; label: string }
   /** Two small labels under the bar, left and right. */
   captions?: [string, string]
@@ -241,8 +244,9 @@ export function HeroCard({
         <span className={cn("tabular font-semibold tracking-[-0.02em] whitespace-nowrap", compact ? "text-[20px] leading-7" : dense ? "text-[36px] leading-10" : "text-[36px] leading-[44px]", size === "lg" && "md:text-[44px] md:leading-[52px]")}>{value}</span>
         {support ? <span className="text-[13px] leading-5 text-highlight-foreground/75">{support}</span> : null}
       </div>
+      {actions}
       {progress ? (
-        <div className={cn("flex flex-col gap-1.5", (dense || compact) && "mt-auto")}>
+        <div className={cn("flex shrink-0 flex-col gap-1.5", (dense || compact) && "mt-auto")}>
           <HatchedProgress value={progress.value} label={progress.label} tone="onLima" className={compact ? "h-2" : "h-3"} />
           {captions ? (
             <div className="tabular flex justify-between text-[11px] leading-4 text-highlight-foreground/70">

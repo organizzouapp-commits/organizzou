@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { signOut } from "@/features/auth/actions"
+import { lockVault } from "@/features/vault/session"
 
 /** Every "Sair" in the shell (sidebar, rail, avatar menu, "Mais" sheet) asks for confirmation first. */
 const SignOutContext = createContext<() => void>(() => {})
@@ -40,6 +41,8 @@ export function SignOutDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             disabled={pending}
             onClick={(event) => {
               event.preventDefault() // keep the dialog open while signing out
+              // Signing out locks the Cofre first: the key and the decrypted items leave memory and the clipboard is emptied.
+              lockVault()
               startTransition(async () => {
                 await signOut()
               })

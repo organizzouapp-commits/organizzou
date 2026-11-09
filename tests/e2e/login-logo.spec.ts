@@ -138,3 +138,18 @@ test("production: a real sign-in plays the splash once and never shows the bare 
   expect(probe.topmost).toHaveLength(1)
   expect(probe.bare).toBe(0)
 })
+
+test("desktop login: the logo sits at the top-left of the glass card, the copy at the bottom", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/login")
+  const box = await page.evaluate(() => {
+    const aside = document.querySelector("aside[aria-label=Organizzou]")!
+    const a = aside.getBoundingClientRect()
+    const logo = [...aside.querySelectorAll("img[src*=logo]")].find((i) => i.getClientRects().length > 0)!.getBoundingClientRect()
+    const copy = aside.querySelector("h2, h1")!.getBoundingClientRect()
+    return { x: logo.x - a.x, y: logo.y - a.y, copyBottom: a.bottom - copy.bottom }
+  })
+  expect(box.y).toBeLessThanOrEqual(40) // the card's inner padding (28 px), not the middle of the card
+  expect(box.x).toBeLessThanOrEqual(40)
+  expect(box.copyBottom).toBeLessThan(200)
+})

@@ -14,6 +14,8 @@ import { MoneyText } from "./parts"
 const INK = "currentColor"
 const TONES = [1, 0.7, 0.45, 0.25]
 const AXIS = 44
+/** The highlighted month: one rounded shape for the whole stack (about 11 px; the browser caps it at half the bar width on narrow bars). */
+const STACK_RADIUS = 11
 
 /** One account's look on the Lima card: Tinta at 100 / 70 / 45 / 25%, then a hatch for the fifth and beyond. Works in both themes. */
 export function toneStyle(rank: number): CSSProperties {
@@ -124,18 +126,20 @@ export function BalanceChart({ history, className }: { history: BalanceMonth[]; 
                   <span className="absolute inset-x-0 top-2 bottom-6 flex justify-center">
                     <span className="relative w-[46%] max-w-9">
                       {on ? (
-                        <>
-                          {sorted(m).filter((p) => p.value > 0).map((p, k, list) => {
+                        // ONE rounded shape clips the whole stack (positive and negative parts together): the inner segments are cut by it, not rounded one by one,
+                        // and the 1 px separations between them follow the shape. Same radius in both themes and on phones.
+                        <span data-stack className="absolute inset-0" style={{ clipPath: `inset(${100 - at(up(m))}% 0 ${at(-down(m))}% 0 round ${STACK_RADIUS}px)` }}>
+                          {sorted(m).filter((p) => p.value > 0).map((p) => {
                             const from = at(climbed)
                             climbed += p.value
-                            return <span key={p.id} data-segment={p.id} className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-t-md")} style={{ bottom: `${from}%`, height: `calc(${at(climbed) - from}% - 1px)`, ...toneStyle(rank(p.id)) }} />
+                            return <span key={p.id} data-segment={p.id} className="absolute inset-x-0" style={{ bottom: `${from}%`, height: `calc(${at(climbed) - from}% - 1px)`, ...toneStyle(rank(p.id)) }} />
                           })}
-                          {sorted(m).filter((p) => p.value < 0).map((p, k, list) => {
+                          {sorted(m).filter((p) => p.value < 0).map((p) => {
                             const from = at(-sunk)
                             sunk += -p.value
-                            return <span key={p.id} data-segment={p.id} data-negative className={cn("absolute inset-x-0", k === list.length - 1 && "rounded-b-md")} style={{ bottom: `${at(-sunk)}%`, height: `calc(${from - at(-sunk)}% - 1px)`, ...toneStyle(rank(p.id)) }} />
+                            return <span key={p.id} data-segment={p.id} data-negative className="absolute inset-x-0" style={{ bottom: `${at(-sunk)}%`, height: `calc(${from - at(-sunk)}% - 1px)`, ...toneStyle(rank(p.id)) }} />
                           })}
-                        </>
+                        </span>
                       ) : (
                         <>
                           <span data-hatched className="absolute inset-x-0 rounded-t-md" style={{ bottom: `${at(0)}%`, height: `${at(up(m)) - at(0)}%`, ...HATCH }} />

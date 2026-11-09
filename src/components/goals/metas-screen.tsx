@@ -1,44 +1,28 @@
 "use client"
 
-import { useState } from "react"
-import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
-import { CheckIcon, EllipsisIcon, PlusIcon, TargetIcon, Trash2Icon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { CalendarClockIcon, EllipsisIcon, FlagIcon, PlusIcon, TargetIcon, TimerIcon, TrophyIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { BentoStat } from "@/components/finance/bento"
+import { FinanceDeck } from "@/components/finance/finance-deck"
+import { HatchedProgress, HeroCard } from "@/components/finance/parts"
+import { GoalCard } from "@/components/goals/goal-card"
+import { GoalSheet, type GoalDraft } from "@/components/goals/goal-sheet"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { ModuleIcon } from "@/components/organizzou/ModuleIcon"
-import { modules, type ModuleId } from "@/components/organizzou/modules"
-import { Bento, bentoCardClass, KpiCard } from "@/components/organizzou/Bento"
-import { EmptyState } from "@/components/organizzou/EmptyState"
+import type { ModuleId } from "@/components/organizzou/modules"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
+import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { goalProgress, linkRatio } from "@/features/goals/progress"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { averageDaysToComplete, averageProgress, cappedPercent, completedOn, completedThisYear, formatDeadline, lastMetDeadline, localGoalMetaRepo, milestoneTotals, nextDeadlineGoal, sortGoals, type GoalMetaMap } from "@/features/goals/overview"
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
-import { daysUntil } from "@/features/studies/spaced-repetition"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
-const LINKABLE: ModuleId[] = ["tarefas", "rotina", "financas", "treinos", "dieta", "estudos"]
+const USER = "00000000-0000-4000-8000-000000000001"
 const DEFAULT_LINKS: Record<string, { label: string; total: number; unit: string }> = {
   tarefas: { label: "Tarefas concluídas", total: 10, unit: "tarefas" },
   rotina: { label: "Dias com o hábito em dia", total: 30, unit: "dias" },
@@ -48,16 +32,16 @@ const DEFAULT_LINKS: Record<string, { label: string; total: number; unit: string
   estudos: { label: "Horas de estudo", total: 50, unit: "h" },
 }
 
-function formatValue(value: number, unit: string) {
-  const text = value.toLocaleString("pt-BR")
-  return unit === "R$" ? `R$ ${text}` : `${text} ${unit}`
-}
+type TabId = "ativas" | "concluidas"
+const dim = (text: string) => <span className="text-[16px] leading-6 opacity-60">{text}</span>
 
 /** The goal row itself, without the nested links and milestones (those are their own tables). */
 const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_id, title: g.title, description: g.description, deadline: g.deadline, status: g.status, created_at: g.created_at, updated_at: g.updated_at })
 
 export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: GoalWithDetails[] }) {
   const today = dayOf(nowIso)
+  const isMobile = useIsMobile()
+  const [tab, setTab] = useState<TabId>("ativas")
   // A goal is three tables (the goal, what feeds it, its milestones). The screen edits the nested shape; each table is saved on its own, parents first.
   const start = initial
   const [goalRows, setGoalRows] = usePersistedRows<LifeGoalRow>("life_goals", () => start.map(plain))
@@ -70,165 +54,218 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
     setLinkRows(next.flatMap((g) => g.links))
     setMilestoneRows(next.flatMap((g) => g.milestones))
   }
-  const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState<GoalDraft | null>(null)
   const [toDelete, setToDelete] = useState<GoalWithDetails | null>(null)
+  // When each goal was completed: localStorage until life_goals has a completed_at column (see overview.ts).
+  const [metas, setMetas] = useState<GoalMetaMap>({})
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMetas(localGoalMetaRepo.load())
+  }, [])
+  const updateMetas = (change: (current: GoalMetaMap) => GoalMetaMap) =>
+    setMetas((current) => {
+      const next = change(current)
+      localGoalMetaRepo.save(next)
+      return next
+    })
+
+  const blankDraft = (): GoalDraft => ({ title: "", description: "", deadline: "", modules: ["tarefas"] })
+  usePrimaryAction("Nova meta", () => setDraft(blankDraft()))
 
   function toggleMilestone(goalId: string, milestoneId: string) {
-    setGoals((current) =>
-      current.map((g) => (g.id === goalId ? { ...g, milestones: g.milestones.map((m) => (m.id === milestoneId ? { ...m, done: !m.done } : m)) } : g))
-    )
+    setGoals((current) => current.map((g) => (g.id === goalId ? { ...g, milestones: g.milestones.map((m) => (m.id === milestoneId ? { ...m, done: !m.done } : m)) } : g)))
+  }
+
+  function addMilestone(goalId: string, title: string) {
+    setGoals((current) => current.map((g) => (g.id === goalId ? { ...g, milestones: [...g.milestones, { id: newId(), goal_id: goalId, title, done: false }] } : g)))
+    toast.success("Marco adicionado.")
   }
 
   function setStatus(goal: GoalWithDetails, status: "active" | "done") {
     setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, status } : g)))
+    // Closing a goal records the moment; reopening forgets it.
+    updateMetas((current) => (status === "done" ? { ...current, [goal.id]: { completed_at: new Date().toISOString() } } : Object.fromEntries(Object.entries(current).filter(([id]) => id !== goal.id))))
     toast.success(status === "done" ? "Meta concluída. Parabéns!" : "Meta reaberta.")
   }
 
-  const active = goals.filter((g) => g.status === "active")
-  const done = goals.filter((g) => g.status === "done")
-
-  function renderGoals(list: GoalWithDetails[]) {
-    if (list.length === 0 && goals.length === 0) {
-      return (
-        <EmptyState
-          icon={TargetIcon}
-          title="Nenhuma meta ainda"
-          description="Uma meta junta o que você já faz (tarefas, estudos, treinos, dinheiro) em um objetivo com prazo."
-          action={
-            <Button className="h-11 rounded-full px-5" onClick={() => setCreating(true)}>
-              <PlusIcon strokeWidth={1.75} /> Criar a primeira meta
-            </Button>
-          }
-        />
-      )
+  function saveGoal(d: GoalDraft) {
+    if (d.id) {
+      setGoals((current) => current.map((g) => (g.id === d.id ? { ...g, title: d.title, description: d.description || null, deadline: d.deadline || null, updated_at: new Date().toISOString() } : g)))
+      toast.success("Meta atualizada.")
+      return
     }
-    if (list.length === 0) return <p className="py-6 text-[15px] leading-6 text-muted-foreground">Nada por aqui ainda.</p>
-    return (
-      <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(360px, 100%), 1fr))" }}>
-        {list.map((goal) => {
-          const progress = goalProgress(goal.links, goal.milestones)
-          const left = goal.deadline ? daysUntil(goal.deadline, today) : null
-          return (
-            <section key={goal.id} aria-label={goal.title} className={cn(bentoCardClass(), "flex flex-col gap-5")}>
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-[17px] leading-6 font-semibold">{goal.title}</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label={`Opções de ${goal.title}`}>
-                      <EllipsisIcon strokeWidth={1.75} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {goal.status === "active" ? (
-                      <DropdownMenuItem onSelect={() => setStatus(goal, "done")}>
-                        <CheckIcon strokeWidth={1.75} /> Marcar como concluída
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem onSelect={() => setStatus(goal, "active")}>Reabrir meta</DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(goal)}>
-                      <Trash2Icon strokeWidth={1.75} /> Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Progress value={progress} aria-label={`Progresso de ${goal.title}`} />
-                {/* Percent and days left sit on their own line under the bar, so phones never squeeze them next to it. */}
-                <p className="tabular flex flex-wrap items-center justify-between gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                  <span className="font-medium text-foreground">{progress}%</span>
-                  {left !== null && goal.status === "active" ? <span>{left < 0 ? "prazo vencido" : left === 0 ? "vence hoje" : `faltam ${left} dias`}</span> : null}
-                  {goal.deadline ? <span>até {format(parseISO(goal.deadline), "d 'de' MMM yyyy", { locale: ptBR })}</span> : null}
-                </p>
-              </div>
-
-              {goal.description ? <p className="max-w-[72ch] text-[15px] leading-6 text-muted-foreground">{goal.description}</p> : null}
-
-              {goal.links.length > 0 ? (
-                <section className="flex flex-col">
-                  <h4 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Ligada a</h4>
-                  {goal.links.map((link: GoalLinkRow) => (
-                    <div key={link.id} className="flex min-h-14 items-center gap-3 border-b border-border py-2.5 last:border-b-0">
-                      <ModuleIcon module={link.module} />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="text-[15px] leading-6">{link.label}</span>
-                          <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
-                            {formatValue(link.done, link.unit)} de {formatValue(link.total, link.unit)}
-                          </span>
-                        </div>
-                        <Progress value={linkRatio(link) * 100} aria-label={link.label} />
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
-
-              {goal.milestones.length > 0 ? (
-                <section className="flex flex-col">
-                  <h4 className="mb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Marcos</h4>
-                  {goal.milestones.map((m) => (
-                    <label key={m.id} className="flex min-h-11 items-center gap-3 text-[15px] leading-6">
-                      <Checkbox checked={m.done} onCheckedChange={() => toggleMilestone(goal.id, m.id)} />
-                      <span className={m.done ? "text-muted-foreground line-through" : ""}>{m.title}</span>
-                    </label>
-                  ))}
-                </section>
-              ) : null}
-            </section>
-          )
-        })}
-      </div>
-    )
+    const id = newId()
+    const created: GoalWithDetails = {
+      id,
+      user_id: USER,
+      title: d.title,
+      description: d.description || null,
+      deadline: d.deadline || null,
+      status: "active",
+      created_at: nowIso,
+      updated_at: nowIso,
+      links: d.modules.map((module) => ({ id: newId(), goal_id: id, module: module as ModuleId, done: 0, ...DEFAULT_LINKS[module] })),
+      milestones: [],
+    }
+    setGoals((current) => [created, ...current])
+    toast.success("Meta criada.")
   }
 
-  usePrimaryAction("Nova meta", () => setCreating(true))
-  const averageProgress =
-    active.length === 0 ? 0 : Math.round(active.reduce((sum, g) => sum + goalProgress(g.links, g.milestones), 0) / active.length)
-  const nextDeadline = [...active].filter((g) => g.deadline).sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? ""))[0]
+  const active = sortGoals(goals.filter((g) => g.status === "active"))
+  const done = sortGoals(goals.filter((g) => g.status === "done"))
+  const average = averageProgress(active)
+  const next = nextDeadlineGoal(active, today)
+  const marcos = milestoneTotals(active)
+
+  const tabs = (
+    <PillTabs
+      className={isMobile ? "w-full" : "w-fit max-w-full"}
+      ariaLabel="Metas"
+      items={[
+        { id: "ativas", label: "Em andamento", count: active.length },
+        { id: "concluidas", label: "Concluídas", count: done.length },
+      ]}
+      value={tab}
+      onSelect={(item) => setTab(item.id as TabId)}
+    />
+  )
+
+  const height = isMobile ? "h-[200px]" : "h-48"
+  const hero = (
+    <HeroCard key="hero" className={height} density="dense" label="Em andamento" value={<>{active.length} {dim("metas")}</>} support={`${average}% de progresso médio`} progress={{ value: average, label: `Progresso médio: ${average}%` }} />
+  )
+  const closed = (
+    <BentoStat key="done" label="Concluídas" icon={TrophyIcon} className={height} chip="metas fechadas">
+      {done.length}
+    </BentoStat>
+  )
+  const deadline = (
+    <BentoStat key="next" label="Próximo prazo" icon={CalendarClockIcon} className={height} chip={next ? next.goal.title : "Sem prazos"}>
+      {next ? (next.left === 0 ? "hoje" : <>{next.left} {dim(next.left === 1 ? "dia" : "dias")}</>) : "—"}
+    </BentoStat>
+  )
+  const milestones = (
+    <BentoStat key="marcos" label="Marcos" icon={FlagIcon} className={height} chip="concluídos" footer={<HatchedProgress value={cappedPercent(marcos.done, marcos.total)} label={`Marcos concluídos: ${marcos.done} de ${marcos.total}`} />}>
+      {marcos.done} {dim(`de ${marcos.total}`)}
+    </BentoStat>
+  )
+
+  // The summary of the Concluídas tab. The average time needs completion dates that were recorded, so it is left out until there are some.
+  const closedMarcos = milestoneTotals(done)
+  const met = lastMetDeadline(done, metas)
+  const averageDays = averageDaysToComplete(done, metas)
+  const doneHero = (
+    <HeroCard key="dhero" className={height} density="dense" label="Concluídas" value={<>{done.length} {dim(done.length === 1 ? "meta" : "metas")}</>} support={`${completedThisYear(done, metas, today)} concluídas este ano`} />
+  )
+  const lastMet = (
+    <BentoStat key="dlast" label="Último prazo cumprido" icon={CalendarClockIcon} className={height} chip={met ? met.goal.title : "Sem prazos cumpridos"}>
+      {met ? formatDeadline(met.deadline) : "—"}
+    </BentoStat>
+  )
+  const doneMarcos = (
+    <BentoStat key="dmarcos" label="Marcos" icon={FlagIcon} className={height} chip="concluídos" footer={<HatchedProgress value={cappedPercent(closedMarcos.done, closedMarcos.total)} label={`Marcos concluídos: ${closedMarcos.done} de ${closedMarcos.total}`} />}>
+      {closedMarcos.done} {dim(`de ${closedMarcos.total}`)}
+    </BentoStat>
+  )
+  const average2 = averageDays === null ? null : (
+    <BentoStat key="davg" label="Tempo médio" icon={TimerIcon} className={height} chip="para concluir uma meta">
+      {averageDays} {dim(averageDays === 1 ? "dia" : "dias")}
+    </BentoStat>
+  )
+  const summary = tab === "ativas" ? [hero, closed, deadline, milestones] : [doneHero, lastMet, doneMarcos, ...(average2 ? [average2] : [])]
+  const slides = tab === "ativas" ? [{ id: "hero", hero: true, node: hero }, { id: "done", node: closed }, { id: "next", node: deadline }, { id: "marcos", node: milestones }] : summary.map((node, i) => ({ id: `d${i}`, hero: i === 0, node }))
+
+  const list = tab === "ativas" ? active : done
+  const goalCards = (
+    <div data-testid="goal-grid" className="grid grid-cols-1 items-stretch gap-4 @min-[880px]:grid-cols-2">
+      {list.map((goal) => (
+        <GoalCard
+          key={goal.id}
+          goal={goal}
+          completedOn={goal.status === "done" ? formatDeadline(completedOn(goal, metas).day) : null}
+          today={today}
+          mobile={isMobile}
+          onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
+          onSetStatus={(status) => setStatus(goal, status)}
+          onDelete={() => setToDelete(goal)}
+          onToggleMilestone={(id) => toggleMilestone(goal.id, id)}
+          onAddMilestone={(title) => addMilestone(goal.id, title)}
+        />
+      ))}
+    </div>
+  )
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="@container flex min-w-0 flex-col gap-4" data-testid="metas" data-tab={tab}>
       <PageHeader />
-      <Bento>
-        <KpiCard tone="highlight" label="Em andamento" value={`${active.length}`} support={`${averageProgress}% de progresso médio`} className="col-span-12 @min-[560px]:col-span-4" />
-        <KpiCard label="Concluídas" value={`${done.length}`} support="metas fechadas" className="col-span-6 @min-[560px]:col-span-4" />
-        <KpiCard
-          label="Próximo prazo"
-          value={nextDeadline?.deadline ? `${daysUntil(nextDeadline.deadline, today)} dias` : "—"}
-          support={nextDeadline?.title ?? "Sem prazos"}
-          className="col-span-6 @min-[560px]:col-span-4"
-        />
-        <div className="col-span-12">
-      <Tabs defaultValue="ativas">
-        <TabsList>
-          <TabsTrigger value="ativas">
-            Em andamento <Badge variant="secondary" className="tabular">{active.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="concluidas">
-            Concluídas <Badge variant="secondary" className="tabular">{done.length}</Badge>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="ativas" className="pt-4">
-          {renderGoals(active)}
-        </TabsContent>
-        <TabsContent value="concluidas" className="pt-4">
-          {renderGoals(done)}
-        </TabsContent>
-      </Tabs>
-        </div>
-      </Bento>
 
-      <GoalDialog
-        open={creating}
-        onOpenChange={setCreating}
-        nowIso={nowIso}
-        onCreate={(goal) => {
-          setGoals((current) => [goal, ...current])
-          toast.success("Meta criada.")
-        }}
-      />
+      {isMobile ? (
+        <section aria-label="Metas" data-testid="metas-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[18px] leading-6 font-semibold">Metas</h2>
+              <p className="truncate text-[13px] leading-5 text-muted-foreground">Objetivos alimentados pelos seus módulos.</p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Opções de metas" data-testid="metas-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
+                  <EllipsisIcon strokeWidth={1.75} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setDraft(blankDraft())}>
+                  <PlusIcon strokeWidth={1.75} /> Nova meta
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {tabs}
+        </section>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          <Button type="button" data-testid="new-goal" onClick={() => setDraft(blankDraft())} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
+            <PlusIcon strokeWidth={1.75} /> Nova meta
+          </Button>
+        </div>
+      )}
+
+      {isMobile ? (
+        <FinanceDeck key={tab} title={null} label="Resumo das metas" noun="resumo" initialHeight={200} slides={slides} />
+      ) : (
+        <div data-testid="goals-summary" className={`grid grid-cols-2 gap-4 ${summary.length === 3 ? "@min-[880px]:grid-cols-3" : "@min-[880px]:grid-cols-4"}`}>
+          {summary.map((card, i) => (
+            <div key={i} className="flex min-w-0 flex-col [&>*]:flex-1">
+              {card}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {list.length > 0 ? (
+        goalCards
+      ) : tab === "ativas" ? (
+        <div data-testid="goals-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
+          <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
+            <TargetIcon strokeWidth={1.75} className="size-5" />
+          </span>
+          <p className="text-[16px] leading-6 font-semibold">Nenhuma meta em andamento</p>
+          <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Crie uma meta e ligue-a a Estudos, Treinos, Finanças e outros módulos.</p>
+          <Button type="button" onClick={() => setDraft(blankDraft())} className="h-11 rounded-full bg-highlight px-5 text-highlight-foreground hover:bg-highlight/90">
+            <PlusIcon strokeWidth={1.75} /> Nova meta
+          </Button>
+        </div>
+      ) : (
+        <div data-testid="done-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
+          <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
+            <TrophyIcon strokeWidth={1.75} className="size-5" />
+          </span>
+          <p className="text-[16px] leading-6 font-semibold">Nenhuma meta concluída ainda</p>
+          <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Quando você concluir uma meta, ela fica guardada aqui.</p>
+        </div>
+      )}
+
+      <GoalSheet draft={draft} today={today} onClose={() => setDraft(null)} onSave={saveGoal} />
       <ConfirmDialog
         open={Boolean(toDelete)}
         onOpenChange={(open) => !open && setToDelete(null)}
@@ -243,92 +280,5 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
         }}
       />
     </div>
-  )
-}
-
-function GoalDialog({
-  open,
-  onOpenChange,
-  nowIso,
-  onCreate,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  nowIso: string
-  onCreate: (goal: GoalWithDetails) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <GoalForm nowIso={nowIso} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
-    </Dialog>
-  )
-}
-
-function GoalForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (goal: GoalWithDetails) => void; onClose: () => void }) {
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
-  const [deadline, setDeadline] = useState("")
-  const [linked, setLinked] = useState<string[]>(["tarefas"])
-
-  return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!title.trim()) return
-        const goalId = newId()
-        onCreate({
-          id: goalId,
-          user_id: "00000000-0000-4000-8000-000000000001",
-          title: title.trim(),
-          description: description.trim() || null,
-          deadline: deadline || null,
-          status: "active",
-          created_at: nowIso,
-          updated_at: nowIso,
-          links: linked.map((module) => ({ id: newId(), goal_id: goalId, module: module as ModuleId, done: 0, ...DEFAULT_LINKS[module] })),
-          milestones: [],
-        })
-        onClose()
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Nova meta</DialogTitle>
-        <DialogDescription className="sr-only">Defina uma meta e ligue aos módulos que alimentam o progresso.</DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="goal-title">Meta</Label>
-        <Input id="goal-title" autoFocus value={title} maxLength={100} placeholder="Ex.: Aprender a tocar violão" onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="goal-desc">Descrição</Label>
-        <Textarea id="goal-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="goal-deadline">Prazo (opcional)</Label>
-        <Input id="goal-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>Alimentada por</Label>
-        <ToggleGroup type="multiple" variant="outline" value={linked} onValueChange={setLinked} className="flex-wrap justify-start">
-          {LINKABLE.map((module) => {
-            const Icon = modules[module].icon
-            return (
-              <ToggleGroupItem key={module} value={module}>
-                <Icon strokeWidth={1.75} /> {modules[module].name}
-              </ToggleGroupItem>
-            )
-          })}
-        </ToggleGroup>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={!title.trim()}>
-          Criar meta
-        </Button>
-      </DialogFooter>
-    </form>
   )
 }
