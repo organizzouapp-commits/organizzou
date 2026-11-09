@@ -91,8 +91,8 @@ export function RestPresets({ id, value, custom, onChange, onCustom }: { id: str
 }
 
 /** Buttons that stay in view at the bottom of the dialog or the sheet. */
-export function StickyFooter({ children }: { children: React.ReactNode }) {
-  return <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex gap-2 bg-popover px-4 pt-3 pb-4 max-md:-mb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] [&>*]:h-11 [&>*]:flex-1 [&>*]:rounded-full">{children}</div>
+export function StickyFooter({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("sticky bottom-0 z-10 -mx-4 -mb-4 flex gap-2 bg-popover px-4 pt-3 pb-4 max-md:-mb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] [&>*]:h-11 [&>*]:flex-1 [&>*]:rounded-full", className)}>{children}</div>
 }
 
 const round = (n: number, decimals: number) => Math.round(n * 10 ** decimals) / 10 ** decimals

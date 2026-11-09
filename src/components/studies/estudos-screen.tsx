@@ -7,7 +7,6 @@ import {
   BookOpenIcon,
   BookMarkedIcon,
   GraduationCapIcon,
-  LibraryIcon,
   EllipsisIcon,
   PencilIcon,
   PlusIcon,
@@ -20,7 +19,10 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
 import { BentoCard } from "@/components/organizzou/Bento"
+import { FlashcardsTab } from "@/components/studies/estudos-flashcards"
 import { HojeTab } from "@/components/studies/estudos-hoje"
+import { CardSheet, ReviewSheet } from "@/components/studies/flashcard-dialogs"
+import { localReviewLogRepo, type ReviewLogEntry } from "@/features/studies/review"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -42,7 +44,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SplitLayout } from "@/components/organizzou/layout"
+
 import { daysUntil, isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
   PRIORITY_LABELS,
@@ -56,7 +58,6 @@ import {
   type SubjectType,
 } from "@/features/studies/types"
 import type { SwatchId } from "@/lib/swatches"
-import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
@@ -105,6 +106,12 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   const router = useRouter()
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<TabId>("hoje")
+  const [reviewLog, setReviewLog] = useState<ReviewLogEntry[]>([])
+  useEffect(() => {
+    // localStorage only exists in the browser; read after mount so the server and the first client render match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReviewLog(localReviewLogRepo.load())
+  }, [])
   const [creatingDeck, setCreatingDeck] = useState(false)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [creatingSubject, setCreatingSubject] = useState(false)
@@ -187,6 +194,21 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
 
   usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
 
+  function createDeck(name: string) {
+    setDecks((current) => [...current, { id: newId(), user_id: USER, subject_id: null, name }])
+    toast.success("Baralho criado.")
+  }
+
+  /** Schedules the card with the unchanged algorithm and records the answer in the review history. */
+  function answerCard(card: FlashcardRow, rating: Rating) {
+    setCards((current) => current.map((c) => (c.id === card.id ? review(card, rating, today) : c)))
+    setReviewLog((current) => {
+      const next = [...current, { id: newId(), card_id: card.id, deck_id: card.deck_id, reviewed_on: today, rating }]
+      localReviewLogRepo.save(next)
+      return next
+    })
+  }
+
   const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Estudos" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
 
   return (
@@ -219,7 +241,14 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           {tabs}
         </section>
       ) : (
-        tabs
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          {tab === "flashcards" ? (
+            <Button type="button" variant="ghost" disabled aria-disabled="true" data-testid="ai-soon" className="h-9 rounded-full px-4 opacity-55">
+              <SparklesIcon strokeWidth={1.75} /> Gerar com IA · em breve
+            </Button>
+          ) : null}
+        </div>
       )}
 
       {tab === "hoje" ? (
@@ -252,8 +281,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           }}
           onReview={() => {
             setTab("flashcards")
-            const deck = decks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))
-            if (deck) setStudyDeck(deck.id)
+            if (dueCards.length > 0) setStudyDeck("all")
           }}
           onAllDeadlines={() => setTab("provas")}
           onPlanBlock={() => router.push("/dashboard/agenda")}
@@ -317,62 +345,20 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
       </div>) : null}
 
         {/* ------------------------------------------------------ flashcards */}
-      {tab === "flashcards" ? (<div>
-          <SplitLayout
-            aside={
-              <BentoCard title="Revisão de hoje" bodyClassName="flex flex-col gap-4">
-                <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{dueCards.length}</span>
-                <p className="text-[15px] leading-6 text-muted-foreground">{dueCards.length === 0 ? "Nada para revisar hoje." : "cartões para revisar hoje, espalhados pelos baralhos."}</p>
-                <Button
-                  disabled={dueCards.length === 0}
-                  onClick={() => setStudyDeck(decks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))?.id ?? null)}
-                >
-                  Começar a revisão
-                </Button>
-              </BentoCard>
-            }
-          >
-          <BentoCard
-            title="Baralhos"
-            actions={
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setCreatingDeck(true)}>
-                <PlusIcon strokeWidth={1.75} /> Novo baralho
-              </Button>
-              <Button size="sm" variant="outline" disabled title="Em breve">
-                <SparklesIcon strokeWidth={1.75} /> Gerar com IA (em breve)
-              </Button>
-            </div>
-            }
-          >
-          <p className="pb-2 text-[15px] leading-6 text-muted-foreground">
-            {dueCards.length === 0 ? "Nada para revisar hoje." : `${dueCards.length} cartões para revisar hoje.`}
-          </p>
-          {decks.length === 0 ? <p className="py-4 text-[15px] leading-6 text-muted-foreground">Nenhum baralho ainda. Crie o primeiro para revisar com repetição espaçada.</p> : null}
-          {decks.map((deck) => {
-            const list = cards.filter((c) => c.deck_id === deck.id)
-            const due = list.filter((c) => isDue(c, today))
-            return (
-              <div key={deck.id} className="flex min-h-16 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                <LibraryIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] leading-6">{deck.name}</span>
-                  <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {list.length} cartões · {due.length} para revisar
-                  </span>
-                </div>
-                <Button variant="ghost" size="icon" aria-label={`Adicionar cartão em ${deck.name}`} onClick={() => setAddingCardTo(deck)}>
-                  <PlusIcon strokeWidth={1.75} />
-                </Button>
-                <Button variant={due.length > 0 ? "default" : "outline"} disabled={due.length === 0} onClick={() => setStudyDeck(deck.id)}>
-                  Estudar
-                </Button>
-              </div>
-            )
-          })}
-          </BentoCard>
-          </SplitLayout>
-      </div>) : null}
+      {tab === "flashcards" ? (
+        <FlashcardsTab
+          decks={decks}
+          cards={cards}
+          log={reviewLog}
+          today={today}
+          isMobile={isMobile}
+          onStudyAll={() => setStudyDeck("all")}
+          onStudyDeck={setStudyDeck}
+          onAddCard={setAddingCardTo}
+          onCreateDeck={createDeck}
+          onOpenDeckDialog={() => setCreatingDeck(true)}
+        />
+      ) : null}
 
         {/* --------------------------------------------------------- deadlines */}
       {tab === "provas" ? (<div>
@@ -475,13 +461,13 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           toast.success("Prazo criado.")
         }}
       />
-      <QuizDialog
-        deckId={studyDeck}
-        decks={decks}
-        cards={cards}
+      <ReviewSheet
+        queue={studyDeck ? cards.filter((c) => (studyDeck === "all" || c.deck_id === studyDeck) && isDue(c, today)) : null}
+        title={studyDeck === "all" ? "Revisão de hoje" : (decks.find((d) => d.id === studyDeck)?.name ?? "")}
+        deckName={studyDeck === "all" ? (card) => decks.find((d) => d.id === card.deck_id)?.name ?? "" : undefined}
         today={today}
+        onAnswer={answerCard}
         onClose={() => setStudyDeck(null)}
-        onUpdate={(card) => setCards((current) => current.map((c) => (c.id === card.id ? card : c)))}
       />
       <Dialog open={creatingDeck} onOpenChange={setCreatingDeck}>
         <DialogContent>
@@ -496,21 +482,15 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           ) : null}
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(addingCardTo)} onOpenChange={(open) => !open && setAddingCardTo(null)}>
-        <DialogContent>
-          {addingCardTo ? (
-            <CardForm
-              deck={addingCardTo}
-              today={today}
-              onCreate={(card) => {
-                setCards((current) => [...current, card])
-                toast.success("Cartão adicionado.")
-              }}
-              onClose={() => setAddingCardTo(null)}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <CardSheet
+        deck={addingCardTo}
+        today={today}
+        onClose={() => setAddingCardTo(null)}
+        onAdd={(card) => {
+          setCards((current) => [...current, card])
+          toast.success("Cartão adicionado.")
+        }}
+      />
     </div>
   )
 }
@@ -546,46 +526,6 @@ function DeckForm({ onCreate, onClose }: { onCreate: (name: string) => void; onC
     </form>
   )
 }
-
-function CardForm({ deck, today, onCreate, onClose }: { deck: FlashcardDeckRow; today: string; onCreate: (card: FlashcardRow) => void; onClose: () => void }) {
-  const [front, setFront] = useState("")
-  const [back, setBack] = useState("")
-  return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!front.trim() || !back.trim()) return
-        // A new card is due today, with the standard starting ease of the spaced-repetition scheduler.
-        onCreate({ id: newId(), deck_id: deck.id, front: front.trim(), back: back.trim(), ease: 2.5, interval_days: 0, repetitions: 0, due_on: today })
-        onClose()
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Novo cartão</DialogTitle>
-        <DialogDescription>{deck.name}</DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="card-front">Frente (pergunta)</Label>
-        <Input id="card-front" autoFocus value={front} maxLength={500} onChange={(e) => setFront(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="card-back">Verso (resposta)</Label>
-        <Input id="card-back" value={back} maxLength={500} onChange={(e) => setBack(e.target.value)} />
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={!front.trim() || !back.trim()}>
-          Adicionar cartão
-        </Button>
-      </DialogFooter>
-    </form>
-  )
-}
-
-// -------------------------------------------------------------- dialogs
 
 function SubjectDialog({
   open,
@@ -790,102 +730,5 @@ function DeadlineForm({
         </Button>
       </DialogFooter>
     </form>
-  )
-}
-
-function QuizDialog({
-  deckId,
-  decks,
-  cards,
-  today,
-  onClose,
-  onUpdate,
-}: {
-  deckId: string | null
-  decks: FlashcardDeckRow[]
-  cards: FlashcardRow[]
-  today: string
-  onClose: () => void
-  onUpdate: (card: FlashcardRow) => void
-}) {
-  return (
-    <Dialog open={Boolean(deckId)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>{deckId ? <QuizBody queue={cards.filter((c) => c.deck_id === deckId && isDue(c, today))} deckName={decks.find((d) => d.id === deckId)?.name ?? ""} today={today} onClose={onClose} onUpdate={onUpdate} /> : null}</DialogContent>
-    </Dialog>
-  )
-}
-
-function QuizBody({
-  queue,
-  deckName,
-  today,
-  onClose,
-  onUpdate,
-}: {
-  queue: FlashcardRow[]
-  deckName: string
-  today: string
-  onClose: () => void
-  onUpdate: (card: FlashcardRow) => void
-}) {
-  // The queue is fixed when the quiz opens; answering updates the stored cards.
-  const [initial] = useState(queue)
-  const [index, setIndex] = useState(0)
-  const [flipped, setFlipped] = useState(false)
-  const card = initial[index]
-
-  function answer(rating: Rating) {
-    onUpdate(review(card, rating, today))
-    setFlipped(false)
-    setIndex((i) => i + 1)
-  }
-
-  if (!card) {
-    return (
-      <>
-        <DialogHeader>
-          <DialogTitle>Revisão concluída</DialogTitle>
-          <DialogDescription>Você revisou {initial.length} cartões. A próxima revisão é agendada automaticamente.</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button onClick={onClose}>Fechar</Button>
-        </DialogFooter>
-      </>
-    )
-  }
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>{deckName}</DialogTitle>
-        <DialogDescription className="tabular">
-          Cartão {index + 1} de {initial.length}
-        </DialogDescription>
-      </DialogHeader>
-      <Progress value={(index / initial.length) * 100} aria-label="Progresso da revisão" />
-      <button
-        type="button"
-        onClick={() => setFlipped((f) => !f)}
-        className={cn(
-          "flex min-h-44 flex-col items-center justify-center gap-3 rounded-2xl border border-border p-6 text-center outline-none transition-colors duration-200 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
-        )}
-        aria-label={flipped ? "Mostrar a pergunta" : "Mostrar a resposta"}
-      >
-        <span className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{flipped ? "Resposta" : "Pergunta"}</span>
-        <span className="text-[17px] leading-6 font-medium">{flipped ? card.back : card.front}</span>
-        {!flipped ? <span className="text-[13px] leading-5 text-muted-foreground">Toque para ver a resposta</span> : null}
-      </button>
-      <DialogFooter className="sm:justify-between">
-        <Button variant="outline" disabled={!flipped} onClick={() => answer("again")}>
-          Errei
-        </Button>
-        <Button variant="outline" disabled={!flipped} onClick={() => answer("good")}>
-          Acertei
-        </Button>
-        <Button disabled={!flipped} onClick={() => answer("easy")}>
-          Fácil
-        </Button>
-      </DialogFooter>
-    </>
   )
 }
