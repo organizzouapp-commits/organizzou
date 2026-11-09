@@ -63,8 +63,8 @@ function ReminderItem({ row, meta, now, done, onToggle, onEdit, onReschedule, on
         </span>
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5">
-        <span className={cn("line-clamp-2 text-[14px] leading-5 font-semibold break-words", done && "text-muted-foreground line-through")}>{row.title}</span>
-        <span className="tabular truncate text-[13px] leading-5 text-muted-foreground">
+        <span className={cn("text-[14px] leading-5 font-semibold break-words", done && "text-muted-foreground line-through")}>{row.title}</span>
+        <span className="tabular text-[13px] leading-5 break-words text-muted-foreground">
           {reminderMeta(row.remind_at, now)}
           {repeat ? ` · ${repeat.label.toLowerCase()}` : ""}
         </span>
@@ -75,7 +75,7 @@ function ReminderItem({ row, meta, now, done, onToggle, onEdit, onReschedule, on
       </span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label={`Mais opções de ${row.title}`} className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-y-1 after:inset-x-0">
+          <Button type="button" variant="ghost" size="icon" aria-label={`Mais opções de ${row.title}`} className="size-11 shrink-0 rounded-full">
             <EllipsisIcon strokeWidth={1.75} />
           </Button>
         </DropdownMenuTrigger>

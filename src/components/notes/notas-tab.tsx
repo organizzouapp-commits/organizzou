@@ -256,6 +256,18 @@ function FullScreenEditor({ children }: { children: React.ReactNode }) {
 
 export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolean }) {
   const note = c.open
+  // Ctrl/Cmd + N: a new note (the same draft rule as the buttons: an empty draft that already exists is focused, not duplicated).
+  const { createNote } = c
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault()
+        createNote()
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [createNote])
   const editor = note ? (
     <NoteEditor
       note={note}

@@ -202,7 +202,7 @@ export function NoteEditor(props: NoteEditorProps) {
       maxLength={120}
       placeholder="Sem título"
       onChange={(e) => onChange({ title: e.target.value })}
-      className={cn("min-w-0 bg-transparent font-semibold tracking-[-0.01em] outline-none placeholder:text-muted-foreground/60", mobile ? "h-12 w-full shrink-0 text-[26px] leading-9" : "h-11 flex-1 text-[22px] leading-8")}
+      className={cn("min-w-0 rounded-[12px] bg-transparent px-2 -mx-2 font-semibold tracking-[-0.01em] outline-none placeholder:text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-primary", mobile ? "h-12 w-full shrink-0 text-[26px] leading-9" : "h-11 flex-1 text-[22px] leading-8")}
     />
   )
   const content = editing ? (
