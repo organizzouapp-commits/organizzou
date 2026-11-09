@@ -7,17 +7,13 @@ import {
   ChevronDownIcon,
   DumbbellIcon,
   Trash2Icon,
-  TrophyIcon,
 } from "lucide-react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, Bar, BarChart } from "recharts"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import {
   Dialog,
   DialogContent,
@@ -29,9 +25,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ActionBar, AddExerciseRow, ExerciseCard, SummaryRow, WeekStripCard, exerciseIcon, type PlanChoice, type RestState, type WeekDay } from "@/components/workouts/treino-hoje"
 import { EmptyBlock } from "@/components/finance/parts"
+import { EvolucaoTab, PeriodSwitch } from "@/components/workouts/evolucao"
+import { type PeriodId } from "@/features/workouts/evolution"
+import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { NumberStepper, REST_PRESETS, RestPresets, StickyFooter, WeekdayPills, fieldClass } from "@/components/workouts/sheet-fields"
 import { MeusTreinos } from "@/components/workouts/meus-treinos"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { addWeekday, reorderExercises, toggleWeekday } from "@/features/workouts/plans"
@@ -39,7 +38,6 @@ import { PillTabs } from "@/components/tasks/pill-tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { doneVolume, estimatedMinutes, lastVolume, nextPendingSet, planLetter, restAfterSet, type SetDraft } from "@/features/workouts/session"
-import { loadProgress, personalRecords, weeklyVolume } from "@/features/workouts/stats"
 import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
@@ -47,8 +45,6 @@ import { dayOf, newId } from "@/lib/sp-time"
 const USER = "00000000-0000-4000-8000-000000000001"
 const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
 
-const loadConfig = { load: { label: "Carga (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
-const volumeConfig = { volume: { label: "Volume (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
 
 type TabId = "hoje" | "treinos" | "evolucao"
 const TAB_ITEMS = [
@@ -61,10 +57,6 @@ const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sext
 /** The exercise catalog (shared rows plus the person's own; the example list only in the local prototype). */
 const ExercisesContext = createContext<ExerciseRow[]>([])
 const useExercises = () => useContext(ExercisesContext)
-
-function kg(value: number) {
-  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`
-}
 
 export type WorkoutsInitial = { exercises: ExerciseRow[]; plans: WorkoutPlanRow[]; planExercises: PlanExerciseRow[]; sessions: WorkoutSessionRow[]; setLogs: SetLogRow[] }
 
@@ -104,7 +96,8 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const [creatingPlan, setCreatingPlan] = useState(false)
   const [addingTo, setAddingTo] = useState<WorkoutPlanRow | null>(null)
   const [planToDelete, setPlanToDelete] = useState<WorkoutPlanRow | null>(null)
-  const [progressExercise, setProgressExercise] = useState(exercises[0]?.id ?? "")
+  const [progressExercise, setProgressExercise] = useState("")
+  const [period, setPeriod] = useState<PeriodId>("4w")
   /** Plans whose exercise list is fully open on a phone ("Ver todos os N exercícios"). */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const finishedToday = Boolean(activePlan && sessions.some((s) => s.performed_on === selectedDay && s.completed && s.plan_id === activePlan.id))
@@ -275,10 +268,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   })
   const planChoices: PlanChoice[] = plans.map((plan) => ({ id: plan.id, letter: planLetter(plans, plan.id), name: plan.name }))
 
-  const records = personalRecords(history.sets, history.sessions).sort((a, b) => b.oneRepMax - a.oneRepMax)
-  const progress = loadProgress(progressExercise, history.sets, history.sessions).map((p) => ({ ...p, label: format(parseISO(p.day), "dd/MM") }))
-  const weekly = weeklyVolume(history.sets, history.sessions, today, 8)
-  const last4 = weekly.slice(-4).reduce((sum, w) => sum + w.sessions, 0)
+  const progressExerciseId = progressExercise || exercises.find((e) => sets.some((set) => set.exercise_id === e.id))?.id || exercises[0]?.id || ""
 
   usePrimaryAction("Novo treino", () => setCreatingPlan(true))
 
@@ -298,6 +288,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
+          {tab === "evolucao" ? <PeriodSwitch value={period} onChange={setPeriod} /> : null}
           {tab === "hoje" ? (
             <p data-testid="treinos-date" className="text-[15px] leading-6 font-semibold">
               {WEEKDAY_NAMES[parseISO(selectedDay).getDay()]}, {format(parseISO(selectedDay), "d 'de' MMMM", { locale: ptBR })}
@@ -305,6 +296,8 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
           ) : null}
         </div>
       )}
+
+      {isMobile && tab === "evolucao" ? <PeriodSwitch value={period} onChange={setPeriod} className="w-full [&>button]:flex-1" /> : null}
 
       {tab === "hoje" ? (
         <div className="@container flex min-w-0 flex-col gap-4 max-md:pb-24 md:gap-5" data-testid="treinos-hoje" onFocusCapture={(e) => setTyping(e.target instanceof HTMLInputElement)} onBlurCapture={() => setTyping(false)}>
@@ -428,72 +421,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
         />
       ) : null}
 
-      {tab === "evolucao" ? (
-          <Bento className="@container">
-          <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Recordes" value={`${records.length}`} support="exercícios com marca" className="col-span-6 @min-[1040px]:col-span-3" />
-          <KpiCard label="Frequência" value={`${(last4 / 4).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}/sem`} support="média de 4 semanas" className="col-span-6 @min-[1040px]:col-span-3" />
-
-          <BentoCard
-            title="Carga por treino"
-            className="col-span-12 @min-[900px]:col-span-7"
-            actions={
-              <Select value={progressExercise} onValueChange={setProgressExercise}>
-                <SelectTrigger aria-label="Exercício" className="w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {exercises.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-          >
-            <ChartContainer config={loadConfig} className="aspect-[16/8] w-full">
-              <LineChart data={progress} margin={{ left: -8, right: 8 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.5} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                <YAxis tickLine={false} axisLine={false} domain={["dataMin - 5", "dataMax + 5"]} unit=" kg" width={56} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line dataKey="load" type="monotone" stroke="var(--color-load)" strokeWidth={1.75} dot={false} />
-              </LineChart>
-            </ChartContainer>
-          </BentoCard>
-
-          <BentoCard title="Volume por semana" className="col-span-12 @min-[900px]:col-span-5">
-            <ChartContainer config={volumeConfig} className="aspect-[16/10] w-full">
-              <BarChart data={weekly} margin={{ left: 4, right: 4 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.5} />
-                <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={(v: number) => `${(v / 1000).toLocaleString("pt-BR")} t`} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="volume" fill="var(--color-volume)" radius={6} />
-              </BarChart>
-            </ChartContainer>
-          </BentoCard>
-
-          <BentoCard title="Recordes pessoais" className="col-span-12">
-            <div className="grid gap-x-10 @min-[900px]:grid-cols-2">
-              {records.slice(0, 8).map((r) => (
-                <div key={r.exerciseId} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                  <TrophyIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[15px] leading-6">{exerciseName(r.exerciseId)}</span>
-                    <span className="text-[13px] leading-5 text-muted-foreground">{r.on ? format(parseISO(r.on), "d 'de' MMM yyyy", { locale: ptBR }) : ""}</span>
-                  </div>
-                  <span className="tabular text-[15px] font-medium">
-                    {kg(r.loadKg)} × {r.reps}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </BentoCard>
-          </Bento>
-      ) : null}
+      {tab === "evolucao" ? <EvolucaoTab sets={sets} sessions={sessions} plans={plans} exercises={exercises} today={today} period={period} exerciseId={progressExerciseId} onExercise={setProgressExercise} isMobile={isMobile} /> : null}
 
       <PlanDialog
         open={creatingPlan}
@@ -584,9 +512,9 @@ function PlanDialog({
   nowIso: string
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <PlanForm nowIso={nowIso} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
-    </Dialog>
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title="Novo treino" description="Crie um treino e escolha os dias da semana.">
+      {open ? <PlanForm nowIso={nowIso} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}
+    </ResponsiveSheet>
   )
 }
 
@@ -604,32 +532,23 @@ function PlanForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (pl
         onClose()
       }}
     >
-      <DialogHeader>
-        <DialogTitle>Novo treino</DialogTitle>
-        <DialogDescription className="sr-only">Crie um treino e escolha os dias da semana.</DialogDescription>
-      </DialogHeader>
       <div className="flex flex-col gap-2">
         <Label htmlFor="plan-name">Nome</Label>
-        <Input id="plan-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Treino D — Ombros" onChange={(e) => setName(e.target.value)} />
+        <Input id="plan-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Treino D — Ombros" onChange={(e) => setName(e.target.value)} className={fieldClass} />
       </div>
       <div className="flex flex-col gap-2">
         <Label>Dias da semana</Label>
-        <ToggleGroup type="multiple" variant="outline" value={days} onValueChange={setDays} className="flex-wrap justify-start">
-          {WEEKDAY_SHORT.map((label, index) => (
-            <ToggleGroupItem key={label} value={String(index)}>
-              {label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <WeekdayPills labels={WEEKDAY_SHORT} value={days} onChange={setDays} />
+        <p className="text-[13px] leading-5 text-muted-foreground">Deixe vazio para um treino livre, sem dia fixo.</p>
       </div>
-      <DialogFooter>
+      <StickyFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!name.trim()}>
+        <Button type="submit" disabled={!name.trim()} className="bg-highlight text-highlight-foreground hover:bg-highlight/90">
           Criar treino
         </Button>
-      </DialogFooter>
+      </StickyFooter>
     </form>
   )
 }
@@ -646,9 +565,9 @@ function AddExerciseDialog({
   onAdd: (row: PlanExerciseRow) => void
 }) {
   return (
-    <Dialog open={Boolean(plan)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>{plan ? <AddExerciseForm plan={plan} position={position} onAdd={onAdd} onClose={onClose} /> : null}</DialogContent>
-    </Dialog>
+    <ResponsiveSheet open={Boolean(plan)} onOpenChange={(open) => !open && onClose()} title="Adicionar exercício" description={plan?.name}>
+      {plan ? <AddExerciseForm plan={plan} position={position} onAdd={onAdd} onClose={onClose} /> : null}
+    </ResponsiveSheet>
   )
 }
 
@@ -668,6 +587,7 @@ function AddExerciseForm({
   const [sets, setSets] = useState("3")
   const [reps, setReps] = useState("10")
   const [restSeconds, setRestSeconds] = useState("60")
+  const [customRest, setCustomRest] = useState(false)
 
   return (
     <form
@@ -687,14 +607,10 @@ function AddExerciseForm({
         onClose()
       }}
     >
-      <DialogHeader>
-        <DialogTitle>Adicionar exercício</DialogTitle>
-        <DialogDescription>{plan.name}</DialogDescription>
-      </DialogHeader>
       <div className="flex flex-col gap-2">
         <Label htmlFor="ex-select">Exercício</Label>
         <Select value={exercise} onValueChange={setExercise}>
-          <SelectTrigger id="ex-select" className="w-full">
+          <SelectTrigger id="ex-select" className="h-11 w-full rounded-[12px] data-[size=default]:h-11">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -706,26 +622,28 @@ function AddExerciseForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="ex-sets">Séries</Label>
-          <Input id="ex-sets" inputMode="numeric" value={sets} onChange={(e) => setSets(e.target.value)} />
+          <NumberStepper id="ex-sets" label="Séries" value={sets} onChange={setSets} />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="ex-reps">Reps</Label>
-          <Input id="ex-reps" inputMode="numeric" value={reps} onChange={(e) => setReps(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ex-rest">Descanso (s)</Label>
-          <Input id="ex-rest" inputMode="numeric" value={restSeconds} onChange={(e) => setRestSeconds(e.target.value)} />
+          <NumberStepper id="ex-reps" label="Reps" value={reps} onChange={setReps} />
         </div>
       </div>
-      <DialogFooter>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="ex-rest">Descanso</Label>
+        <RestPresets id="ex-rest" value={restSeconds} custom={customRest || !REST_PRESETS.some((p) => String(p.seconds) === restSeconds)} onChange={setRestSeconds} onCustom={setCustomRest} />
+      </div>
+      <StickyFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit">Adicionar</Button>
-      </DialogFooter>
+        <Button type="submit" className="bg-highlight text-highlight-foreground hover:bg-highlight/90">
+          Adicionar
+        </Button>
+      </StickyFooter>
     </form>
   )
 }
