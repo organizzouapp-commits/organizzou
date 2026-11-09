@@ -4,12 +4,10 @@ import { createContext, useContext, useEffect, useState } from "react"
 import { addDays, format, parseISO, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
-  CheckIcon,
   ChevronDownIcon,
   CopyIcon,
   DumbbellIcon,
   PlusIcon,
-  TimerIcon,
   Trash2Icon,
   TrophyIcon,
 } from "lucide-react"
@@ -17,15 +15,12 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis, Bar, BarChart } from "rec
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { EmptyState } from "@/components/organizzou/EmptyState"
 import { Bento, bentoCardClass, BentoCard, KpiCard } from "@/components/organizzou/Bento"
-import { StatRow } from "@/components/organizzou/layout"
-import { PageHeader, SectionTitle } from "@/components/organizzou/PageHeader"
+import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -37,9 +32,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { loadProgress, personalRecords, volume, weeklyVolume } from "@/features/workouts/stats"
+import { ActionBar, AddExerciseRow, ExerciseCard, SummaryRow, WeekStripCard, exerciseIcon, type PlanChoice, type RestState, type WeekDay } from "@/components/workouts/treino-hoje"
+import { EmptyBlock } from "@/components/finance/parts"
+import { PillTabs } from "@/components/tasks/pill-tabs"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { doneVolume, estimatedMinutes, lastVolume, nextPendingSet, planLetter, restAfterSet, type SetDraft } from "@/features/workouts/session"
+import { loadProgress, personalRecords, weeklyVolume } from "@/features/workouts/stats"
 import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -51,17 +51,17 @@ const WEEKDAY_SHORT = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
 const loadConfig = { load: { label: "Carga (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
 const volumeConfig = { volume: { label: "Volume (kg)", color: "var(--chart-1)" } } satisfies ChartConfig
 
-type SetDraft = { reps: string; load: string; done: boolean }
+type TabId = "hoje" | "treinos" | "evolucao"
+const TAB_ITEMS = [
+  { id: "hoje", label: "Hoje" },
+  { id: "treinos", label: "Meus treinos" },
+  { id: "evolucao", label: "Evolução" },
+]
+const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
 /** The exercise catalog (shared rows plus the person's own; the example list only in the local prototype). */
 const ExercisesContext = createContext<ExerciseRow[]>([])
 const useExercises = () => useContext(ExercisesContext)
-
-function formatClock(seconds: number) {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-}
 
 function kg(value: number) {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`
@@ -81,23 +81,50 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const exercises = useExercises()
   const exerciseName = (id: string) => exercises.find((e) => e.id === id)?.name ?? "Exercício"
   const today = dayOf(nowIso)
-  const todayWeekday = parseISO(today).getDay()
+  const isMobile = useIsMobile()
   const [plans, setPlans] = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
   const [planExercises, setPlanExercises] = usePersistedRows<PlanExerciseRow>("plan_exercises", initial.planExercises)
   const [sessions, setSessions] = usePersistedRows<WorkoutSessionRow>("workout_sessions", initial.sessions)
   const [sets, setSets] = usePersistedRows<SetLogRow>("set_logs", initial.setLogs)
   const history = { sessions, sets }
-  const scheduled = plans.find((p) => p.weekdays.includes(todayWeekday))
-  const [chosenPlanId, setChosenPlanId] = useState<string | null>(null)
-  const activePlan = plans.find((p) => p.id === chosenPlanId) ?? scheduled ?? null
+  const [tab, setTab] = useState<TabId>("hoje")
+  // The day shown in Hoje and the workout chosen by hand for a day ("Trocar treino" / "Escolher treino"); without one, the plan of that weekday.
+  const [selectedDay, setSelectedDay] = useState(today)
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
+  const planFor = (day: string) => plans.find((p) => p.id === overrides[day]) ?? plans.find((p) => p.weekdays.includes(parseISO(day).getDay())) ?? null
+  const activePlan = planFor(selectedDay)
   const [drafts, setDrafts] = useState<Record<string, SetDraft[]>>({})
-  const [finishedToday, setFinishedToday] = useState(() => sessions.some((s) => s.performed_on === today && s.completed))
-  const [rest, setRest] = useState<{ remaining: number; total: number; label: string } | null>(null)
+  // For this session only: exercises swapped by "Substituir", cards the person opened or closed, when the first set was checked.
+  const [swaps, setSwaps] = useState<Record<string, string>>({})
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({})
+  const [swapping, setSwapping] = useState<PlanExerciseRow | null>(null)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [nowMs, setNowMs] = useState(0)
+  const [typing, setTyping] = useState(false)
+  const [rest, setRest] = useState<RestState | null>(null)
   const [creatingPlan, setCreatingPlan] = useState(false)
   const [addingTo, setAddingTo] = useState<WorkoutPlanRow | null>(null)
   const [planToDelete, setPlanToDelete] = useState<WorkoutPlanRow | null>(null)
   const [progressExercise, setProgressExercise] = useState(exercises[0]?.id ?? "")
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(plans[0] ? [plans[0].id] : []))
+  const finishedToday = Boolean(activePlan && sessions.some((s) => s.performed_on === selectedDay && s.completed && s.plan_id === activePlan.id))
+
+  /** A new day or a new workout starts a fresh session: nothing typed, checked, swapped or running carries over. */
+  function resetSession() {
+    setDrafts({})
+    setSwaps({})
+    setOpenCards({})
+    setStartedAt(null)
+    setRest(null)
+  }
+  function chooseDay(day: string) {
+    setSelectedDay(day)
+    resetSession()
+  }
+  function pickPlan(planId: string) {
+    setOverrides((current) => ({ ...current, [selectedDay]: planId }))
+    resetSession()
+  }
 
   function duplicatePlan(plan: WorkoutPlanRow) {
     const copy: WorkoutPlanRow = { ...plan, id: newId(), name: `${plan.name} (cópia)` }
@@ -116,7 +143,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
         if (!current) return current
         if (current.remaining <= 1) {
           toast("Descanso terminado. Próxima série!")
-          return { ...current, remaining: 0 }
+          return null
         }
         return { ...current, remaining: current.remaining - 1 }
       })
@@ -124,7 +151,18 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
     return () => window.clearInterval(id)
   }, [restRunning])
 
+  // Elapsed time of the session ticks once per second from the first checked set until the workout is registered.
+  const timing = startedAt !== null && !finishedToday
+  useEffect(() => {
+    if (!timing) return
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [timing])
+  const elapsed = startedAt === null ? null : Math.max(0, Math.floor((nowMs - startedAt) / 1000))
+
   const items = activePlan ? planExercises.filter((e) => e.plan_id === activePlan.id).sort((a, b) => a.position - b.position) : []
+
+  const exerciseOf = (item: PlanExerciseRow) => swaps[item.id] ?? item.exercise_id
 
   function previousSet(exerciseId: string, index: number) {
     const last = [...history.sessions]
@@ -137,7 +175,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
     return (
       drafts[item.id] ??
       Array.from({ length: item.sets }, (_, index) => {
-        const prev = previousSet(item.exercise_id, index + 1)
+        const prev = previousSet(exerciseOf(item), index + 1)
         return { reps: String(prev?.reps ?? item.reps), load: String(prev?.load_kg ?? item.target_load_kg ?? ""), done: false }
       })
     )
@@ -148,16 +186,44 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
     const next = current.map((d, i) => (i === index ? { ...d, ...patch } : d))
     setDrafts((all) => ({ ...all, [item.id]: next }))
     if (patch.done === true) {
-      setRest({ remaining: item.rest_seconds, total: item.rest_seconds, label: exerciseName(item.exercise_id) })
+      if (startedAt === null) {
+        const t = Date.now()
+        setStartedAt(t)
+        setNowMs(t)
+      }
+      // The rest of THIS exercise starts at once; none after the very last set of the workout.
+      const allDone = items.every((it) => (it.id === item.id ? next : draftsFor(it)).every((d) => d.done))
+      const seconds = restAfterSet(item.rest_seconds, allDone)
+      setRest(seconds > 0 ? { remaining: seconds, total: seconds, label: exerciseName(exerciseOf(item)) } : null)
+      // Exercise finished: the next one with sets to do opens.
+      if (next.every((d) => d.done)) {
+        const following = items.find((it) => it.id !== item.id && !draftsFor(it).every((d) => d.done))
+        if (following) setOpenCards((o) => ({ ...o, [following.id]: true }))
+      }
     }
   }
 
+  function addSet(item: PlanExerciseRow) {
+    const current = draftsFor(item)
+    const last = current[current.length - 1]
+    setDrafts((all) => ({ ...all, [item.id]: [...current, { reps: last?.reps ?? String(item.reps), load: last?.load ?? "", done: false }] }))
+  }
+
+  function swapExercise(item: PlanExerciseRow, exerciseId: string) {
+    setSwaps((all) => ({ ...all, [item.id]: exerciseId }))
+    // Fresh sets, prefilled from the new exercise's last session.
+    setDrafts((all) => {
+      const { [item.id]: _removed, ...rest } = all
+      void _removed
+      return rest
+    })
+  }
+
   const doneSets = items.reduce((sum, item) => sum + draftsFor(item).filter((d) => d.done).length, 0)
-  const totalSets = items.reduce((sum, item) => sum + item.sets, 0)
-  const sessionVolume = items.reduce(
-    (sum, item) => sum + volume(draftsFor(item).filter((d) => d.done).map((d) => ({ reps: Number(d.reps) || 0, load_kg: Number(d.load.replace(",", ".")) || 0 }))),
-    0
-  )
+  const totalSets = items.reduce((sum, item) => sum + draftsFor(item).length, 0)
+  const sessionVolume = items.reduce((sum, item) => sum + doneVolume(draftsFor(item)), 0)
+  const nextPending = nextPendingSet(items, draftsFor)
+  const estimate = estimatedMinutes(items.map((item) => ({ sets: draftsFor(item).length, rest_seconds: item.rest_seconds })))
 
   function finishWorkout() {
     if (!activePlan) return
@@ -169,23 +235,28 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
         .map(({ d, index }) => ({
           id: newId(),
           session_id: sessionId,
-          exercise_id: item.exercise_id,
+          exercise_id: exerciseOf(item),
           set_index: index + 1,
           reps: Number(d.reps) || 0,
           load_kg: Number(d.load.replace(",", ".")) || 0,
         }))
     )
     // The session first, then its sets (the sets point at it).
-    setSessions((current) => [...current, { id: sessionId, user_id: USER, plan_id: activePlan.id, performed_on: today, duration_min: null, completed: true }])
+    setSessions((current) => [...current, { id: sessionId, user_id: USER, plan_id: activePlan.id, performed_on: selectedDay, duration_min: elapsed === null ? null : Math.max(1, Math.round(elapsed / 60)), completed: true }])
     setSets((current) => [...current, ...newSets])
-    setFinishedToday(true)
     setRest(null)
     toast.success(`Treino concluído: ${doneSets} séries, ${Math.round(sessionVolume).toLocaleString("pt-BR")} kg de volume.`)
   }
 
   const weekStart = startOfWeek(parseISO(today), { weekStartsOn: 1 })
-  const week = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index))
   const doneDays = new Set(history.sessions.filter((s) => s.completed).map((s) => s.performed_on))
+  const weekDays: WeekDay[] = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index)
+    const key = format(date, "yyyy-MM-dd")
+    const plan = planFor(key)
+    return { key, date, letter: plan ? planLetter(plans, plan.id) : null, planName: plan?.name ?? null, done: doneDays.has(key), today: key === today }
+  })
+  const planChoices: PlanChoice[] = plans.map((plan) => ({ id: plan.id, letter: planLetter(plans, plan.id), name: plan.name }))
 
   const records = personalRecords(history.sets, history.sessions).sort((a, b) => b.oneRepMax - a.oneRepMax)
   const progress = loadProgress(progressExercise, history.sets, history.sessions).map((p) => ({ ...p, label: format(parseISO(p.day), "dd/MM") }))
@@ -194,191 +265,122 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
 
   usePrimaryAction("Novo treino", () => setCreatingPlan(true))
 
+  const tabs = (
+    <PillTabs equal={isMobile} className={isMobile ? "grid-cols-3" : "w-fit max-w-full"} ariaLabel="Treinos" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
+  )
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4" data-testid="treinos" data-tab={tab}>
       <PageHeader />
 
-      <Tabs defaultValue="hoje">
-        <TabsList>
-          <TabsTrigger value="hoje">Hoje</TabsTrigger>
-          <TabsTrigger value="treinos">Meus treinos</TabsTrigger>
-          <TabsTrigger value="evolucao">Evolução</TabsTrigger>
-        </TabsList>
+      {isMobile ? (
+        <section aria-label="Treinos" data-testid="treinos-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+          <h2 className="h-9 truncate text-[18px] leading-9 font-semibold">Treinos</h2>
+          {tabs}
+        </section>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          {tab === "hoje" ? (
+            <p data-testid="treinos-date" className="text-[15px] leading-6 font-semibold">
+              {WEEKDAY_NAMES[parseISO(selectedDay).getDay()]}, {format(parseISO(selectedDay), "d 'de' MMMM", { locale: ptBR })}
+            </p>
+          ) : null}
+        </div>
+      )}
 
-        {/* --------------------------------------------------------- today */}
-        <TabsContent value="hoje" className="pt-5">
-          <div className="flex flex-col gap-5">
-            {activePlan ? (
-              <StatRow min={150}>
-                <KpiCard tone="highlight" label="Séries" value={`${doneSets}/${totalSets}`} support="feitas hoje" />
-                <KpiCard label="Volume" value={`${Math.round(sessionVolume).toLocaleString("pt-BR")} kg`} support="levantado hoje" />
-                <KpiCard label="Exercícios" value={`${items.length}`} support={activePlan.name} />
-              </StatRow>
-            ) : null}
+      {tab === "hoje" ? (
+        <div className="@container flex min-w-0 flex-col gap-4 max-md:pb-24 md:gap-5" data-testid="treinos-hoje" onFocusCapture={(e) => setTyping(e.target instanceof HTMLInputElement)} onBlurCapture={() => setTyping(false)}>
+          <WeekStripCard days={weekDays} selected={selectedDay} onSelect={chooseDay} isMobile={isMobile} />
 
-            <BentoCard title="Semana">
-              <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semana">
-                {week.map((date) => {
-                  const key = format(date, "yyyy-MM-dd")
-                  const plan = plans.find((p) => p.weekdays.includes(date.getDay()))
-                  const done = doneDays.has(key)
-                  const label = done ? "Treino feito" : plan ? `Treino previsto: ${plan.name}` : "Descanso"
+          {!activePlan ? (
+            <EmptyBlock
+              icon={DumbbellIcon}
+              title="Descanso"
+              description="Nenhum treino previsto para este dia. Descansar também faz parte."
+              action={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-10 rounded-full px-4" data-testid="pick-plan">
+                      Escolher treino <ChevronDownIcon strokeWidth={1.75} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center" className="min-w-56">
+                    {planChoices.map((plan) => (
+                      <DropdownMenuItem key={plan.id} onSelect={() => pickPlan(plan.id)}>
+                        <span className="min-w-0 flex-1 truncate">
+                          {plan.letter} · {plan.name}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
+          ) : (
+            <>
+              <SummaryRow
+                isMobile={isMobile}
+                today={selectedDay === today}
+                letter={planLetter(plans, activePlan.id)}
+                name={activePlan.name}
+                exercises={items.length}
+                totalSets={totalSets}
+                doneSets={doneSets}
+                estimate={estimate}
+                volume={sessionVolume}
+                lastTime={lastVolume(sessions, sets, activePlan.id, selectedDay)}
+                elapsed={elapsed}
+                plans={planChoices}
+                activeId={activePlan.id}
+                onPick={pickPlan}
+              />
+
+              <div className="grid items-start gap-3 @min-[900px]:grid-cols-2" data-testid="exercise-list">
+                {items.map((item, position) => {
+                  const exerciseId = exerciseOf(item)
+                  const exercise = exercises.find((e) => e.id === exerciseId)
                   return (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={!plan}
-                      aria-pressed={Boolean(plan && activePlan?.id === plan.id)}
-                      onClick={() => {
-                        if (!plan) return
-                        setChosenPlanId(plan.id)
-                        setDrafts({})
-                        setFinishedToday(false)
-                      }}
-                      className={cn(
-                        "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[13px] leading-5 outline-none transition-colors duration-[400ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                        plan && "hover:bg-accent",
-                        key === today && "bg-muted",
-                        plan && activePlan?.id === plan.id && "ring-1 ring-foreground/40"
-                      )}
-                    >
-                      <span className="text-[11px] leading-4 text-muted-foreground uppercase">{WEEKDAY_SHORT[date.getDay()]}</span>
-                      <span className="tabular text-[15px] font-semibold">{format(date, "d")}</span>
-                      <span className="flex size-5 items-center justify-center" title={label}>
-                        {done ? <CheckIcon aria-hidden strokeWidth={2} className="size-4" /> : plan ? <span aria-hidden className="size-2 rounded-full border border-foreground/50" /> : null}
-                        <span className="sr-only">{label}</span>
-                      </span>
-                    </button>
+                    <ExerciseCard
+                      key={item.id}
+                      name={exerciseName(exerciseId)}
+                      icon={exerciseIcon(exercise?.name ?? "", exercise?.muscle_group ?? "")}
+                      setsCount={draftsFor(item).length}
+                      reps={item.reps}
+                      restSeconds={item.rest_seconds}
+                      drafts={draftsFor(item)}
+                      previous={(index) => previousSet(exerciseId, index)}
+                      open={openCards[item.id] ?? position === 0}
+                      onToggle={() => setOpenCards((o) => ({ ...o, [item.id]: !(o[item.id] ?? position === 0) }))}
+                      next={nextPending?.item.id === item.id ? nextPending.index : null}
+                      onChange={(index, patch) => updateDraft(item, index, patch)}
+                      onAddSet={() => addSet(item)}
+                      onSwap={() => setSwapping(item)}
+                    />
                   )
                 })}
               </div>
-            </BentoCard>
+              <AddExerciseRow onClick={() => setAddingTo(activePlan)} />
 
-            <BentoCard>
-              {!activePlan ? (
-                <EmptyState
-                  icon={DumbbellIcon}
-                  title="Dia de descanso"
-                  description="Nenhum treino previsto para hoje. Descansar também faz parte."
-                  action={
-                    <Select
-                      value=""
-                      onValueChange={(v) => {
-                        setChosenPlanId(v)
-                        setDrafts({})
-                        setFinishedToday(false)
-                      }}
-                    >
-                      <SelectTrigger aria-label="Fazer um treino mesmo assim" className="w-64">
-                        <SelectValue placeholder="Fazer um treino mesmo assim" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {plans.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  }
-                />
-              ) : (
-                <section className="flex flex-col gap-6">
-                  <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                      <SectionTitle>{scheduled?.id === activePlan.id ? "Treino de hoje" : "Treino escolhido"}</SectionTitle>
-                      <h2 className="text-xl leading-7 font-semibold tracking-[-0.01em]">{activePlan.name}</h2>
-                    </div>
-                    <Select
-                      value={activePlan.id}
-                      onValueChange={(v) => {
-                        setChosenPlanId(v)
-                        setDrafts({})
-                        setFinishedToday(false)
-                      }}
-                    >
-                      <SelectTrigger aria-label="Escolher outro treino" className="w-52">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {plans.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="@container">
-                    <div className="grid gap-x-10 gap-y-8 @min-[900px]:grid-cols-2">
-                      {items.map((item) => (
-                        <div key={item.id} className="flex min-w-0 flex-col gap-1">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <h3 className="min-w-0 truncate text-[17px] leading-6 font-semibold">{exerciseName(item.exercise_id)}</h3>
-                            <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">
-                              {item.sets} × {item.reps} · descanso {formatClock(item.rest_seconds)}
-                            </span>
-                          </div>
-                          <div role="table" aria-label={`Séries de ${exerciseName(item.exercise_id)}`}>
-                            <div role="row" className="grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem_2.75rem] items-center gap-2 border-b border-border pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                              <span role="columnheader">Série</span>
-                              <span role="columnheader" className="text-center">kg</span>
-                              <span role="columnheader" className="text-center">reps</span>
-                              <span role="columnheader" className="sr-only">Feita</span>
-                            </div>
-                            {draftsFor(item).map((draft, index) => {
-                              const prev = previousSet(item.exercise_id, index + 1)
-                              return (
-                                <div key={index} role="row" className={cn("grid grid-cols-[minmax(0,1fr)_4.75rem_4.25rem_2.75rem] items-center gap-2 border-b border-border py-2", draft.done && "opacity-60")}>
-                                  <span role="cell" className="flex min-w-0 flex-col leading-tight">
-                                    <span className="text-[15px] font-medium">Série {index + 1}</span>
-                                    <span className="tabular truncate text-[12px] leading-4 text-muted-foreground">{prev ? `anterior ${kg(prev.load_kg)} × ${prev.reps}` : "sem registro anterior"}</span>
-                                  </span>
-                                  <Input
-                                    role="cell"
-                                    aria-label={`Carga da série ${index + 1}`}
-                                    inputMode="decimal"
-                                    placeholder="kg"
-                                    value={draft.load}
-                                    onChange={(e) => updateDraft(item, index, { load: e.target.value })}
-                                    className="tabular h-11 px-2 text-center"
-                                  />
-                                  <Input
-                                    role="cell"
-                                    aria-label={`Repetições da série ${index + 1}`}
-                                    inputMode="numeric"
-                                    placeholder="reps"
-                                    value={draft.reps}
-                                    onChange={(e) => updateDraft(item, index, { reps: e.target.value })}
-                                    className="tabular h-11 px-2 text-center"
-                                  />
-                                  <span role="cell" className="flex justify-center">
-                                    <Checkbox checked={draft.done} onCheckedChange={(v) => updateDraft(item, index, { done: v === true })} aria-label={`Série ${index + 1} feita`} />
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button size="lg" disabled={doneSets === 0 || finishedToday} onClick={finishWorkout}>
-                      <CheckIcon strokeWidth={1.75} /> {finishedToday ? "Treino registrado" : "Finalizar treino"}
-                    </Button>
-                    {!finishedToday ? <span className="text-[13px] leading-5 text-muted-foreground">Marque as séries feitas para liberar o botão.</span> : null}
-                  </div>
-                </section>
-              )}
-            </BentoCard>
-          </div>
-        </TabsContent>
+              <ActionBar
+                rest={rest}
+                next={nextPending ? { name: exerciseName(exerciseOf(nextPending.item)), set: nextPending.index + 1 } : null}
+                doneSets={doneSets}
+                totalSets={totalSets}
+                canFinish={totalSets > 0 && nextPending === null}
+                finished={finishedToday}
+                blocked={selectedDay > today ? "Só dá para finalizar hoje ou em dias passados" : null}
+                onSkip={() => setRest(null)}
+                onFinish={finishWorkout}
+                hiddenOnPhone={typing}
+              />
+            </>
+          )}
+        </div>
+      ) : null}
 
         {/* ---------------------------------------------------------- plans */}
-        <TabsContent value="treinos" className="pt-5">
+      {tab === "treinos" ? (
           <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))" }}>
             {plans.map((p) => {
               const list = planExercises.filter((e) => e.plan_id === p.id).sort((a, b) => a.position - b.position)
@@ -454,10 +456,10 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
               Novo treino
             </button>
           </div>
-        </TabsContent>
+      ) : null}
 
         {/* ------------------------------------------------------ progress */}
-        <TabsContent value="evolucao" className="pt-5">
+      {tab === "evolucao" ? (
           <Bento className="@container">
           <KpiCard tone="highlight" label="Treinos em 4 semanas" value={`${last4}`} support="sessões concluídas" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Volume da semana" value={`${weekly[weekly.length - 1].volume.toLocaleString("pt-BR")} kg`} support="levantado" className="col-span-6 @min-[1040px]:col-span-3" />
@@ -522,24 +524,6 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
             </div>
           </BentoCard>
           </Bento>
-        </TabsContent>
-      </Tabs>
-
-      {rest ? (
-        <div role="timer" aria-live="off" className="fixed inset-x-4 bottom-24 z-40 mx-auto flex max-w-md items-center gap-4 rounded-2xl border border-border bg-popover p-3 pl-4 text-popover-foreground md:right-6 md:bottom-6 md:left-auto md:mx-0">
-          <TimerIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Descanso</span>
-            <span className="truncate text-[13px] leading-5 text-muted-foreground">{rest.label}</span>
-          </div>
-          <span className="tabular text-2xl leading-8 font-semibold">{formatClock(rest.remaining)}</span>
-          <Button variant="outline" size="sm" onClick={() => setRest({ ...rest, remaining: rest.remaining + 15 })}>
-            +15 s
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setRest(null)}>
-            Pular
-          </Button>
-        </div>
       ) : null}
 
       <PlanDialog
@@ -560,6 +544,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
           toast.success("Exercício adicionado.")
         }}
       />
+      <SwapDialog item={swapping} current={swapping ? exerciseOf(swapping) : ""} onClose={() => setSwapping(null)} onSwap={(exerciseId) => swapping && swapExercise(swapping, exerciseId)} />
       <ConfirmDialog
         open={Boolean(planToDelete)}
         onOpenChange={(open) => !open && setPlanToDelete(null)}
@@ -731,6 +716,55 @@ function AddExerciseForm({
           Cancelar
         </Button>
         <Button type="submit">Adicionar</Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+function SwapDialog({ item, current, onClose, onSwap }: { item: PlanExerciseRow | null; current: string; onClose: () => void; onSwap: (exerciseId: string) => void }) {
+  return (
+    <Dialog open={Boolean(item)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>{item ? <SwapForm current={current} onSwap={onSwap} onClose={onClose} /> : null}</DialogContent>
+    </Dialog>
+  )
+}
+
+function SwapForm({ current, onSwap, onClose }: { current: string; onSwap: (exerciseId: string) => void; onClose: () => void }) {
+  const exercises = useExercises()
+  const [exercise, setExercise] = useState(current)
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSwap(exercise)
+        onClose()
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Substituir exercício</DialogTitle>
+        <DialogDescription>Vale só para o treino de hoje; o plano não muda.</DialogDescription>
+      </DialogHeader>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="swap-select">Exercício</Label>
+        <Select value={exercise} onValueChange={setExercise}>
+          <SelectTrigger id="swap-select" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {exercises.map((e) => (
+              <SelectItem key={e.id} value={e.id}>
+                {e.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button type="submit">Substituir</Button>
       </DialogFooter>
     </form>
   )
