@@ -142,3 +142,35 @@ describe("nextMood", () => {
     expect(nextMood(2, "a")).toBeNull()
   })
 })
+
+describe("label placement", () => {
+  it("takes the first spot that touches no data", async () => {
+    const { pickLabelX } = await import("./stats")
+    const obstacles = [{ x1: 30, x2: 40, y1: 80, y2: 100 }]
+    expect(pickLabelX([36, 120, 200], 60, 82, 98, obstacles)).toBe(120)
+    expect(pickLabelX([36, 120], 60, 10, 20, obstacles)).toBe(36) // the data is below the label: the first spot is free
+  })
+  it("falls back to the spot with the fewest hits when every one is taken", async () => {
+    const { pickLabelX } = await import("./stats")
+    const obstacles = [{ x1: 0, x2: 100, y1: 0, y2: 100 }, { x1: 0, x2: 50, y1: 0, y2: 100 }]
+    expect(pickLabelX([10, 60], 20, 10, 20, obstacles)).toBe(60)
+  })
+  it("samples a line into boxes along its length", async () => {
+    const { sampleLine } = await import("./stats")
+    const boxes = sampleLine([{ x: 0, y: 0 }, { x: 40, y: 20 }])
+    expect(boxes.length).toBeGreaterThan(5)
+    expect(boxes[0]).toEqual({ x1: -4, x2: 4, y1: -4, y2: 4 })
+    expect(boxes.every((b) => b.x1 >= -4 && b.x2 <= 44)).toBe(true)
+  })
+})
+
+describe("label spot above or below the line", () => {
+  it("prefers above, then below, then the least crowded", async () => {
+    const { pickLabelSpot } = await import("./stats")
+    const above = { x1: 0, x2: 100, y1: 70, y2: 90 } // blocks the space above a line at y = 100 for x 0..100
+    expect(pickLabelSpot([10], 50, 100, [])).toEqual({ x: 10, side: "above" })
+    expect(pickLabelSpot([10], 50, 100, [above])).toEqual({ x: 10, side: "below" })
+    const both = [above, { x1: 0, x2: 100, y1: 105, y2: 120 }]
+    expect(pickLabelSpot([10, 150], 50, 100, both)).toEqual({ x: 150, side: "above" })
+  })
+})

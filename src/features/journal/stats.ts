@@ -160,3 +160,59 @@ export function nextMood(current: Mood | null, key: string): Mood | null {
   if (key === "End") return 5
   return null
 }
+
+// ------------------------------------------------------------------ chart labels
+
+export type Box = { x1: number; x2: number; y1: number; y2: number }
+
+/**
+ * Where the "média" / "meta" label of a chart goes so it does not sit on the data: the first candidate x whose label box touches none of
+ * the obstacles (the sampled line, the bars); when every spot is taken, the one touching the fewest. `y1`..`y2` is the vertical extent of the label.
+ */
+export function pickLabelX(candidates: number[], width: number, y1: number, y2: number, obstacles: Box[]): number {
+  let best = candidates[0]
+  let bestHits = Infinity
+  for (const x of candidates) {
+    const hits = obstacles.filter((o) => o.x1 < x + width && o.x2 > x && o.y1 < y2 && o.y2 > y1).length
+    if (hits < bestHits) {
+      best = x
+      bestHits = hits
+    }
+    if (hits === 0) break
+  }
+  return best
+}
+
+/** Points along straight segments (every `step` px of x), as small boxes: what a line occupies for label placement. */
+export function sampleLine(points: { x: number; y: number }[], step = 4, radius = 4): Box[] {
+  const boxes: Box[] = []
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]
+    boxes.push({ x1: a.x - radius, x2: a.x + radius, y1: a.y - radius, y2: a.y + radius })
+    const b = points[i + 1]
+    if (!b) continue
+    const steps = Math.max(1, Math.floor(Math.abs(b.x - a.x) / step))
+    for (let k = 1; k < steps; k++) {
+      const t = k / steps
+      const x = a.x + (b.x - a.x) * t
+      const y = a.y + (b.y - a.y) * t
+      boxes.push({ x1: x - radius, x2: x + radius, y1: y - radius, y2: y + radius })
+    }
+  }
+  return boxes
+}
+
+/** Like pickLabelX, but the label may also sit under the line: the first free spot above, else the first free one below, else the least crowded. Text baseline offsets: above = line − 6, below = line + 15. */
+export function pickLabelSpot(candidates: number[], width: number, lineY: number, obstacles: Box[]): { x: number; side: "above" | "below" } {
+  const hitsAt = (x: number, y1: number, y2: number) => obstacles.filter((o) => o.x1 < x + width && o.x2 > x && o.y1 < y2 && o.y2 > y1).length
+  let best = { x: candidates[0], side: "above" as "above" | "below", hits: Infinity }
+  for (const side of ["above", "below"] as const) {
+    const [y1, y2] = side === "above" ? [lineY - 20, lineY - 3] : [lineY + 3, lineY + 20]
+    for (const x of candidates) {
+      const hits = hitsAt(x, y1, y2)
+      if (hits < best.hits) best = { x, side, hits }
+      if (hits === 0) return { x, side }
+    }
+  }
+  return { x: best.x, side: best.side }
+}

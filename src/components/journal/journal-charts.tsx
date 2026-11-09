@@ -6,11 +6,18 @@ import { ptBR } from "date-fns/locale"
 
 import { BentoCard } from "@/components/finance/bento"
 import { useElementSize } from "@/hooks/use-element-size"
-import { formatMood, labelIndices, lineSegments, moodLabelStep, moodText, sleepAxisMax, sleepText, spreadIndices, type DayPoint } from "@/features/journal/stats"
+import { formatMood, labelIndices, lineSegments, moodLabelStep, moodText, pickLabelSpot, sampleLine, sleepAxisMax, sleepText, spreadIndices, type Box, type DayPoint } from "@/features/journal/stats"
 import { cn } from "@/lib/utils"
 
 const chip = "tabular inline-flex h-6 items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 const HALO = { paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 4, strokeLinejoin: "round" } as const
+/** Candidate x positions for a label of width `w` inside a plot: every ~40 px from the left edge to the right edge. */
+const spots = (left: number, right: number, w: number) => {
+  const out: number[] = []
+  for (let x = left + 6; x + w <= right - 6; x += 10) out.push(x)
+  out.push(Math.max(left + 6, right - 6 - w))
+  return out
+}
 const dayLabel = (day: string, mobile: boolean) => format(parseISO(day), mobile ? "d/M" : "dd/MM")
 
 // ------------------------------------------------------------------ mood
@@ -36,6 +43,9 @@ export function MoodChart({ points, average, period, mobile }: { points: DayPoin
   const tipLeft = shown ? Math.min(Math.max(x(shown.i) - tipW / 2, M.left), Math.max(M.left, width - M.right - tipW)) : 0
   const tipTop = shown ? Math.max(0, y(shown.mood) - 62) : 0
   const labels = labelIndices(n, moodLabelStep(period))
+  // The average label goes where the line is not: the first free spot from the left edge.
+  const avgLabelW = 62
+  const avgLabel = average === null ? { x: 0, side: "above" as const } : pickLabelSpot(spots(M.left, width - M.right, avgLabelW), avgLabelW, y(average), runs.flatMap((r) => sampleLine(r.map((p) => ({ x: x(p.index), y: y(p.mood) })))))
   const summary = `Humor nos últimos ${period} dias: ${data.length} ${data.length === 1 ? "registro" : "registros"}${average !== null ? `, média ${formatMood(average)}` : ""}.`
 
   return (
@@ -79,7 +89,7 @@ export function MoodChart({ points, average, period, mobile }: { points: DayPoin
               {average !== null ? (
                 <g data-testid="mood-average-line">
                   <line x1={M.left} x2={width - M.right} y1={y(average)} y2={y(average)} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="6 5" />
-                  <text x={M.left + 6} y={y(average) - 6} fontSize="11" fontWeight="600" fill="var(--foreground)" style={HALO}>
+                  <text x={avgLabel.x} y={avgLabel.side === "above" ? y(average) - 6 : y(average) + 15} fontSize="11" fontWeight="600" fill="var(--foreground)" style={HALO}>
                     média {formatMood(average)}
                   </text>
                 </g>
@@ -148,6 +158,9 @@ export function SleepChart({ points, average, goal, mobile }: { points: DayPoint
   const barW = Math.max(3, Math.min(24, slot * 0.56))
   const ticks = Array.from({ length: max / 5 + 1 }, (_, i) => i * 5)
   const labels = spreadIndices(n)
+  const bars: Box[] = points.flatMap((p, i) => (p.sleep === null ? [] : [{ x1: S.left + slot * (i + 0.5) - barW / 2, x2: S.left + slot * (i + 0.5) + barW / 2, y1: y(p.sleep), y2: y(0) }]))
+  const goalLabelW = 78
+  const goalLabel = pickLabelSpot(spots(S.left, width - S.right, goalLabelW), goalLabelW, y(goal), bars)
   const summary = `Horas de sono: ${points.filter((p) => p.sleep !== null).length} noites registradas${average !== null ? `, média ${sleepText(average)}` : ""}, meta ${sleepText(goal)}.`
 
   return (
@@ -178,7 +191,7 @@ export function SleepChart({ points, average, goal, mobile }: { points: DayPoint
               })}
               <g data-testid="sleep-goal-line">
                 <line x1={S.left} x2={width - S.right} y1={y(goal)} y2={y(goal)} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="6 5" />
-                <text x={S.left + 6} y={y(goal) - 6} fontSize="11" fontWeight="600" fill="var(--foreground)" style={HALO}>
+                <text x={goalLabel.x} y={goalLabel.side === "above" ? y(goal) - 6 : y(goal) + 15} fontSize="11" fontWeight="600" fill="var(--foreground)" style={HALO}>
                   meta {sleepText(goal)}
                 </text>
               </g>
