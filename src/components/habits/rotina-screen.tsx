@@ -4,26 +4,25 @@ import { useState } from "react"
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, parseISO, startOfMonth, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
-  EllipsisIcon,
   FlameIcon,
-  MinusIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   PauseIcon,
-  PlayIcon,
+  Settings2Icon,
   PlusIcon,
-  RepeatIcon,
-  Trash2Icon,
 } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
+import { HojeTab, useGroups, type HojeActions } from "@/components/habits/hoje-tab"
+import { PillTabs } from "@/components/tasks/pill-tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { Bento, BentoCard, KpiCard } from "@/components/organizzou/Bento"
-import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -41,8 +40,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { SplitLayout, StatRow } from "@/components/organizzou/layout"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   bestStreak,
@@ -61,40 +58,18 @@ import { cn } from "@/lib/utils"
 const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"]
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
+type TabId = "hoje" | "historico" | "estatisticas"
+const TAB_ITEMS = [
+  { id: "hoje", label: "Hoje" },
+  { id: "historico", label: "Histórico" },
+  { id: "estatisticas", label: "Estatísticas" },
+]
+const dayName = (day: string) => WEEKDAY_NAMES[parseISO(day).getDay()]
+
 function stepFor(habit: HabitRow) {
   if (habit.unit === "L") return 0.5
   if (habit.unit === "min") return 10
   return 5
-}
-
-function formatQty(value: number) {
-  return value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
-}
-
-/** Last 7 days of a habit: weekday initial above a 20 px dot (filled = done, ring = missed, plain = day off). */
-function WeekDots({ habit, logs, today }: { habit: HabitRow; logs: HabitLogRow[]; today: string }) {
-  return (
-    <div className="flex items-end gap-1.5" role="group" aria-label={`Últimos 7 dias de ${habit.name}`}>
-      {Array.from({ length: 7 }, (_, index) => {
-        const day = shiftDay(today, index - 6)
-        const doneDay = isDone(habit, logs, day)
-        const planned = isScheduled(habit, day)
-        const label = format(parseISO(day), "EEEE, d", { locale: ptBR })
-        return (
-          <span key={day} title={`${label}: ${doneDay ? "feito" : planned ? "não feito" : "folga"}`} className="flex flex-col items-center gap-1">
-            <span aria-hidden className="text-[11px] leading-3 font-semibold text-muted-foreground uppercase">
-              {format(parseISO(day), "EEEEE", { locale: ptBR })}
-            </span>
-            <span
-              role="img"
-              aria-label={`${label}: ${doneDay ? "feito" : planned ? "não feito" : "folga"}`}
-              className={cn("size-5 rounded-full border-2", doneDay ? "border-foreground bg-foreground" : planned ? "border-foreground/40" : "border-transparent bg-muted")}
-            />
-          </span>
-        )
-      })}
-    </div>
-  )
 }
 
 const chartConfig = { rate: { label: "Constância", color: "var(--chart-1)" } } satisfies ChartConfig
@@ -114,30 +89,34 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<HabitRow | null>(null)
   const [historyHabit, setHistoryHabit] = useState("all")
+  const [tab, setTab] = useState<TabId>("hoje")
+  // The day shown in the Hoje list: today by default, any earlier day through the arrows (never the future).
+  const [selected, setSelected] = useState(today)
+  const [editing, setEditing] = useState<HabitRow | null>(null)
+  const isMobile = useIsMobile()
+  const groups = useGroups()
 
   const active = habits.filter((h) => !h.paused)
-  const todays = active.filter((h) => isScheduled(h, today))
-  const doneToday = todays.filter((h) => isDone(h, logs, today)).length
 
   function setQty(habit: HabitRow, qty: number) {
     setLogs((current) => {
-      const existing = current.find((l) => l.habit_id === habit.id && l.log_date === today)
+      const existing = current.find((l) => l.habit_id === habit.id && l.log_date === selected)
       if (qty <= 0) return current.filter((l) => l !== existing)
       const stamp = new Date().toISOString()
       // The same day keeps the same row: one log per habit per day.
       if (existing) return current.map((l) => (l === existing ? { ...l, qty, updated_at: stamp } : l))
-      return [...current, { id: newId(), user_id: habit.user_id, habit_id: habit.id, log_date: today, qty, created_at: stamp, updated_at: stamp }]
+      return [...current, { id: newId(), user_id: habit.user_id, habit_id: habit.id, log_date: selected, qty, created_at: stamp, updated_at: stamp }]
     })
   }
 
   function toggleFixed(habit: HabitRow) {
-    const done = isDone(habit, logs, today)
+    const done = isDone(habit, logs, selected)
     setQty(habit, done ? 0 : 1)
     if (!done) toast.success("Hábito registrado.")
   }
 
   function stepGoal(habit: HabitRow, direction: 1 | -1) {
-    const current = logs.find((l) => l.habit_id === habit.id && l.log_date === today)?.qty ?? 0
+    const current = logs.find((l) => l.habit_id === habit.id && l.log_date === selected)?.qty ?? 0
     const next = Math.max(0, Math.round((current + direction * stepFor(habit)) * 10) / 10)
     setQty(habit, next)
     if (next >= (habit.target_qty ?? 0) && current < (habit.target_qty ?? 0)) toast.success("Meta do dia batida.")
@@ -176,122 +155,85 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
 
   usePrimaryAction("Novo hábito", () => setCreating(true))
 
+  const actions: HojeActions = {
+    onToggle: toggleFixed,
+    onStep: stepGoal,
+    onPause: togglePause,
+    onEdit: setEditing,
+    onDelete: setToDelete,
+    onCreate: () => setCreating(true),
+    onOpenStats: () => setTab("estatisticas"),
+  }
+
+  const tabs = (
+    <PillTabs
+      equal={isMobile}
+      className={isMobile ? "grid-cols-3" : "w-fit max-w-full"}
+      ariaLabel="Rotina"
+      items={TAB_ITEMS}
+      value={tab}
+      onSelect={(item) => setTab(item.id as TabId)}
+    />
+  )
+  const dayNav =
+    tab === "hoje" ? (
+      <div data-testid="rotina-day-nav" className="flex h-10 items-center gap-1">
+        <Button variant="ghost" size="icon" aria-label="Dia anterior" className="shrink-0" onClick={() => setSelected((d) => shiftDay(d, -1))}>
+          <ChevronLeftIcon strokeWidth={1.75} />
+        </Button>
+        <button type="button" data-testid="rotina-day-label" aria-label="Ir para hoje" title="Ir para hoje" onClick={() => setSelected(today)} className="min-w-0 rounded-full px-2 text-[15px] leading-6 font-semibold whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          {dayName(selected)}, {format(parseISO(selected), "d 'de' MMMM", { locale: ptBR })}
+        </button>
+        <Button variant="ghost" size="icon" aria-label="Próximo dia" className="shrink-0" disabled={selected >= today} onClick={() => setSelected((d) => (d >= today ? d : shiftDay(d, 1)))}>
+          <ChevronRightIcon strokeWidth={1.75} />
+        </Button>
+      </div>
+    ) : null
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="rotina" data-tab={tab}>
       <PageHeader />
 
-      <Tabs defaultValue="hoje">
-        <TabsList>
-          <TabsTrigger value="hoje">Hoje</TabsTrigger>
-          <TabsTrigger value="historico">Histórico</TabsTrigger>
-          <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
-        </TabsList>
+      {isMobile ? (
+        <>
+          <section aria-label="Rotina" data-testid="rotina-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+            <div className="flex h-9 items-center gap-2">
+              <h2 className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold">Rotina</h2>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Gerenciar hábitos" data-testid="rotina-manage" className="relative size-9 rounded-full after:absolute after:-inset-1">
+                    <Settings2Icon strokeWidth={1.75} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setCreating(true)}>
+                    <PlusIcon strokeWidth={1.75} /> Novo hábito
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setTab("hoje")
+                      groups.open("pausados")
+                    }}
+                  >
+                    <PauseIcon strokeWidth={1.75} /> Mostrar pausados
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {tabs}
+          </section>
+          {dayNav ? <div className="px-1">{dayNav}</div> : null}
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          {dayNav}
+        </div>
+      )}
 
-        <TabsContent value="hoje" className="pt-5">
-          <div className="flex flex-col gap-5">
-            <StatRow min={150}>
-              <KpiCard tone="highlight" label="Hábitos hoje" value={`${doneToday}/${todays.length}`} support={`${todays.length === 0 ? 0 : Math.round((doneToday / todays.length) * 100)}% do dia`} />
-              <KpiCard label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" />
-              <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" />
-            </StatRow>
-            <SplitLayout
-              aside={
-                <BentoCard title="Últimos 7 dias" bodyClassName="flex flex-col gap-3">
-                  {Array.from({ length: 7 }, (_, index) => {
-                    const day = shiftDay(today, index - 6)
-                    const value = dayCompletion(active, logs, day)
-                    return (
-                      <div key={day} className="flex items-center gap-3">
-                        <span className="w-20 shrink-0 text-[13px] leading-5 text-muted-foreground capitalize">{format(parseISO(day), "EEE", { locale: ptBR })}</span>
-                        <Progress value={value === null ? 0 : value * 100} aria-label={`${format(parseISO(day), "EEEE", { locale: ptBR })}`} />
-                        <span className="tabular w-10 shrink-0 text-right text-[13px] leading-5 text-muted-foreground">{value === null ? "—" : `${Math.round(value * 100)}%`}</span>
-                      </div>
-                    )
-                  })}
-                </BentoCard>
-              }
-            >
-              <BentoCard title="Hábitos de hoje">
-                <div className="flex flex-col gap-2 pb-4">
-                  <Progress value={todays.length === 0 ? 0 : (doneToday / todays.length) * 100} aria-label="Progresso dos hábitos de hoje" />
-                </div>
-                {habits.length === 0 ? (
-                  <EmptyState
-                    icon={RepeatIcon}
-                    title="Nenhum hábito ainda"
-                    description="Comece com um hábito pequeno, como beber água ou ler 10 páginas. Ele aparece aqui e em Hoje."
-                    action={
-                      <Button className="h-11 rounded-full px-5" onClick={() => setCreating(true)}>
-                        <PlusIcon strokeWidth={1.75} /> Criar o primeiro hábito
-                      </Button>
-                    }
-                  />
-                ) : null}
-                <div className="flex flex-col">
-                  {habits.map((habit) => {
-                    const scheduled = isScheduled(habit, today)
-                    const qty = logs.find((l) => l.habit_id === habit.id && l.log_date === today)?.qty ?? 0
-                    const done = isDone(habit, logs, today)
-                    const streak = currentStreak(habit, logs, today)
-                    return (
-                      <div key={habit.id} className={cn("flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-3 last:border-b-0", (habit.paused || !scheduled) && "opacity-60")}>
-                        {habit.type === "fixed" ? (
-                          <Checkbox checked={done} disabled={habit.paused || !scheduled} onCheckedChange={() => toggleFixed(habit)} aria-label={`Marcar ${habit.name}`} />
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Button variant="outline" size="icon" disabled={habit.paused || !scheduled || qty <= 0} aria-label={`Diminuir ${habit.name}`} onClick={() => stepGoal(habit, -1)}>
-                              <MinusIcon strokeWidth={1.75} />
-                            </Button>
-                            <Button variant="outline" size="icon" disabled={habit.paused || !scheduled} aria-label={`Aumentar ${habit.name}`} onClick={() => stepGoal(habit, 1)}>
-                              <PlusIcon strokeWidth={1.75} />
-                            </Button>
-                          </div>
-                        )}
-                        <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1">
-                          <span className={cn("truncate text-[15px] leading-6", done && "text-muted-foreground line-through")}>{habit.name}</span>
-                          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-5 text-muted-foreground">
-                            {habit.paused ? <span>Pausado</span> : null}
-                            {!habit.paused && !scheduled ? <span>Folga hoje</span> : null}
-                            {!habit.paused && scheduled && habit.type === "goal" ? (
-                              <span className="tabular">
-                                {formatQty(qty)} / {formatQty(habit.target_qty ?? 0)} {habit.unit}
-                              </span>
-                            ) : null}
-                            {streak > 0 ? (
-                              <span className="tabular inline-flex items-center gap-1">
-                                <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
-                                {streak} {streak === 1 ? "dia" : "dias"}
-                              </span>
-                            ) : null}
-                          </span>
-                        </div>
-                        <WeekDots habit={habit} logs={logs} today={today} />
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label={`Opções de ${habit.name}`}>
-                              <EllipsisIcon strokeWidth={1.75} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => togglePause(habit)}>
-                              {habit.paused ? <PlayIcon strokeWidth={1.75} /> : <PauseIcon strokeWidth={1.75} />}
-                              {habit.paused ? "Retomar" : "Pausar"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(habit)}>
-                              <Trash2Icon strokeWidth={1.75} /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )
-                  })}
-                </div>
-              </BentoCard>
-            </SplitLayout>
-          </div>
-        </TabsContent>
+      {tab === "hoje" ? <HojeTab groups={groups} habits={habits} logs={logs} today={today} selected={selected} isMobile={isMobile} actions={actions} /> : null}
 
-        <TabsContent value="historico" className="pt-5">
+      {tab === "historico" ? (
           <div className="flex flex-col gap-5">
             <div role="group" aria-label="Filtrar por hábito" className="no-scrollbar flex gap-2 overflow-x-auto">
               {[{ id: "all", name: "Todos" }, ...habits].map((h) => (
@@ -378,9 +320,9 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
               </div>
             </div>
           </div>
-        </TabsContent>
+      ) : null}
 
-        <TabsContent value="estatisticas" className="pt-5">
+      {tab === "estatisticas" ? (
           <Bento>
           <KpiCard tone="highlight" label="Constância 30 dias" value={`${overall}%`} support="média dos hábitos" className="col-span-6 @min-[1040px]:col-span-3" />
           <KpiCard label="Melhor sequência" value={`${best}`} support="dias seguidos" className="col-span-6 @min-[1040px]:col-span-3" />
@@ -412,8 +354,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
             })}
           </BentoCard>
           </Bento>
-        </TabsContent>
-      </Tabs>
+      ) : null}
 
       <NewHabitDialog
         open={creating}
@@ -421,6 +362,15 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
         onCreate={(habit) => {
           setHabits((current) => [...current, habit])
           toast.success("Hábito criado.")
+        }}
+      />
+      <NewHabitDialog
+        open={Boolean(editing)}
+        onOpenChange={(open) => !open && setEditing(null)}
+        habit={editing}
+        onCreate={(habit) => {
+          setHabits((current) => current.map((h) => (h.id === habit.id ? { ...habit, created_at: h.created_at, paused: h.paused } : h)))
+          toast("Hábito atualizado.")
         }}
       />
       <ConfirmDialog
@@ -438,24 +388,27 @@ function NewHabitDialog({
   open,
   onOpenChange,
   onCreate,
+  habit,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Called with the new habit, or with the edited one (same id) when `habit` is given. */
   onCreate: (habit: HabitRow) => void
+  habit?: HabitRow | null
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <NewHabitForm onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
+      <DialogContent>{open ? <NewHabitForm habit={habit ?? null} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
     </Dialog>
   )
 }
 
-function NewHabitForm({ onCreate, onClose }: { onCreate: (habit: HabitRow) => void; onClose: () => void }) {
-  const [name, setName] = useState("")
-  const [type, setType] = useState<HabitType>("fixed")
-  const [target, setTarget] = useState("10")
-  const [unit, setUnit] = useState("páginas")
-  const [weekdays, setWeekdays] = useState<string[]>(["0", "1", "2", "3", "4", "5", "6"])
+function NewHabitForm({ habit, onCreate, onClose }: { habit: HabitRow | null; onCreate: (habit: HabitRow) => void; onClose: () => void }) {
+  const [name, setName] = useState(habit?.name ?? "")
+  const [type, setType] = useState<HabitType>(habit?.type ?? "fixed")
+  const [target, setTarget] = useState(habit?.target_qty ? String(habit.target_qty).replace(".", ",") : "10")
+  const [unit, setUnit] = useState(habit?.unit ?? "páginas")
+  const [weekdays, setWeekdays] = useState<string[]>((habit?.weekdays ?? [0, 1, 2, 3, 4, 5, 6]).map(String))
 
   return (
     <form
@@ -465,23 +418,23 @@ function NewHabitForm({ onCreate, onClose }: { onCreate: (habit: HabitRow) => vo
         if (!name.trim() || weekdays.length === 0) return
         const stamp = new Date().toISOString()
         onCreate({
-          id: newId(),
-          user_id: "00000000-0000-4000-8000-000000000001",
+          id: habit?.id ?? newId(),
+          user_id: habit?.user_id ?? "00000000-0000-4000-8000-000000000001",
           name: name.trim(),
           type,
           target_qty: type === "goal" ? Number(target.replace(",", ".")) || 1 : null,
           unit: type === "goal" ? unit.trim() || null : null,
           weekdays: weekdays.map(Number),
-          deadline: null,
-          paused: false,
-          created_at: stamp,
+          deadline: habit?.deadline ?? null,
+          paused: habit?.paused ?? false,
+          created_at: habit?.created_at ?? stamp,
           updated_at: stamp,
         })
         onClose()
       }}
     >
       <DialogHeader>
-        <DialogTitle>Novo hábito</DialogTitle>
+        <DialogTitle>{habit ? "Editar hábito" : "Novo hábito"}</DialogTitle>
         <DialogDescription className="sr-only">Crie um hábito fixo ou com meta diária.</DialogDescription>
       </DialogHeader>
       <div className="flex flex-col gap-2">
@@ -522,7 +475,7 @@ function NewHabitForm({ onCreate, onClose }: { onCreate: (habit: HabitRow) => vo
           Cancelar
         </Button>
         <Button type="submit" disabled={!name.trim() || weekdays.length === 0}>
-          Criar hábito
+          {habit ? "Salvar" : "Criar hábito"}
         </Button>
       </DialogFooter>
     </form>

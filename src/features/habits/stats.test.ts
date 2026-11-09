@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { bestStreak, consistency, currentStreak, dayCompletion, isDone, isScheduled } from "./stats"
+import { bestStreak, consistency, consistencyDelta, currentStreak, dailyRates, dayCompletion, dayState, isDone, isScheduled, overallConsistency, recordStreak, shiftDay, topStreaks, weekStrip } from "./stats"
 import type { HabitLogRow, HabitRow } from "./types"
 
 const stamp = { created_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z" }
@@ -76,5 +76,57 @@ describe("consistency / dayCompletion", () => {
     const paused = habit({ id: "b", paused: true })
     expect(dayCompletion([active, paused], [log("a", TODAY)], TODAY)).toBe(1)
     expect(dayCompletion([habit({ weekdays: [1] })], [], "2026-03-08")).toBeNull()
+  })
+})
+
+describe("Rotina > Hoje helpers", () => {
+  const water = habit({ id: "w", name: "Água" })
+  const weekdaysOnly = habit({ id: "d", name: "Treino", weekdays: [1, 2, 3, 4, 5] })
+
+  it("dayState: done, missed, pending (only the selected day) and off", () => {
+    const logs = [log("w", "2026-03-10"), log("w", "2026-03-08")]
+    expect(dayState(water, logs, "2026-03-10", TODAY)).toBe("done")
+    expect(dayState(water, logs, "2026-03-09", TODAY)).toBe("missed")
+    expect(dayState(water, [], TODAY, TODAY)).toBe("pending")
+    // 2026-03-08 is a Sunday: not scheduled for a weekday-only habit.
+    expect(dayState(weekdaysOnly, [], "2026-03-08", TODAY)).toBe("off")
+  })
+
+  it("weekStrip is 7 days ending on the selected day, oldest first", () => {
+    const strip = weekStrip(water, [log("w", "2026-03-10")], TODAY)
+    expect(strip.map((s) => s.day)).toEqual(["2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"])
+    expect(strip[6].state).toBe("done")
+    expect(strip[5].state).toBe("missed")
+  })
+
+  it("overallConsistency counts scheduled check-ins of every habit together, ignoring paused ones", () => {
+    const logs = [log("w", "2026-03-10"), log("w", "2026-03-09")]
+    // 30 days x 1 habit = 30 scheduled, 2 done.
+    expect(overallConsistency([water], logs, TODAY)).toBe(7)
+    expect(overallConsistency([habit({ paused: true })], logs, TODAY)).toBe(0)
+    expect(overallConsistency([], [], TODAY)).toBe(0)
+  })
+
+  it("consistencyDelta compares the last 30 days with the 30 before", () => {
+    const recent = Array.from({ length: 15 }, (_, i) => log("w", shiftDay(TODAY, -i)))
+    expect(consistencyDelta([water], recent, TODAY)).toBe(50)
+    const older = Array.from({ length: 30 }, (_, i) => log("w", shiftDay(TODAY, -30 - i)))
+    expect(consistencyDelta([water], older, TODAY)).toBe(-100)
+  })
+
+  it("dailyRates has one value per day and carries the last rate over days with nothing scheduled", () => {
+    const rates = dailyRates([weekdaysOnly], [log("d", "2026-03-06")], TODAY, 7)
+    expect(rates).toHaveLength(7)
+    // 03-04 Wed (missed 0), 03-05 Thu (0), 03-06 Fri (100), 03-07 Sat/03-08 Sun (carry 100), 03-09 Mon (0), 03-10 Tue (0)
+    expect(rates).toEqual([0, 0, 100, 100, 100, 0, 0])
+  })
+
+  it("recordStreak looks further back than bestStreak and topStreaks ranks by current streak", () => {
+    const old = Array.from({ length: 5 }, (_, i) => log("w", shiftDay(TODAY, -200 - i)))
+    expect(recordStreak(water, old, TODAY)).toBe(5)
+    expect(bestStreak(water, old, TODAY)).toBe(0)
+    const logs = [log("w", "2026-03-10"), log("w", "2026-03-09"), log("d", "2026-03-10")]
+    const top = topStreaks([weekdaysOnly, water, habit({ id: "z", name: "Zero" })], logs, TODAY)
+    expect(top.map((t) => [t.habit.id, t.streak])).toEqual([["w", 2], ["d", 1]])
   })
 })
