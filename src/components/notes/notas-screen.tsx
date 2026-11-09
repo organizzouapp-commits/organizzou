@@ -1,31 +1,15 @@
 "use client"
 
-import { Fragment, useEffect, useRef, useState } from "react"
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
-import {
-  ArrowLeftIcon,
-  BellIcon,
-  BoldIcon,
-  EllipsisIcon,
-  FolderIcon,
-  HeadingIcon,
-  InfoIcon,
-  ItalicIcon,
-  ListIcon,
-  NotebookPenIcon,
-  PinIcon,
-  PlusIcon,
-  SearchIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { useState } from "react"
+import { BellIcon, EllipsisIcon, InfoIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { EmptyState } from "@/components/organizzou/EmptyState"
-import { BentoCard, bentoCardClass } from "@/components/organizzou/Bento"
+import { BentoCard } from "@/components/organizzou/Bento"
+import { NotasTab } from "@/components/notes/notas-tab"
+import { useNotes } from "@/components/notes/use-notes"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
+import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -46,142 +30,42 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { parseMarkdown, wordCount, type Inline } from "@/features/notes/markdown"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
 import { dayDiff, formatDue, toDueIso } from "@/lib/dates"
-import { cn } from "@/lib/utils"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
 
-function InlineText({ runs }: { runs: Inline[] }) {
-  return (
-    <>
-      {runs.map((run, index) =>
-        run.bold ? (
-          <strong key={index} className="font-semibold">
-            {run.text}
-          </strong>
-        ) : run.italic ? (
-          <em key={index}>{run.text}</em>
-        ) : (
-          <span key={index}>{run.text}</span>
-        )
-      )}
-    </>
-  )
-}
-
-function NotePreview({ source }: { source: string }) {
-  const blocks = parseMarkdown(source)
-  return (
-    <div className="flex flex-col gap-3 text-[15px] leading-6">
-      {blocks.map((block, index) => {
-        if (block.type === "heading") {
-          return block.level === 1 ? (
-            <h2 key={index} className="text-xl leading-7 font-semibold tracking-[-0.01em]">
-              <InlineText runs={block.inline} />
-            </h2>
-          ) : (
-            <h3 key={index} className="text-[17px] leading-6 font-semibold">
-              <InlineText runs={block.inline} />
-            </h3>
-          )
-        }
-        if (block.type === "list") {
-          return (
-            <ul key={index} className="flex list-disc flex-col gap-1 pl-5">
-              {block.items.map((item, i) => (
-                <li key={i}>
-                  <InlineText runs={item} />
-                </li>
-              ))}
-            </ul>
-          )
-        }
-        return (
-          <p key={index}>
-            <InlineText runs={block.inline} />
-          </p>
-        )
-      })}
-    </div>
-  )
-}
+type TabId = "notas" | "lembretes"
+const TAB_ITEMS = [
+  { id: "notas", label: "Notas" },
+  { id: "lembretes", label: "Lembretes" },
+]
 
 export type NotesInitial = { folders: NoteFolderRow[]; notes: NoteRow[]; reminders: ReminderRow[] }
 
 export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: NotesInitial }) {
   const today = dayOf(nowIso)
   const now = new Date(nowIso)
+  const isMobile = useIsMobile()
+  const [tab, setTab] = useState<TabId>("notas")
   // Typing in a note is saved after a short pause; every other change is saved at once.
   const [notes, setNotes] = usePersistedRows<NoteRow>("notes", initial.notes, { debounceMs: 800 })
   const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
   const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
-  const [newFolder, setNewFolder] = useState("")
-  const [folder, setFolder] = useState<string>("all")
-  const [query, setQuery] = useState("")
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [toDelete, setToDelete] = useState<NoteRow | null>(null)
   const [creatingReminder, setCreatingReminder] = useState(false)
+  const c = useNotes({ notes, setNotes, folders, setFolders })
 
-  const visible = notes
-    .filter((n) => {
-      if (folder === "pinned") return n.pinned
-      if (folder !== "all" && n.folder_id !== folder) return false
-      const text = `${n.title} ${n.body} ${n.tags.join(" ")}`.toLowerCase()
-      return !query.trim() || text.includes(query.trim().toLowerCase())
-    })
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updated_at.localeCompare(a.updated_at))
-  const open = notes.find((n) => n.id === openId) ?? null
+  // The top bar's primary button follows the tab.
+  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setCreatingReminder(true)))
 
-  const [saved, setSaved] = useState(false)
-  const savedTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(savedTimer.current), [])
-
-  function updateNote(id: string, patch: Partial<NoteRow>) {
-    setSaved(true)
-    window.clearTimeout(savedTimer.current)
-    savedTimer.current = window.setTimeout(() => setSaved(false), 1800)
-    setNotes((current) => current.map((n) => (n.id === id ? { ...n, ...patch, updated_at: new Date().toISOString() } : n)))
-  }
-
-  function createNote() {
-    const stamp = new Date().toISOString()
-    const created: NoteRow = {
-      id: newId(),
-      user_id: USER,
-      folder_id: folder !== "all" && folder !== "pinned" ? folder : null,
-      title: "Nova nota",
-      body: "",
-      pinned: false,
-      tags: [],
-      created_at: stamp,
-      updated_at: stamp,
-    }
-    setNotes((current) => [created, ...current])
-    setOpenId(created.id)
-    setEditing(true)
-  }
-
-  function insert(marker: "bold" | "italic" | "list" | "heading") {
-    if (!open) return
-    const addition = { bold: "**texto**", italic: "*texto*", list: "\n- item", heading: "\n## Título" }[marker]
-    updateNote(open.id, { body: open.body + addition })
-  }
-
-  usePrimaryAction("Nova nota", createNote)
-
-  const sections = [
-    { key: "all", label: "Todas as notas", icon: NotebookPenIcon, count: notes.length },
-    { key: "pinned", label: "Fixadas", icon: PinIcon, count: notes.filter((n) => n.pinned).length },
-    ...folders.map((f) => ({ key: f.id, label: f.name, icon: FolderIcon, count: notes.filter((n) => n.folder_id === f.id).length })),
-  ]
+  const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Notas e lembretes" items={TAB_ITEMS} value={tab} onSelect={(item) => {
+    // Leaving the Notas tab drops an empty draft.
+    if (item.id !== "notas") c.close()
+    setTab(item.id as TabId)
+  }} />
 
   // ---------------------------------------------------------- reminders
   const pending = reminders.filter((r) => r.status === "pending").sort((a, b) => a.remind_at.localeCompare(b.remind_at))
@@ -202,271 +86,125 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-4" data-testid="notas" data-tab={tab}>
       <PageHeader />
 
-      <Tabs defaultValue="notas">
-        <TabsList>
-          <TabsTrigger value="notas">Notas</TabsTrigger>
-          <TabsTrigger value="lembretes">Lembretes</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="notas" className="pt-5">
-          <div className="grid gap-5 md:h-[calc(100dvh-17rem)] md:min-h-[34rem] md:grid-cols-[13rem_minmax(0,20rem)_minmax(0,1fr)]">
-            {/* folders */}
-            <nav aria-label="Pastas" className={cn(bentoCardClass(), "flex flex-col gap-1 overflow-y-auto p-4", open && "hidden md:flex")}>
-              {sections.map(({ key, label, icon: Icon, count }) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-current={folder === key}
-                  onClick={() => setFolder(key)}
-                  className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] leading-6 outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-9",
-                    folder === key && "bg-highlight font-medium text-highlight-foreground hover:bg-highlight"
-                  )}
+      {isMobile ? (
+        <section aria-label="Notas e lembretes" data-testid="notas-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[18px] leading-6 font-semibold">Notas e lembretes</h2>
+              <p className="truncate text-[13px] leading-5 text-muted-foreground">Anote agora, encontre depois.</p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Opções de notas e lembretes" data-testid="notas-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
+                  <EllipsisIcon strokeWidth={1.75} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setTab("notas")
+                    c.createNote()
+                  }}
                 >
-                  <Icon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" />
-                  <span className="flex-1 truncate">{label}</span>
-                  <span className="tabular text-[13px] opacity-70">{count}</span>
-                </button>
-              ))}
-              <form
-                className="mt-1 flex items-center gap-2 pt-2"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const name = newFolder.trim()
-                  if (!name) return
-                  setFolders((current) => [...current, { id: newId(), user_id: USER, name }])
-                  setNewFolder("")
-                  toast.success("Pasta criada.")
-                }}
-              >
-                <Input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="Nova pasta" aria-label="Nova pasta" maxLength={60} className="h-9 min-w-0 flex-1" />
-                <Button type="submit" size="icon" variant="outline" aria-label="Criar pasta" disabled={!newFolder.trim()}>
-                  <PlusIcon strokeWidth={1.75} />
-                </Button>
-              </form>
-            </nav>
+                  <PlusIcon strokeWidth={1.75} /> Nova nota
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingReminder(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Novo lembrete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {tabs}
+        </section>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {tabs}
+          {tab === "notas" ? (
+            <Button type="button" data-testid="new-note" onClick={c.createNote} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
+              <PlusIcon strokeWidth={1.75} /> Nova nota
+            </Button>
+          ) : null}
+        </div>
+      )}
 
-            {/* list */}
-            <section aria-label="Lista de notas" className={cn(bentoCardClass(), "flex min-h-0 flex-col gap-3 p-4", open && "hidden md:flex")}>
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar notas" aria-label="Buscar notas" className="pl-9" />
-                </div>
-                <Button size="icon" aria-label="Nova nota" onClick={createNote}>
-                  <PlusIcon strokeWidth={1.75} />
-                </Button>
-              </div>
-              {visible.length === 0 ? (
-                <EmptyState icon={SearchIcon} title="Nenhuma nota" description="Crie uma nota ou mude a busca." />
-              ) : (
-                <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-                  {visible.some((n) => n.pinned) ? <p className="px-1 pt-1 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Fixadas</p> : null}
-                  {visible.map((n, index) => (
-                    <Fragment key={n.id}>
-                      {index > 0 && visible[index - 1].pinned && !n.pinned ? (
-                        <p className="px-1 pt-4 pb-1 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Notas</p>
-                      ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpenId(n.id)
-                        setEditing(false)
+      {tab === "notas" ? <NotasTab c={c} isMobile={isMobile} /> : null}
+
+      {tab === "lembretes" ? (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex max-w-[72ch] items-start gap-2 text-[13px] leading-5 text-muted-foreground">
+              <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
+              Os lembretes avisam você pelo app, na hora marcada.
+            </p>
+            <Button variant="outline" onClick={() => setCreatingReminder(true)}>
+              <PlusIcon strokeWidth={1.75} /> Novo lembrete
+            </Button>
+          </div>
+          <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))" }}>
+            {groups.map((group) => (
+              <BentoCard key={group.label} title={group.label}>
+                {group.items.map((r) => (
+                  <div key={r.id} className="flex min-h-14 items-start gap-3 border-b border-border py-3 last:border-b-0">
+                    <Checkbox
+                      checked={false}
+                      aria-label={`Concluir ${r.title}`}
+                      className="mt-1"
+                      onCheckedChange={() => {
+                        setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)))
+                        toast("Lembrete concluído.")
                       }}
-                      aria-current={n.id === openId}
-                      className={cn(
-                        "flex w-full flex-col gap-1 border-b border-border px-1 py-3 text-left outline-none transition-colors duration-120 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50",
-                        n.id === openId && "bg-muted"
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        {n.pinned ? <PinIcon aria-label="Fixada" strokeWidth={1.75} className="size-3.5 shrink-0" /> : null}
-                        <span className="truncate text-[15px] leading-6 font-medium">{n.title || "Sem título"}</span>
-                      </span>
-                      <span className="line-clamp-2 text-[13px] leading-5 text-muted-foreground">
-                        {n.body.replace(/[#*\n-]+/g, " ").trim() || "Nota vazia"}
-                      </span>
-                      <span className="text-[13px] leading-5 text-muted-foreground">
-                        {format(new Date(n.updated_at), "d 'de' MMM", { locale: ptBR })}
-                        {n.tags.length > 0 ? ` · ${n.tags.map((t) => `#${t}`).join(" ")}` : ""}
-                      </span>
-                    </button>
-                    </Fragment>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* editor */}
-            <section aria-label="Editor" className={cn(bentoCardClass(), "flex min-h-0 flex-col overflow-y-auto", !open && "hidden md:flex")}>
-              {!open ? (
-                <EmptyState icon={NotebookPenIcon} title="Selecione uma nota" description="Escolha uma nota na lista ou crie uma nova." />
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col gap-4">
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" aria-label="Voltar para a lista" className="md:hidden" onClick={() => setOpenId(null)}>
-                      <ArrowLeftIcon strokeWidth={1.75} />
-                    </Button>
-                    <Input
-                      aria-label="Título da nota"
-                      value={open.title}
-                      maxLength={120}
-                      onChange={(e) => updateNote(open.id, { title: e.target.value })}
-                      className="h-auto flex-1 border-transparent bg-transparent px-0 text-xl font-semibold tracking-[-0.01em] shadow-none md:text-xl dark:bg-transparent"
                     />
-                    <Button variant="ghost" size="icon" aria-label={open.pinned ? "Desafixar" : "Fixar nota"} aria-pressed={open.pinned} onClick={() => updateNote(open.id, { pinned: !open.pinned })}>
-                      <PinIcon strokeWidth={1.75} className={cn(open.pinned && "fill-current")} />
-                    </Button>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-[15px] leading-6 break-words">{r.title}</span>
+                      <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
+                        {formatDue({ due_at: r.remind_at, due_has_time: true }, now, SP_TIMEZONE)}
+                        {r.channels.includes("push") ? (
+                          <span className="inline-flex items-center gap-1">
+                            <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Mais opções">
+                        <Button variant="ghost" size="icon-sm" aria-label={`Mais opções de ${r.title}`}>
                           <EllipsisIcon strokeWidth={1.75} />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(open)}>
-                          <Trash2Icon strokeWidth={1.75} /> Excluir nota
-                        </DropdownMenuItem>
+                        <DropdownMenuLabel>Adiar</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => snooze(r, 1)}>Em 1 hora</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => snooze(r, 3)}>Em 3 horas</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => snooze(r, 24)}>Amanhã</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-1" role="toolbar" aria-label="Formatação">
-                      <Button variant="ghost" size="icon-sm" aria-label="Título" onClick={() => { setEditing(true); insert("heading") }}>
-                        <HeadingIcon strokeWidth={1.75} />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Negrito" onClick={() => { setEditing(true); insert("bold") }}>
-                        <BoldIcon strokeWidth={1.75} />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Itálico" onClick={() => { setEditing(true); insert("italic") }}>
-                        <ItalicIcon strokeWidth={1.75} />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Lista" onClick={() => { setEditing(true); insert("list") }}>
-                        <ListIcon strokeWidth={1.75} />
-                      </Button>
-                    </div>
-                    <ToggleGroup type="single" variant="outline" size="sm" value={editing ? "edit" : "view"} onValueChange={(v) => v && setEditing(v === "edit")}>
-                      <ToggleGroupItem value="view">Ler</ToggleGroupItem>
-                      <ToggleGroupItem value="edit">Editar</ToggleGroupItem>
-                    </ToggleGroup>
-                  </div>
-
-                  {editing ? (
-                    <Textarea
-                      aria-label="Texto da nota"
-                      value={open.body}
-                      onChange={(e) => updateNote(open.id, { body: e.target.value })}
-                      className="min-h-80 flex-1 resize-none font-mono text-[14px] leading-6"
-                      placeholder="Escreva aqui. Use # para títulos, - para listas, **negrito** e *itálico*."
+                ))}
+              </BentoCard>
+            ))}
+            {done.length > 0 ? (
+              <BentoCard title="Concluídos">
+                {done.map((r) => (
+                  <div key={r.id} className="flex min-h-12 items-start gap-3 border-b border-border py-2.5 text-muted-foreground last:border-b-0">
+                    <Checkbox
+                      checked
+                      aria-label={`Reabrir ${r.title}`}
+                      className="mt-1"
+                      onCheckedChange={() => setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "pending" } : x)))}
                     />
-                  ) : open.body.trim() ? (
-                    <NotePreview source={open.body} />
-                  ) : (
-                    <p className="text-[15px] leading-6 text-muted-foreground">Nota vazia. Toque em “Editar” para escrever.</p>
-                  )}
-
-                  <p className="tabular text-[13px] leading-5 text-muted-foreground">
-                    {wordCount(open.body)} palavras · {folders.find((f) => f.id === open.folder_id)?.name ?? "Sem pasta"} ·{" "}
-                    <span role="status" aria-live="polite">{saved ? "Salvo" : "Alterações são salvas sozinhas"}</span>
-                  </p>
-                </div>
-              )}
-            </section>
+                    <span className="flex-1 text-[15px] leading-6 break-words line-through">{r.title}</span>
+                    <Badge variant="outline">Feito</Badge>
+                  </div>
+                ))}
+              </BentoCard>
+            ) : null}
           </div>
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="lembretes" className="pt-5">
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="flex max-w-[72ch] items-start gap-2 text-[13px] leading-5 text-muted-foreground">
-                <InfoIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" />
-                Os lembretes avisam você pelo app, na hora marcada.
-              </p>
-              <Button variant="outline" onClick={() => setCreatingReminder(true)}>
-                <PlusIcon strokeWidth={1.75} /> Novo lembrete
-              </Button>
-            </div>
-            <div className="grid items-start gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))" }}>
-              {groups.map((group) => (
-                <BentoCard key={group.label} title={group.label}>
-                  {group.items.map((r) => (
-                    <div key={r.id} className="flex min-h-14 items-start gap-3 border-b border-border py-3 last:border-b-0">
-                      <Checkbox
-                        checked={false}
-                        aria-label={`Concluir ${r.title}`}
-                        className="mt-1"
-                        onCheckedChange={() => {
-                          setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "done" } : x)))
-                          toast("Lembrete concluído.")
-                        }}
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="text-[15px] leading-6 break-words">{r.title}</span>
-                        <span className="tabular flex flex-wrap items-center gap-x-3 text-[13px] leading-5 text-muted-foreground">
-                          {formatDue({ due_at: r.remind_at, due_has_time: true }, now, SP_TIMEZONE)}
-                          {r.channels.includes("push") ? (
-                            <span className="inline-flex items-center gap-1">
-                              <BellIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> App
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" aria-label={`Mais opções de ${r.title}`}>
-                            <EllipsisIcon strokeWidth={1.75} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Adiar</DropdownMenuLabel>
-                          <DropdownMenuItem onSelect={() => snooze(r, 1)}>Em 1 hora</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => snooze(r, 3)}>Em 3 horas</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => snooze(r, 24)}>Amanhã</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ))}
-                </BentoCard>
-              ))}
-              {done.length > 0 ? (
-                <BentoCard title="Concluídos">
-                  {done.map((r) => (
-                    <div key={r.id} className="flex min-h-12 items-start gap-3 border-b border-border py-2.5 text-muted-foreground last:border-b-0">
-                      <Checkbox
-                        checked
-                        aria-label={`Reabrir ${r.title}`}
-                        className="mt-1"
-                        onCheckedChange={() => setReminders((current) => current.map((x) => (x.id === r.id ? { ...x, status: "pending" } : x)))}
-                      />
-                      <span className="flex-1 text-[15px] leading-6 break-words line-through">{r.title}</span>
-                      <Badge variant="outline">Feito</Badge>
-                    </div>
-                  ))}
-                </BentoCard>
-              ) : null}
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      <ConfirmDialog
-        open={Boolean(toDelete)}
-        onOpenChange={(openState) => !openState && setToDelete(null)}
-        title="Excluir esta nota?"
-        description={toDelete ? `“${toDelete.title}” será apagada. Essa ação não pode ser desfeita.` : ""}
-        onConfirm={() => {
-          const note = toDelete
-          setToDelete(null)
-          if (!note) return
-          setNotes((current) => current.filter((n) => n.id !== note.id))
-          setOpenId(null)
-          toast("Nota excluída.")
-        }}
-      />
       <ReminderDialog
         open={creatingReminder}
         onOpenChange={setCreatingReminder}

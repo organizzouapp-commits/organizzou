@@ -1,8 +1,12 @@
 export type Inline = { text: string; bold?: boolean; italic?: boolean }
 
+export type ChecklistItem = { /** Index of the line in the source, to toggle it. */ line: number; checked: boolean; inline: Inline[] }
+
 export type Block =
   | { type: "heading"; level: 1 | 2; inline: Inline[] }
   | { type: "list"; items: Inline[][] }
+  /** "- [ ] item" / "- [x] item". */
+  | { type: "checklist"; items: ChecklistItem[] }
   | { type: "paragraph"; inline: Inline[] }
 
 /** Splits "a **b** *c*" into styled runs. Unclosed markers stay as plain text. */
@@ -22,20 +26,35 @@ export function parseInline(text: string): Inline[] {
   return runs.length > 0 ? runs : [{ text }]
 }
 
+const CHECK = /^\s*-\s+\[([ xX])\]\s+(.*)$/
+const BULLET = /^\s*[-•]\s+/
+
 export function parseMarkdown(source: string): Block[] {
   const blocks: Block[] = []
   let list: Inline[][] | null = null
+  let checks: ChecklistItem[] | null = null
 
   const flush = () => {
     if (list) blocks.push({ type: "list", items: list })
+    if (checks) blocks.push({ type: "checklist", items: checks })
     list = null
+    checks = null
   }
 
-  for (const raw of source.split("\n")) {
-    const line = raw.trimEnd()
-    if (/^\s*[-•]\s+/.test(line)) {
+  const lines = source.split("\n")
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trimEnd()
+    const check = line.match(CHECK)
+    if (check) {
+      if (list) flush()
+      checks = checks ?? []
+      checks.push({ line: index, checked: check[1] !== " ", inline: parseInline(check[2]) })
+      continue
+    }
+    if (BULLET.test(line)) {
+      if (checks) flush()
       list = list ?? []
-      list.push(parseInline(line.replace(/^\s*[-•]\s+/, "")))
+      list.push(parseInline(line.replace(BULLET, "")))
       continue
     }
     flush()
