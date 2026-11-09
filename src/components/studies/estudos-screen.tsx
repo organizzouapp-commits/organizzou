@@ -2,35 +2,29 @@
 
 import { useEffect, useState } from "react"
 import { format, parseISO, startOfWeek } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import {
-  BookOpenIcon,
-  BookMarkedIcon,
-  GraduationCapIcon,
   EllipsisIcon,
-  PencilIcon,
   PlusIcon,
   SparklesIcon,
-  TargetIcon,
-  type LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { useRouter } from "next/navigation"
 
-import { BentoCard } from "@/components/organizzou/Bento"
+import { DeadlineSheet, type DeadlineDraft } from "@/components/studies/deadline-sheet"
 import { FlashcardsTab } from "@/components/studies/estudos-flashcards"
 import { HojeTab } from "@/components/studies/estudos-hoje"
+import { MateriasTab } from "@/components/studies/estudos-materias"
+import { ProvasTab } from "@/components/studies/estudos-provas"
+import { localDeadlineMetaRepo, parseQuickAdd, typeOf, type DeadlineMetaMap } from "@/features/studies/deadlines"
 import { CardSheet, ReviewSheet } from "@/components/studies/flashcard-dialogs"
 import { localReviewLogRepo, type ReviewLogEntry } from "@/features/studies/review"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -42,10 +36,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import { daysUntil, isDue, review, type Rating } from "@/features/studies/spaced-repetition"
+import { isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
   PRIORITY_LABELS,
   SUBJECT_TYPE_LABELS,
@@ -62,19 +55,13 @@ import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
-const TYPE_ICONS: Record<SubjectType, LucideIcon> = {
-  subject: BookOpenIcon,
-  course: GraduationCapIcon,
-  book: BookMarkedIcon,
-  exam: TargetIcon,
-}
-
 const MODES = [
   { value: "focus", label: "Foco", minutes: 25 },
   { value: "short", label: "Pausa", minutes: 5 },
   { value: "long", label: "Pausa longa", minutes: 15 },
 ] as const
 
+const blankDraft = (today: string): DeadlineDraft => ({ title: "", date: today, type: "exam", subjectId: "", remind: [] })
 type TabId = "hoje" | "materias" | "flashcards" | "provas"
 const TAB_ITEMS = [
   { id: "hoje", label: "Hoje" },
@@ -85,12 +72,6 @@ const TAB_ITEMS = [
 
 function clock(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function hours(minutes: number) {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
 export type StudiesInitial = { subjects: SubjectRow[]; sessions: StudySessionRow[]; deadlines: DeadlineRow[]; decks: FlashcardDeckRow[]; cards: FlashcardRow[] }
@@ -115,13 +96,14 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   const [creatingDeck, setCreatingDeck] = useState(false)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [creatingSubject, setCreatingSubject] = useState(false)
-  const [creatingDeadline, setCreatingDeadline] = useState(false)
+  const [deadlineDraft, setDeadlineDraft] = useState<DeadlineDraft | null>(null)
+  const [metas, setMetas] = useState<DeadlineMetaMap>({})
+  useEffect(() => {
+    // localStorage only exists in the browser; read after mount so the server and the first client render match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMetas(localDeadlineMetaRepo.load())
+  }, [])
   const [studyDeck, setStudyDeck] = useState<string | null>(null)
-  const [inlineTitle, setInlineTitle] = useState("")
-  const [inlineDate, setInlineDate] = useState(today)
-  const [editingDeadline, setEditingDeadline] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState("")
-  const [editDate, setEditDate] = useState(today)
 
   // Pomodoro
   const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("focus")
@@ -189,10 +171,50 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   // Stats
   const weekMinutes = (subjectId?: string) =>
     sessions.filter((s) => s.studied_on >= weekStart && (!subjectId || s.subject_id === subjectId)).reduce((sum, s) => sum + s.minutes, 0)
-  const upcoming = [...deadlines].sort((a, b) => a.due_on.localeCompare(b.due_on))
   const dueCards = cards.filter((c) => isDue(c, today))
 
   usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
+
+  const updateMetas = (change: (current: DeadlineMetaMap) => DeadlineMetaMap) =>
+    setMetas((current) => {
+      const next = change(current)
+      localDeadlineMetaRepo.save(next)
+      return next
+    })
+
+  /** A short text such as "Prova de Cálculo, 20 de nov" opens the dialog with the title and, when it reads as a date, the date filled in. */
+  function quickDeadline(text: string) {
+    if (!text) return setDeadlineDraft(blankDraft(today))
+    const { title, date } = parseQuickAdd(text, today)
+    setDeadlineDraft({ ...blankDraft(today), title, date: date ?? today })
+  }
+
+  function editDeadline(row: DeadlineRow) {
+    const meta = metas[row.id]
+    setDeadlineDraft({ id: row.id, title: row.title, date: row.due_on, type: typeOf(row, meta), subjectId: row.subject_id ?? "", remind: meta?.remind ?? [] })
+  }
+
+  function saveDeadline(draft: DeadlineDraft) {
+    // "Outro" has no value in the saved kind yet: it is stored as a Prova plus a local flag (see deadlines.ts).
+    const kind: DeadlineRow["kind"] = draft.type === "delivery" ? "delivery" : "exam"
+    const id = draft.id ?? newId()
+    if (draft.id) setDeadlines((current) => current.map((d) => (d.id === id ? { ...d, title: draft.title, due_on: draft.date, kind, subject_id: draft.subjectId || null } : d)))
+    else setDeadlines((current) => [...current, { id, user_id: USER, subject_id: draft.subjectId || null, title: draft.title, due_on: draft.date, kind }])
+    updateMetas((current) => ({ ...current, [id]: { ...current[id], other: draft.type === "other" || undefined, remind: draft.remind.length > 0 ? draft.remind : undefined } }))
+    toast.success(draft.id ? "Prazo atualizado." : "Prazo criado.")
+  }
+
+  function toggleDeadlineDone(row: DeadlineRow) {
+    const done = !metas[row.id]?.done
+    updateMetas((current) => ({ ...current, [row.id]: { ...current[row.id], done: done || undefined } }))
+    toast(done ? "Prazo concluído." : "Prazo reaberto.")
+  }
+
+  function deleteDeadline(row: DeadlineRow) {
+    setDeadlines((current) => current.filter((d) => d.id !== row.id))
+    updateMetas((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== row.id)))
+    toast("Prazo excluído.")
+  }
 
   function createDeck(name: string) {
     setDecks((current) => [...current, { id: newId(), user_id: USER, subject_id: null, name }])
@@ -229,7 +251,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
                 <DropdownMenuItem onSelect={() => setCreatingSubject(true)}>
                   <PlusIcon strokeWidth={1.75} /> Nova matéria
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCreatingDeadline(true)}>
+                <DropdownMenuItem onSelect={() => setDeadlineDraft(blankDraft(today))}>
                   <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setCreatingDeck(true)}>
@@ -255,7 +277,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
         <HojeTab
           subjects={subjects}
           sessions={sessions}
-          deadlines={deadlines}
+          deadlines={deadlines.filter((d) => !metas[d.id]?.done)}
           dueCards={dueCards.length}
           today={today}
           weekStart={weekStart}
@@ -290,59 +312,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
       ) : null}
 
         {/* -------------------------------------------------------- subjects */}
-      {tab === "materias" ? (<div>
-          {subjects.length === 0 ? (
-            <EmptyState
-              icon={BookOpenIcon}
-              title="Nenhuma matéria ainda"
-              description="Cadastre o que você estuda (matéria, curso, livro ou concurso) com uma meta semanal. O cronômetro e os gráficos usam isso."
-              action={
-                <Button className="h-11 rounded-full px-5" onClick={() => setCreatingSubject(true)}>
-                  <PlusIcon strokeWidth={1.75} /> Criar a primeira matéria
-                </Button>
-              }
-            />
-          ) : null}
-          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))" }}>
-          {subjects.map((s) => {
-            const Icon = TYPE_ICONS[s.type]
-            const done = weekMinutes(s.id)
-            return (
-              <BentoCard key={s.id} bodyClassName="flex flex-col gap-3">
-                <div className="flex items-start gap-4">
-                  <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[17px] leading-6 font-semibold">{s.name}</span>
-                    <span className="text-[13px] leading-5 text-muted-foreground">
-                      {SUBJECT_TYPE_LABELS[s.type]} · prioridade {PRIORITY_LABELS[s.priority].toLowerCase()}
-                      {s.progress_label ? ` · ${s.progress_label}` : ""}
-                    </span>
-                  </div>
-                  <Badge variant={s.priority === "high" ? "default" : "secondary"}>{PRIORITY_LABELS[s.priority]}</Badge>
-                </div>
-                <div className="flex flex-col gap-2 pl-9">
-                  <div className="tabular flex justify-between text-[13px] leading-5">
-                    <span>Meta da semana</span>
-                    <span className="text-muted-foreground">
-                      {hours(done)} de {hours(s.weekly_goal_min)}
-                    </span>
-                  </div>
-                  <Progress value={Math.min(100, (done / s.weekly_goal_min) * 100)} aria-label={`Meta semanal de ${s.name}`} />
-                  {s.progress_pct !== null ? (
-                    <>
-                      <div className="tabular flex justify-between text-[13px] leading-5">
-                        <span>Andamento</span>
-                        <span className="text-muted-foreground">{s.progress_pct}%</span>
-                      </div>
-                      <Progress value={s.progress_pct} aria-label={`Andamento de ${s.name}`} />
-                    </>
-                  ) : null}
-                </div>
-              </BentoCard>
-            )
-          })}
-          </div>
-      </div>) : null}
+      {tab === "materias" ? <MateriasTab subjects={subjects} weekMinutes={weekMinutes} onNew={() => setCreatingSubject(true)} /> : null}
 
         {/* ------------------------------------------------------ flashcards */}
       {tab === "flashcards" ? (
@@ -361,86 +331,19 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
       ) : null}
 
         {/* --------------------------------------------------------- deadlines */}
-      {tab === "provas" ? (<div>
-          <BentoCard
-            title="Provas e prazos"
-            actions={
-              <Button variant="outline" size="sm" onClick={() => setCreatingDeadline(true)}>
-                <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
-              </Button>
-            }
-          >
-            <form
-              className="mb-2 flex flex-wrap items-center gap-2 border-b border-border pb-4"
-              onSubmit={(e) => {
-                e.preventDefault()
-                if (!inlineTitle.trim()) return
-                setDeadlines((current) => [...current, { id: newId(), user_id: USER, subject_id: subjects[0]?.id ?? null, title: inlineTitle.trim(), due_on: inlineDate, kind: "exam" }])
-                setInlineTitle("")
-                toast.success("Prazo criado.")
-              }}
-            >
-              <Input value={inlineTitle} onChange={(e) => setInlineTitle(e.target.value)} placeholder="Adicionar prova ou prazo" aria-label="Título da nova prova ou prazo" className="min-w-48 flex-1" />
-              <Input type="date" value={inlineDate} min={today} onChange={(e) => setInlineDate(e.target.value)} aria-label="Data" className="w-44" />
-              <Button type="submit" disabled={!inlineTitle.trim()}>
-                <PlusIcon strokeWidth={1.75} /> Adicionar
-              </Button>
-            </form>
-            {upcoming.map((d) => {
-              const left = daysUntil(d.due_on, today)
-              const editingThis = editingDeadline === d.id
-              return (
-                <div key={d.id} className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-3 last:border-b-0">
-                  <Badge variant={left <= 10 ? "highlight" : "secondary"} className="h-8 min-w-20 justify-center px-3">
-                    {left === 0 ? "Hoje" : `${left} ${left === 1 ? "dia" : "dias"}`}
-                  </Badge>
-                  {editingThis ? (
-                    <form
-                      className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        if (!editTitle.trim()) return
-                        setDeadlines((current) => current.map((x) => (x.id === d.id ? { ...x, title: editTitle.trim(), due_on: editDate } : x)))
-                        setEditingDeadline(null)
-                        toast.success("Prazo atualizado.")
-                      }}
-                    >
-                      <Input autoFocus value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="Título" className="min-w-48 flex-1" />
-                      <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} aria-label="Data" className="w-44" />
-                      <Button type="submit" size="sm">
-                        Salvar
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setEditingDeadline(null)}>
-                        Cancelar
-                      </Button>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="flex min-w-0 flex-1 basis-48 flex-col">
-                        <span className="truncate text-[15px] leading-6">{d.title}</span>
-                        <span className="text-[13px] leading-5 text-muted-foreground">
-                          {format(parseISO(d.due_on), "EEEE, d 'de' MMMM", { locale: ptBR })} · {d.kind === "exam" ? "Prova" : "Entrega"}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Editar ${d.title}`}
-                        onClick={() => {
-                          setEditingDeadline(d.id)
-                          setEditTitle(d.title)
-                          setEditDate(d.due_on)
-                        }}
-                      >
-                        <PencilIcon strokeWidth={1.75} />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </BentoCard>
-      </div>) : null}
+      {tab === "provas" ? (
+        <ProvasTab
+          deadlines={deadlines}
+          subjects={subjects}
+          metas={metas}
+          today={today}
+          isMobile={isMobile}
+          onQuick={quickDeadline}
+          onEdit={editDeadline}
+          onToggleDone={toggleDeadlineDone}
+          onDelete={deleteDeadline}
+        />
+      ) : null}
 
       <SubjectDialog
         open={creatingSubject}
@@ -451,16 +354,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           toast.success("Matéria criada.")
         }}
       />
-      <DeadlineDialog
-        open={creatingDeadline}
-        onOpenChange={setCreatingDeadline}
-        today={today}
-        subjects={subjects}
-        onCreate={(d) => {
-          setDeadlines((current) => [...current, d])
-          toast.success("Prazo criado.")
-        }}
-      />
+      <DeadlineSheet draft={deadlineDraft} today={today} subjects={subjects} onClose={() => setDeadlineDraft(null)} onSave={saveDeadline} />
       <ReviewSheet
         queue={studyDeck ? cards.filter((c) => (studyDeck === "all" || c.deck_id === studyDeck) && isDue(c, today)) : null}
         title={studyDeck === "all" ? "Revisão de hoje" : (decks.find((d) => d.id === studyDeck)?.name ?? "")}
@@ -628,105 +522,6 @@ function SubjectForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: 
         </Button>
         <Button type="submit" disabled={!name.trim()}>
           Criar matéria
-        </Button>
-      </DialogFooter>
-    </form>
-  )
-}
-
-function DeadlineDialog({
-  open,
-  onOpenChange,
-  today,
-  subjects,
-  onCreate,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  today: string
-  subjects: SubjectRow[]
-  onCreate: (deadline: DeadlineRow) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <DeadlineForm today={today} subjects={subjects} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
-    </Dialog>
-  )
-}
-
-function DeadlineForm({
-  today,
-  subjects,
-  onCreate,
-  onClose,
-}: {
-  today: string
-  subjects: SubjectRow[]
-  onCreate: (deadline: DeadlineRow) => void
-  onClose: () => void
-}) {
-  const [title, setTitle] = useState("")
-  const [date, setDate] = useState(today)
-  const [kind, setKind] = useState<DeadlineRow["kind"]>("exam")
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? "")
-
-  return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!title.trim()) return
-        onCreate({ id: newId(), user_id: USER, subject_id: subjectId || null, title: title.trim(), due_on: date, kind })
-        onClose()
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Nova prova ou prazo</DialogTitle>
-        <DialogDescription className="sr-only">Cadastre uma prova ou entrega com data.</DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="dl-title">Título</Label>
-        <Input id="dl-title" autoFocus value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="dl-date">Data</Label>
-          <Input id="dl-date" type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="dl-kind">Tipo</Label>
-          <Select value={kind} onValueChange={(v) => setKind(v as DeadlineRow["kind"])}>
-            <SelectTrigger id="dl-kind" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="exam">Prova</SelectItem>
-              <SelectItem value="delivery">Entrega</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="dl-subject">Matéria</Label>
-        <Select value={subjectId} onValueChange={setSubjectId}>
-          <SelectTrigger id="dl-subject" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {subjects.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={!title.trim()}>
-          Criar
         </Button>
       </DialogFooter>
     </form>

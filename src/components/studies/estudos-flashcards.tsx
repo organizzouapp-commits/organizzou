@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckCheckIcon, EllipsisIcon, FlameIcon, LibraryIcon, PlusIcon } from "lucide-react"
 
+import { QuickAdd } from "@/components/studies/quick-add"
 import { BentoCard, BentoStat } from "@/components/finance/bento"
 import { AddPill, HeroCard } from "@/components/finance/parts"
 import { HATCH_STYLE } from "@/components/habits/hoje-tab"
@@ -31,28 +31,6 @@ type Props = {
   onAddCard: (deck: FlashcardDeckRow) => void
   onCreateDeck: (name: string) => void
   onOpenDeckDialog: () => void
-}
-
-// ------------------------------------------------------------------ quick add
-
-/** The dashed "Novo baralho…" pill that is also the field: type a name and press Enter. */
-function QuickDeck({ isMobile, onCreate }: { isMobile: boolean; onCreate: (name: string) => void }) {
-  const [name, setName] = useState("")
-  return (
-    <form
-      data-testid="quick-deck"
-      className="flex h-11 w-full items-center gap-2 rounded-full border border-dashed border-border px-4 text-[14px] transition-colors duration-[400ms] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary motion-reduce:transition-none md:h-10"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!name.trim()) return
-        onCreate(name.trim())
-        setName("")
-      }}
-    >
-      <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-      <input aria-label="Nome do novo baralho" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder={isMobile ? "Novo baralho…" : "Novo baralho… ex.: Direito Penal — princípios"} className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground" />
-    </form>
-  )
 }
 
 // ------------------------------------------------------------------ top row
@@ -219,7 +197,7 @@ export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, 
 
   return (
     <div data-testid="estudos-flashcards" className="@container flex min-w-0 flex-col gap-4">
-      <QuickDeck isMobile={isMobile} onCreate={onCreateDeck} />
+      <QuickAdd label="Novo baralho… ex.: Direito Penal — princípios" shortLabel="Novo baralho…" ariaLabel="Nome do novo baralho" isMobile={isMobile} onSubmit={(name) => (name ? onCreateDeck(name) : onOpenDeckDialog())} />
       <div className="grid grid-cols-1 gap-4 @min-[880px]:grid-cols-12">
         {hero}
         {accuracy}
