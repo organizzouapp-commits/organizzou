@@ -73,19 +73,19 @@ const ICONS: Record<HabitIconKey, LucideIcon> = {
   default: TargetIcon,
 }
 /** The icon of a habit, derived from its name. */
-function HabitGlyph({ name, className }: { name: string; className?: string }) {
+export function HabitGlyph({ name, className }: { name: string; className?: string }) {
   const Icon = ICONS[habitIconKey(name)]
   return <Icon aria-hidden strokeWidth={1.75} className={className} />
 }
 
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
-const dayName = (day: string) => WEEKDAY_NAMES[parseISO(day).getDay()]
+export const dayName = (day: string) => WEEKDAY_NAMES[parseISO(day).getDay()]
 const letterOf = (day: string) => format(parseISO(day), "EEEEE", { locale: ptBR }).toUpperCase()
-const formatQty = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+export const formatQty = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 const HATCH = "repeating-linear-gradient(135deg, color-mix(in oklab, var(--foreground) 30%, transparent) 0 1.5px, transparent 1.5px 5px)"
-const HATCH_STYLE = { backgroundImage: HATCH } as const
+export const HATCH_STYLE = { backgroundImage: HATCH } as const
 
 /** The 7 circles of the strip: 20 px on phones, 22 px from a 560 px list on. The weekday letters above the first card use the very same grid. */
 const STRIP = "grid grid-cols-[repeat(7,20px)] gap-1 @min-[560px]:grid-cols-[repeat(7,22px)] @min-[560px]:gap-1.5"
@@ -96,7 +96,7 @@ const STRIP = "grid grid-cols-[repeat(7,20px)] gap-1 @min-[560px]:grid-cols-[rep
  * The 36 px leading control of every habit: the habit icon in a circle. A fixed habit is a ring you tap (it turns Lima with a check);
  * a quantity habit shows its progress as an arc around the icon and is changed with − / +.
  */
-function Lead({ habit, done, qty, disabled, onToggle }: { habit: HabitRow; done: boolean; qty: number; disabled: boolean; onToggle: () => void }) {
+export function Lead({ habit, done, qty, disabled, onToggle }: { habit: HabitRow; done: boolean; qty: number; disabled: boolean; onToggle: () => void }) {
   const goal = habit.type === "goal"
   const target = habit.target_qty ?? 1
   const progress = Math.max(0, Math.min(1, qty / target))
@@ -136,11 +136,11 @@ function Lead({ habit, done, qty, disabled, onToggle }: { habit: HabitRow; done:
   )
 }
 
-const STATE_TEXT: Record<DayState, string> = { done: "feito", missed: "não feito", off: "sem agenda", pending: "pendente" }
+export const STATE_TEXT: Record<DayState, string> = { done: "feito", missed: "não feito", off: "sem agenda", pending: "pendente" }
 
-function StripDot({ state }: { state: DayState }) {
-  const size = "size-5 @min-[560px]:size-[22px]"
-  if (state === "off") return <span aria-hidden className="flex size-5 items-center justify-center @min-[560px]:size-[22px]"><span className="size-1 rounded-full bg-muted-foreground/40" /></span>
+/** One circle of a strip: done = Lima with a check, pending = Lima ring, missed = hatched, off = a tiny dim dot. */
+export function DayDot({ state, size = "size-5 @min-[560px]:size-[22px]" }: { state: DayState; size?: string }) {
+  if (state === "off") return <span aria-hidden className={cn(size, "flex items-center justify-center")}><span className="size-1 rounded-full bg-muted-foreground/40" /></span>
   if (state === "done") return <span aria-hidden className={cn(size, "flex items-center justify-center rounded-full bg-primary text-primary-foreground")}><CheckIcon strokeWidth={2.5} className="size-3" /></span>
   if (state === "pending") return <span aria-hidden className={cn(size, "rounded-full border-2 border-primary")} />
   return <span aria-hidden className={cn(size, "rounded-full border border-foreground/20")} style={HATCH_STYLE} />
@@ -152,7 +152,7 @@ function WeekStrip({ habit, logs, selected, className }: { habit: HabitRow; logs
     <ul aria-label="Últimos 7 dias" data-strip className={cn(STRIP, className)}>
       {weekStrip(habit, logs, selected).map(({ day, state }) => (
         <li key={day} data-day-state={state} className="flex items-center justify-center">
-          <StripDot state={state} />
+          <DayDot state={state} />
           <span className="sr-only">
             {dayName(day)}, {format(parseISO(day), "d")}: {STATE_TEXT[state]}
           </span>
@@ -178,7 +178,7 @@ function StripLetters({ selected }: { selected: string }) {
   )
 }
 
-function Stepper({ habit, qty, disabled, onStep }: { habit: HabitRow; qty: number; disabled: boolean; onStep: (direction: 1 | -1) => void }) {
+export function Stepper({ habit, qty, disabled, onStep }: { habit: HabitRow; qty: number; disabled: boolean; onStep: (direction: 1 | -1) => void }) {
   const button = "relative flex size-8 shrink-0 items-center justify-center rounded-full border border-border outline-none transition-colors duration-[400ms] after:absolute after:-inset-1.5 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none"
   return (
     <div className="flex items-center justify-end gap-2" data-stepper>

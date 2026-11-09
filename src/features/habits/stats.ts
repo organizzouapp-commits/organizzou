@@ -1,4 +1,4 @@
-import { addDays, format, getDay, parseISO } from "date-fns"
+import { addDays, addMonths, format, getDay, parseISO } from "date-fns"
 
 import type { HabitLogRow, HabitRow } from "./types"
 
@@ -77,13 +77,16 @@ export function dayState(habit: HabitRow, logs: HabitLogRow[], day: string, sele
   return day === selected ? "pending" : "missed"
 }
 
-/** The 7 days ending on `end` (oldest first), each with its state. */
-export function weekStrip(habit: HabitRow, logs: HabitLogRow[], end: string) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const day = shiftDay(end, i - 6)
+/** The `count` days ending on `end` (oldest first), each with its state; `end` is the "selected" day (pending when scheduled and not done). */
+export function dayStrip(habit: HabitRow, logs: HabitLogRow[], end: string, count: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const day = shiftDay(end, i - (count - 1))
     return { day, state: dayState(habit, logs, day, end) }
   })
 }
+
+/** The 7 days ending on `end` (oldest first), each with its state. */
+export const weekStrip = (habit: HabitRow, logs: HabitLogRow[], end: string) => dayStrip(habit, logs, end, 7)
 
 /** Habits that count on a day: active and scheduled for it. */
 export function dueOn(habits: HabitRow[], day: string) {
@@ -132,4 +135,68 @@ export function topStreaks(habits: HabitRow[], logs: HabitLogRow[], today: strin
     .filter((row) => row.streak > 0)
     .sort((a, b) => b.streak - a.streak || a.habit.name.localeCompare(b.habit.name, "pt-BR"))
     .slice(0, limit)
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Rotina > Histórico
+
+export type DayRecord = { day: string; done: number; total: number; /** 0–1, null when nothing was scheduled. */ rate: number | null }
+
+/** What one day looks like across the given habits (paused ones never count). */
+export function dayRecord(habits: HabitRow[], logs: HabitLogRow[], day: string): DayRecord {
+  const due = dueOn(habits, day)
+  const done = due.filter((h) => isDone(h, logs, day)).length
+  return { day, done, total: due.length, rate: due.length === 0 ? null : done / due.length }
+}
+
+/** The calendar shade of a day: 4 = 100%, 3 = 67–99%, 2 = 50–66%, 1 = 1–49%, 0 = nothing done (or nothing scheduled). */
+export type Level = 0 | 1 | 2 | 3 | 4
+export function completionLevel(rate: number | null): Level {
+  if (rate === null) return 0
+  const pct = Math.round(rate * 100)
+  if (pct >= 100) return 4
+  if (pct >= 67) return 3
+  if (pct >= 50) return 2
+  return pct >= 1 ? 1 : 0
+}
+
+/** Single-habit calendar state: done, missed, not scheduled, or still open (today not done yet, or a day to come). */
+export type HabitDayKind = "done" | "missed" | "off" | "open"
+export function habitDayKind(habit: HabitRow, logs: HabitLogRow[], day: string, today: string): HabitDayKind {
+  if (!isScheduled(habit, day)) return "off"
+  if (isDone(habit, logs, day)) return "done"
+  return day >= today ? "open" : "missed"
+}
+
+/** A month as whole weeks (Sunday first): every day with whether it belongs to the month ("yyyy-MM"). */
+export function monthCells(month: string) {
+  const first = parseISO(`${month}-01`)
+  const start = addDays(first, -getDay(first))
+  const lastDay = addDays(addMonths(first, 1), -1)
+  const end = addDays(lastDay, 6 - getDay(lastDay))
+  const count = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
+  return Array.from({ length: count }, (_, i) => {
+    const day = format(addDays(start, i), "yyyy-MM-dd")
+    return { day, inMonth: day.startsWith(month) }
+  })
+}
+
+/** The first day of each 7-day block of the last `blocks` weeks ending on `end` (the labels above the 28-day strip). */
+export function blockStarts(end: string, blocks = 4) {
+  return Array.from({ length: blocks }, (_, i) => shiftDay(end, -(blocks * 7 - 1) + i * 7))
+}
+
+/** Completion (0–100) of one habit over the last `days` days. */
+export const windowRate = (habit: HabitRow, logs: HabitLogRow[], end: string, days = 28) => consistency(habit, logs, end, days)
+
+/** Mean of the habits' completion over the last `days` days. */
+export function averageRate(habits: HabitRow[], logs: HabitLogRow[], end: string, days = 28) {
+  const active = habits.filter((h) => !h.paused)
+  return active.length === 0 ? 0 : Math.round(active.reduce((sum, h) => sum + windowRate(h, logs, end, days), 0) / active.length)
+}
+
+/** The "4 semanas" calendar: the 4 whole Sunday-first weeks that end with the current week (28 days, the later ones still to come). */
+export function fourWeekCells(today: string) {
+  const start = shiftDay(today, -getDay(parseISO(today)) - 21)
+  return Array.from({ length: 28 }, (_, i) => ({ day: shiftDay(start, i), inMonth: true }))
 }

@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, parseISO, startOfMonth, startOfWeek } from "date-fns"
+import { addMonths, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
-  FlameIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PauseIcon,
@@ -15,6 +14,8 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { HojeTab, useGroups, type HojeActions } from "@/components/habits/hoje-tab"
+import { HistoricoTab, HistoryFilter, HistoryModeSwitch, type HistoryMode } from "@/components/habits/historico-tab"
+import { MonthToolbar } from "@/components/finance/parts"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
@@ -44,10 +45,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   bestStreak,
   consistency,
-  currentStreak,
   dayCompletion,
   isDone,
-  isScheduled,
   shiftDay,
 } from "@/features/habits/stats"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -55,7 +54,6 @@ import type { HabitLogRow, HabitRow, HabitType } from "@/features/habits/types"
 import { dayOf, newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
-const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"]
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
 type TabId = "hoje" | "historico" | "estatisticas"
@@ -74,21 +72,17 @@ function stepFor(habit: HabitRow) {
 
 const chartConfig = { rate: { label: "Constância", color: "var(--chart-1)" } } satisfies ChartConfig
 
-function intensityClass(value: number | null) {
-  if (value === null) return "bg-transparent"
-  if (value === 0) return "bg-muted"
-  if (value < 0.5) return "bg-primary/25"
-  if (value < 1) return "bg-primary/60"
-  return "bg-primary"
-}
-
 export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[] }) {
   const today = dayOf(nowIso)
   const [habits, setHabits] = usePersistedRows<HabitRow>("habits", initialHabits)
   const [logs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", initialLogs)
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<HabitRow | null>(null)
-  const [historyHabit, setHistoryHabit] = useState("all")
+  // Histórico: the habit filter, the month shown, the calendar mode and the selected day (today by default).
+  const [hHabit, setHHabit] = useState("all")
+  const [hMonth, setHMonth] = useState(today.slice(0, 7))
+  const [hMode, setHMode] = useState<HistoryMode>("mes")
+  const [hDay, setHDay] = useState(today)
   const [tab, setTab] = useState<TabId>("hoje")
   // The day shown in the Hoje list: today by default, any earlier day through the arrows (never the future).
   const [selected, setSelected] = useState(today)
@@ -98,27 +92,27 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
 
   const active = habits.filter((h) => !h.paused)
 
-  function setQty(habit: HabitRow, qty: number) {
+  function setQty(habit: HabitRow, qty: number, day = selected) {
     setLogs((current) => {
-      const existing = current.find((l) => l.habit_id === habit.id && l.log_date === selected)
+      const existing = current.find((l) => l.habit_id === habit.id && l.log_date === day)
       if (qty <= 0) return current.filter((l) => l !== existing)
       const stamp = new Date().toISOString()
       // The same day keeps the same row: one log per habit per day.
       if (existing) return current.map((l) => (l === existing ? { ...l, qty, updated_at: stamp } : l))
-      return [...current, { id: newId(), user_id: habit.user_id, habit_id: habit.id, log_date: selected, qty, created_at: stamp, updated_at: stamp }]
+      return [...current, { id: newId(), user_id: habit.user_id, habit_id: habit.id, log_date: day, qty, created_at: stamp, updated_at: stamp }]
     })
   }
 
-  function toggleFixed(habit: HabitRow) {
-    const done = isDone(habit, logs, selected)
-    setQty(habit, done ? 0 : 1)
+  function toggleFixed(habit: HabitRow, day = selected) {
+    const done = isDone(habit, logs, day)
+    setQty(habit, done ? 0 : 1, day)
     if (!done) toast.success("Hábito registrado.")
   }
 
-  function stepGoal(habit: HabitRow, direction: 1 | -1) {
-    const current = logs.find((l) => l.habit_id === habit.id && l.log_date === selected)?.qty ?? 0
+  function stepGoal(habit: HabitRow, direction: 1 | -1, day = selected) {
+    const current = logs.find((l) => l.habit_id === habit.id && l.log_date === day)?.qty ?? 0
     const next = Math.max(0, Math.round((current + direction * stepFor(habit)) * 10) / 10)
-    setQty(habit, next)
+    setQty(habit, next, day)
     if (next >= (habit.target_qty ?? 0) && current < (habit.target_qty ?? 0)) toast.success("Meta do dia batida.")
   }
 
@@ -147,11 +141,6 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
         const rate = values.length === 0 ? 0 : Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100)
         return { semana: format(parseISO(weekEnd), "dd/MM"), rate }
       })
-
-  // ---------------------------------------------------------- history
-  const month = parseISO(today)
-  const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) })
-  const historyList = historyHabit === "all" ? habits : habits.filter((h) => h.id === historyHabit)
 
   usePrimaryAction("Novo hábito", () => setCreating(true))
 
@@ -190,6 +179,18 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
       </div>
     ) : null
 
+  const shiftMonth = (direction: -1 | 1) => {
+    const next = format(addMonths(parseISO(`${hMonth}-01`), direction), "yyyy-MM")
+    setHMonth(next)
+    setHDay(next === today.slice(0, 7) ? today : `${next}-01`)
+  }
+  const goToday = () => {
+    setHMonth(today.slice(0, 7))
+    setHDay(today)
+  }
+  const monthBar = hMode === "mes" ? <MonthToolbar title={format(parseISO(`${hMonth}-01`), "MMMM 'de' yyyy", { locale: ptBR })} onToday={goToday} onShift={shiftMonth} /> : null
+  const filter = <HistoryFilter habits={habits} value={hHabit} onChange={setHHabit} />
+
   return (
     <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="rotina" data-tab={tab}>
       <PageHeader />
@@ -223,103 +224,33 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
             {tabs}
           </section>
           {dayNav ? <div className="px-1">{dayNav}</div> : null}
+          {tab === "historico" ? (
+            <>
+              {monthBar ? <div className="px-1">{monthBar}</div> : null}
+              <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4" data-testid="history-controls">
+                {filter}
+                <HistoryModeSwitch value={hMode} onChange={setHMode} />
+              </div>
+            </>
+          ) : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {dayNav}
+          {tab === "historico" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {filter}
+              {monthBar}
+            </div>
+          ) : null}
         </div>
       )}
 
       {tab === "hoje" ? <HojeTab groups={groups} habits={habits} logs={logs} today={today} selected={selected} isMobile={isMobile} actions={actions} /> : null}
 
       {tab === "historico" ? (
-          <div className="flex flex-col gap-5">
-            <div role="group" aria-label="Filtrar por hábito" className="no-scrollbar flex gap-2 overflow-x-auto">
-              {[{ id: "all", name: "Todos" }, ...habits].map((h) => (
-                <button
-                  key={h.id}
-                  type="button"
-                  aria-pressed={historyHabit === h.id}
-                  onClick={() => setHistoryHabit(h.id)}
-                  className={cn(
-                    "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-[14px] outline-none transition-colors duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
-                    historyHabit === h.id ? "border-transparent bg-highlight font-medium text-highlight-foreground" : "border-border hover:bg-accent"
-                  )}
-                >
-                  {h.name}
-                </button>
-              ))}
-            </div>
-            <div className="@container">
-              <div className="grid min-w-0 grid-cols-1 gap-5 @min-[880px]:grid-cols-2">
-                <BentoCard title={format(month, "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase())}>
-                  <div role="grid" aria-label="Calendário de constância" className="grid grid-cols-7 gap-1.5">
-                    {WEEKDAY_LABELS.map((label, index) => (
-                      <span key={index} className="pb-1 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                        {label}
-                      </span>
-                    ))}
-                    {days.map((day) => {
-                      const key = format(day, "yyyy-MM-dd")
-                      const value = isSameMonth(day, month) && key <= today ? dayCompletion(historyList, logs, key) : null
-                      return (
-                        <div
-                          key={key}
-                          role="gridcell"
-                          title={value === null ? format(day, "d 'de' MMMM", { locale: ptBR }) : `${format(day, "d 'de' MMMM", { locale: ptBR })}: ${Math.round(value * 100)}%`}
-                          className={cn(
-                            "tabular flex aspect-square items-center justify-center rounded-lg text-[13px] leading-5",
-                            isSameMonth(day, month) ? intensityClass(value) : "opacity-30",
-                            value !== null && value >= 1 && "text-primary-foreground",
-                            key === today && "ring-2 ring-ring"
-                          )}
-                        >
-                          {format(day, "d")}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <p className="flex items-center gap-2 pt-4 text-[13px] leading-5 text-muted-foreground">
-                    Menos
-                    {["bg-muted", "bg-primary/25", "bg-primary/60", "bg-primary"].map((c) => (
-                      <span key={c} className={cn("size-4 rounded-md", c)} />
-                    ))}
-                    Mais
-                  </p>
-                </BentoCard>
-                <BentoCard title="Por hábito, nas últimas 4 semanas" bodyClassName="flex flex-col">
-                  {historyList.map((habit) => {
-                    const streak = currentStreak(habit, logs, today)
-                    return (
-                      <div key={habit.id} className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-[15px] leading-6">{habit.name}</span>
-                          <span className="tabular inline-flex items-center gap-1 text-[13px] leading-5 text-muted-foreground">
-                            <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
-                            {streak} {streak === 1 ? "dia" : "dias"} · melhor {bestStreak(habit, logs, today)}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-[repeat(28,minmax(0,1fr))] gap-1" aria-label={`Últimos 28 dias de ${habit.name}`}>
-                          {Array.from({ length: 28 }, (_, i) => {
-                            const day = shiftDay(today, i - 27)
-                            const planned = isScheduled(habit, day)
-                            return (
-                              <span
-                                key={day}
-                                title={`${format(parseISO(day), "d 'de' MMMM", { locale: ptBR })}: ${isDone(habit, logs, day) ? "feito" : planned ? "não feito" : "folga"}`}
-                                className={cn("aspect-square rounded-[4px]", !planned ? "bg-transparent ring-1 ring-border" : isDone(habit, logs, day) ? "bg-primary" : "bg-muted")}
-                              />
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </BentoCard>
-              </div>
-            </div>
-          </div>
+        <HistoricoTab habits={habits} logs={logs} today={today} habitId={hHabit} month={hMonth} mode={hMode} onMode={setHMode} day={hDay} onDay={setHDay} isMobile={isMobile} onToggle={toggleFixed} onStep={stepGoal} />
       ) : null}
 
       {tab === "estatisticas" ? (
