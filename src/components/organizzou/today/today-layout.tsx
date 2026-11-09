@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/organizzou/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { savePrefs } from "@/features/today/actions"
-import { enabledHighlights, PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, wantedKeys, type TodayPrefs } from "@/features/today/prefs"
+import type { PanelId } from "@/features/today/catalog"
+import { enabledHighlights, orderedPanels, PREFS_STORAGE_KEY, parsePrefsJson, prefsEqual, wantedKeys, type TodayPrefs } from "@/features/today/prefs"
 import { cn } from "@/lib/utils"
 
 import { SectionHeader } from "@/components/organizzou/SectionHeader"
@@ -111,10 +112,12 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
   const node = (key: string) => slots[key] ?? skeletons[key] ?? null
   const items = enabledHighlights(prefs).map((id) => ({ id, node: node(`stat:${id}`) }))
 
-  const visible = prefs.panels.filter((p) => p.visible)
-  const main = visible.find((p) => p.id === "seu-dia")
+  // The SAVED order drives everything: wide screens put "Seu dia" in the big column and the rest, in the same relative order, in "Precisa de você";
+  // the single column (phones) shows every panel, "Seu dia" included, exactly as saved (CSS order from the position in the saved list).
+  const { all: visible, main, aside } = orderedPanels(prefs.panels)
   const hasMain = Boolean(main)
-  const aside = visible.filter((p) => p.id !== "seu-dia")
+  const slot = (id: string) => visible.indexOf(id as PanelId) * 2 + 1
+  const asideHeaderSlot = Math.max(0, slot(aside[0] ?? "") - 1)
 
   const customize = (
     <Tooltip>
@@ -151,9 +154,9 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
               />
             </div>
           ) : (
-            <div className={cn("grid min-w-0 grid-cols-1 items-start gap-6 @min-[880px]:gap-x-5", hasMain && "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]")}>
+            <div className={cn("flex min-w-0 flex-col gap-4 @min-[880px]:grid @min-[880px]:grid-cols-1 @min-[880px]:items-start @min-[880px]:gap-6 @min-[880px]:gap-x-5", hasMain && "@min-[880px]:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]")}>
               {main ? (
-                <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-w-0 flex-col gap-3 @max-[879px]:order-(--slot)" style={{ "--slot": slot("seu-dia") } as React.CSSProperties}>
                   <SectionHeader title="Seu dia" />
                   <div data-panel="seu-dia" className="min-w-0">
                     {node("panel:seu-dia")}
@@ -163,12 +166,14 @@ export function TodayLayout({ slots, skeletons, serverPrefs, source }: TodayLayo
               {/* The module cards: ONE list under one overline, 8 px apart. Each card carries data-needs; `has-[]` puts the cards that need
                   attention first, so the order follows the data on every load with no client JS. */}
               {aside.length > 0 ? (
-                <section aria-label="Precisa de você" data-testid="module-cards" className="flex min-w-0 flex-col gap-3">
-                  <SectionHeader title="Precisa de você" />
-                  <div className="flex min-w-0 flex-col gap-2">
-                    {aside.map((panel) => (
-                      <div key={panel.id} data-panel={panel.id} className="order-4 min-w-0 has-[[data-needs=true]]:order-2">
-                        {node(`panel:${panel.id}`)}
+                <section aria-label="Precisa de você" data-testid="module-cards" className="flex min-w-0 flex-col gap-3 @max-[879px]:contents">
+                  <div className="@max-[879px]:order-(--slot)" style={{ "--slot": asideHeaderSlot } as React.CSSProperties}>
+                    <SectionHeader title="Precisa de você" />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2 @max-[879px]:contents">
+                    {aside.map((id) => (
+                      <div key={id} data-panel={id} className="min-w-0 @max-[879px]:order-(--slot)" style={{ "--slot": slot(id) } as React.CSSProperties}>
+                        {node(`panel:${id}`)}
                       </div>
                     ))}
                   </div>

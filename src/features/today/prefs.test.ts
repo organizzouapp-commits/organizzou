@@ -88,3 +88,31 @@ describe("today prefs v2", () => {
     expect(firstSidePanel({ ...DEFAULT_PREFS, panels: [...DEFAULT_PREFS.panels].reverse() })).toBe("humor")
   })
 })
+
+import { orderedPanels } from "./prefs"
+
+describe("orderedPanels", () => {
+  it("follows the saved order, with Seu dia in its place for the single column and out of the side list", () => {
+    const out = orderedPanels([
+      { id: "notas", visible: true }, { id: "seu-dia", visible: true }, { id: "financas", visible: true }, { id: "dieta", visible: true },
+      { id: "treino", visible: true }, { id: "estudos", visible: true }, { id: "humor", visible: true },
+    ])
+    expect(out.all).toEqual(["notas", "seu-dia", "financas", "dieta", "treino", "estudos", "humor"])
+    expect(out.aside[0]).toBe("notas")
+    expect(out.aside).not.toContain("seu-dia")
+    expect(out.main).toBe("seu-dia")
+  })
+
+  it("skips hidden panels (Seu dia too)", () => {
+    const out = orderedPanels([{ id: "financas", visible: false }, { id: "seu-dia", visible: false }, { id: "notas", visible: true }])
+    expect(out.all).not.toContain("financas")
+    expect(out.main).toBeUndefined()
+    expect(out.aside[0]).toBe("notas")
+  })
+
+  it("a panel missing from the saved list goes to the end", () => {
+    const out = orderedPanels([{ id: "notas", visible: true }, { id: "seu-dia", visible: true }])
+    expect(out.all.slice(0, 2)).toEqual(["notas", "seu-dia"])
+    expect(out.all).toHaveLength(PANEL_IDS.length)
+  })
+})

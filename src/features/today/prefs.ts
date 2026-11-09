@@ -122,3 +122,15 @@ export const visiblePanels = (prefs: TodayPrefs) => prefs.panels.filter((p) => p
 
 /** Every widget key a layout needs: the enabled highlights ("stat:<id>") and the visible panels ("panel:<id>"). */
 export const wantedKeys = (prefs: TodayPrefs) => [...enabledHighlights(prefs).map((id) => `stat:${id}`), ...visiblePanels(prefs).map((id) => `panel:${id}`)]
+
+/**
+ * The panels to render, in the SAVED order: hidden ones are skipped, and a panel that is missing from the saved list (added to the catalog
+ * later) goes to the end with its default visibility. `main` is "Seu dia" (the large panel on wide screens), `aside` the others in the same
+ * relative order; `all` is the single-column order (phones), "Seu dia" included, exactly as saved.
+ */
+export function orderedPanels(panels: readonly { id: PanelId; visible: boolean }[]) {
+  const list = [...panels]
+  for (const w of PANEL_WIDGETS) if (!list.some((p) => p.id === w.id)) list.push({ id: w.id, visible: w.defaultVisible })
+  const all = list.filter((p) => p.visible).map((p) => p.id)
+  return { all, main: all.find((id) => id === "seu-dia"), aside: all.filter((id) => id !== "seu-dia") }
+}
