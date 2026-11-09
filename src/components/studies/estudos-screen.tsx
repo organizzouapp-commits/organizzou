@@ -6,29 +6,30 @@ import { ptBR } from "date-fns/locale"
 import {
   BookOpenIcon,
   BookMarkedIcon,
-  CheckIcon,
   GraduationCapIcon,
   LibraryIcon,
+  EllipsisIcon,
   PencilIcon,
-  PauseIcon,
-  PlayIcon,
   PlusIcon,
-  RotateCcwIcon,
   SparklesIcon,
   TargetIcon,
   type LucideIcon,
 } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
-import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
+import { useRouter } from "next/navigation"
+
+import { BentoCard } from "@/components/organizzou/Bento"
+import { HojeTab } from "@/components/studies/estudos-hoje"
+import { PillTabs } from "@/components/tasks/pill-tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { EmptyState } from "@/components/organizzou/EmptyState"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import {
   Dialog,
   DialogContent,
@@ -41,8 +42,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SplitLayout, StatRow } from "@/components/organizzou/layout"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SplitLayout } from "@/components/organizzou/layout"
 import { daysUntil, isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
   PRIORITY_LABELS,
@@ -74,7 +74,13 @@ const MODES = [
   { value: "long", label: "Pausa longa", minutes: 15 },
 ] as const
 
-const hoursConfig = { hours: { label: "Horas", color: "var(--chart-1)" } } satisfies ChartConfig
+type TabId = "hoje" | "materias" | "flashcards" | "provas"
+const TAB_ITEMS = [
+  { id: "hoje", label: "Hoje" },
+  { id: "materias", label: "Matérias" },
+  { id: "flashcards", label: "Flashcards" },
+  { id: "provas", label: "Provas e prazos" },
+]
 
 function clock(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
@@ -96,6 +102,9 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   const [deadlines, setDeadlines] = usePersistedRows<DeadlineRow>("study_deadlines", initial.deadlines)
   const [decks, setDecks] = usePersistedRows<FlashcardDeckRow>("flashcard_decks", initial.decks)
   const [cards, setCards] = usePersistedRows<FlashcardRow>("flashcards", initial.cards)
+  const router = useRouter()
+  const isMobile = useIsMobile()
+  const [tab, setTab] = useState<TabId>("hoje")
   const [creatingDeck, setCreatingDeck] = useState(false)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [creatingSubject, setCreatingSubject] = useState(false)
@@ -173,148 +182,87 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   // Stats
   const weekMinutes = (subjectId?: string) =>
     sessions.filter((s) => s.studied_on >= weekStart && (!subjectId || s.subject_id === subjectId)).reduce((sum, s) => sum + s.minutes, 0)
-  const totalWeek = weekMinutes()
-  const totalGoal = subjects.reduce((sum, s) => sum + s.weekly_goal_min, 0)
-  const todayMinutes = sessions.filter((s) => s.studied_on === today).reduce((sum, s) => sum + s.minutes, 0)
-  const bySubject = subjects
-    .map((s) => ({ subject: s, minutes: weekMinutes(s.id) }))
-    .sort((a, b) => b.minutes - a.minutes)
-  const chartData = bySubject.map((r) => ({ name: r.subject.name.split(" — ")[0], hours: Math.round((r.minutes / 60) * 10) / 10 }))
   const upcoming = [...deadlines].sort((a, b) => a.due_on.localeCompare(b.due_on))
   const dueCards = cards.filter((c) => isDue(c, today))
-  // Study blocks are not a saved thing (yet): there is no schedule to show, so "Hoje" lists only what the person registered.
-  const todaysBlocks: { weekdays: number[]; time: string; minutes: number; title: string; detail: string }[] = []
 
   usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
+
+  const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Estudos" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader />
 
-      <Tabs defaultValue="hoje">
-        <TabsList>
-          <TabsTrigger value="hoje">Hoje</TabsTrigger>
-          <TabsTrigger value="materias">Matérias</TabsTrigger>
-          <TabsTrigger value="flashcards">Flashcards</TabsTrigger>
-          <TabsTrigger value="provas">Provas e prazos</TabsTrigger>
-        </TabsList>
-
-        {/* ----------------------------------------------------------- today */}
-        <TabsContent value="hoje" className="pt-5">
-          <div className="flex flex-col gap-5">
-            <StatRow min={150}>
-              <KpiCard tone="highlight" label="Estudado hoje" value={hours(todayMinutes)} support="foco + sessões livres" />
-              <KpiCard label="Semana" value={hours(totalWeek)} support={`meta ${hours(totalGoal)}`} />
-              <KpiCard label="Flashcards" value={`${dueCards.length}`} support="para revisar" href="/dashboard/estudos" />
-            </StatRow>
-            <SplitLayout
-              aside={
-                <>
-                  <BentoCard title="Blocos de hoje">
-                    {todaysBlocks.length === 0 ? (
-                      <p className="py-2 text-[15px] leading-6 text-muted-foreground">Nenhum bloco no cronograma de hoje.</p>
-                    ) : (
-                      todaysBlocks.map((b) => (
-                        <div key={b.title} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                          <GraduationCapIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-muted-foreground" />
-                          <span className="flex-1 text-[15px] leading-6">{b.title}</span>
-                          <span className="tabular text-[13px] leading-5 text-muted-foreground">
-                            {b.time} · {hours(b.minutes)}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </BentoCard>
-                  <BentoCard title="Contagem regressiva">
-                    {upcoming.slice(0, 3).map((d) => (
-                      <div key={d.id} className="flex min-h-14 items-center gap-4 border-b border-border py-3 last:border-b-0">
-                        <span className="flex-1 text-[15px] leading-6">{d.title}</span>
-                        <Badge variant={daysUntil(d.due_on, today) <= 10 ? "highlight" : "secondary"}>{daysUntil(d.due_on, today) === 0 ? "Hoje" : `${daysUntil(d.due_on, today)} dias`}</Badge>
-                      </div>
-                    ))}
-                  </BentoCard>
-                  <BentoCard title="Ranking da semana">
-                    {bySubject.map((r, index) => (
-                      <div key={r.subject.id} className="flex min-h-12 items-center gap-4 border-b border-border py-2 last:border-b-0">
-                        <span className="tabular w-5 text-[13px] leading-5 text-muted-foreground">{index + 1}</span>
-                        <span className="flex-1 truncate text-[15px] leading-6">{r.subject.name}</span>
-                        <span className="tabular text-[13px] leading-5 text-muted-foreground">{hours(r.minutes)}</span>
-                      </div>
-                    ))}
-                  </BentoCard>
-                </>
-              }
-            >
-              <div className="flex flex-col gap-5">
-                <BentoCard title="Foco" bodyClassName="flex flex-col gap-5">
-                  <Tabs value={mode} onValueChange={changeMode}>
-                    <TabsList>
-                      {MODES.map((m) => (
-                        <TabsTrigger key={m.value} value={m.value}>
-                          {m.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </Tabs>
-                  <div role="timer" aria-label="Cronômetro de foco" className="tabular text-[72px] leading-[80px] font-semibold tracking-[-0.03em]">
-                    {clock(remaining)}
-                  </div>
-                  <Progress value={((modeMinutes * 60 - remaining) / (modeMinutes * 60)) * 100} aria-label="Progresso da sessão" />
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="timer-subject">Estudando</Label>
-                    <Select value={timerSubject} onValueChange={setTimerSubject}>
-                      <SelectTrigger id="timer-subject" className="w-full max-w-md">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subjects.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button size="xl" className="min-w-40" onClick={toggleTimer}>
-                      {running ? <PauseIcon strokeWidth={1.75} /> : <PlayIcon strokeWidth={1.75} />}
-                      {running ? "Pausar" : remaining === modeMinutes * 60 ? "Começar" : "Continuar"}
-                    </Button>
-                    <Button
-                      size="xl"
-                      variant="outline"
-                      onClick={() => {
-                        setRunning(false)
-                        setRemaining(modeMinutes * 60)
-                        setFinishedHandled(false)
-                      }}
-                    >
-                      <RotateCcwIcon strokeWidth={1.75} /> Zerar
-                    </Button>
-                    <Button size="xl" variant="ghost" onClick={logElapsed}>
-                      <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
-                    </Button>
-                  </div>
-                </BentoCard>
-
-                <BentoCard title="Horas por matéria nesta semana">
-                  <ChartContainer config={hoursConfig} className="aspect-[16/9] w-full">
-                    <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
-                      <CartesianGrid horizontal={false} strokeOpacity={0.5} />
-                      <XAxis type="number" tickLine={false} axisLine={false} unit=" h" />
-                      <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={120} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="hours" fill="var(--color-hours)" radius={6} />
-                    </BarChart>
-                  </ChartContainer>
-                </BentoCard>
-              </div>
-            </SplitLayout>
+      {isMobile ? (
+        <section aria-label="Estudos" data-testid="estudos-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+          <div className="flex h-9 items-center gap-2">
+            <h2 className="min-w-0 flex-1 truncate text-[18px] leading-6 font-semibold">Estudos</h2>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Opções de estudos" data-testid="estudos-options" className="relative size-9 rounded-full after:absolute after:-inset-1">
+                  <EllipsisIcon strokeWidth={1.75} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setCreatingSubject(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Nova matéria
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingDeadline(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Nova prova ou prazo
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingDeck(true)}>
+                  <PlusIcon strokeWidth={1.75} /> Novo baralho
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </TabsContent>
+          {tabs}
+        </section>
+      ) : (
+        tabs
+      )}
+
+      {tab === "hoje" ? (
+        <HojeTab
+          subjects={subjects}
+          sessions={sessions}
+          deadlines={deadlines}
+          dueCards={dueCards.length}
+          today={today}
+          weekStart={weekStart}
+          isMobile={isMobile}
+          timer={{
+            mode,
+            modes: MODES,
+            onMode: changeMode,
+            remaining,
+            totalSeconds: modeMinutes * 60,
+            running,
+            onToggle: toggleTimer,
+            onReset: () => {
+              setRunning(false)
+              setRemaining(modeMinutes * 60)
+              setFinishedHandled(false)
+            },
+            onLog: logElapsed,
+            subjectId: timerSubject,
+            onSubject: setTimerSubject,
+            clock: clock(remaining),
+            primaryLabel: running ? "Pausar" : remaining === modeMinutes * 60 ? "Começar" : "Continuar",
+          }}
+          onReview={() => {
+            setTab("flashcards")
+            const deck = decks.find((d) => cards.some((c) => c.deck_id === d.id && isDue(c, today)))
+            if (deck) setStudyDeck(deck.id)
+          }}
+          onAllDeadlines={() => setTab("provas")}
+          onPlanBlock={() => router.push("/dashboard/agenda")}
+          onNewSubject={() => setCreatingSubject(true)}
+        />
+      ) : null}
 
         {/* -------------------------------------------------------- subjects */}
-        <TabsContent value="materias" className="pt-5">
+      {tab === "materias" ? (<div>
           {subjects.length === 0 ? (
             <EmptyState
               icon={BookOpenIcon}
@@ -366,10 +314,10 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
             )
           })}
           </div>
-        </TabsContent>
+      </div>) : null}
 
         {/* ------------------------------------------------------ flashcards */}
-        <TabsContent value="flashcards" className="pt-5">
+      {tab === "flashcards" ? (<div>
           <SplitLayout
             aside={
               <BentoCard title="Revisão de hoje" bodyClassName="flex flex-col gap-4">
@@ -424,10 +372,10 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           })}
           </BentoCard>
           </SplitLayout>
-        </TabsContent>
+      </div>) : null}
 
         {/* --------------------------------------------------------- deadlines */}
-        <TabsContent value="provas" className="pt-5">
+      {tab === "provas" ? (<div>
           <BentoCard
             title="Provas e prazos"
             actions={
@@ -506,8 +454,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
               )
             })}
           </BentoCard>
-        </TabsContent>
-      </Tabs>
+      </div>) : null}
 
       <SubjectDialog
         open={creatingSubject}
