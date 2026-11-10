@@ -10,8 +10,8 @@ export const metadata: Metadata = { title: "Configurações" }
 // The open tab is read on the client from ?aba= (see SettingsShell), so changing tabs never asks the server for this page again.
 async function SettingsContent() {
   const { supabase, userId, email } = await getSession()
-  const { data: profile } = await supabase.from("profiles").select("display_name, phone").eq("id", userId).maybeSingle()
-  return <SettingsShell profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "" }} />
+  const { data: profile } = await supabase.from("profiles").select("display_name, phone, created_at").eq("id", userId).maybeSingle()
+  return <SettingsShell profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "", createdAt: profile?.created_at ?? "" }} />
 }
 
 export default function SettingsPage() {
