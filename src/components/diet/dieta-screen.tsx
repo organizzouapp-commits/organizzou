@@ -1,9 +1,11 @@
 "use client"
 
+import { DayNavigator } from "@/components/organizzou/DayNavigator"
+import { dayNavLabel } from "@/lib/day-label"
 import { createContext, useContext, useEffect, useState } from "react"
-import { format, parseISO } from "date-fns"
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
-import { ptBR } from "date-fns/locale"
+
+import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
+
 import { toast } from "sonner"
 
 import { HistoricoTab, HistoryPeriodSwitch } from "@/components/diet/dieta-historico"
@@ -36,8 +38,9 @@ import { Label } from "@/components/ui/label"
 import { shiftDay } from "@/features/habits/stats"
 import { recentFoods } from "@/features/diet/foods"
 import type { HistoryPeriod } from "@/features/diet/history"
+import { localFoodMetaRepo, type FoodMeta } from "@/features/diet/food-meta"
 import { localWeightNoteRepo } from "@/features/diet/weight-notes"
-import { sortWeights, type WeightPeriod } from "@/features/diet/weight"
+import { sortWeights, type WeightPeriod, withTargetWeight } from "@/features/diet/weight"
 import { dayTotals } from "@/features/diet/stats"
 import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -52,7 +55,6 @@ const TAB_ITEMS = [
   { id: "historico", label: "Histórico" },
   { id: "peso", label: "Peso" },
 ]
-const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
 
 /** The food catalog (shared rows plus the person's own; the example list only in the local prototype). */
@@ -71,14 +73,16 @@ export type DietInitial = {
 const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
 
 export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+  // The foods: the shared catalog and the ones the person created (saved like every other table).
+  const [foods, setFoods] = usePersistedRows<FoodRow>("foods", initial.foods)
   return (
-    <FoodsContext.Provider value={initial.foods}>
-      <DietBody nowIso={nowIso} initial={initial} />
+    <FoodsContext.Provider value={foods}>
+      <DietBody nowIso={nowIso} initial={initial} setFoods={setFoods} />
     </FoodsContext.Provider>
   )
 }
 
-function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: DietInitial; setFoods: (update: (rows: FoodRow[]) => FoodRow[]) => void }) {
   const foods = useFoods()
   const today = dayOf(nowIso)
   const isMobile = useIsMobile()
@@ -86,7 +90,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
   const [histPeriod, setHistPeriod] = useState<HistoryPeriod>(15)
   const [editingGoal, setEditingGoal] = useState(false)
   // The daily goals: one row per person (saved through the same hook as every other table; the row id is only a handle for it).
-  const [goalRows, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", initial.goal ? [{ ...initial.goal, id: "goal" }] : [])
+  const [goalRows, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", () => (initial.goal ? [{ ...initial.goal, id: "goal" }] : []))
   const goal: DietGoalRow = goalRows[0] ?? DEFAULT_GOAL
   // The day whose diary is open (today by default; the arrows go back through the days that were loaded, never forward).
   const [day, setDay] = useState(today)
@@ -118,6 +122,35 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotes(localWeightNoteRepo.load())
   }, [])
+
+  // What a custom food needs beyond its row (deleted flag, fiber): localStorage until the foods columns exist (see food-meta.ts).
+  const [foodMeta, setFoodMeta] = useState<FoodMeta>({ archived: [], fiber: {} })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFoodMeta(localFoodMetaRepo.load())
+  }, [])
+  // A deleted food only leaves the lists: the rows stay, so the meals already logged with it keep their numbers.
+  const pickableFoods = foods.filter((f) => !foodMeta.archived.includes(f.id))
+  const updateMeta = (update: (meta: FoodMeta) => FoodMeta) =>
+    setFoodMeta((current) => {
+      const next = update(current)
+      localFoodMetaRepo.save(next)
+      return next
+    })
+  function saveFood(food: FoodRow, fiber: number | null) {
+    setFoods((rows) => (rows.some((r) => r.id === food.id) ? rows.map((r) => (r.id === food.id ? food : r)) : [...rows, food]).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))
+    updateMeta((m) => {
+      const rest = { ...m.fiber }
+      if (fiber === null) delete rest[food.id]
+      else rest[food.id] = fiber
+      return { ...m, fiber: rest }
+    })
+    toast.success("Alimento salvo.")
+  }
+  function deleteFood(food: FoodRow) {
+    updateMeta((m) => ({ ...m, archived: [...m.archived, food.id] }))
+    toast.success("Alimento excluído.")
+  }
 
   const totals = dayTotals(items, foods)
 
@@ -165,25 +198,9 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
     <PillTabs equal={isMobile} className={isMobile ? "grid-cols-3" : "w-fit max-w-full"} ariaLabel="Dieta" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
   )
   const periodSwitch = tab === "historico" ? <HistoryPeriodSwitch value={histPeriod} onChange={setHistPeriod} className={isMobile ? "w-full [&>button]:flex-1" : undefined} /> : null
-  const weightAction =
-    tab === "peso" ? (
-      <Button type="button" data-testid="register-weight" onClick={() => openWeigh()} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-        <PlusIcon strokeWidth={1.75} /> Registrar peso
-      </Button>
-    ) : null
   const dayNav =
     tab === "hoje" ? (
-      <div data-testid="diet-day-nav" className="flex h-10 items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Dia anterior" className="shrink-0" onClick={() => setDay((d) => shiftDay(d, -1))}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <button type="button" data-testid="diet-day-label" aria-label="Ir para hoje" title="Ir para hoje" onClick={() => setDay(today)} className="min-w-0 rounded-full px-2 text-[15px] leading-6 font-semibold whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {WEEKDAY_NAMES[parseISO(day).getDay()]}, {format(parseISO(day), "d 'de' MMMM", { locale: ptBR })}
-        </button>
-        <Button variant="ghost" size="icon" aria-label="Próximo dia" className="shrink-0" disabled={day >= today} onClick={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
+      <DayNavigator testId="diet-day-nav" labelTestId="diet-day-label" label={dayNavLabel(day)} onPrev={() => setDay((d) => shiftDay(d, -1))} onNext={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))} onToday={() => setDay(today)} nextDisabled={day >= today} />
     ) : null
 
   return (
@@ -215,14 +232,12 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           </section>
           {dayNav ? <div className="px-1">{dayNav}</div> : null}
           {periodSwitch}
-          {tab === "peso" ? <AddPill label="Registrar peso…" onClick={() => openWeigh()} /> : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {dayNav}
           {periodSwitch}
-          {weightAction}
         </div>
       )}
 
@@ -308,15 +323,15 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           toast.success("Meta atualizada.")
         }}
       />
-      <FoodSheet meal={adding} foods={foods} recents={recentFoods(allItems, foods)} onClose={() => setAdding(null)} onAdd={addItem} />
+      <FoodSheet meal={adding} foods={pickableFoods} recents={recentFoods(allItems, pickableFoods)} fiberOf={(id) => foodMeta.fiber[id] ?? null} onClose={() => setAdding(null)} onAdd={addItem} onSaveFood={saveFood} onDeleteFood={deleteFood} />
       <WeightSheet draft={weighing} today={today} onClose={() => setWeighing(null)} onSave={saveWeight} />
       <WeightGoalSheet
         open={editingTarget}
         target={target}
         onClose={() => setEditingTarget(false)}
         onSave={(kg) => {
-          setGoalRows((rows) => [{ ...(rows[0] ?? { ...DEFAULT_GOAL, id: "goal" }), target_weight_kg: kg }])
-          toast.success(kg === null ? "Meta removida." : "Meta atualizada.")
+          setGoalRows((rows) => withTargetWeight(rows, { ...DEFAULT_GOAL, id: "goal" }, kg))
+          toast.success(kg === null ? "Meta removida." : "Meta salva.")
         }}
       />
       <EditItemDialog

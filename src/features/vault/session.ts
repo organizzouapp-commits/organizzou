@@ -2,27 +2,24 @@
 // locking drops it together with the decrypted items and takes a pending copy off the clipboard. Browser only.
 import "client-only"
 
-import { useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 
+import { createLockTimer, locksOnHide, shouldLock } from "./auto-lock"
 import { clearClipboardNow } from "./clipboard"
+import { flushPendingDeletes } from "./pending-delete"
+import { settingsRepo, type AutoLock } from "./settings"
 import type { VaultItem } from "./types"
 
-export type AutoLock = "1" | "5" | "15" | "hidden"
-export const AUTO_LOCK_OPTIONS: { value: AutoLock; label: string }[] = [
-  { value: "1", label: "Após 1 minuto" },
-  { value: "5", label: "Após 5 minutos" },
-  { value: "15", label: "Após 15 minutos" },
-  { value: "hidden", label: "Ao sair da aba" },
-]
+export { AUTO_LOCK_OPTIONS, type AutoLock } from "./settings"
 
-type Snapshot = { status: "locked" | "unlocked"; scope: string | null; items: VaultItem[]; autoLock: AutoLock }
 
-const SETTINGS_KEY = "organizzou:cofre-settings"
-const LOCKED: Snapshot = { status: "locked", scope: null, items: [], autoLock: "5" }
+/** `lockAt` is the moment (ms) the auto-lock timer will lock the vault; null while locked or when it locks on leaving the tab. */
+type Snapshot = { status: "locked" | "unlocked"; scope: string | null; items: VaultItem[]; autoLock: AutoLock; lockAt: number | null }
+
+const LOCKED: Snapshot = { status: "locked", scope: null, items: [], autoLock: "5", lockAt: null }
 
 let key: CryptoKey | null = null
 let state: Snapshot = LOCKED
-let timer: ReturnType<typeof setTimeout> | null = null
 let hooked = false
 const listeners = new Set<() => void>()
 
@@ -31,27 +28,29 @@ function emit(next: Snapshot) {
   listeners.forEach((listener) => listener())
 }
 
-function loadAutoLock(): AutoLock {
-  try {
-    const value = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").autoLock
-    return value === "1" || value === "5" || value === "15" || value === "hidden" ? value : "5"
-  } catch {
-    return "5"
-  }
-}
+const loadAutoLock = (): AutoLock => settingsRepo.load().autoLock
+
+// One timer for the auto-lock (see auto-lock.ts); it reports its deadline so the header countdown can follow it.
+const lockTimer = createLockTimer(
+  () => lockVault(),
+  (lockAt) => {
+    if (state.lockAt !== lockAt) emit({ ...state, lockAt })
+  },
+)
 
 function schedule() {
-  if (timer) clearTimeout(timer)
-  timer = null
-  if (!key || state.autoLock === "hidden") return
-  timer = setTimeout(lockVault, Number(state.autoLock) * 60_000)
+  if (!key) lockTimer.stop()
+  else lockTimer.start(state.autoLock)
 }
 
+/** Locks if the absolute deadline has passed (called on every countdown tick and when the page becomes visible again). */export function checkExpiry() {  if (key && shouldLock(state.lockAt, Date.now())) lockVault()}
 function hook() {
   if (hooked || typeof document === "undefined") return
   hooked = true
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && key && state.autoLock === "hidden") lockVault()
+    if (document.visibilityState === "hidden" && key && locksOnHide(state.autoLock)) lockVault()
+    // Back from sleep or from another tab: the timer may not have run, so the absolute deadline decides.
+    if (document.visibilityState === "visible") checkExpiry()
   })
 }
 
@@ -69,15 +68,16 @@ export const getKey = () => key
 export function unlockSession(scope: string, newKey: CryptoKey, items: VaultItem[]) {
   hook()
   key = newKey
-  emit({ status: "unlocked", scope, items, autoLock: loadAutoLock() })
+  emit({ status: "unlocked", scope, items, autoLock: loadAutoLock(), lockAt: null })
   schedule()
 }
 
 /** Locks: the key, the decrypted items and any pending clipboard copy are dropped. */
 export function lockVault() {
-  if (timer) clearTimeout(timer)
-  timer = null
+  lockTimer.stop()
   key = null
+  // Items deleted a moment ago (still undoable) are erased for good now.
+  void flushPendingDeletes()
   clearClipboardNow()
   emit({ ...LOCKED, autoLock: state.autoLock })
 }
@@ -95,16 +95,13 @@ export function setItems(update: (items: VaultItem[]) => VaultItem[]) {
 
 /** Any use of the vault counts as activity: the auto-lock countdown starts again. */
 export function touch() {
-  if (key) schedule()
+  // Typing fires this constantly: the timer moves the deadline at most once a second.
+  if (key) lockTimer.touch()
 }
 
 export function setAutoLock(value: AutoLock) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoLock: value }))
-  } catch {
-    // Private mode: the choice just does not survive the visit.
-  }
-  emit({ ...state, autoLock: value })
+  settingsRepo.save({ autoLock: value })
+  emit({ ...state, autoLock: value, lockAt: null })
   schedule()
 }
 
@@ -123,4 +120,22 @@ export async function watchAuthSession(): Promise<() => void> {
 
 export function useVaultSession(): Snapshot {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/** Seconds left until the auto-lock (null when it locks on leaving the tab, or when the vault is locked). Ticks every second. */
+export function useLockCountdown(): number | null {
+  const { lockAt } = useVaultSession()
+  const [now, setNow] = useState(0)
+  useEffect(() => {
+    if (lockAt === null) return
+    const tick = () => {
+      setNow(Date.now())
+      checkExpiry()
+    }
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [lockAt])
+  if (lockAt === null) return null
+  return Math.max(0, Math.ceil((lockAt - (now || lockAt - 1)) / 1000))
 }

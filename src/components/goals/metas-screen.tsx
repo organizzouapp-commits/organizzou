@@ -1,23 +1,24 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { CalendarClockIcon, EllipsisIcon, FlagIcon, PlusIcon, TargetIcon, TimerIcon, TrophyIcon } from "lucide-react"
+import { CalendarClockIcon, ChevronDownIcon, FlagIcon, PlusIcon, TargetIcon, TrophyIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { BentoStat } from "@/components/finance/bento"
 import { FinanceDeck } from "@/components/finance/finance-deck"
 import { HatchedProgress, HeroCard } from "@/components/finance/parts"
-import { GoalCard } from "@/components/goals/goal-card"
+import { DoneGoalCard, GoalCard } from "@/components/goals/goal-card"
 import { GoalSheet, type GoalDraft } from "@/components/goals/goal-sheet"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import type { ModuleId } from "@/components/organizzou/modules"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useElementWidth } from "@/hooks/use-element-size"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { averageDaysToComplete, averageProgress, cappedPercent, completedOn, completedThisYear, formatDeadline, lastMetDeadline, localGoalMetaRepo, milestoneTotals, nextDeadlineGoal, sortGoals, type GoalMetaMap } from "@/features/goals/overview"
+import { splitColumns } from "@/lib/columns"
+import { averageProgress, cappedPercent, completedOn, formatDeadline, localGoalMetaRepo, milestoneTotals, nextDeadlineGoal, sortGoals, type GoalMetaMap } from "@/features/goals/overview"
+import { DEFAULT_VIEW, allCollapsed, isCollapsed, localGoalViewRepo, setAllCollapsed, toggleCollapsed, type GoalViewState } from "@/features/goals/view-state"
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
@@ -32,7 +33,6 @@ const DEFAULT_LINKS: Record<string, { label: string; total: number; unit: string
   estudos: { label: "Horas de estudo", total: 50, unit: "h" },
 }
 
-type TabId = "ativas" | "concluidas"
 const dim = (text: string) => <span className="text-[16px] leading-6 opacity-60">{text}</span>
 
 /** The goal row itself, without the nested links and milestones (those are their own tables). */
@@ -41,7 +41,19 @@ const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_
 export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: GoalWithDetails[] }) {
   const today = dayOf(nowIso)
   const isMobile = useIsMobile()
-  const [tab, setTab] = useState<TabId>("ativas")
+  const [gridRef, gridWidth] = useElementWidth<HTMLDivElement>()
+  // How the page is folded (collapsed cards, Concluídas open): a view preference kept on this device (see view-state.ts).
+  const [view, setView] = useState<GoalViewState>(DEFAULT_VIEW)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setView(localGoalViewRepo.load())
+  }, [])
+  const updateView = (change: (current: GoalViewState) => GoalViewState) =>
+    setView((current) => {
+      const next = change(current)
+      localGoalViewRepo.save(next)
+      return next
+    })
   // A goal is three tables (the goal, what feeds it, its milestones). The screen edits the nested shape; each table is saved on its own, parents first.
   const start = initial
   const [goalRows, setGoalRows] = usePersistedRows<LifeGoalRow>("life_goals", () => start.map(plain))
@@ -117,19 +129,6 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
   const next = nextDeadlineGoal(active, today)
   const marcos = milestoneTotals(active)
 
-  const tabs = (
-    <PillTabs
-      className={isMobile ? "w-full" : "w-fit max-w-full"}
-      ariaLabel="Metas"
-      items={[
-        { id: "ativas", label: "Em andamento", count: active.length },
-        { id: "concluidas", label: "Concluídas", count: done.length },
-      ]}
-      value={tab}
-      onSelect={(item) => setTab(item.id as TabId)}
-    />
-  )
-
   const height = isMobile ? "h-[200px]" : "h-48"
   const hero = (
     <HeroCard key="hero" className={height} density="dense" label="Em andamento" value={<>{active.length} {dim("metas")}</>} support={`${average}% de progresso médio`} progress={{ value: average, label: `Progresso médio: ${average}%` }} />
@@ -150,90 +149,56 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
     </BentoStat>
   )
 
-  // The summary of the Concluídas tab. The average time needs completion dates that were recorded, so it is left out until there are some.
-  const closedMarcos = milestoneTotals(done)
-  const met = lastMetDeadline(done, metas)
-  const averageDays = averageDaysToComplete(done, metas)
-  const doneHero = (
-    <HeroCard key="dhero" className={height} density="dense" label="Concluídas" value={<>{done.length} {dim(done.length === 1 ? "meta" : "metas")}</>} support={`${completedThisYear(done, metas, today)} concluídas este ano`} />
-  )
-  const lastMet = (
-    <BentoStat key="dlast" label="Último prazo cumprido" icon={CalendarClockIcon} className={height} chip={met ? met.goal.title : "Sem prazos cumpridos"}>
-      {met ? formatDeadline(met.deadline) : "—"}
-    </BentoStat>
-  )
-  const doneMarcos = (
-    <BentoStat key="dmarcos" label="Marcos" icon={FlagIcon} className={height} chip="concluídos" footer={<HatchedProgress value={cappedPercent(closedMarcos.done, closedMarcos.total)} label={`Marcos concluídos: ${closedMarcos.done} de ${closedMarcos.total}`} />}>
-      {closedMarcos.done} {dim(`de ${closedMarcos.total}`)}
-    </BentoStat>
-  )
-  const average2 = averageDays === null ? null : (
-    <BentoStat key="davg" label="Tempo médio" icon={TimerIcon} className={height} chip="para concluir uma meta">
-      {averageDays} {dim(averageDays === 1 ? "dia" : "dias")}
-    </BentoStat>
-  )
-  const summary = tab === "ativas" ? [hero, closed, deadline, milestones] : [doneHero, lastMet, doneMarcos, ...(average2 ? [average2] : [])]
-  const slides = tab === "ativas" ? [{ id: "hero", hero: true, node: hero }, { id: "done", node: closed }, { id: "next", node: deadline }, { id: "marcos", node: milestones }] : summary.map((node, i) => ({ id: `d${i}`, hero: i === 0, node }))
+  const summary = [hero, closed, deadline, milestones]
+  const slides = [
+    { id: "hero", hero: true, node: hero },
+    { id: "done", node: closed },
+    { id: "next", node: deadline },
+    { id: "marcos", node: milestones },
+  ]
 
-  const list = tab === "ativas" ? active : done
+  // Goal cards in independent columns (dealt one by one) so a folded card never leaves a gap under its neighbour.
+  const activeIds = active.map((g) => g.id)
+  const everyFolded = allCollapsed(view, activeIds)
   const goalCards = (
-    <div data-testid="goal-grid" className="grid grid-cols-1 items-stretch gap-4 @min-[880px]:grid-cols-2">
-      {list.map((goal) => (
-        <GoalCard
-          key={goal.id}
-          goal={goal}
-          completedOn={goal.status === "done" ? formatDeadline(completedOn(goal, metas).day) : null}
-          today={today}
-          mobile={isMobile}
-          onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
-          onSetStatus={(status) => setStatus(goal, status)}
-          onDelete={() => setToDelete(goal)}
-          onToggleMilestone={(id) => toggleMilestone(goal.id, id)}
-          onAddMilestone={(title) => addMilestone(goal.id, title)}
-        />
+    <div ref={gridRef} data-testid="goal-grid" className="flex items-start gap-4">
+      {splitColumns(active, gridWidth >= 880 ? 2 : 1).map((column, index) => (
+        <div key={index} className="flex min-w-0 flex-1 flex-col gap-4">
+          {column.map((goal) => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              today={today}
+              mobile={isMobile}
+              collapsed={isCollapsed(view, goal.id)}
+              onToggleCollapsed={() => updateView((current) => toggleCollapsed(current, goal.id))}
+              onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
+              onSetStatus={(status) => setStatus(goal, status)}
+              onDelete={() => setToDelete(goal)}
+              onToggleMilestone={(id) => toggleMilestone(goal.id, id)}
+              onAddMilestone={(title) => addMilestone(goal.id, title)}
+            />
+          ))}
+        </div>
       ))}
     </div>
   )
 
   return (
-    <div className="@container flex min-w-0 flex-col gap-4" data-testid="metas" data-tab={tab}>
+    <div className="@container flex min-w-0 flex-col gap-4" data-testid="metas">
       <PageHeader />
 
       {isMobile ? (
-        <section aria-label="Metas" data-testid="metas-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-[18px] leading-6 font-semibold">Metas</h2>
-              <p className="truncate text-[13px] leading-5 text-muted-foreground">Objetivos alimentados pelos seus módulos.</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Opções de metas" data-testid="metas-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
-                  <EllipsisIcon strokeWidth={1.75} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setDraft(blankDraft())}>
-                  <PlusIcon strokeWidth={1.75} /> Nova meta
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {tabs}
+        <section aria-label="Metas" data-testid="metas-header-block" className="mt-3 rounded-[20px] border border-border bg-card p-3">
+          <h2 className="truncate text-[18px] leading-6 font-semibold">Metas</h2>
+          <p className="truncate text-[13px] leading-5 text-muted-foreground">Objetivos alimentados pelos seus módulos.</p>
         </section>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          {tabs}
-          <Button type="button" data-testid="new-goal" onClick={() => setDraft(blankDraft())} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-            <PlusIcon strokeWidth={1.75} /> Nova meta
-          </Button>
-        </div>
-      )}
+      ) : null}
 
       {isMobile ? (
-        <FinanceDeck key={tab} title={null} label="Resumo das metas" noun="resumo" initialHeight={200} slides={slides} />
+        <FinanceDeck title={null} label="Resumo das metas" noun="resumo" initialHeight={200} slides={slides} />
       ) : (
-        <div data-testid="goals-summary" className={`grid grid-cols-2 gap-4 ${summary.length === 3 ? "@min-[880px]:grid-cols-3" : "@min-[880px]:grid-cols-4"}`}>
+        <div data-testid="goals-summary" className="grid grid-cols-2 gap-4 @min-[880px]:grid-cols-4">
           {summary.map((card, i) => (
             <div key={i} className="flex min-w-0 flex-col [&>*]:flex-1">
               {card}
@@ -242,28 +207,64 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
         </div>
       )}
 
-      {list.length > 0 ? (
-        goalCards
-      ) : tab === "ativas" ? (
-        <div data-testid="goals-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
-          <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
-            <TargetIcon strokeWidth={1.75} className="size-5" />
-          </span>
-          <p className="text-[16px] leading-6 font-semibold">Nenhuma meta em andamento</p>
-          <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Crie uma meta e ligue-a a Estudos, Treinos, Finanças e outros módulos.</p>
-          <Button type="button" onClick={() => setDraft(blankDraft())} className="h-11 rounded-full bg-highlight px-5 text-highlight-foreground hover:bg-highlight/90">
-            <PlusIcon strokeWidth={1.75} /> Nova meta
-          </Button>
+      <section aria-label="Em andamento" data-testid="goals-active" className="flex flex-col gap-3">
+        <div className="flex min-h-11 items-center justify-between gap-3">
+          <h2 className="text-[17px] leading-6 font-semibold">
+            Em andamento <span className="tabular text-muted-foreground">({active.length})</span>
+          </h2>
+          {active.length > 1 ? (
+            <Button type="button" variant="ghost" data-testid="toggle-all" onClick={() => updateView((current) => setAllCollapsed(current, activeIds, !everyFolded))} className="h-11 rounded-full px-3 text-[13px] text-muted-foreground md:h-11">
+              {everyFolded ? "Expandir todas" : "Recolher todas"}
+            </Button>
+          ) : null}
         </div>
-      ) : (
-        <div data-testid="done-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
-          <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
-            <TrophyIcon strokeWidth={1.75} className="size-5" />
-          </span>
-          <p className="text-[16px] leading-6 font-semibold">Nenhuma meta concluída ainda</p>
-          <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Quando você concluir uma meta, ela fica guardada aqui.</p>
+        {active.length > 0 ? (
+          goalCards
+        ) : (
+          <div data-testid="goals-empty" className="flex flex-col items-center gap-3 rounded-[20px] border border-border px-6 py-12 text-center">
+            <span aria-hidden className="flex size-12 items-center justify-center rounded-full border border-border">
+              <TargetIcon strokeWidth={1.75} className="size-5" />
+            </span>
+            <p className="text-[16px] leading-6 font-semibold">Nenhuma meta em andamento</p>
+            <p className="max-w-72 text-[13px] leading-5 text-muted-foreground">Crie uma meta e ligue-a a Estudos, Treinos, Finanças e outros módulos.</p>
+            <Button type="button" onClick={() => setDraft(blankDraft())} className="h-11 rounded-full bg-highlight px-5 text-highlight-foreground hover:bg-highlight/90">
+              <PlusIcon strokeWidth={1.75} /> Nova meta
+            </Button>
+          </div>
+        )}
+      </section>
+
+      <section aria-label="Concluídas" data-testid="goals-done" className="flex flex-col gap-3">
+        <button type="button" aria-expanded={view.doneOpen} aria-controls="goals-done-list" data-testid="done-toggle" onClick={() => updateView((current) => ({ ...current, doneOpen: !current.doneOpen }))} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-full text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+          <h2 className="text-[17px] leading-6 font-semibold">
+            Concluídas <span className="tabular text-muted-foreground">({done.length})</span>
+          </h2>
+          <ChevronDownIcon aria-hidden strokeWidth={1.75} className={`size-5 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none ${view.doneOpen ? "rotate-180" : ""}`} />
+        </button>
+        <div id="goals-done-list" className={`grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none ${view.doneOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`} inert={!view.doneOpen}>
+          <div className="min-h-0 overflow-hidden">
+            {done.length === 0 ? (
+              <p data-testid="done-empty" className="px-1 pb-2 text-[13px] leading-5 text-muted-foreground">
+                Nenhuma meta concluída ainda. Quando você concluir uma, ela fica guardada aqui.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 pb-1 @min-[880px]:grid-cols-2">
+                {done.map((goal) => (
+                  <DoneGoalCard
+                    key={goal.id}
+                    goal={goal}
+                    completedOn={formatDeadline(completedOn(goal, metas).day)}
+                    mobile={isMobile}
+                    onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
+                    onReopen={() => setStatus(goal, "active")}
+                    onDelete={() => setToDelete(goal)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </section>
 
       <GoalSheet draft={draft} today={today} onClose={() => setDraft(null)} onSave={saveGoal} />
       <ConfirmDialog

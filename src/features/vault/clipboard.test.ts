@@ -46,11 +46,11 @@ describe("copySecret", () => {
     expect(clip.value).toBe("outra coisa")
   })
 
-  it("clears anyway when the browser does not let the page read the clipboard", async () => {
+  it("leaves the clipboard alone when the browser does not let the page read it (the value cannot be confirmed)", async () => {
     const clip = fakeClipboard("", true)
     await copySecret("segredo", { clipboard: clip })
     await vi.advanceTimersByTimeAsync(CLIPBOARD_CLEAR_MS + 10)
-    expect(clip.value).toBe("")
+    expect(clip.value).toBe("segredo")
   })
 
   it("clears at once when asked (the vault locked)", async () => {

@@ -1,11 +1,11 @@
 "use client"
 
+import { DayNavigator } from "@/components/organizzou/DayNavigator"
+import { dayNavLabel } from "@/lib/day-label"
 import { useState } from "react"
 import { addMonths, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   PauseIcon,
   Settings2Icon,
   PlusIcon,
@@ -57,7 +57,6 @@ const TAB_ITEMS = [
   { id: "historico", label: "Histórico" },
   { id: "estatisticas", label: "Estatísticas" },
 ]
-const dayName = (day: string) => WEEKDAY_NAMES[parseISO(day).getDay()]
 
 function stepFor(habit: HabitRow) {
   if (habit.unit === "L") return 0.5
@@ -145,17 +144,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   )
   const dayNav =
     tab === "hoje" ? (
-      <div data-testid="rotina-day-nav" className="flex h-10 items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Dia anterior" className="shrink-0" onClick={() => setSelected((d) => shiftDay(d, -1))}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <button type="button" data-testid="rotina-day-label" aria-label="Ir para hoje" title="Ir para hoje" onClick={() => setSelected(today)} className="min-w-0 rounded-full px-2 text-[15px] leading-6 font-semibold whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {dayName(selected)}, {format(parseISO(selected), "d 'de' MMMM", { locale: ptBR })}
-        </button>
-        <Button variant="ghost" size="icon" aria-label="Próximo dia" className="shrink-0" disabled={selected >= today} onClick={() => setSelected((d) => (d >= today ? d : shiftDay(d, 1)))}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
+      <DayNavigator testId="rotina-day-nav" labelTestId="rotina-day-label" label={dayNavLabel(selected)} onPrev={() => setSelected((d) => shiftDay(d, -1))} onNext={() => setSelected((d) => (d >= today ? d : shiftDay(d, 1)))} onToday={() => setSelected(today)} nextDisabled={selected >= today} />
     ) : null
 
   const shiftMonth = (direction: -1 | 1) => {

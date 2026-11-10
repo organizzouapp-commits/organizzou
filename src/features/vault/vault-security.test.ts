@@ -87,14 +87,16 @@ describe("vault code is client-side only", () => {
     expect(withSupabase).toEqual(["features/vault/session.ts"])
   })
 
-  it("keys and secrets are never written to web storage: only the auto-lock choice is", () => {
+  it("keys and secrets are never written to web storage: only the settings (auto-lock, date of the last backup) are", () => {
     const withStorage = VAULT_CODE.filter((f) => /localStorage|sessionStorage|document\.cookie/.test(readFileSync(f, "utf8"))).map(rel)
-    expect(withStorage).toEqual(["features/vault/session.ts"])
-    const session = readFileSync(join(SRC, "features", "vault", "session.ts"), "utf8")
-    expect([...session.matchAll(/localStorage\.setItem\(([^,]+),/g)].map((m) => m[1].trim())).toEqual(["SETTINGS_KEY"])
-    expect(session).toMatch(/JSON\.stringify\(\{ autoLock: value \}\)/)
-    expect(session).not.toMatch(/sessionStorage|document\.cookie/)
+    expect(withStorage).toEqual(["features/vault/settings.ts"])
+    const settings = readFileSync(join(SRC, "features", "vault", "settings.ts"), "utf8")
+    expect([...settings.matchAll(/localStorage\.setItem\(([^,]+),/g)].map((m) => m[1].trim())).toEqual(["SETTINGS_KEY"])
+    // What is saved is parsed down to the two known fields, so nothing else can ride along.
+    expect(settings).toMatch(/return \{ autoLock, lastBackupAt \}/)
+    expect(settings).not.toMatch(/sessionStorage|document\.cookie/)
   })
+
 
   it("the browser-only modules are marked as client code", () => {
     for (const file of files("components/vault", /\.tsx$/)) expect(readFileSync(file, "utf8").trimStart().startsWith('"use client"'), `${rel(file)} needs "use client"`).toBe(true)

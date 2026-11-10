@@ -1,19 +1,22 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { CircleAlertIcon, DicesIcon, FileIcon, PaperclipIcon } from "lucide-react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { CircleAlertIcon, DicesIcon, FileIcon, PaperclipIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PasswordField, StrengthMeter } from "@/components/vault/vault-kit"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { ITEM_ICONS } from "@/components/vault/item-icons"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { fieldClass, pillBase, pillOff, pillOn, StickyFooter } from "@/components/workouts/sheet-fields"
 import { generatePassword } from "@/features/vault/passwords"
+import { touch } from "@/features/vault/session"
 import { MAX_FILE_BYTES, VAULT_TYPES, VAULT_TYPE_LABELS, type VaultItem, type VaultItemType } from "@/features/vault/types"
 import { FileTooLargeError } from "@/features/vault/vault"
 import { newId } from "@/lib/sp-time"
@@ -22,12 +25,37 @@ import { cn } from "@/lib/utils"
 const TEXT = "min-h-24 rounded-[12px] px-3 py-2.5 text-[15px] focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary"
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`
 
-/** "Adicionar item" / "Editar item": a dialog on desktop and a bottom sheet on phones. Everything typed here is encrypted before it is stored. */
-export function ItemSheet({ open, item, defaultType, onClose, onSaved }: { open: boolean; item: VaultItem | null; defaultType: VaultItemType; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+export function ItemSheet({ open, item, defaultType, prefillPassword, onClose, onSaved }: { open: boolean; item: VaultItem | null; defaultType: VaultItemType; prefillPassword?: string; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+  useRestoreFocus(open)
+  const [dirty, setDirty] = useState(false)
+  const [asking, setAsking] = useState(false)
+  // Closing by any way (Esc, outside click, drag, Cancelar) asks first when something was typed; saving closes without asking.
+  const requestClose = () => (dirty ? setAsking(true) : onClose())
+  const finish = () => {
+    setDirty(false)
+    setAsking(false)
+    onClose()
+  }
   return (
-    <ResponsiveSheet open={open} onOpenChange={(o) => !o && onClose()} title={item ? "Editar item" : "Adicionar item"} description="Tudo é criptografado no seu aparelho antes de ser guardado.">
-      {open ? <ItemForm key={item?.id ?? "new"} item={item} defaultType={defaultType} onClose={onClose} onSaved={onSaved} /> : null}
-    </ResponsiveSheet>
+    <>
+      <ResponsiveSheet className="sm:max-w-lg" open={open} onOpenChange={(o) => !o && requestClose()} title={item ? "Editar item" : "Adicionar item"} description="Tudo é criptografado no seu aparelho antes de ser guardado.">
+        {open ? <ItemForm key={item?.id ?? "new"} item={item} defaultType={defaultType} prefillPassword={prefillPassword} onDirtyChange={setDirty} onCancel={requestClose} onClose={finish} onSaved={onSaved} /> : null}
+      </ResponsiveSheet>
+      <AlertDialog open={asking} onOpenChange={setAsking}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar o que você digitou?</AlertDialogTitle>
+            <AlertDialogDescription>As alterações deste item ainda não foram guardadas e serão perdidas.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" data-testid="discard-changes" onClick={finish}>
+              <XIcon strokeWidth={1.75} /> Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 
@@ -40,13 +68,13 @@ function Field({ id, label, value, onChange, placeholder, inputMode, maxLength }
   )
 }
 
-function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | null; defaultType: VaultItemType; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+function ItemForm({ item, defaultType, prefillPassword, onDirtyChange, onCancel, onClose, onSaved }: { item: VaultItem | null; defaultType: VaultItemType; prefillPassword?: string; onDirtyChange: (dirty: boolean) => void; onCancel: () => void; onClose: () => void; onSaved: (item: VaultItem) => void }) {
   const actions = useVaultActions()
   const [type, setType] = useState<VaultItemType>(item?.type ?? defaultType)
   const [v, setV] = useState({
     name: item?.name ?? "",
     username: item?.username ?? "",
-    password: item?.password ?? "",
+    password: item?.password ?? prefillPassword ?? "",
     url: item?.url ?? "",
     holder: item?.holder ?? "",
     number: item?.number ?? "",
@@ -57,6 +85,12 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
   })
   const set = (key: keyof typeof v) => (value: string) => setV((s) => ({ ...s, [key]: value }))
   const [file, setFile] = useState<File | null>(null)
+  const [initial] = useState(() => JSON.stringify([type, v]))
+  // Typing in the form is activity too (the lock timer is pushed back, throttled).
+  useEffect(() => touch(), [v, type])
+  const dirty = file !== null || JSON.stringify([type, v]) !== initial
+  // Layout effect: the parent must know before the very next keystroke (Esc right after typing), not a frame later.
+  useLayoutEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   const [fileError, setFileError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const picker = useRef<HTMLInputElement>(null)
@@ -67,7 +101,8 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
     if (!valid || busy) return
     setBusy(true)
     try {
-      const base: VaultItem = { id: item?.id ?? newId(), type, name: v.name.trim(), notes: v.notes.trim() || undefined, updated_at: new Date().toISOString() }
+      const stamp = new Date().toISOString()
+      const base: VaultItem = { id: item?.id ?? newId(), type, name: v.name.trim(), notes: v.notes.trim() || undefined, updated_at: stamp, created_at: item?.created_at ?? (item ? undefined : stamp), copied_at: item?.copied_at }
       let next: VaultItem = base
       if (type === "login") next = { ...base, username: v.username.trim() || undefined, password: v.password || undefined, url: v.url.trim() || undefined }
       if (type === "card") next = { ...base, holder: v.holder.trim() || undefined, number: v.number.replace(/\s+/g, "") || undefined, expiry: v.expiry.trim() || undefined, cvv: v.cvv.trim() || undefined }
@@ -123,7 +158,7 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
           <div className="flex flex-col gap-2">
             <Label htmlFor="item-password">Senha</Label>
             <div className="flex items-start gap-2">
-              <PasswordField id="item-password" label="a senha" value={v.password} onChange={set("password")} className="min-w-0 flex-1" />
+              <PasswordField id="item-password" label="a senha" value={v.password} onChange={set("password")} autoComplete="new-password" className="min-w-0 flex-1" />
               <Button type="button" variant="outline" aria-label="Gerar uma senha forte" onClick={() => set("password")(generatePassword({ length: 20, upper: true, lower: true, digits: true, symbols: true }))} className="size-11 shrink-0 rounded-full p-0">
                 <DicesIcon strokeWidth={1.75} />
               </Button>
@@ -136,11 +171,14 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
 
       {type === "card" ? (
         <>
-          <Field id="item-holder" label="Nome no cartão" value={v.holder} onChange={set("holder")} />
+          <Field id="item-holder" label="Titular" value={v.holder} onChange={set("holder")} />
           <Field id="item-number" label="Número" value={v.number} onChange={set("number")} inputMode="numeric" maxLength={23} />
           <div className="grid grid-cols-2 gap-4">
             <Field id="item-expiry" label="Validade" value={v.expiry} onChange={set("expiry")} placeholder="MM/AA" maxLength={7} />
-            <Field id="item-cvv" label="Código de segurança" value={v.cvv} onChange={set("cvv")} inputMode="numeric" maxLength={4} />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="item-cvv">CVV</Label>
+              <PasswordField id="item-cvv" label="o CVV" value={v.cvv} onChange={set("cvv")} inputMode="numeric" maxLength={4} />
+            </div>
           </div>
         </>
       ) : null}
@@ -195,7 +233,7 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
       ) : null}
 
       <StickyFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
         <Button type="submit" disabled={!valid || busy} className="bg-highlight text-highlight-foreground hover:bg-highlight/90">

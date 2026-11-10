@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { SP_TIMEZONE } from "@/lib/sp-time"
 
 import type { ShellUser } from "./app-sidebar"
+import { AVATAR_LINKS } from "./account-menu"
 import { BACK_TO_APP_HREF } from "./nav-brand"
 import { metaFor, useNavContext } from "./nav-config"
 import { useNotifications } from "./notifications"
@@ -202,7 +203,7 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           <div className="flex items-center justify-between gap-3 p-3 pt-0">
             <Badge className={cn("rounded-full", pro ? "bg-highlight text-highlight-foreground" : "bg-muted text-muted-foreground")}>{definition.name}</Badge>
             <DropdownMenuItem asChild className="size-8 justify-center rounded-full border border-border p-0">
-              <Link href="/dashboard/plano" aria-label="Ver planos">
+              <Link href={AVATAR_LINKS.plan.href} aria-label="Ver planos">
                 <ChevronRightIcon strokeWidth={1.75} className="size-4" />
               </Link>
             </DropdownMenuItem>
@@ -216,13 +217,15 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             </Link>
           </DropdownMenuItem>
         ) : null}
-        {(nav.account?.items ?? []).map((item) => (
-          <DropdownMenuItem key={item.id} asChild className={menuItem}>
-            <Link href={item.href}>
-              <item.icon strokeWidth={1.75} className={menuIcon} /> {item.label}
-            </Link>
-          </DropdownMenuItem>
-        ))}
+        {nav.account
+          ? [AVATAR_LINKS.profile, AVATAR_LINKS.help, AVATAR_LINKS.settings].map((link) => (
+              <DropdownMenuItem key={link.label} asChild className={menuItem}>
+                <Link href={link.href}>
+                  <link.icon strokeWidth={1.75} className={menuIcon} /> {link.label}
+                </Link>
+              </DropdownMenuItem>
+            ))
+          : null}
         {isAdmin && !inAdmin ? (
           <DropdownMenuItem asChild className={menuItem}>
             <Link href="/admin">

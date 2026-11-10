@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { SparklesIcon } from "lucide-react"
+import { BadgeDollarSignIcon, SparklesIcon } from "lucide-react"
 
-import { ACCOUNT_ITEMS } from "./account-menu"
+import { ACCOUNT_ITEMS, AVATAR_LINKS } from "./account-menu"
 import { moduleList, modules } from "@/components/organizzou/modules"
 import {
   Command,
@@ -105,6 +105,9 @@ export function CommandPalette({ open, onOpenChange, onAskAssistant, initialQuer
                 <item.icon strokeWidth={1.75} /> {item.label}
               </CommandItem>
             ))}
+            <CommandItem value="Plano e cobrança" onSelect={() => go(AVATAR_LINKS.plan.href)}>
+              <BadgeDollarSignIcon strokeWidth={1.75} /> Plano e cobrança
+            </CommandItem>
           </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Módulos">

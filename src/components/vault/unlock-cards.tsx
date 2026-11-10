@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { passwordStrength } from "@/features/vault/passwords"
+import { recordUnlockFailure, resetUnlockFailures, unlockBlockedUntil } from "@/features/vault/unlock-attempts"
 
 const LIMA = "h-12 w-full rounded-full bg-highlight text-[15px] text-highlight-foreground hover:bg-highlight/90"
 
@@ -28,25 +29,25 @@ function CenterCard({ icon: Icon, title, description, children }: { icon: typeof
   )
 }
 
-/** The locked state: one card with the master password and "Desbloquear". A wrong password says only that it is wrong. */
+/** The locked state: one card with the master password and "Desbloquear". A wrong password says only that it is wrong (never a hint). */
 export function UnlockCard({ onUnlock }: { onUnlock: (password: string) => Promise<boolean> }) {
   const [password, setPassword] = useState("")
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [failures, setFailures] = useState(0)
-  const [waitUntil, setWaitUntil] = useState(0)
-  const [now, setNow] = useState(0)
+  const [blockedUntil, setBlockedUntil] = useState(() => unlockBlockedUntil())
+  const [now, setNow] = useState(() => Date.now())
 
-  // After a few wrong tries the button waits a little longer each time.
+  // After four wrong tries the button waits longer each time (see unlock-attempts.ts).
   useEffect(() => {
-    if (waitUntil <= Date.now()) return
+    if (blockedUntil <= Date.now()) return
     const id = window.setInterval(() => {
       setNow(Date.now())
-      if (Date.now() >= waitUntil) window.clearInterval(id)
+      if (Date.now() >= blockedUntil) window.clearInterval(id)
     }, 250)
     return () => window.clearInterval(id)
-  }, [waitUntil])
-  const waiting = waitUntil > now
+  }, [blockedUntil])
+  const secondsLeft = Math.max(0, Math.ceil((blockedUntil - now) / 1000))
+  const waiting = secondsLeft > 0
 
   return (
     <CenterCard icon={LockKeyholeIcon} title="Cofre bloqueado" description="Digite a senha mestra para desbloquear. Ela nunca sai do seu aparelho.">
@@ -60,17 +61,13 @@ export function UnlockCard({ onUnlock }: { onUnlock: (password: string) => Promi
           const ok = await onUnlock(password)
           setBusy(false)
           if (ok) {
+            resetUnlockFailures()
             setPassword("")
             return
           }
           setError(true)
-          const next = failures + 1
-          setFailures(next)
-          if (next >= 3) {
-            const wait = Math.min(30_000, 1000 * 2 ** (next - 3))
-            setWaitUntil(Date.now() + wait)
-            setNow(Date.now())
-          }
+          setBlockedUntil(recordUnlockFailure())
+          setNow(Date.now())
         }}
       >
         <div className="flex flex-col gap-2">
@@ -81,10 +78,16 @@ export function UnlockCard({ onUnlock }: { onUnlock: (password: string) => Promi
               <CircleAlertIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0" /> Senha mestra incorreta. Tente de novo.
             </p>
           ) : null}
+          {waiting ? (
+            <p data-testid="unlock-wait" role="status" className="text-[13px] leading-5 text-muted-foreground">
+              Muitas tentativas. Aguarde {secondsLeft} s para tentar de novo.
+            </p>
+          ) : null}
         </div>
         <Button type="submit" data-testid="unlock-button" disabled={!password || busy || waiting} className={LIMA}>
-          {busy ? "Desbloqueando…" : waiting ? "Aguarde um instante…" : "Desbloquear"}
+          {busy ? "Desbloqueando…" : "Desbloquear"}
         </Button>
+        <p className="text-center text-[13px] leading-5 text-muted-foreground">Esqueceu? Sem a senha mestra não há recuperação.</p>
       </form>
     </CenterCard>
   )

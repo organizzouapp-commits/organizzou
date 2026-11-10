@@ -12,7 +12,7 @@ Rules every screen follows (from the UX review):
 - Lists before cards, hairline dividers, 44 px touch targets, 0.4 s `cubic-bezier(0.2,0.8,0.2,1)` transitions.
 
 ```tsx
-import { PageGrid, PageShell, SettingsLayout, SplitLayout, StatRow } from "@/components/organizzou/layout"
+import { PageGrid, PageShell, SplitLayout, StatRow } from "@/components/organizzou/layout"
 ```
 
 ## PageShell
@@ -48,18 +48,6 @@ sidebar), stacked below. `asideFirst` puts the aside on top when stacked.
 <SplitLayout aside={<><SummaryCard /><UpgradeHint … /></>}>
   <TransactionsList />
 </SplitLayout>
-```
-
-## SettingsLayout
-
-Vertical nav on the left from 1024 px; below that, horizontally scrollable tabs (snap, active tab scrolled into view).
-Content in a `max-w-5xl` column.
-
-```tsx
-const [tab, setTab] = useState("perfil")
-<SettingsLayout sections={[{ id: "perfil", label: "Perfil", icon: UserIcon }, …]} active={tab} onChange={setTab}>
-  {tab === "perfil" ? <ProfileForm /> : …}
-</SettingsLayout>
 ```
 
 ## StatRow

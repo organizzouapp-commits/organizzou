@@ -7,19 +7,17 @@ type ClipboardLike = Pick<Clipboard, "writeText"> & Partial<Pick<Clipboard, "rea
 
 let pending: { text: string; timer: ReturnType<typeof setTimeout>; clipboard: ClipboardLike } | null = null
 
-/** Empties the clipboard if it still holds the copied text. When the browser does not let the page read it, it is emptied anyway (a secret is worth more than a lost copy). */
+/**
+ * Empties the clipboard ONLY if it still holds the copied text: something the person copied since is never touched. When the browser does
+ * not let the page read the clipboard the check cannot be made, so nothing is cleared (it would risk erasing something else).
+ */
 async function clear(clipboard: ClipboardLike, text: string) {
   try {
-    if (clipboard.readText) {
-      try {
-        if ((await clipboard.readText()) !== text) return // the person copied something else since: leave it
-      } catch {
-        // No permission to read: fall through and clear.
-      }
-    }
+    if (!clipboard.readText) return
+    if ((await clipboard.readText()) !== text) return
     await clipboard.writeText("")
   } catch {
-    // Nothing more can be done.
+    // Reading was refused: the value cannot be confirmed, so it is left alone.
   }
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { EllipsisIcon, PlusIcon } from "lucide-react"
+import { FolderPlusIcon, NotebookPenIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InfoLine, LembretesTab } from "@/components/notes/lembretes-tab"
@@ -11,16 +11,10 @@ import { useNotes } from "@/components/notes/use-notes"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
-import { groupReminders, localReminderMetaRepo, nextOccurrence, parseReminderText, type ReminderMetaMap } from "@/features/notes/reminders"
+import { groupReminders, localReminderMetaRepo, nextOccurrence, type ReminderMetaMap } from "@/features/notes/reminders"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { newId } from "@/lib/sp-time"
 
@@ -43,6 +37,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
   const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
   const [reminderDraft, setReminderDraft] = useState<ReminderDraft | null>(null)
+  useRestoreFocus(reminderDraft !== null)
   const [rescheduling, setRescheduling] = useState<{ ids: string[]; title: string } | null>(null)
   const [reminderMetas, setReminderMetas] = useState<ReminderMetaMap>({})
   useEffect(() => {
@@ -59,7 +54,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const c = useNotes({ notes, setNotes, folders, setFolders })
 
   // The top bar's primary button follows the tab.
-  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setReminderDraft(blankDraft(now))))
+  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setReminderDraft(blankDraft(now))), tab === "notas" ? [{ id: "note", label: "Nova nota", icon: NotebookPenIcon, onSelect: c.createNote }, { id: "folder", label: "Nova pasta", icon: FolderPlusIcon, onSelect: () => c.setFolderDialog({ mode: "create" }) }] : undefined)
 
   const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Notas e lembretes" items={TAB_ITEMS} value={tab} onSelect={(item) => {
     // Leaving the Notas tab drops an empty draft.
@@ -68,21 +63,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   }} />
 
   // ---------------------------------------------------------- reminders
-  /** "Pagar boleto amanhã às 9h" creates the reminder; a text that carries no date or time opens the dialog with the title filled in. */
-  function quickReminder(text: string) {
-    if (!text) return setReminderDraft(blankDraft(now))
-    const { title, remindAt } = parseReminderText(text, now)
-    if (remindAt && title) {
-      setReminders((current) => [...current, { id: newId(), user_id: USER, title, remind_at: remindAt, channels: ["push"], status: "pending", note_id: null }])
-      toast.success("Lembrete criado.")
-      return
-    }
-    const draft = blankDraft(now, title)
-    if (remindAt) {
-      const when = draftOf({ id: "", title, remind_at: remindAt }, undefined)
-      setReminderDraft({ ...draft, date: when.date, time: when.time, quick: null })
-    } else setReminderDraft(draft)
-  }
 
   function saveReminder(draft: ReminderDraft) {
     const remind_at = draftInstant(draft)
@@ -146,26 +126,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
               <h2 className="truncate text-[18px] leading-6 font-semibold">Notas e lembretes</h2>
               <p className="truncate text-[13px] leading-5 text-muted-foreground">Anote agora, encontre depois.</p>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Opções de notas e lembretes" data-testid="notas-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
-                  <EllipsisIcon strokeWidth={1.75} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setTab("notas")
-                    c.createNote()
-                  }}
-                >
-                  <PlusIcon strokeWidth={1.75} /> Nova nota
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setReminderDraft(blankDraft(now))}>
-                  <PlusIcon strokeWidth={1.75} /> Novo lembrete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
           {tabs}
         </section>
@@ -173,11 +133,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {tab === "lembretes" ? <InfoLine /> : null}
-          {tab === "notas" ? (
-            <Button type="button" data-testid="new-note" onClick={c.createNote} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-              <PlusIcon strokeWidth={1.75} /> Nova nota
-            </Button>
-          ) : null}
         </div>
       )}
 
@@ -189,7 +144,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
           metas={reminderMetas}
           now={now}
           isMobile={isMobile}
-          onQuick={quickReminder}
+          onNew={() => setReminderDraft(blankDraft(now))}
           onEdit={(row) => setReminderDraft(draftOf(row, reminderMetas[row.id]))}
           onReschedule={(row) => setRescheduling({ ids: [row.id], title: row.title })}
           onRescheduleOverdue={() => {

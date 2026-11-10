@@ -62,9 +62,11 @@ function TopCards({ sorted, inPeriod, period, target, isMobile, onRegister, onGo
       }
       support={last ? `último registro: ${shortDate(last.log_date)}` : "Nenhum registro ainda"}
       actions={
+        isMobile ? (
         <Button type="button" data-testid="register-weight-hero" onClick={onRegister} className={cn(pillOnLima, "mt-auto")}>
           <PlusIcon strokeWidth={1.75} /> Registrar peso
         </Button>
+        ) : undefined
       }
     />
   )
@@ -104,8 +106,8 @@ function TopCards({ sorted, inPeriod, period, target, isMobile, onRegister, onGo
         footer={
           <div className="flex items-center gap-3">
             {progress ? <HatchedProgress value={progress.pct} label={`Meta de peso: ${progress.pct}%`} className="flex-1" /> : <span className="flex-1" />}
-            <Button type="button" variant="outline" className="h-9 rounded-full px-4" onClick={onGoal}>
-              Editar
+            <Button type="button" variant="outline" aria-label="Editar meta" data-testid="edit-goal" className="size-11 shrink-0 rounded-full p-0 md:size-11" onClick={onGoal}>
+              <PencilIcon strokeWidth={1.75} />
             </Button>
           </div>
         }

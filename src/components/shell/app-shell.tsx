@@ -9,6 +9,8 @@ import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
+import { QuickActionsFab } from "./quick-actions-fab"
+import { useQuickActionItems } from "./use-quick-action-items"
 import { splashLog } from "@/components/organizzou/splash/splash-debug"
 import { splash } from "@/components/organizzou/splash/splash-store"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -17,7 +19,6 @@ import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
-import { AssistantFloatingButton } from "./assistant-card"
 import { isPro, type PlanId } from "@/lib/plans"
 import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
 import { AppSidebar, type ShellUser } from "./app-sidebar"
@@ -30,6 +31,7 @@ import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { MobileHeader } from "./mobile-header"
 import { OthersDrawer, isOtherPath } from "./others-drawer"
+import { PLANS_HREF } from "./plan-cta"
 import { PrimaryActionProvider } from "./primary-action"
 import { NotificationsProvider } from "./notifications"
 import type { AppNotification } from "@/features/notifications/types"
@@ -78,18 +80,24 @@ function useIsTablet() {
   )
 }
 
-type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void; onAssistant: (() => void) | null }
+type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void }
+
+/** The speed dial lives in the app (not the admin area); it reads the shell contexts, so it is its own component. */
+function ShellQuickActions() {
+  return <QuickActionsFab items={useQuickActionItems()} />
+}
 
 /**
  * Phones: one fixed row 16 px above the bottom safe area and 16 px from both edges. The floating nav takes the width that is left and
- * the assistant button (Pro only, hidden while the assistant is open) sits at its right. The row hides while the keyboard is open.
+ * the quick-actions button (QuickActionsFab) floats at its right. The row hides while the keyboard is open.
  */
-function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomBarProps) {
+function ShellBottomBar({ items, activeId, onSelect }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
     <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex items-center gap-3 md:hidden", typing && "hidden")}>
       <BottomNav items={items} activeId={activeId} onSelect={onSelect} className="flex-1" />
-      {onAssistant ? <AssistantFloatingButton onClick={onAssistant} /> : null}
+      {/* The slot of the quick-actions button (QuickActionsFab floats over it), so the nav pill never runs under it. */}
+      <div aria-hidden className="size-14 shrink-0" />
     </div>
   )
 }
@@ -97,9 +105,9 @@ function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomB
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
-  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário and Cofre do the same.
+  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário, Cofre, Configurações and Ajuda do the same.
   const pathname = usePathname()
-  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
+  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre", "configuracoes", "ajuda"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
   return (
     <div className={cn("flex min-w-0 flex-col pt-4 pb-4 md:pt-6 md:pb-5", ownsTitle && "max-md:hidden")}>
       <h1 className="truncate pb-0.5 text-[26px] leading-tight font-semibold tracking-[-0.02em] md:text-[30px]">{title}</h1>
@@ -179,7 +187,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   // Warm every module route while the browser is idle (production only; in dev Next does not prefetch), so opening a module
   // streams its skeleton from the cache instead of waiting for the server.
   useEffect(() => {
-    const hrefs = [...nav.groups.flatMap((g) => g.items.map((i) => i.href)), ...(nav.account?.items.map((i) => i.href) ?? []), ...(nav.features.plan ? ["/dashboard/plano"] : [])]
+    const hrefs = [...nav.groups.flatMap((g) => g.items.map((i) => i.href)), ...(nav.account?.items.map((i) => i.href) ?? []), ...(nav.features.plan ? [PLANS_HREF] : [])]
     const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500))
     const handle = idle(() => hrefs.forEach((href) => router.prefetch(href)))
     return () => {
@@ -190,8 +198,8 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   // The virtual assistant is a Pro feature: Free users who reach it (a link, the palette) land on the plans page instead.
   const pro = isPro(plan)
-  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push("/dashboard/plano")), [pro, router])
-  const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true) }), [openAssistant])
+  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push(PLANS_HREF)), [pro, router])
+  const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true), openSearch }), [openAssistant, openSearch])
 
   const withAssistant = nav.features.assistant
 
@@ -227,14 +235,15 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:px-0 md:pt-0 md:pb-0">
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:px-0 md:pt-0 md:pb-24">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>
             </div>
           </SidebarInset>
 
-          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} onAssistant={withAssistant && pro && !assistantOpen ? openAssistant : null} />
+          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} />
+          {withAssistant ? <ShellQuickActions /> : null}
 
           {withAssistant ? (
             <>

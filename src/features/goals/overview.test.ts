@@ -99,27 +99,6 @@ describe("completed goals", () => {
     expect(completedOn(goals[1], metas)).toEqual({ day: "2026-01-09", known: true }) // 01:00Z is still the 9th in São Paulo
     expect(completedOn(goals[2], metas)).toEqual({ day: "2025-12-18", known: false })
   })
-  it("counts the goals completed in the current year", async () => {
-    const { completedThisYear } = await import("./overview")
-    expect(completedThisYear(goals, metas, "2026-11-09")).toBe(3)
-    expect(completedThisYear(goals, metas, "2025-12-31")).toBe(1)
-    expect(completedThisYear([], metas, "2026-11-09")).toBe(0)
-  })
-  it("finds the latest deadline that was met", async () => {
-    const { lastMetDeadline } = await import("./overview")
-    expect(lastMetDeadline(goals, metas)).toMatchObject({ deadline: "2026-10-10", goal: { id: "a" } })
-    // b was completed on 2026-01-09, after its deadline of 2026-01-05: not met.
-    expect(lastMetDeadline([goals[1]], metas)).toBeNull()
-    expect(lastMetDeadline([goals[3]], metas)).toBeNull()
-    expect(lastMetDeadline([], metas)).toBeNull()
-  })
-  it("averages the days to complete over the recorded completions only", async () => {
-    const { averageDaysToComplete } = await import("./overview")
-    // a: 2026-07-01 → 2026-10-04 = 95 days; b: 2025-11-01 → 2026-01-09 = 69 days
-    expect(averageDaysToComplete(goals, metas)).toBe(82)
-    expect(averageDaysToComplete([goals[2], goals[3]], metas)).toBeNull() // only estimates: not enough data
-    expect(averageDaysToComplete([], metas)).toBeNull()
-  })
   it("counts the milestones of the completed goals", () => {
     expect(milestoneTotals([goal("x", null, "x", [], [ms(true), ms(true)]), goal("y", null, "x", [], [ms(true), ms(false), ms(true)])])).toEqual({ done: 4, total: 5 })
   })

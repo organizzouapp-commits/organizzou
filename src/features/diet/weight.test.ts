@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { recentFoods, searchFoods } from "./foods"
-import { deltasVsPrevious, goalProgress, kgPlain, kgText, parseKg, signedKg, sortWeights, stepKg, validKg, variation, weightsInPeriod, yTicks } from "./weight"
+import { deltasVsPrevious, goalProgress, kgPlain, kgText, parseKg, signedKg, sortWeights, stepKg, validKg, variation, weightsInPeriod, withTargetWeight, yTicks } from "./weight"
 import type { FoodRow, MealItemRow } from "./types"
 
 const TODAY = "2026-11-09"
@@ -123,5 +123,36 @@ describe("recentFoods and searchFoods", () => {
     expect(searchFoods(foods, "arroz bran").map((f) => f.id)).toEqual(["a"])
     expect(searchFoods(foods, "").length).toBe(3)
     expect(searchFoods(foods, "xyz")).toEqual([])
+  })
+})
+
+describe("withTargetWeight", () => {
+  const defaults = { id: "goal", kcal: 2000, target_weight_kg: null as number | null }
+
+  it("starts a first goal row from the defaults", () => {
+    expect(withTargetWeight([], defaults, 75)).toEqual([{ id: "goal", kcal: 2000, target_weight_kg: 75 }])
+  })
+
+  it("keeps the other numbers of an existing row and replaces the target", () => {
+    expect(withTargetWeight([{ id: "goal", kcal: 1800, target_weight_kg: 80 }], defaults, 72.5)).toEqual([{ id: "goal", kcal: 1800, target_weight_kg: 72.5 }])
+  })
+
+  it("null removes the target", () => {
+    expect(withTargetWeight([{ id: "goal", kcal: 1800, target_weight_kg: 80 }], defaults, null)[0].target_weight_kg).toBeNull()
+  })
+})
+
+describe("goalProgress on the META card", () => {
+  const log = (weight_kg: number) => ({ weight_kg, log_date: "2026-11-01" })
+  it("is null without a goal or entries", () => {
+    expect(goalProgress([], 75)).toBeNull()
+    expect(goalProgress([log(80)], null)).toBeNull()
+  })
+  it("measures from the first weight to the target, losing or gaining", () => {
+    expect(goalProgress([log(85), log(80)], 75)).toEqual({ pct: 50, remaining: 5, reached: false })
+    expect(goalProgress([log(70), log(72)], 76)).toEqual({ pct: 33, remaining: 4, reached: false })
+  })
+  it("is reached at or past the target", () => {
+    expect(goalProgress([log(85), log(74)], 75)).toEqual({ pct: 100, remaining: 0, reached: true })
   })
 })

@@ -4,10 +4,11 @@ import { useState } from "react"
 import { BellIcon, CalendarCheckIcon, CheckCheckIcon, CheckIcon, ClockIcon, EllipsisIcon, PencilIcon, RotateCcwIcon, Trash2Icon, type LucideIcon } from "lucide-react"
 
 import { BentoStat } from "@/components/finance/bento"
+import { FinanceDeck } from "@/components/finance/finance-deck"
 import { HeroCard, LIST_CARD } from "@/components/finance/parts"
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { QuickAdd } from "@/components/organizzou/quick-add"
+import { OpenRow } from "@/components/organizzou/open-row"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { REPEAT_OPTIONS, clockLabel, doneThisWeek, groupReminders, longDay, mostOverdue, reminderMeta, upcomingLabel, type ReminderGroupId, type ReminderMetaMap } from "@/features/notes/reminders"
@@ -21,7 +22,7 @@ export type LembretesProps = {
   metas: ReminderMetaMap
   now: Date
   isMobile: boolean
-  onQuick: (text: string) => void
+  onNew: () => void
   onEdit: (row: ReminderRow) => void
   onReschedule: (row: ReminderRow) => void
   onRescheduleOverdue: () => void
@@ -140,7 +141,8 @@ export function LembretesTab(props: LembretesProps) {
     </BentoStat>
   )
 
-  const quick = <QuickAdd label="Novo lembrete… ex.: Pagar boleto amanhã às 9h" shortLabel="Novo lembrete…" ariaLabel="Novo lembrete" isMobile={isMobile} onSubmit={props.onQuick} />
+  const quick = <OpenRow label="Novo lembrete… ex.: Pagar boleto amanhã às 9h" shortLabel="Novo lembrete…" isMobile={isMobile} onOpen={props.onNew} />
+const summaryCards = [    hero,    stat("Hoje", CalendarCheckIcon, groups.today.length, groups.today.length === 0 ? "nada marcado" : `próximo: ${clockLabel(groups.today[0].remind_at)}`),    stat("Mais tarde", ClockIcon, groups.later.length, groups.later.length === 0 ? "nada agendado" : `próximo: ${upcomingLabel(groups.later[0].remind_at, now)}`),    stat("Concluídos", CheckCheckIcon, doneThisWeek(reminders, now), "esta semana"),  ]
   const dialogs = (
     <>
       <ConfirmDialog
@@ -173,7 +175,7 @@ export function LembretesTab(props: LembretesProps) {
       <div data-testid="lembretes-tab" className="flex min-w-0 flex-col gap-3">
         {quick}
         <InfoLine />
-        {hero}
+        <FinanceDeck title={null} label="Resumo dos lembretes" noun="resumo" initialHeight={216} slides={[{ id: "overdue", hero: true, node: summaryCards[0] }, { id: "today", node: summaryCards[1] }, { id: "later", node: summaryCards[2] }, { id: "done", node: summaryCards[3] }]} />
         <div className="flex flex-col gap-1">
           {order
             .filter((id) => id === "today" || groups[id].length > 0)
@@ -205,12 +207,7 @@ export function LembretesTab(props: LembretesProps) {
     <div data-testid="lembretes-tab" className="@container flex min-w-0 flex-col gap-4">
       {quick}
       <div data-testid="reminder-summary" className="grid grid-cols-2 gap-4 @min-[1000px]:grid-cols-4">
-        {[
-          hero,
-          stat("Hoje", CalendarCheckIcon, groups.today.length, groups.today.length === 0 ? "nada marcado" : `próximo: ${clockLabel(groups.today[0].remind_at)}`),
-          stat("Mais tarde", ClockIcon, groups.later.length, groups.later.length === 0 ? "nada agendado" : `próximo: ${upcomingLabel(groups.later[0].remind_at, now)}`),
-          stat("Concluídos", CheckCheckIcon, doneThisWeek(reminders, now), "esta semana"),
-        ].map((card, i) => (
+        {summaryCards.map((card, i) => (
           <div key={i} className="flex min-w-0 flex-col [&>*]:flex-1">
             {card}
           </div>

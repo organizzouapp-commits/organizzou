@@ -79,3 +79,8 @@ export function parseKg(text: string): number | null {
 }
 
 export const validKg = (kg: number | null): kg is number => kg !== null && kg > MIN_KG && kg < MAX_KG
+
+/** The goal rows after saving a target weight (null removes it): the existing row keeps its other numbers, a first one starts from `defaults`. */
+export function withTargetWeight<T extends { target_weight_kg: number | null }>(rows: T[], defaults: T, kg: number | null): T[] {
+  return [{ ...(rows[0] ?? defaults), target_weight_kg: kg }]
+}

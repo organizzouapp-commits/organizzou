@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import { persistRows, type PersistResult } from "./actions"
 import { columnsOf, TABLES, type TableName } from "./registry"
+import { shouldAdoptServerRows } from "./sync"
 
 const SAVE_ERROR = "Não consegui salvar. A alteração foi desfeita"
 
@@ -89,12 +90,12 @@ export function usePersistedRows<T extends { id: string }>(table: TableName, ini
 
   // When the server sends different rows (router.refresh() after a quick capture or the assistant created something), show them, unless
   // this screen has changes of its own that have not been sent yet. Rows equal to what is already here change nothing.
-  const seen = useRef(initial)
+  const seenJson = useRef<string | null>(typeof initial === "function" ? null : JSON.stringify(initial))
   useEffect(() => {
-    if (typeof initial === "function" || seen.current === initial) return
-    seen.current = initial
-    if (sent.current !== current.current) return
-    if (JSON.stringify(initial) === JSON.stringify(sent.current)) return
+    if (typeof initial === "function") return
+    const decision = shouldAdoptServerRows({ lastSeenJson: seenJson.current, incoming: initial, hasUnsentChanges: sent.current !== current.current, shownJson: JSON.stringify(sent.current) })
+    seenJson.current = decision.seenJson
+    if (!decision.adopt) return
     sent.current = initial
     current.current = initial
     setState(initial)

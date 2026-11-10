@@ -3,70 +3,130 @@
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { PlusIcon, SearchIcon } from "lucide-react"
+import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react"
 
 import { SegmentedPills } from "@/components/finance/bento"
+import { AddPill } from "@/components/finance/parts"
+import { ActionMenu } from "@/components/organizzou/action-menu"
+import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DecimalStepper, fieldClass, pillBase, pillOff, pillOn, StickyFooter } from "@/components/workouts/sheet-fields"
+import { EMPTY_FOOD_FORM, PORTION_UNITS, formFromFood, kcalHint, validateFood, type FoodErrors, type FoodForm, type FoodValues, type PortionUnitId } from "@/features/diet/custom-food"
 import { searchFoods } from "@/features/diet/foods"
 import { MEALS } from "@/features/diet/history"
 import { itemMacros } from "@/features/diet/stats"
 import { MEAL_LABELS, type FoodRow, type MealKind } from "@/features/diet/types"
 import { MAX_KG, MIN_KG, parseKg, validKg } from "@/features/diet/weight"
 import { shiftDay } from "@/features/habits/stats"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
 const LIMA_BUTTON = "bg-highlight text-highlight-foreground hover:bg-highlight/90"
 const num = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
 
-// ------------------------------------------------------------------ add food (2 steps)
+// ------------------------------------------------------------------ add food (search → quantity, or search → new food → quantity)
 
-/** "Adicionar alimento": step 1 searches the catalog (recent foods first), step 2 picks the meal and the quantity. */
-export function FoodSheet({ meal, foods, recents, onClose, onAdd }: { meal: MealKind | null; foods: FoodRow[]; recents: FoodRow[]; onClose: () => void; onAdd: (meal: MealKind, foodId: string, servings: number) => void }) {
+type SheetStep = { kind: "search" } | { kind: "form"; food: FoodRow | null; name: string }
+
+/**
+ * "Adicionar alimento": step 1 searches the foods (recent first) and can register a new one, step 2 picks the meal and the quantity.
+ * A food the person created ("Meu alimento") can be edited or deleted from its "…" menu; deleting only hides it, past meals keep it.
+ */
+export function FoodSheet({
+  meal,
+  foods,
+  recents,
+  fiberOf,
+  onClose,
+  onAdd,
+  onSaveFood,
+  onDeleteFood,
+}: {
+  meal: MealKind | null
+  foods: FoodRow[]
+  recents: FoodRow[]
+  fiberOf: (id: string) => number | null
+  onClose: () => void
+  onAdd: (meal: MealKind, foodId: string, servings: number) => void
+  /** Creates (the food has no row yet) or updates a food of the person; the fiber has no column yet. */
+  onSaveFood: (food: FoodRow, fiber: number | null) => void
+  onDeleteFood: (food: FoodRow) => void
+}) {
+  const isMobile = useIsMobile()
   const [chosen, setChosen] = useState<FoodRow | null>(null)
+  const [step, setStep] = useState<SheetStep>({ kind: "search" })
+  const [deleting, setDeleting] = useState<FoodRow | null>(null)
   const close = () => {
     setChosen(null)
+    setStep({ kind: "search" })
     onClose()
   }
+  const own = foods.filter((f) => f.user_id !== null)
+  const title = chosen ? chosen.name : step.kind === "form" ? (step.food ? "Editar alimento" : "Novo alimento") : "Adicionar alimento"
+  const description = chosen ? `Porção: ${chosen.serving_label} · passo 2 de 2` : step.kind === "form" ? "Calorias e macros de uma porção" : meal ? `${MEAL_LABELS[meal]} · passo 1 de 2` : undefined
   return (
-    <ResponsiveSheet
-      open={Boolean(meal)}
-      onOpenChange={(open) => !open && close()}
-      title={chosen ? chosen.name : "Adicionar alimento"}
-      description={chosen ? `Porção: ${chosen.serving_label} · passo 2 de 2` : meal ? `${MEAL_LABELS[meal]} · passo 1 de 2` : undefined}
-    >
-      {meal ? (
-        chosen ? (
-          <QuantityStep
-            key={chosen.id}
-            food={chosen}
-            initialMeal={meal}
-            onBack={() => setChosen(null)}
-            onAdd={(m, servings) => {
-              onAdd(m, chosen.id, servings)
-              close()
-            }}
-          />
-        ) : (
-          <SearchStep foods={foods} recents={recents} onPick={setChosen} onCancel={close} />
-        )
-      ) : null}
-    </ResponsiveSheet>
+    <>
+      <ResponsiveSheet open={Boolean(meal)} onOpenChange={(open) => !open && close()} title={title} description={description}>
+        {meal ? (
+          chosen ? (
+            <QuantityStep
+              key={chosen.id}
+              food={chosen}
+              initialMeal={meal}
+              onBack={() => setChosen(null)}
+              onAdd={(m, servings) => {
+                onAdd(m, chosen.id, servings)
+                close()
+              }}
+            />
+          ) : step.kind === "form" ? (
+            <FoodFormStep
+              key={step.food?.id ?? "new"}
+              initial={step.food ? formFromFood(step.food, fiberOf(step.food.id)) : { ...EMPTY_FOOD_FORM, name: step.name }}
+              others={own.filter((f) => f.id !== step.food?.id)}
+              editing={Boolean(step.food)}
+              onBack={() => setStep({ kind: "search" })}
+              onSave={(values) => {
+                const food: FoodRow = { id: step.food?.id ?? newId(), user_id: step.food?.user_id ?? "self", name: values.name, serving_label: values.serving_label, kcal: values.kcal, protein_g: values.protein_g, carbs_g: values.carbs_g, fat_g: values.fat_g }
+                onSaveFood(food, values.fiber_g)
+                setStep({ kind: "search" })
+                // A new food continues into the quantity step as if it had been picked from the list; an edit goes back to the list.
+                if (!step.food) setChosen(food)
+              }}
+            />
+          ) : (
+            <SearchStep foods={foods} recents={recents} isMobile={isMobile} onPick={setChosen} onCancel={close} onCreate={(name) => setStep({ kind: "form", food: null, name })} onEdit={(food) => setStep({ kind: "form", food, name: food.name })} onDelete={setDeleting} />
+          )
+        ) : null}
+      </ResponsiveSheet>
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={deleting ? `Excluir “${deleting.name}”?` : "Excluir alimento?"}
+        description="O alimento sai da sua lista. As refeições que você já registrou com ele continuam como estão."
+        onConfirm={() => {
+          if (deleting) onDeleteFood(deleting)
+          setDeleting(null)
+        }}
+      />
+    </>
   )
 }
 
 type Source = "recentes" | "todos"
 
-function SearchStep({ foods, recents, onPick, onCancel }: { foods: FoodRow[]; recents: FoodRow[]; onPick: (food: FoodRow) => void; onCancel: () => void }) {
+function SearchStep({ foods, recents, isMobile, onPick, onCancel, onCreate, onEdit, onDelete }: { foods: FoodRow[]; recents: FoodRow[]; isMobile: boolean; onPick: (food: FoodRow) => void; onCancel: () => void; onCreate: (name: string) => void; onEdit: (food: FoodRow) => void; onDelete: (food: FoodRow) => void }) {
   const [query, setQuery] = useState("")
   // Favorites do not exist yet (no flag on foods), so only Recentes and Todos are offered.
   const [source, setSource] = useState<Source>(recents.length > 0 ? "recentes" : "todos")
   const searching = query.trim() !== ""
   const list = searching ? searchFoods(foods, query) : source === "recentes" ? recents : foods
+  const typed = query.trim()
   return (
     <div className="flex flex-col gap-4">
       <div className="relative">
@@ -89,10 +149,17 @@ function SearchStep({ foods, recents, onPick, onCancel }: { foods: FoodRow[]; re
       <ul data-testid="food-results" className="scroll-soft -mx-2 flex max-h-[min(46dvh,340px)] min-h-14 flex-col overflow-y-auto">
         {list.length === 0 ? <li className="px-2 py-4 text-[13px] leading-5 text-muted-foreground">{searching ? "Nenhum alimento encontrado." : "Nada por aqui ainda. Veja a lista completa em Todos."}</li> : null}
         {list.map((f) => (
-          <li key={f.id}>
-            <button type="button" data-food={f.id} onClick={() => onPick(f)} className="flex min-h-14 w-full items-center gap-3 rounded-[14px] px-2 py-1.5 text-left outline-none transition-colors duration-[400ms] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none">
+          <li key={f.id} className="flex items-center">
+            <button type="button" data-food={f.id} onClick={() => onPick(f)} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-[14px] px-2 py-1.5 text-left outline-none transition-colors duration-[400ms] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none">
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[15px] leading-6 font-medium">{f.name}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-[15px] leading-6 font-medium">{f.name}</span>
+                  {f.user_id !== null ? (
+                    <span data-chip="own" className="inline-flex h-5 shrink-0 items-center rounded-full border border-foreground/25 px-2 text-[11px] leading-4 whitespace-nowrap text-muted-foreground">
+                      Meu alimento
+                    </span>
+                  ) : null}
+                </span>
                 <span className="truncate text-[13px] leading-5 text-muted-foreground">{f.serving_label}</span>
               </span>
               <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">{f.kcal} kcal</span>
@@ -100,15 +167,116 @@ function SearchStep({ foods, recents, onPick, onCancel }: { foods: FoodRow[]; re
                 <PlusIcon strokeWidth={1.75} className="size-4" />
               </span>
             </button>
+            {f.user_id !== null ? (
+              <ActionMenu
+                ariaLabel={`Opções de ${f.name}`}
+                title={f.name}
+                mobile={isMobile}
+                items={[
+                  { label: "Editar alimento", icon: PencilIcon, run: () => onEdit(f) },
+                  { label: "Excluir alimento", icon: Trash2Icon, run: () => onDelete(f), separated: true },
+                ]}
+              />
+            ) : null}
           </li>
         ))}
       </ul>
+      {/* The way to a new food: always under the list, and the name typed in the search goes along. */}
+      <AddPill label={searching ? `Cadastrar “${typed}”` : "Cadastrar novo alimento"} onClick={() => onCreate(typed)} className="h-11 md:h-11" />
       <StickyFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
       </StickyFooter>
     </div>
+  )
+}
+
+/** "Novo alimento" / "Editar alimento": name, portion, calories and macros per serving, optional fiber. */
+function FoodFormStep({ initial, others, editing, onBack, onSave }: { initial: FoodForm; others: FoodRow[]; editing: boolean; onBack: () => void; onSave: (values: FoodValues) => void }) {
+  const [form, setForm] = useState<FoodForm>(initial)
+  const [errors, setErrors] = useState<FoodErrors>({})
+  const hint = kcalHint(form)
+  type NumberKey = "portionQty" | "kcal" | "protein" | "carbs" | "fat" | "fiber"
+  const field = (key: NumberKey, label: string, unit?: string, placeholder?: string) => (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={`food-${key}`}>{label}</Label>
+      <div className="relative">
+        <Input id={`food-${key}`} inputMode="decimal" autoComplete="off" placeholder={placeholder} aria-invalid={Boolean(errors[key])} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} className={cn(fieldClass, unit && "pr-12")} />
+        {unit ? (
+          <span aria-hidden className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[13px] text-muted-foreground">
+            {unit}
+          </span>
+        ) : null}
+      </div>
+      {errors[key] ? (
+        <p role="alert" className="text-[13px] leading-5 font-medium">
+          {errors[key]}
+        </p>
+      ) : null}
+    </div>
+  )
+  return (
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const result = validateFood(form, others)
+        if (!result.ok) return setErrors(result.errors)
+        setErrors({})
+        onSave(result.values)
+      }}
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="food-name">Nome</Label>
+        <Input id="food-name" autoFocus autoComplete="off" maxLength={120} aria-invalid={Boolean(errors.name)} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={fieldClass} />
+        {errors.name ? (
+          <p role="alert" className="text-[13px] leading-5 font-medium">
+            {errors.name}
+          </p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {field("portionQty", "Porção")}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="food-unit">Unidade</Label>
+          <Select value={form.unit} onValueChange={(v) => setForm((f) => ({ ...f, unit: v as PortionUnitId }))}>
+            <SelectTrigger id="food-unit" className={cn(fieldClass, "w-full")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PORTION_UNITS.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.one}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        {field("kcal", "Calorias", "kcal", "por porção")}
+        {hint !== null ? (
+          <p data-testid="kcal-hint" className="text-[13px] leading-5 text-muted-foreground">
+            Calorias aproximadas pelos macros: {hint} kcal
+          </p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {field("protein", "Proteínas", "g")}
+        {field("carbs", "Carboidratos", "g")}
+        {field("fat", "Gorduras", "g")}
+      </div>
+      {field("fiber", "Fibras (opcional)", "g")}
+      <StickyFooter>
+        <Button type="button" variant="outline" onClick={onBack}>
+          Voltar
+        </Button>
+        <Button type="submit" data-testid="save-food" className={LIMA_BUTTON}>
+          {editing ? "Salvar" : "Salvar e adicionar"}
+        </Button>
+      </StickyFooter>
+    </form>
   )
 }
 

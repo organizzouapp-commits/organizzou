@@ -5,6 +5,7 @@ import type { Dispatch, SetStateAction } from "react"
 import { toast } from "sonner"
 
 import { duplicateNote, exportMarkdown, filterNotes, folderEntries, shouldDiscardDraft, shouldPersistDraft, startDraft, type FolderKey } from "@/features/notes/notes"
+import type { FolderDialogState } from "@/components/notes/folder-dialog"
 import type { NoteFolderRow, NoteRow } from "@/features/notes/types"
 import { newId } from "@/lib/sp-time"
 
@@ -27,6 +28,7 @@ export function useNotes({ notes, setNotes, folders, setFolders }: { notes: Note
   const [draft, setDraft] = useState<NoteRow | null>(null)
   const [toDelete, setToDelete] = useState<NoteRow | null>(null)
   const [moving, setMoving] = useState<NoteRow | null>(null)
+  const [folderDialog, setFolderDialog] = useState<FolderDialogState | null>(null)
   const [pending, setPending] = useState(false)
   const [focusTick, setFocusTick] = useState(0)
   const timer = useRef<number | undefined>(undefined)
@@ -97,6 +99,11 @@ export function useNotes({ notes, setNotes, folders, setFolders }: { notes: Note
     toast.success("Pasta criada.")
   }
 
+  function renameFolder(id: string, name: string) {
+    setFolders((current) => current.map((f) => (f.id === id ? { ...f, name } : f)))
+    toast.success("Pasta renomeada.")
+  }
+
   function duplicate(note: NoteRow) {
     const copy = duplicateNote(note, newId(), new Date().toISOString())
     setNotes((current) => [copy, ...current])
@@ -160,6 +167,9 @@ export function useNotes({ notes, setNotes, folders, setFolders }: { notes: Note
     select,
     close,
     addFolder,
+    renameFolder,
+    folderDialog,
+    setFolderDialog,
     duplicate,
     exportNote,
     confirmDelete,

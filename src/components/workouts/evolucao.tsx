@@ -281,13 +281,14 @@ function VolumeCard({ sets, sessions, today, period, isMobile }: Data & { period
 
 // ------------------------------------------------------------------ records
 
-function RecordsCard({ sets, sessions, exercises, today }: Data) {
+function RecordsCard({ sets, sessions, exercises, today, isMobile }: Data & { isMobile: boolean }) {
   const rows = recordRows(sets, sessions)
   const name = (id: string) => exercises.find((e) => e.id === id)?.name ?? "Exercício"
   return (
     <BentoCard title="Recordes pessoais" data-testid="evolution-records" actions={<span data-chip className={chip}>{rows.length} no total</span>}>
       {rows.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Os recordes aparecem aqui depois do primeiro treino concluído.</p> : null}
-      <ul className="grid gap-x-8 @min-[900px]:grid-cols-2">
+      {/* Phones show about five records; the rest scroll inside the card (no scroll chaining to the page), with a soft fade at the bottom. */}
+      <ul data-testid="records-list" className={cn("grid gap-x-8 @min-[900px]:grid-cols-2", isMobile && rows.length > 5 && "fade-y-end max-h-[26rem] overflow-y-auto overscroll-contain pb-6")}>
         {rows.map((row) => {
           const gain = recordGain(row)
           return (
@@ -334,7 +335,7 @@ export function EvolucaoTab({ sets, sessions, plans, exercises, today, period, e
           <VolumeCard {...data} period={period} isMobile={isMobile} />
         </div>
       </div>
-      <RecordsCard {...data} />
+      <RecordsCard {...data} isMobile={isMobile} />
     </div>
   )
 }

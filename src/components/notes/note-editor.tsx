@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeftIcon, BoldIcon, CheckIcon, CopyIcon, DownloadIcon, EllipsisIcon, FolderIcon, HeadingIcon, ItalicIcon, ListChecksIcon, ListIcon, PinIcon, Trash2Icon, type LucideIcon } from "lucide-react"
+import { XIcon, BoldIcon, CheckIcon, CopyIcon, DownloadIcon, EllipsisIcon, FolderIcon, HeadingIcon, ItalicIcon, ListChecksIcon, ListIcon, PinIcon, Trash2Icon, type LucideIcon } from "lucide-react"
 
 import { NotePreview } from "@/components/notes/note-preview"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
@@ -246,9 +246,9 @@ export function NoteEditor(props: NoteEditorProps) {
   if (mobile) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center gap-1 px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          <Button type="button" variant="ghost" size="icon" aria-label="Voltar para a lista" data-testid="note-back" className={ICON_BUTTON} onClick={props.onBack}>
-            <ArrowLeftIcon strokeWidth={1.75} />
+        <div className="flex items-center gap-1 px-2 pt-1">
+          <Button type="button" variant="ghost" size="icon" aria-label="Fechar a nota" data-testid="note-back" className={ICON_BUTTON} onClick={props.onBack}>
+            <XIcon strokeWidth={1.75} />
           </Button>
           <button type="button" aria-label={`Pasta: ${folderName ?? "sem pasta"}. Mover para outra pasta`} onClick={props.onMove} className={cn(chip, "mr-auto h-8 gap-1.5 px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50")}>
             <FolderIcon aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
@@ -257,7 +257,7 @@ export function NoteEditor(props: NoteEditorProps) {
           {pin}
           {menu}
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pt-2">
+        <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-3 px-4 pt-2">
           {titleInput}
           <div className="flex justify-start">
             <ModeSwitch editing={editing} onChange={onEditing} />
@@ -265,7 +265,7 @@ export function NoteEditor(props: NoteEditorProps) {
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{content}</div>
           <div className="pb-2">{footer}</div>
         </div>
-        <div role="toolbar" aria-label="Formatação" data-testid="note-toolbar" className="flex h-16 shrink-0 items-center justify-around border-t border-border bg-card px-2 pb-[env(safe-area-inset-bottom)] box-content">
+        <div role="toolbar" data-vaul-no-drag aria-label="Formatação" data-testid="note-toolbar" className="flex h-16 shrink-0 items-center justify-around border-t border-border bg-card px-2 pb-[env(safe-area-inset-bottom)] box-content">
           {TOOLS.map((t) => toolButton(t.kind, t.label, t.icon, "size-12 rounded-full"))}
         </div>
       </div>

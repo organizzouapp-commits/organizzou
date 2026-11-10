@@ -4,8 +4,8 @@ import Link from "next/link"
 import { BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
+import { settingsHref } from "@/lib/settings-tabs"
 
-import { AssistantCard } from "./assistant-card"
 import { cn } from "@/lib/utils"
 
 type CardProps = {
@@ -13,7 +13,7 @@ type CardProps = {
   className?: string
 }
 
-export const PLANS_HREF = "/dashboard/plano"
+export const PLANS_HREF = settingsHref("plano")
 
 const cardClass = "flex flex-col gap-3 rounded-[20px] bg-highlight p-4 text-highlight-foreground [@media(max-height:900px)]:gap-2 [@media(max-height:900px)]:p-3"
 const buttonClass =
@@ -38,8 +38,8 @@ export function UpgradeCta({ onNavigate, className }: CardProps) {
   )
 }
 
-/** The slot at the bottom of the sidebar: Free users see the upgrade card, Pro users the virtual assistant. */
+/** The slot at the bottom of the sidebar: the upgrade card for Free users, nothing for Pro (the assistant is in the quick-actions button). */
 export function SidebarCta({ onNavigate, className }: CardProps) {
   const { pro } = usePlan()
-  return pro ? <AssistantCard onNavigate={onNavigate} className={className} /> : <UpgradeCta onNavigate={onNavigate} className={className} />
+  return pro ? null : <UpgradeCta onNavigate={onNavigate} className={className} />
 }

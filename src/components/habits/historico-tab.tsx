@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckIcon, ChevronDownIcon, FlameIcon, PencilIcon } from "lucide-react"
 
 import { BentoCard, SegmentedPills } from "@/components/finance/bento"
-import { LIST_CARD, StatusChip } from "@/components/finance/parts"
+import { LIST_CARD } from "@/components/finance/parts"
 import { DayDot, HATCH_STYLE, HabitGlyph, Lead, Stepper, dayName, formatQty, plural } from "@/components/habits/hoje-tab"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
 export type HistoryMode = "mes" | "semanas"
 export const HISTORY_MODES = [
   { id: "mes" as const, label: "Mês" },
-  { id: "semanas" as const, label: "4 semanas" },
+  { id: "semanas" as const, label: "Semanas" },
 ]
 
 const WEEKDAY_LETTERS = ["D", "S", "T", "Q", "Q", "S", "S"]
@@ -101,17 +101,19 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
   const cells = mode === "mes" ? monthCells(month) : fourWeekCells(today)
   const title = mode === "mes" ? format(parseISO(`${month}-01`), "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase()) : "Últimas 4 semanas"
   const scope = single ? [single] : habits
+  const weeks = mode === "semanas"
 
   return (
     <BentoCard title={title} data-testid="history-calendar" actions={isMobile ? null : <HistoryModeSwitch value={mode} onChange={onMode} />}>
       <div className="@container flex flex-col gap-3">
-        <div className="grid grid-cols-7 gap-1.5 @min-[560px]:gap-2">
+        <div className={cn("grid gap-1.5 @min-[560px]:gap-2", weeks ? "grid-cols-[2.25rem_repeat(7,minmax(0,1fr))] @min-[560px]:grid-cols-[3rem_repeat(7,minmax(0,1fr))]" : "grid-cols-7")}>
+          {weeks ? <span aria-hidden /> : null}
           {WEEKDAY_LETTERS.map((letter, i) => (
             <span key={i} aria-hidden className="pb-0.5 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
               {letter}
             </span>
           ))}
-          {cells.map(({ day, inMonth }) => {
+          {cells.map(({ day, inMonth }, index) => {
             const record = dayRecord(scope, logs, day)
             const future = day > today
             const isToday = day === today
@@ -123,8 +125,14 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
             const status = single ? (kind === "done" ? "feito" : kind === "missed" ? "não feito" : kind === "off" ? "sem agenda" : "pendente") : record.total === 0 ? "sem hábitos" : `${record.done} de ${record.total} hábitos`
             const fraction = !single && inMonth && !future && record.total > 0 ? `${record.done}/${record.total}` : null
             return (
+              <Fragment key={day}>
+              {weeks && index % 7 === 0 ? (
+                <span data-week-label className="tabular flex flex-col items-center justify-center text-[11px] leading-4 text-muted-foreground @min-[560px]:items-start">
+                  <span className="font-semibold">S{index / 7 + 1}</span>
+                  <span className="hidden @min-[560px]:inline">{format(parseISO(day), "dd/MM")}</span>
+                </span>
+              ) : null}
               <button
-                key={day}
                 type="button"
                 data-day={day}
                 data-level={filled ? level : hatched ? 0 : undefined}
@@ -145,6 +153,7 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
                 </span>
                 {fraction ? <span className="tabular hidden text-[12px] leading-4 @min-[560px]:block">{fraction}</span> : null}
               </button>
+              </Fragment>
             )
           })}
         </div>
@@ -257,37 +266,42 @@ function HabitsCard({ habits, logs, today, isMobile }: { habits: HabitRow[]; log
   const average = averageRate(active, logs, today)
   const starts = blockStarts(today)
   return (
-    <BentoCard title="Por hábito · últimas 4 semanas" data-testid="history-habits" actions={<span data-chip className="tabular inline-flex h-6 items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">média {average}%</span>}>
+    <BentoCard title={isMobile ? "Por hábito" : "Por hábito · últimas 4 semanas"} subtitle={isMobile ? "Últimas 4 semanas" : undefined} data-testid="history-habits" actions={<span data-chip className="tabular inline-flex h-6 items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">média {average}%</span>}>
       {active.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Nenhum hábito ativo.</p> : null}
       {isMobile ? (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col divide-y divide-border">
           {active.map((habit) => {
             const rate = windowRate(habit, logs, today)
-            const { strip, label } = summaryOf(habit, logs, today, 14)
+            const streak = currentStreak(habit, logs, today)
+            const { strip, label } = summaryOf(habit, logs, today, 28)
             return (
-              <li key={habit.id} data-habit={habit.id} className={cn(LIST_CARD, "flex flex-col gap-3 p-3")}>
-                <div className="flex items-center gap-3">
+              <li key={habit.id} data-habit={habit.id} className="flex min-h-11 flex-col gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="flex items-start gap-3">
                   <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border">
                     <HabitGlyph name={habit.name} className="size-[18px]" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] leading-5 font-semibold">{habit.name}</p>
+                    <p className="line-clamp-2 text-[15px] leading-5 font-semibold">{habit.name}</p>
                     <p className="tabular text-[13px] leading-5 text-muted-foreground">{rate}% nas 4 semanas</p>
                   </div>
-                  {currentStreak(habit, logs, today) > 0 ? <StatusChip icon={FlameIcon}>{plural(currentStreak(habit, logs, today), "dia", "dias")}</StatusChip> : null}
+                  {streak > 0 ? (
+                    <span data-chip="streak" className="tabular inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">
+                      <FlameIcon aria-hidden strokeWidth={1.75} className="size-3" />
+                      {plural(streak, "dia", "dias")}
+                    </span>
+                  ) : null}
                 </div>
-                <div className="flex flex-col gap-1">
-                  <div role="img" aria-label={`Últimos 14 dias de ${habit.name}: ${label}`} data-strip className="grid grid-cols-14 gap-0.5">
-                    {strip.map(({ day, state }) => (
-                      <span key={day} className="flex justify-center">
-                        <DayDot state={state} size="size-5" />
+                <div role="img" aria-label={`Últimas 4 semanas de ${habit.name}: ${label}`} data-strip data-weeks-grid className="grid grid-cols-[1.75rem_repeat(7,14px)] justify-between gap-y-1.5 pl-12">
+                  {[0, 1, 2, 3].map((week) => (
+                    <Fragment key={week}>
+                      <span aria-hidden className="tabular text-[11px] leading-[14px] text-muted-foreground">
+                        S{week + 1}
                       </span>
-                    ))}
-                  </div>
-                  <p aria-hidden className="tabular flex justify-between text-[11px] leading-4 text-muted-foreground">
-                    <span>{format(parseISO(strip[0].day), "dd/MM")}</span>
-                    <span>hoje</span>
-                  </p>
+                      {strip.slice(week * 7, week * 7 + 7).map(({ day, state }) => (
+                        <DayDot key={day} state={state} size="size-3.5" />
+                      ))}
+                    </Fragment>
+                  ))}
                 </div>
               </li>
             )

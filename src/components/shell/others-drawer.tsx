@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { LogOutIcon } from "lucide-react"
 
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { cn } from "@/lib/utils"
 
 import { isActivePath, useNav, type NavConfig } from "./nav-config"
 import { SidebarCta } from "./plan-cta"
+import { useRequestSignOut } from "./sign-out-dialog"
 
 /** True when the route belongs to a page that is only reachable from the "more" sheet ("Outros" in the app, "Mais" in the admin). */
 export function isOtherPath(nav: NavConfig, pathname: string) {
@@ -19,6 +21,7 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
   const pathname = usePathname()
   const nav = useNav()
   const { more } = nav.mobile
+  const requestSignOut = useRequestSignOut()
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -28,7 +31,7 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
           <DrawerDescription className="sr-only">Escolha uma página para abrir.</DrawerDescription>
         </DrawerHeader>
         <div className="no-scrollbar flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {/* Same slot as the sidebar card: the upgrade card for Free users, the virtual assistant for Pro (no floating button on phones). */}
+          {/* Same slot as the sidebar card: the upgrade card for Free users (the assistant is in the quick-actions button). */}
           {nav.features.plan ? <SidebarCta onNavigate={() => onOpenChange(false)} className="[&]:min-h-14" /> : null}
         <nav aria-label={more.title} className="flex flex-col gap-4">
           {more.sections.map((section, index) => (
@@ -54,6 +57,19 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
               })}
             </div>
           ))}
+          {nav.account ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false)
+                requestSignOut()
+              }}
+              className="flex min-h-11 w-full items-center gap-4 rounded-full px-3 text-left text-[15px] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
+              Sair
+            </button>
+          ) : null}
         </nav>
         </div>
       </DrawerContent>
