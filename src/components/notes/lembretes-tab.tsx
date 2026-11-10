@@ -7,7 +7,7 @@ import { BentoStat } from "@/components/finance/bento"
 import { HeroCard, LIST_CARD } from "@/components/finance/parts"
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { QuickAdd } from "@/components/organizzou/quick-add"
+import { OpenRow } from "@/components/organizzou/open-row"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { REPEAT_OPTIONS, clockLabel, doneThisWeek, groupReminders, longDay, mostOverdue, reminderMeta, upcomingLabel, type ReminderGroupId, type ReminderMetaMap } from "@/features/notes/reminders"
@@ -21,7 +21,7 @@ export type LembretesProps = {
   metas: ReminderMetaMap
   now: Date
   isMobile: boolean
-  onQuick: (text: string) => void
+  onNew: () => void
   onEdit: (row: ReminderRow) => void
   onReschedule: (row: ReminderRow) => void
   onRescheduleOverdue: () => void
@@ -140,7 +140,7 @@ export function LembretesTab(props: LembretesProps) {
     </BentoStat>
   )
 
-  const quick = <QuickAdd label="Novo lembrete… ex.: Pagar boleto amanhã às 9h" shortLabel="Novo lembrete…" ariaLabel="Novo lembrete" isMobile={isMobile} onSubmit={props.onQuick} />
+  const quick = <OpenRow label="Novo lembrete… ex.: Pagar boleto amanhã às 9h" shortLabel="Novo lembrete…" isMobile={isMobile} onOpen={props.onNew} />
   const dialogs = (
     <>
       <ConfirmDialog

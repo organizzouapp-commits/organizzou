@@ -11,6 +11,7 @@ import { useNotes } from "@/components/notes/use-notes"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
-import { groupReminders, localReminderMetaRepo, nextOccurrence, parseReminderText, type ReminderMetaMap } from "@/features/notes/reminders"
+import { groupReminders, localReminderMetaRepo, nextOccurrence, type ReminderMetaMap } from "@/features/notes/reminders"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { newId } from "@/lib/sp-time"
 
@@ -43,6 +44,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const [reminders, setReminders] = usePersistedRows<ReminderRow>("reminders", initial.reminders)
   const [folders, setFolders] = usePersistedRows<NoteFolderRow>("note_folders", initial.folders)
   const [reminderDraft, setReminderDraft] = useState<ReminderDraft | null>(null)
+  useRestoreFocus(reminderDraft !== null)
   const [rescheduling, setRescheduling] = useState<{ ids: string[]; title: string } | null>(null)
   const [reminderMetas, setReminderMetas] = useState<ReminderMetaMap>({})
   useEffect(() => {
@@ -68,21 +70,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   }} />
 
   // ---------------------------------------------------------- reminders
-  /** "Pagar boleto amanhã às 9h" creates the reminder; a text that carries no date or time opens the dialog with the title filled in. */
-  function quickReminder(text: string) {
-    if (!text) return setReminderDraft(blankDraft(now))
-    const { title, remindAt } = parseReminderText(text, now)
-    if (remindAt && title) {
-      setReminders((current) => [...current, { id: newId(), user_id: USER, title, remind_at: remindAt, channels: ["push"], status: "pending", note_id: null }])
-      toast.success("Lembrete criado.")
-      return
-    }
-    const draft = blankDraft(now, title)
-    if (remindAt) {
-      const when = draftOf({ id: "", title, remind_at: remindAt }, undefined)
-      setReminderDraft({ ...draft, date: when.date, time: when.time, quick: null })
-    } else setReminderDraft(draft)
-  }
 
   function saveReminder(draft: ReminderDraft) {
     const remind_at = draftInstant(draft)
@@ -189,7 +176,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
           metas={reminderMetas}
           now={now}
           isMobile={isMobile}
-          onQuick={quickReminder}
+          onNew={() => setReminderDraft(blankDraft(now))}
           onEdit={(row) => setReminderDraft(draftOf(row, reminderMetas[row.id]))}
           onReschedule={(row) => setRescheduling({ ids: [row.id], title: row.title })}
           onRescheduleOverdue={() => {
