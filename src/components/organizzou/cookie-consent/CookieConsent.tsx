@@ -3,15 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { ArrowRightIcon } from "lucide-react"
 
+import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
@@ -51,13 +45,14 @@ type CookieConsentProps = {
 /**
  * LGPD cookie bar: shows once per browser, until the choice is stored or CONSENT_VERSION changes.
  * The preferences dialog (per-category switches) opens only through openCookiePreferences().
- * Mount it once in the root layout. Self-contained: only the shadcn Button, Dialog and Switch are used.
+ * Mount it once in the root layout. Self-contained: only the shadcn Button and Switch and the shared responsive sheet are used.
  */
 export function CookieConsent({ privacyHref = "/politicas#privacidade" }: CookieConsentProps) {
   const stored = useStoredConsent()
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [draft, setDraft] = useState({ analytics: false, marketing: false })
+  useRestoreFocus(open)
 
   useEffect(() => {
     function openPreferences() {
@@ -113,12 +108,7 @@ export function CookieConsent({ privacyHref = "/politicas#privacidade" }: Cookie
         </div>
       ) : null}
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Preferências de cookies</DialogTitle>
-            <DialogDescription>Escolha quais cookies opcionais podemos usar. Você pode mudar isso quando quiser.</DialogDescription>
-          </DialogHeader>
+      <ResponsiveSheet open={open} onOpenChange={setOpen} title="Preferências de cookies" description="Escolha quais cookies opcionais podemos usar. Você pode mudar isso quando quiser.">
           <ul className="flex flex-col">
             {CATEGORIES.map((category) => {
               const id = `cookie-${category.key}`
@@ -140,7 +130,7 @@ export function CookieConsent({ privacyHref = "/politicas#privacidade" }: Cookie
               )
             })}
           </ul>
-          <DialogFooter>
+          <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>*]:h-11 [&>*]:rounded-full">
             <Button
               variant="outline"
               className={motion}
@@ -160,9 +150,8 @@ export function CookieConsent({ privacyHref = "/politicas#privacidade" }: Cookie
             >
               Salvar preferências
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+      </ResponsiveSheet>
     </>
   )
 }

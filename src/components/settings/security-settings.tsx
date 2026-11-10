@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { DELETE_CONFIRMATION, isDeleteConfirmation } from "@/features/settings/delete-account"
 import { fieldClass, StickyFooter } from "@/components/workouts/sheet-fields"
 
@@ -39,6 +40,7 @@ function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; t
  */
 function DeleteAccountDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [typed, setTyped] = useState("")
+  useRestoreFocus(open)
   return (
     <ResponsiveSheet open={open} onOpenChange={onOpenChange} title="Excluir minha conta" description="Isso apagaria sua conta e todos os seus dados. Não dá para desfazer.">
       <div className="flex flex-col gap-4">

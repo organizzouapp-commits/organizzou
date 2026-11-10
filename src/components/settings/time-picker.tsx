@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { HOURS, MINUTES, joinTime, pad2, snapMinute, splitTime } from "@/features/settings/notification-prefs"
 import { cn } from "@/lib/utils"
 
@@ -45,6 +46,7 @@ export function TimePicker({ id, label, value, onChange, disabled }: { id: strin
   const [hour, setHour] = useState(0)
   const [minute, setMinute] = useState(0)
   const body = useRef<HTMLDivElement>(null)
+  useRestoreFocus(open)
 
   function toggle(next: boolean) {
     if (next) {

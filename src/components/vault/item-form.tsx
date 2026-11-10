@@ -5,7 +5,7 @@ import { CircleAlertIcon, DicesIcon, FileIcon, PaperclipIcon, XIcon } from "luci
 import { toast } from "sonner"
 
 import { PasswordField, StrengthMeter } from "@/components/vault/vault-kit"
-import { useRestoreFocus } from "@/components/vault/use-restore-focus"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { ITEM_ICONS } from "@/components/vault/item-icons"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"

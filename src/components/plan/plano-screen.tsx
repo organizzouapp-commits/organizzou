@@ -12,6 +12,7 @@ import { ProWaitlistDialog } from "@/components/plan/pro-waitlist-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { formatBRL } from "@/lib/money"
 import { hasYearlyPrice, usageView, yearlySavingCents, type PlanUsage } from "@/lib/plan-usage"
 import { LIMIT_LABELS, PLANS, type LimitKey, type PlanId } from "@/lib/plans"
@@ -72,6 +73,7 @@ export function PlanoScreen({ email, name, usage = EMPTY_USAGE }: { email: strin
   const { plan, pro, definition } = usePlan()
   const [billing, setBilling] = useState<Billing>("monthly")
   const [open, setOpen] = useState(false)
+  useRestoreFocus(open)
   const free = PLANS.free
   const proDef = PLANS.pro
   const saving = yearlySavingCents("pro")
@@ -123,7 +125,7 @@ export function PlanoScreen({ email, name, usage = EMPTY_USAGE }: { email: strin
         </div>
         {yearly ? (
           <Tabs value={billing} onValueChange={(v) => setBilling(v as Billing)}>
-            <TabsList aria-label="Periodicidade">
+            <TabsList aria-label="Periodicidade" className="max-md:h-11">
               <TabsTrigger value="monthly">Mensal</TabsTrigger>
               <TabsTrigger value="yearly">
                 Anual

@@ -98,9 +98,9 @@ function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomB
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
-  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário, Cofre and Configurações do the same.
+  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário, Cofre, Configurações and Ajuda do the same.
   const pathname = usePathname()
-  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre", "configuracoes"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
+  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre", "configuracoes", "ajuda"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
   return (
     <div className={cn("flex min-w-0 flex-col pt-4 pb-4 md:pt-6 md:pb-5", ownsTitle && "max-md:hidden")}>
       <h1 className="truncate pb-0.5 text-[26px] leading-tight font-semibold tracking-[-0.02em] md:text-[30px]">{title}</h1>

@@ -5,7 +5,7 @@ import { AlertTriangleIcon, CircleAlertIcon, DownloadIcon, UploadIcon } from "lu
 import { toast } from "sonner"
 
 import { ItemRow } from "@/components/vault/item-row"
-import { useRestoreFocus } from "@/components/vault/use-restore-focus"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { MIN_MASTER_LENGTH, PasswordField, StrengthMeter, chip, SMALL_CAPS, useVaultRepo } from "@/components/vault/vault-kit"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
