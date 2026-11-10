@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useElementSize } from "@/hooks/use-element-size"
 import { clock, formatVolume, restLabel, type SetDraft } from "@/features/workouts/session"
 import type { SetLogRow } from "@/features/workouts/types"
 import { cn } from "@/lib/utils"
@@ -341,7 +342,10 @@ function RestRing({ rest }: { rest: RestState | null }) {
   )
 }
 
-/** The bar that stays in view: rest timer on the left, progress and "Finalizar treino" on the right (desktop). */
+/**
+ * The rest timer card, docked bottom-right (above the bottom nav on phones): the ring and the next set, the big clock, the sets done with
+ * a hatched bar, and "Pular" / "Finalizar treino". It floats, so an invisible spacer of its own height keeps the page from ending under it.
+ */
 export function ActionBar({
   rest,
   next,
@@ -364,58 +368,67 @@ export function ActionBar({
   blocked: string | null
   onSkip: () => void
   onFinish: () => void
-  /** The phone keyboard is open: the bar steps aside. */
+  /** The phone keyboard is open: the card steps aside. */
   hiddenOnPhone: boolean
 }) {
+  const [cardRef, size] = useElementSize<HTMLDivElement>()
   const pct = totalSets === 0 ? 0 : (doneSets / totalSets) * 100
   const helper = finished ? "Treino registrado" : (blocked ?? "Marque todas as séries para finalizar")
   const enabled = canFinish && !finished && !blocked
   return (
-    <div
-      data-testid="action-bar"
-      className={cn(
-        "z-30 flex h-14 items-center gap-2 rounded-[20px] border border-border bg-card px-2.5 max-md:fixed max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] md:sticky md:bottom-4 md:h-16 md:px-4",
-        hiddenOnPhone && "max-md:hidden"
-      )}
-    >
-      <div role="timer" aria-label="Descanso" className="flex min-w-0 flex-1 items-center gap-3">
-        <RestRing rest={rest} />
-        <div className="min-w-0 flex-1 max-md:hidden">
-          <p className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Descanso</p>
-          <p className="hidden truncate text-[13px] leading-5 text-muted-foreground md:block">{next ? `Próxima: ${next.name} · série ${next.set}` : "Todas as séries marcadas"}</p>
+    <>
+      <div aria-hidden data-testid="action-bar-spacer" style={{ height: size.height + 16 }} className={cn(hiddenOnPhone && "max-md:hidden")} />
+      <div
+        ref={cardRef}
+        data-testid="action-bar"
+        className={cn(
+          "fixed z-30 flex w-[280px] flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:right-6 md:bottom-6 max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] max-md:w-auto",
+          hiddenOnPhone && "max-md:hidden"
+        )}
+      >
+        <div role="timer" aria-label="Descanso" className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <RestRing rest={rest} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Descanso</p>
+              <p className="truncate text-[13px] leading-5 text-muted-foreground">{next ? `Próxima: ${next.name} · série ${next.set}` : "Todas as séries marcadas"}</p>
+            </div>
+          </div>
+          <span data-testid="rest-clock" className="tabular text-[32px] leading-10 font-semibold tracking-[-0.02em]">
+            {rest ? clock(rest.remaining) : "--:--"}
+          </span>
         </div>
-        <span data-testid="rest-clock" className="tabular max-md:flex-1 text-[20px] leading-7 font-semibold md:text-2xl md:leading-8">
-          {rest ? clock(rest.remaining) : "--:--"}
-        </span>
-        <Button variant="outline" className="h-9 rounded-full px-2.5 text-[13px] md:px-3 md:text-sm" disabled={!rest} onClick={onSkip}>
-          Pular
-        </Button>
-      </div>
-      <div className="hidden w-44 shrink-0 flex-col gap-1.5 md:flex">
-        <p className="tabular text-[13px] leading-5">
-          {doneSets} de {totalSets} séries
-        </p>
-        <HatchedProgress value={pct} label="Séries feitas" className="h-1.5" />
-      </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            data-testid="finish-workout"
-            aria-disabled={!enabled}
-            aria-describedby="finish-helper"
-            className={cn("h-10 shrink-0 rounded-full px-3 text-[13px] md:px-4 md:text-sm", !enabled && "bg-muted text-muted-foreground hover:bg-muted")}
-            onClick={() => {
-              if (enabled) onFinish()
-            }}
-          >
-            <CheckIcon strokeWidth={1.75} className="max-md:hidden" /> {finished ? "Treino registrado" : "Finalizar treino"}
+        <div className="flex flex-col gap-1.5">
+          <p className="tabular text-[13px] leading-5">
+            {doneSets} de {totalSets} séries
+          </p>
+          <HatchedProgress value={pct} label="Séries feitas" className="h-1.5" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" className="h-11 rounded-full px-3 text-sm md:h-11" disabled={!rest} onClick={onSkip}>
+            Pular
           </Button>
-        </TooltipTrigger>
-        {!enabled ? <TooltipContent>{helper}</TooltipContent> : null}
-      </Tooltip>
-      <span id="finish-helper" className="sr-only">
-        {helper}
-      </span>
-    </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                data-testid="finish-workout"
+                aria-disabled={!enabled}
+                aria-describedby="finish-helper"
+                className={cn("h-11 rounded-full px-3 text-sm md:h-11", enabled ? "bg-highlight text-highlight-foreground hover:bg-highlight/90" : "bg-muted text-muted-foreground hover:bg-muted")}
+                onClick={() => {
+                  if (enabled) onFinish()
+                }}
+              >
+                <CheckIcon strokeWidth={1.75} /> {finished ? "Registrado" : "Finalizar treino"}
+              </Button>
+            </TooltipTrigger>
+            {!enabled ? <TooltipContent>{helper}</TooltipContent> : null}
+          </Tooltip>
+        </div>
+        <span id="finish-helper" className="sr-only">
+          {helper}
+        </span>
+      </div>
+    </>
   )
 }
