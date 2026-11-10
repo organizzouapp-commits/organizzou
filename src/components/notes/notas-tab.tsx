@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale"
 import { CheckIcon, FolderIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
+import { FolderDialog } from "@/components/notes/folder-dialog"
 import { NoteEditor } from "@/components/notes/note-editor"
 import type { NotesController } from "@/components/notes/use-notes"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
@@ -25,36 +26,12 @@ const LIMA = "bg-highlight text-highlight-foreground hover:bg-highlight/90"
 
 // ------------------------------------------------------------------ folders and search
 
-/** The dashed "+ Nova pasta" pill that opens into a field: Enter creates, Esc (or leaving it empty) cancels. */
-function NewFolder({ onCreate }: { onCreate: (name: string) => void }) {
-  const [adding, setAdding] = useState(false)
-  const [name, setName] = useState("")
-  const finish = () => {
-    setAdding(false)
-    setName("")
-  }
-  if (!adding) {
-    return (
-      <button type="button" data-testid="new-folder" onClick={() => setAdding(true)} className={cn(dashedPillClass, "shrink-0")}>
-        <PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Nova pasta
-      </button>
-    )
-  }
+/** The dashed "+ Nova pasta" pill: opens the folder dialog (never typed inline in the row). */
+function NewFolder({ onOpen }: { onOpen: () => void }) {
   return (
-    <form
-      data-testid="new-folder-form"
-      className="flex h-11 w-48 shrink-0 items-center gap-2 rounded-full border border-dashed border-border px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary"
-      onSubmit={(e) => {
-        e.preventDefault()
-        const value = name.trim()
-        if (!value) return
-        onCreate(value)
-        finish()
-      }}
-    >
-      <PlusIcon aria-hidden strokeWidth={1.75} className="size-4 shrink-0 text-muted-foreground" />
-      <input autoFocus aria-label="Nome da nova pasta" value={name} maxLength={60} placeholder="Nome da pasta" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && finish()} onBlur={() => !name.trim() && finish()} className="h-full min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground" />
-    </form>
+    <button type="button" data-testid="new-folder" aria-haspopup="dialog" onClick={onOpen} className={cn(dashedPillClass, "shrink-0")}>
+      <PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Nova pasta
+    </button>
   )
 }
 
@@ -90,7 +67,7 @@ function FolderRow({ c, mobile }: { c: NotesController; mobile: boolean }) {
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="folder-row">
       <div className="flex min-w-0 flex-1 items-center gap-2 basis-60">
         <PillTabs kind="tabs" ariaLabel="Pastas" items={c.entries.map((e) => ({ id: e.key, label: e.label, count: e.count }))} value={c.folder} onSelect={(item) => c.setFolder(item.id)} itemProps={(item) => ({ "data-folder": item.id })} className="min-w-0 flex-1" />
-        <NewFolder onCreate={c.addFolder} />
+        <NewFolder onOpen={() => c.setFolderDialog({ mode: "create" })} />
       </div>
       <SearchField c={c} mobile={mobile} />
     </div>
@@ -269,7 +246,7 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
   const [rootRef, width] = useElementWidth<HTMLDivElement>()
   const columns = width >= 1000 ? 4 : width >= 720 ? 3 : 2
   // The editor opens from state (not from a Radix trigger): focus goes back to the card or the bar that opened it.
-  useRestoreFocus(Boolean(note))
+  useRestoreFocus(Boolean(note) || c.folderDialog !== null)
   // Ctrl/Cmd + N: a new note (the same draft rule as the buttons: an empty draft that already exists is focused, not duplicated).
   const { createNote } = c
   useEffect(() => {
@@ -360,6 +337,7 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
           </DialogContent>
         </Dialog>
       ) : null}
+      <FolderDialog state={c.folderDialog} folders={c.folders} onClose={() => c.setFolderDialog(null)} onCreate={c.addFolder} onRename={c.renameFolder} />
       {dialogs}
     </div>
   )
