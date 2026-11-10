@@ -161,7 +161,7 @@ function StatCards({ subjects, sessions, dueCards, today, weekStart, isMobile, o
 // ------------------------------------------------------------------ focus timer
 
 function FocusCard({ subjects, timer, today, sessions, isMobile, onNewSubject, className }: { subjects: SubjectRow[]; timer: TimerProps; today: string; sessions: StudySessionRow[]; isMobile: boolean; onNewSubject: () => void; className?: string }) {
-  const size = isMobile ? 120 : 140
+  const size = isMobile ? 120 : 130
   const stroke = 8
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
@@ -185,8 +185,8 @@ function FocusCard({ subjects, timer, today, sessions, isMobile, onNewSubject, c
         </span>
       }
     >
-      <div className="@container flex flex-1 flex-col justify-center">
-        <div className="flex flex-col items-center gap-3 @min-[560px]:flex-row @min-[560px]:items-center @min-[560px]:gap-6">
+      <div className="flex flex-col">
+        <div className="flex flex-col items-center gap-3">
           <div className="relative shrink-0" style={{ width: size, height: size }}>
             <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
               <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
@@ -219,7 +219,7 @@ function FocusCard({ subjects, timer, today, sessions, isMobile, onNewSubject, c
                 <RotateCcwIcon strokeWidth={1.75} />
               </Button>
             </div>
-            <Button type="button" variant="ghost" onClick={timer.onLog} className="h-9 w-fit self-start rounded-full px-3 text-[13px] text-muted-foreground md:h-9">
+            <Button type="button" variant="ghost" onClick={timer.onLog} className="h-9 w-fit self-center rounded-full px-3 text-[13px] text-muted-foreground md:h-9">
               <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
             </Button>
           </div>
@@ -380,13 +380,7 @@ export function HojeTab(props: Props) {
     <div data-testid="estudos-hoje" className="@container flex min-w-0 flex-col gap-4">
       {stats}
       <div className="grid grid-cols-1 gap-4 @min-[880px]:grid-cols-12">
-        <div className="min-w-0 @min-[880px]:col-span-8">{focus}</div>
-        <div className="flex min-w-0 flex-col gap-4 @min-[880px]:col-span-4">
-          {blocks}
-          {countdown}
-        </div>
-        <div className="min-w-0 @min-[880px]:col-span-8">{hours}</div>
-        <div className="min-w-0 @min-[880px]:col-span-4">{days}</div>
+<div className="min-w-0 @min-[880px]:col-span-4">{focus}</div>        <div className="flex min-w-0 flex-col gap-4 @min-[880px]:col-span-4">          {blocks}          {countdown}        </div>        <div className="min-w-0 @min-[880px]:col-span-4">{days}</div>        <div className="min-w-0 @min-[880px]:col-span-12">{hours}</div>
       </div>
     </div>
   )
