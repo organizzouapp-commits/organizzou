@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fieldClass, StickyFooter } from "@/components/workouts/sheet-fields"
 import { WrongPasswordError } from "@/features/vault/crypto"
+import { flushPendingDeletes } from "@/features/vault/pending-delete"
 import { passwordStrength } from "@/features/vault/passwords"
 import { lastBackupLabel, vaultHealth } from "@/features/vault/health"
 import { AUTO_LOCK_OPTIONS, replaceKey, setAutoLock, unlockSession, type AutoLock } from "@/features/vault/session"
@@ -161,6 +162,7 @@ function Backup({ scope }: { scope: string }) {
 
   async function exportNow() {
     try {
+      await flushPendingDeletes()
       download(await exportBackup(repo), `organizzou-cofre-backup-${new Date().toISOString().slice(0, 10)}.json`)
       // Only the day is remembered (on this device); the contents of a backup are never kept.
       const at = new Date().toISOString()

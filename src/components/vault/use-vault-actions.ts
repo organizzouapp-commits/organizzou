@@ -6,7 +6,11 @@ import { useVaultRepo } from "@/components/vault/vault-kit"
 import { CLIPBOARD_CLEAR_MS, copySecret } from "@/features/vault/clipboard"
 import { getKey, setItems, touch } from "@/features/vault/session"
 import type { VaultItem } from "@/features/vault/types"
+import { commitDelete, startDelete, undoDelete } from "@/features/vault/pending-delete"
 import { deleteItem, readFile, saveItem } from "@/features/vault/vault"
+
+/** How long "Desfazer" stays on screen after an item is deleted. */
+export const UNDO_MS = 6000
 
 /** What the screens do with the vault while it is unlocked. Every call uses the in-memory key and counts as activity for the auto-lock. */
 export function useVaultActions() {
@@ -24,6 +28,29 @@ export function useVaultActions() {
     await deleteItem(repo, id)
     setItems((items) => items.filter((i) => i.id !== id))
     touch()
+  }
+
+  /**
+   * "Item excluído" with "Desfazer": the item leaves the screen at once but is only erased from the store when the toast closes (6 s).
+   * Until then it lives in memory only; undoing puts it back. Locking the vault or exporting a backup erases pending items right away.
+   */
+  function removeWithUndo(item: VaultItem) {
+    startDelete(item, () => deleteItem(repo, item.id))
+    setItems((items) => items.filter((i) => i.id !== item.id))
+    touch()
+    const commit = () => void commitDelete(item.id).catch(() => toast("Não consegui apagar o item agora. Tente de novo."))
+    toast("Item excluído", {
+      duration: UNDO_MS,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          const back = undoDelete(item.id)
+          if (back) setItems((items) => [...items.filter((i) => i.id !== back.id), back])
+        },
+      },
+      onDismiss: commit,
+      onAutoClose: commit,
+    })
   }
 
   /** Decrypts a document's file and either downloads it or opens it in a new tab. The object URL is released soon after. */
@@ -65,5 +92,5 @@ export function useVaultActions() {
     }
   }
 
-  return { save, remove, openFile, copy }
+  return { save, remove, removeWithUndo, openFile, copy }
 }

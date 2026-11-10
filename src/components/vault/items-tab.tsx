@@ -47,16 +47,15 @@ export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now, ini
       <ConfirmDialog
         open={Boolean(toDelete)}
         onOpenChange={(o) => !o && setToDelete(null)}
-        title="Excluir este item?"
-        description={toDelete ? `“${toDelete.name}” será apagado do Cofre. Essa ação não pode ser desfeita.` : ""}
+        title={toDelete ? `Excluir “${toDelete.name}”?` : "Excluir este item?"}
+        description="O item será apagado do cofre e dos backups futuros."
         onConfirm={() => {
           const item = toDelete
           setToDelete(null)
           if (!item) return
-          void actions.remove(item.id).then(() => {
-            setOpenId(null)
-            setDetailOpen(false)
-          })
+          actions.removeWithUndo(item)
+          setOpenId(null)
+          setDetailOpen(false)
         }}
       />
     </>

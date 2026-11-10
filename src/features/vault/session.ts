@@ -4,7 +4,9 @@ import "client-only"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
 
+import { createLockTimer, locksOnHide } from "./auto-lock"
 import { clearClipboardNow } from "./clipboard"
+import { flushPendingDeletes } from "./pending-delete"
 import { settingsRepo, type AutoLock } from "./settings"
 import type { VaultItem } from "./types"
 
@@ -18,7 +20,6 @@ const LOCKED: Snapshot = { status: "locked", scope: null, items: [], autoLock: "
 
 let key: CryptoKey | null = null
 let state: Snapshot = LOCKED
-let timer: ReturnType<typeof setTimeout> | null = null
 let hooked = false
 const listeners = new Set<() => void>()
 
@@ -29,24 +30,24 @@ function emit(next: Snapshot) {
 
 const loadAutoLock = (): AutoLock => settingsRepo.load().autoLock
 
+// One timer for the auto-lock (see auto-lock.ts); it reports its deadline so the header countdown can follow it.
+const lockTimer = createLockTimer(
+  () => lockVault(),
+  (lockAt) => {
+    if (state.lockAt !== lockAt) emit({ ...state, lockAt })
+  },
+)
+
 function schedule() {
-  if (timer) clearTimeout(timer)
-  timer = null
-  if (!key || state.autoLock === "hidden") {
-    if (state.lockAt !== null) emit({ ...state, lockAt: null })
-    return
-  }
-  const ms = Number(state.autoLock) * 60_000
-  timer = setTimeout(lockVault, ms)
-  // Only the deadline changes (every touch moves it), so the countdown can follow it.
-  emit({ ...state, lockAt: Date.now() + ms })
+  if (!key) lockTimer.stop()
+  else lockTimer.start(state.autoLock)
 }
 
 function hook() {
   if (hooked || typeof document === "undefined") return
   hooked = true
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && key && state.autoLock === "hidden") lockVault()
+    if (document.visibilityState === "hidden" && key && locksOnHide(state.autoLock)) lockVault()
   })
 }
 
@@ -70,9 +71,10 @@ export function unlockSession(scope: string, newKey: CryptoKey, items: VaultItem
 
 /** Locks: the key, the decrypted items and any pending clipboard copy are dropped. */
 export function lockVault() {
-  if (timer) clearTimeout(timer)
-  timer = null
+  lockTimer.stop()
   key = null
+  // Items deleted a moment ago (still undoable) are erased for good now.
+  void flushPendingDeletes()
   clearClipboardNow()
   emit({ ...LOCKED, autoLock: state.autoLock })
 }
@@ -89,13 +91,9 @@ export function setItems(update: (items: VaultItem[]) => VaultItem[]) {
 }
 
 /** Any use of the vault counts as activity: the auto-lock countdown starts again. */
-let lastTouch = 0
 export function touch() {
-  // Typing fires this constantly: the deadline moves at most once a second.
-  if (key && Date.now() - lastTouch > 1000) {
-    lastTouch = Date.now()
-    schedule()
-  }
+  // Typing fires this constantly: the timer moves the deadline at most once a second.
+  if (key) lockTimer.touch()
 }
 
 export function setAutoLock(value: AutoLock) {

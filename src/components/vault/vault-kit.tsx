@@ -26,7 +26,7 @@ export const SMALL_CAPS = "text-[11px] leading-4 font-semibold tracking-[0.12em]
  * A password field with a show/hide button (44 px). It asks the browser not to remember or autofill it: the master password and the secrets
  * of the vault must never end up in the browser's own password manager.
  */
-export function PasswordField({ id, value, onChange, label, autoComplete = "off", invalid, autoFocus, describedBy, className }: { id: string; value: string; onChange: (value: string) => void; label: string; autoComplete?: "off" | "new-password"; invalid?: boolean; autoFocus?: boolean; describedBy?: string; className?: string }) {
+export function PasswordField({ id, value, onChange, label, autoComplete = "off", invalid, autoFocus, describedBy, className, inputMode, maxLength }: { id: string; value: string; onChange: (value: string) => void; label: string; autoComplete?: "off" | "new-password"; invalid?: boolean; autoFocus?: boolean; describedBy?: string; className?: string; inputMode?: "numeric"; maxLength?: number }) {
   const [shown, setShown] = useState(false)
   return (
     <div className={cn("relative", className)}>
@@ -36,6 +36,8 @@ export function PasswordField({ id, value, onChange, label, autoComplete = "off"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
+        inputMode={inputMode}
+        maxLength={maxLength}
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}

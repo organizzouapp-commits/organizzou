@@ -127,11 +127,11 @@ export function ItemDetail({ item, unique, now, mobile, onEdit, onDelete }: { it
 
         {item.type === "card" ? (
           <>
-            {item.holder ? <FieldCard label="Nome no cartão" value={item.holder} /> : null}
+            {item.holder ? <FieldCard label="Titular" value={item.holder} /> : null}
             {item.number ? <FieldCard label="Número" value={item.number.replace(/(.{4})/g, "$1 ").trim()} secret copyMessage="Número copiado" onCopy={(t, m) => copy(t.replace(/\s+/g, ""), m)} /> : null}
             <div className={cn("grid gap-3", side)}>
               {item.expiry ? <FieldCard label="Validade" value={item.expiry} /> : null}
-              {item.cvv ? <FieldCard label="Código de segurança" value={item.cvv} secret copyMessage="Código copiado" onCopy={copy} /> : null}
+              {item.cvv ? <FieldCard label="CVV" value={item.cvv} secret copyMessage="Código copiado" onCopy={copy} /> : null}
             </div>
           </>
         ) : null}
