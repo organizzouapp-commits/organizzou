@@ -10,7 +10,7 @@ import { useOverlayOpen } from "@/hooks/use-overlay-open"
 import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
-/** `contextual` = an action of the current screen (Lima fill); the global ones are neutral. */
+/** `contextual` marks the actions of the current screen (kept for ordering; every item is neutral until pointed at). */
 export type FabItem = { id: string; label: string; icon: LucideIcon; contextual?: boolean; onSelect: () => void }
 
 const HOVER_OPEN_MS = 120
@@ -112,7 +112,7 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
           role="menu"
           aria-label="Ações rápidas"
           inert={!open}
-          className="absolute right-0 bottom-full flex flex-col-reverse items-end gap-3 pb-3"
+          className="absolute end-0 bottom-full flex w-14 flex-col-reverse items-center gap-3 pb-3"
           onKeyDown={(event) => {
             const index = entries().indexOf(document.activeElement as HTMLElement)
             if (event.key === "ArrowUp") focusItem(index + 1)
@@ -130,6 +130,7 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
                 key={item.id}
                 type="button"
                 role="menuitem"
+                aria-label={item.label}
                 tabIndex={-1}
                 data-testid={`quick-action-${item.id}`}
                 onClick={() => {
@@ -138,13 +139,20 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
                 }}
                 style={{ "--d": `${index * 40}ms` } as React.CSSProperties}
                 className={cn(
-                  "flex items-center gap-3 rounded-full outline-none transition-[opacity,transform] duration-[180ms] ease-out [transition-delay:var(--d)] focus-visible:[&>span:last-child]:ring-3 focus-visible:[&>span:last-child]:ring-ring/50 motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:[transition-delay:0ms]",
+                  "group/item relative flex size-11 shrink-0 items-center justify-center rounded-full outline-none transition-[opacity,transform] duration-[180ms] ease-out [transition-delay:var(--d)] motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:transition-opacity motion-reduce:[transition-delay:0ms]",
                   open ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-90 opacity-0 [transition-delay:0ms]"
                 )}
               >
-                <span className="rounded-full border border-border bg-popover px-3 py-1.5 text-[13px] leading-5 font-medium whitespace-nowrap text-popover-foreground">{item.label}</span>
-                <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-full", item.contextual ? "bg-highlight text-highlight-foreground" : "border border-border bg-card text-foreground")}>
+                {/* Neutral by default; Lima on hover, keyboard focus or press. Only the pointed item is lit. */}
+                <span className="flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors duration-150 group-hover/item:border-transparent group-hover/item:bg-highlight group-hover/item:text-highlight-foreground group-focus-visible/item:border-transparent group-focus-visible/item:bg-highlight group-focus-visible/item:text-highlight-foreground group-focus-visible/item:ring-3 group-focus-visible/item:ring-ring/50 group-active/item:border-transparent group-active/item:bg-highlight group-active/item:text-highlight-foreground motion-reduce:transition-none">
                   <Icon aria-hidden strokeWidth={1.75} className="size-5" />
+                </span>
+                {/* The label hangs to the left of the circle (it never shifts it): shown on hover or focus, always on touch. */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute end-[calc(100%+0.75rem)] top-1/2 -translate-y-1/2 translate-x-1.5 rounded-full border border-border bg-popover px-3 py-1.5 text-[13px] leading-5 font-medium whitespace-nowrap text-popover-foreground opacity-0 transition-[opacity,transform] duration-150 group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-visible/item:translate-x-0 group-focus-visible/item:opacity-100 [@media(hover:none)]:translate-x-0 [@media(hover:none)]:opacity-100 motion-reduce:translate-x-0 motion-reduce:transition-opacity"
+                >
+                  {item.label}
                 </span>
               </button>
             )
