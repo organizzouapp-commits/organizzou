@@ -419,7 +419,7 @@ export function ActionBar({
                   if (enabled) onFinish()
                 }}
               >
-                <CheckIcon strokeWidth={1.75} /> {finished ? "Registrado" : "Finalizar treino"}
+                {finished ? "Registrado" : "Finalizar treino"}
               </Button>
             </TooltipTrigger>
             {!enabled ? <TooltipContent>{helper}</TooltipContent> : null}
