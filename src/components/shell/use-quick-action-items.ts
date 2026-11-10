@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { LifeBuoyIcon, PlusIcon, SearchIcon, SparklesIcon, ZapIcon } from "lucide-react"
+import { CircleQuestionMarkIcon, PlusIcon, SearchIcon, SparklesIcon, ZapIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { usePrimaryActionValue, useQuickActionsValue } from "@/components/shell/primary-action"
@@ -32,7 +32,7 @@ export function useQuickActionItems(): FabItem[] {
       ...contextual.map<FabItem>((action) => ({ id: action.source === "capture" ? "capture" : `add-${action.id}`, label: action.label, icon: action.source === "capture" ? ZapIcon : PlusIcon, contextual: true, onSelect: handlerOf(action.id, action.source) })),
       { id: "assistant", label: "Falar com o assistente", icon: SparklesIcon, onSelect: openAssistant },
       { id: "search", label: "Pesquisar", icon: SearchIcon, onSelect: openSearch },
-      { id: "help", label: "Ajuda", icon: LifeBuoyIcon, onSelect: () => router.push("/dashboard/ajuda") },
+      { id: "help", label: "Ajuda", icon: CircleQuestionMarkIcon, onSelect: () => router.push("/dashboard/ajuda") },
     ]
   }, [pathname, quick, primary, openAssistant, openQuickCapture, openSearch, router])
 }
