@@ -7,18 +7,18 @@ import { getSession } from "@/lib/supabase/session"
 
 export const metadata: Metadata = { title: "Configurações" }
 
-async function SettingsContent({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
-  const { aba } = await searchParams
+// The open tab is read on the client from ?aba= (see SettingsShell), so changing tabs never asks the server for this page again.
+async function SettingsContent() {
   const { supabase, userId, email } = await getSession()
   const { data: profile } = await supabase.from("profiles").select("display_name, phone").eq("id", userId).maybeSingle()
-  return <SettingsShell initial={aba} profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "" }} />
+  return <SettingsShell profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "" }} />
 }
 
-export default function SettingsPage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
+export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <Suspense fallback={<Skeleton className="h-72 w-full rounded-[24px]" />}>
-        <SettingsContent searchParams={searchParams} />
+        <SettingsContent />
       </Suspense>
     </div>
   )

@@ -3,7 +3,7 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, BadgeDollarSignIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -17,7 +17,7 @@ import { BackToAppButton, BackToAppRail, NavBrand } from "./nav-brand"
 import { groupHasActive, isActivePath, useNav, type NavGroup, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
 import { AssistantRailButton } from "./assistant-card"
-import { SidebarCta } from "./plan-cta"
+import { PLANS_HREF, SidebarCta } from "./plan-cta"
 
 export type ShellUser = { name: string; email: string }
 
@@ -84,38 +84,25 @@ function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: N
   )
 }
 
-/** Last accordion group, right after Organização: Perfil, Configurações, Ajuda and Sair (asks for confirmation). */
-function AccountGroup({ account, pathname, open, onOpenChange }: { account: Account; pathname: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+/** After Organização: Configurações and Ajuda as plain rows (no group to fold), then Sair (asks for confirmation). */
+function AccountLinks({ account, pathname }: { account: Account; pathname: string }) {
   const requestSignOut = useRequestSignOut()
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className={cn("group/trigger", rowBase, "w-full text-left", ease, focus, rowIdle)}>
-        <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-        <span className="truncate">{account.label}</span>
-        <ChevronDownIcon
-          aria-hidden
-          strokeWidth={1.75}
-          className={cn("ml-auto size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "rotate-180" : "")}
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="overflow-hidden [--tw-animation-duration:400ms] [--tw-ease:cubic-bezier(0.2,0.8,0.2,1)] data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="flex flex-col gap-0.5 pt-0.5 pb-1 pl-3">
-          {account.items.map((item) => {
-            const active = isActivePath(pathname, item.href)
-            return (
-              <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
-                <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </Link>
-            )
-          })}
-          <button type="button" onClick={requestSignOut} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
-            <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-            Sair
-          </button>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+    <div className="flex flex-col gap-0.5" data-testid="account-links">
+      {account.items.map((item) => {
+        const active = isActivePath(pathname, item.href)
+        return (
+          <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
+            <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        )
+      })}
+      <button type="button" onClick={requestSignOut} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
+        <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+        Sair
+      </button>
+    </div>
   )
 }
 
@@ -183,60 +170,39 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
   )
 }
 
-function RailUpgrade({ pathname }: { pathname: string }) {
+function RailUpgrade() {
   const { pro } = usePlan()
   if (pro) return <AssistantRailButton />
-  const active = isActivePath(pathname, "/dashboard/plano")
   return (
     <RailTip label="Fazer upgrade">
-      <Link href="/dashboard/plano" aria-label="Fazer upgrade" aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+      <Link href={PLANS_HREF} aria-label="Fazer upgrade" className={cn(railBase, ease, focus, rowIdle)}>
         <BadgeDollarSignIcon aria-hidden strokeWidth={1.75} className="size-5" />
       </Link>
     </RailTip>
   )
 }
 
-/** Collapsed rail: the same Configurações group as the expanded sidebar as a flyout like the other rail groups. */
+/** Collapsed rail: the same flat entries as icon buttons with a tooltip, then Sair. */
 function RailAccount({ account, pathname }: { account: Account; pathname: string }) {
   const requestSignOut = useRequestSignOut()
-  const [open, setOpen] = useState(false)
-  const hasActive = account.items.some((item) => isActivePath(pathname, item.href))
-  const itemClass = "flex h-11 items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent"
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <RailTip label={account.label}>
-        <PopoverTrigger asChild>
-          <button type="button" aria-label={account.label} className={cn(railBase, ease, focus, hasActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
-            <SettingsIcon aria-hidden strokeWidth={1.75} className="size-5" />
-          </button>
-        </PopoverTrigger>
-      </RailTip>
-      {/* Aligned to the bottom edge of the trigger, so it opens upward instead of running off the screen. */}
-      <PopoverContent side="right" align="end" sideOffset={14} className="w-60 gap-0 p-2">
-        <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{account.label}</p>
-        {account.items.map((item) => {
-          const active = isActivePath(pathname, item.href)
-          return (
-            <Link key={item.id} href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-[15px]", ease, focus, active ? rowActive : "hover:bg-accent")}>
-              <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-              <span className="truncate">{item.label}</span>
+    <>
+      {account.items.map((item) => {
+        const active = isActivePath(pathname, item.href)
+        return (
+          <RailTip key={item.id} label={item.label}>
+            <Link href={item.href} aria-label={item.label} aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
+              <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
             </Link>
-          )
-        })}
-        <div role="separator" className="my-2 h-px bg-border" />
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false)
-            requestSignOut()
-          }}
-          className={cn(itemClass, ease, focus)}
-        >
-          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-          Sair
+          </RailTip>
+        )
+      })}
+      <RailTip label="Sair">
+        <button type="button" aria-label="Sair" onClick={requestSignOut} className={cn(railBase, ease, focus, rowIdle)}>
+          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
         </button>
-      </PopoverContent>
-    </Popover>
+      </RailTip>
+    </>
   )
 }
 
@@ -257,7 +223,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
   // The group that contains the current page, if any.
   const activeGroup =
     foldedGroups.find((g) => groupHasActive(g, pathname))?.label ??
-    (account?.items.some((item) => isActivePath(pathname, item.href)) ? account.label : null)
+    null
 
   // Accordion: a single piece of state, so opening one group closes the others. It is not persisted: on load only the group
   // that holds the current route is open (none on any other route), and navigating into a group opens it.
@@ -303,7 +269,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
           ))}
           {account ? <RailAccount account={account} pathname={pathname} /> : null}
         </nav>
-        <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">{nav.features.plan ? <RailUpgrade pathname={pathname} /> : <BackToAppRail />}</div>
+        <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">{nav.features.plan ? <RailUpgrade /> : <BackToAppRail />}</div>
         <SidebarRail />
       </Sidebar>
     )
@@ -326,7 +292,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
         {foldedGroups.map((group) => (
           <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} {...groupProps(group.label)} />
         ))}
-        {account ? <AccountGroup account={account} pathname={pathname} {...groupProps(account.label)} /> : null}
+        {account ? <AccountLinks account={account} pathname={pathname} /> : null}
       </nav>
 
       {/* The only thing anchored at the bottom: the card (the upgrade card for Free users, the virtual assistant for Pro). */}

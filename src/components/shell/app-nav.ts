@@ -1,15 +1,13 @@
-import { BadgeDollarSignIcon, FolderIcon, HeartPulseIcon } from "lucide-react"
+import { FolderIcon, HeartPulseIcon } from "lucide-react"
 
 import { modules, type ModuleId } from "@/components/organizzou/modules"
 
 import { ACCOUNT_GROUP_LABEL, ACCOUNT_ITEMS } from "./account-menu"
 import { moreSections, type NavConfig, type NavGroup, type NavItem } from "./nav-config"
 
-/** "Plano e cobrança" belongs to the Configurações group, like Perfil, Configurações and Ajuda. */
-const PLAN_ITEM: NavItem = { id: "plano", label: "Plano e cobrança", href: "/dashboard/plano", icon: BadgeDollarSignIcon }
 
-/** ONE list of account entries: the sidebar group, the rail flyout, the desktop header dropdown, the phone header chip and the phone "Outros" sheet all read it. */
-const accountItems: NavItem[] = [...ACCOUNT_ITEMS, PLAN_ITEM]
+/** ONE flat list of account entries (Configurações, Ajuda): the sidebar, the rail, the phone "Outros" sheet and the palette read it. */
+const accountItems: NavItem[] = ACCOUNT_ITEMS
 
 function item(id: ModuleId): NavItem {
   const m = modules[id]
@@ -58,9 +56,7 @@ export const appNav: NavConfig = {
     "/dashboard/cofre": { title: "Cofre", subtitle: "Criptografado no seu aparelho. Só você abre." },
     "/dashboard/metas": { title: "Metas", subtitle: "Objetivos alimentados pelos seus módulos." },
     "/dashboard/diario": { title: "Diário", subtitle: "Um minuto por dia para entender seu humor." },
-    "/dashboard/configuracoes": { title: "Configurações", subtitle: "Aparência, avisos e segurança." },
-    "/dashboard/perfil": { title: "Perfil", subtitle: "Seus dados e a sua senha." },
-    "/dashboard/plano": { title: "Plano Pro", subtitle: "Compare os planos e veja o que muda." },
+    "/dashboard/configuracoes": { title: "Configurações", subtitle: "Conta, aparência, avisos e plano em um só lugar." },
     "/dashboard/ajuda": { title: "Ajuda", subtitle: "Dúvidas frequentes e contato." },
   },
   features: { assistant: true, notifications: true, plan: true, greeting: true },

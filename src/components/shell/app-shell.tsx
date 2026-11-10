@@ -30,6 +30,7 @@ import { SignOutDialog, SignOutProvider } from "./sign-out-dialog"
 import { CommandPalette } from "./command-palette"
 import { MobileHeader } from "./mobile-header"
 import { OthersDrawer, isOtherPath } from "./others-drawer"
+import { PLANS_HREF } from "./plan-cta"
 import { PrimaryActionProvider } from "./primary-action"
 import { NotificationsProvider } from "./notifications"
 import type { AppNotification } from "@/features/notifications/types"
@@ -97,9 +98,9 @@ function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomB
 /** Mobile and collapsed layout: the page title and subtitle (not part of the header) sit above the page content. */
 function PageHeading({ user, nowIso }: { user: ShellUser; nowIso: string }) {
   const { title, subtitle } = usePageHeading(user, nowIso)
-  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário and Cofre do the same.
+  // On phones the Tarefas and Finanças titles live in their header card (in the page), so the shell heading steps aside there. Rotina, Treinos, Dieta, Estudos, Notas, Metas, Diário, Cofre and Configurações do the same.
   const pathname = usePathname()
-  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
+  const ownsTitle = ["tarefas", "financas", "rotina", "treinos", "dieta", "estudos", "notas", "metas", "diario", "cofre", "configuracoes"].some((screen) => pathname.startsWith(`/dashboard/${screen}`))
   return (
     <div className={cn("flex min-w-0 flex-col pt-4 pb-4 md:pt-6 md:pb-5", ownsTitle && "max-md:hidden")}>
       <h1 className="truncate pb-0.5 text-[26px] leading-tight font-semibold tracking-[-0.02em] md:text-[30px]">{title}</h1>
@@ -179,7 +180,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   // Warm every module route while the browser is idle (production only; in dev Next does not prefetch), so opening a module
   // streams its skeleton from the cache instead of waiting for the server.
   useEffect(() => {
-    const hrefs = [...nav.groups.flatMap((g) => g.items.map((i) => i.href)), ...(nav.account?.items.map((i) => i.href) ?? []), ...(nav.features.plan ? ["/dashboard/plano"] : [])]
+    const hrefs = [...nav.groups.flatMap((g) => g.items.map((i) => i.href)), ...(nav.account?.items.map((i) => i.href) ?? []), ...(nav.features.plan ? [PLANS_HREF] : [])]
     const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500))
     const handle = idle(() => hrefs.forEach((href) => router.prefetch(href)))
     return () => {
@@ -190,7 +191,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
   // The virtual assistant is a Pro feature: Free users who reach it (a link, the palette) land on the plans page instead.
   const pro = isPro(plan)
-  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push("/dashboard/plano")), [pro, router])
+  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push(PLANS_HREF)), [pro, router])
   const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true) }), [openAssistant])
 
   const withAssistant = nav.features.assistant

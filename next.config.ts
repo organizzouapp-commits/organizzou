@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import { LEGACY_SETTINGS_ROUTES, settingsHref } from "./src/lib/settings-tabs";
+
 /** Sent with every response. HSTS is added by Vercel itself on its domains and on custom domains. */
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -32,6 +34,8 @@ const nextConfig: NextConfig = {
         destination: `/dashboard/${module}/:path*`,
         permanent,
       })),
+      // Perfil and Plano e cobrança are tabs of Configurações now (temporary: the tabs may still move).
+      ...LEGACY_SETTINGS_ROUTES.map((route) => ({ source: route.source, destination: settingsHref(route.tab), permanent: false })),
       { source: "/em-breve", destination: "/", permanent },
       { source: "/termos", destination: "/politicas#termos", permanent },
       { source: "/privacidade", destination: "/politicas#privacidade", permanent },

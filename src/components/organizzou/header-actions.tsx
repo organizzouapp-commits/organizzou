@@ -13,6 +13,7 @@ import type { ShellUser } from "@/components/shell/app-sidebar"
 import { BackToAppButton } from "@/components/shell/nav-brand"
 import { useNav } from "@/components/shell/nav-config"
 import { usePrimaryActionValue } from "@/components/shell/primary-action"
+import { PLANS_HREF } from "@/components/shell/plan-cta"
 import { cn } from "@/lib/utils"
 
 const focus = "outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -120,7 +121,7 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
       {pro ? null : (
         // Below 1280 px the upgrade lives only in the avatar menu.
         <Button asChild variant="outline" size="lg" className="hidden h-11 rounded-full px-5 min-[1280px]:inline-flex">
-          <Link href="/dashboard/plano">
+          <Link href={PLANS_HREF}>
             <BadgeDollarSignIcon strokeWidth={1.75} /> Fazer upgrade
           </Link>
         </Button>

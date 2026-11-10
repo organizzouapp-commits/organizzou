@@ -1,69 +1,89 @@
 "use client"
 
-import { useState } from "react"
-import { BellIcon, PaletteIcon, ShieldCheckIcon, BadgeDollarSignIcon, UserIcon } from "lucide-react"
+import { useCallback, useEffect, useRef } from "react"
+import dynamic from "next/dynamic"
+import { useSearchParams } from "next/navigation"
 
-import { Bento, BentoCard } from "@/components/organizzou/Bento"
-import { SettingsLayout, type SettingsSection } from "@/components/organizzou/layout"
-import { ProfileForm, PasswordForm } from "@/components/profile/profile-view"
+import { PillTabs } from "@/components/tasks/pill-tabs"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "@/lib/settings-tabs"
 
-import { PlanSettings } from "./plan-settings"
-import { NotificationsSettings, SecuritySettings } from "./settings-extras"
-import { AppearanceSettings } from "./settings-form"
+import type { SettingsProfile } from "./tabs/profile-tab"
 
-const SECTIONS: SettingsSection[] = [
-  { id: "perfil", label: "Perfil", icon: UserIcon },
-  { id: "aparencia", label: "Aparência", icon: PaletteIcon },
-  { id: "avisos", label: "Avisos", icon: BellIcon },
-  { id: "seguranca", label: "Segurança e dados", icon: ShieldCheckIcon },
-  { id: "plano", label: "Plano e cobrança", icon: BadgeDollarSignIcon },
-]
+// One lazy segment per tab: only the open tab's code is loaded.
+const loading = () => <Skeleton className="h-72 w-full rounded-[24px]" />
+const ProfileTab = dynamic(() => import("./tabs/profile-tab"), { loading })
+const AppearanceTab = dynamic(() => import("./tabs/appearance-tab"), { loading })
+const NotificationsTab = dynamic(() => import("./tabs/notifications-tab"), { loading })
+const SecurityTab = dynamic(() => import("./tabs/security-tab"), { loading })
+const PlanTab = dynamic(() => import("./tabs/plan-tab"), { loading })
 
-type Profile = { displayName: string; email: string; phone: string }
+const TAB_ITEMS = SETTINGS_TABS.map((tab) => ({ id: tab.id, label: tab.label }))
 
-/** Perfil and Configurações are one screen: a vertical nav on desktop, scrollable tabs on phones, content in max-w-5xl. */
-export function SettingsShell({ initial, profile }: { initial?: string; profile: Profile }) {
-  const [active, setActive] = useState(SECTIONS.some((s) => s.id === initial) ? (initial as string) : "perfil")
+/** The tab row with soft fades at the ends that still have something to scroll to (it scrolls on phones; the active tab is kept in view by PillTabs). */
+function FadingTabs({ active, onChange, className }: { active: SettingsTab; onChange: (tab: SettingsTab) => void; className?: string }) {
+  const wrap = useRef<HTMLDivElement>(null)
+  const update = useCallback(() => {
+    const row = wrap.current?.querySelector<HTMLElement>("[data-pill-row]")
+    if (!wrap.current || !row) return
+    const max = row.scrollWidth - row.clientWidth
+    wrap.current.style.setProperty("--fade-l", row.scrollLeft > 4 ? "28px" : "0px")
+    wrap.current.style.setProperty("--fade-r", max - row.scrollLeft > 4 ? "28px" : "0px")
+  }, [])
+  useEffect(() => {
+    update()
+    const id = window.setTimeout(update, 450) // after the active tab has scrolled into view
+    window.addEventListener("resize", update)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener("resize", update)
+    }
+  }, [active, update])
+  return (
+    <div ref={wrap} onScrollCapture={update} className={className}>
+      <PillTabs ariaLabel="Seções de Configurações" items={TAB_ITEMS} value={active} onSelect={(item) => onChange(item.id as SettingsTab)} className="fade-x w-full" />
+    </div>
+  )
+}
 
-  function change(id: string) {
-    setActive(id)
+/**
+ * Configurações: Perfil, Aparência, Avisos, Segurança e dados and Plano e cobrança in one page. The open tab lives in the URL (?aba=…) and
+ * switching it changes only the URL (no server round trip). Desktop: tabs under the title, content in a 12-column bento grid; phones: a
+ * solid header card with a scrollable tab row.
+ */
+export function SettingsShell({ profile }: { profile: SettingsProfile }) {
+  const params = useSearchParams()
+  const active = parseSettingsTab(params.get("aba"))
+  const isMobile = useIsMobile()
+
+  function change(tab: SettingsTab) {
     const url = new URL(window.location.href)
-    url.searchParams.set("aba", id)
+    url.searchParams.set("aba", tab)
     window.history.replaceState(null, "", url)
   }
 
   return (
-    <SettingsLayout sections={SECTIONS} active={active} onChange={change}>
-      {active === "perfil" ? (
-        <Bento className="@container">
-          <BentoCard title="Seus dados" className="col-span-12 @min-[760px]:col-span-7">
-            <ProfileForm {...profile} />
-          </BentoCard>
-          <BentoCard title="Alterar senha" className="col-span-12 @min-[760px]:col-span-5">
-            <PasswordForm />
-          </BentoCard>
-        </Bento>
-      ) : null}
-      {active === "aparencia" ? (
-        <BentoCard>
-          <AppearanceSettings />
-        </BentoCard>
-      ) : null}
-      {active === "avisos" ? (
-        <BentoCard>
-          <NotificationsSettings />
-        </BentoCard>
-      ) : null}
-      {active === "seguranca" ? (
-        <BentoCard>
-          <SecuritySettings />
-        </BentoCard>
-      ) : null}
-      {active === "plano" ? (
-        <BentoCard>
-          <PlanSettings />
-        </BentoCard>
-      ) : null}
-    </SettingsLayout>
+    <div data-testid="settings" data-tab={active} className={`flex min-w-0 flex-col gap-4${isMobile ? " pb-24" : ""}`}>
+      {isMobile ? (
+        <section aria-label="Configurações" data-testid="settings-header" className="flex flex-col gap-3 rounded-[20px] border border-border bg-card p-3">
+          <div className="min-w-0 px-1">
+            <h2 className="truncate text-[18px] leading-6 font-semibold">Configurações</h2>
+            <p className="text-[13px] leading-5 text-muted-foreground">Conta, aparência, avisos e plano em um só lugar.</p>
+          </div>
+          <FadingTabs active={active} onChange={change} className="-mx-3 px-3" />
+        </section>
+      ) : (
+        <FadingTabs active={active} onChange={change} className="max-w-full" />
+      )}
+
+      <div role="tabpanel" aria-label={SETTINGS_TABS.find((t) => t.id === active)?.label} className="min-w-0">
+        {active === "perfil" ? <ProfileTab profile={profile} /> : null}
+        {active === "aparencia" ? <AppearanceTab /> : null}
+        {active === "avisos" ? <NotificationsTab /> : null}
+        {active === "seguranca" ? <SecurityTab /> : null}
+        {active === "plano" ? <PlanTab email={profile.email} name={profile.displayName} /> : null}
+      </div>
+    </div>
   )
 }

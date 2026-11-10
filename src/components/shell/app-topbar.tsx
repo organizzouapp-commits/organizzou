@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
+import { AlarmClockIcon, ArrowLeftIcon, BadgeDollarSignIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { SP_TIMEZONE } from "@/lib/sp-time"
 
 import type { ShellUser } from "./app-sidebar"
+import { AVATAR_LINKS } from "./account-menu"
 import { BACK_TO_APP_HREF } from "./nav-brand"
 import { metaFor, useNavContext } from "./nav-config"
 import { useNotifications } from "./notifications"
@@ -202,7 +203,7 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
           <div className="flex items-center justify-between gap-3 p-3 pt-0">
             <Badge className={cn("rounded-full", pro ? "bg-highlight text-highlight-foreground" : "bg-muted text-muted-foreground")}>{definition.name}</Badge>
             <DropdownMenuItem asChild className="size-8 justify-center rounded-full border border-border p-0">
-              <Link href="/dashboard/plano" aria-label="Ver planos">
+              <Link href={AVATAR_LINKS.plan.href} aria-label="Ver planos">
                 <ChevronRightIcon strokeWidth={1.75} className="size-4" />
               </Link>
             </DropdownMenuItem>
@@ -216,13 +217,22 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             </Link>
           </DropdownMenuItem>
         ) : null}
-        {(nav.account?.items ?? []).map((item) => (
-          <DropdownMenuItem key={item.id} asChild className={menuItem}>
-            <Link href={item.href}>
-              <item.icon strokeWidth={1.75} className={menuIcon} /> {item.label}
-            </Link>
-          </DropdownMenuItem>
-        ))}
+        {nav.account ? (
+          <>
+            <DropdownMenuItem asChild className={menuItem}>
+              <Link href={AVATAR_LINKS.settings.href}>
+                <AVATAR_LINKS.settings.icon strokeWidth={1.75} className={menuIcon} /> {AVATAR_LINKS.settings.label}
+              </Link>
+            </DropdownMenuItem>
+            {nav.features.plan ? (
+              <DropdownMenuItem asChild className={menuItem}>
+                <Link href={AVATAR_LINKS.plan.href}>
+                  <BadgeDollarSignIcon strokeWidth={1.75} className={menuIcon} /> {AVATAR_LINKS.plan.label}
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+          </>
+        ) : null}
         {isAdmin && !inAdmin ? (
           <DropdownMenuItem asChild className={menuItem}>
             <Link href="/admin">

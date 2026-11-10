@@ -475,3 +475,10 @@ html[data-splash] #org-splash { display: flex; }
 html[data-splash] [data-fallback-splash] { display: none !important; }
 #org-splash[data-leaving] { opacity: 0; pointer-events: none; transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @media (prefers-reduced-motion: reduce) { #org-splash[data-leaving] { transition: none; } }
+
+/* A horizontally scrolling row whose ends fade out while there is more to scroll to. --fade-l / --fade-r are set by the row's wrapper. */
+.fade-x {
+  --fade-l: 0px;
+  --fade-r: 0px;
+  mask-image: linear-gradient(to right, transparent, var(--foreground) var(--fade-l), var(--foreground) calc(100% - var(--fade-r)), transparent);
+}

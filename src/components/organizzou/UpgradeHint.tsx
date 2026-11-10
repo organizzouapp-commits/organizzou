@@ -6,6 +6,7 @@ import { BadgeDollarSignIcon } from "lucide-react"
 import { usePlan } from "@/components/organizzou/plan-context"
 import { Button } from "@/components/ui/button"
 import { LIMIT_LABELS, PLANS, reachedLimit, type LimitKey } from "@/lib/plans"
+import { PLANS_HREF } from "@/components/shell/plan-cta"
 import { cn } from "@/lib/utils"
 
 type UpgradeHintProps = {
@@ -44,7 +45,7 @@ export function UpgradeHint({ limit, used, when = "reached", className }: Upgrad
         </p>
         <p className="text-[13px] leading-5 text-muted-foreground">{label.hint} no Plano Pro.</p>
         <Button asChild variant="outline" size="sm" className="self-start">
-          <Link href="/dashboard/plano">Ver Plano Pro</Link>
+          <Link href={PLANS_HREF}>Ver Plano Pro</Link>
         </Button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { BadgeDollarSignIcon } from "lucide-react"
 
 import { usePlan } from "@/components/organizzou/plan-context"
+import { settingsHref } from "@/lib/settings-tabs"
 
 import { AssistantCard } from "./assistant-card"
 import { cn } from "@/lib/utils"
@@ -13,7 +14,7 @@ type CardProps = {
   className?: string
 }
 
-export const PLANS_HREF = "/dashboard/plano"
+export const PLANS_HREF = settingsHref("plano")
 
 const cardClass = "flex flex-col gap-3 rounded-[20px] bg-highlight p-4 text-highlight-foreground [@media(max-height:900px)]:gap-2 [@media(max-height:900px)]:p-3"
 const buttonClass =

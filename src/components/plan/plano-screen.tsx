@@ -5,6 +5,7 @@ import { CheckIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { usePlan } from "@/components/organizzou/plan-context"
+import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { ProWaitlistDialog } from "@/components/plan/pro-waitlist-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,7 +60,7 @@ export function PlanoScreen({ email, name }: { email: string; name: string }) {
         </Tabs>
       </div>
 
-      <Bento>
+      <Bento className="@container gap-4">
         <BentoCard className="col-span-12 @min-[900px]:col-span-6" title={free.name} actions={plan === "free" ? <Badge variant="secondary">Seu plano</Badge> : null}>
           <div className="flex h-full flex-col gap-5">
             <p className="text-[15px] leading-6 text-muted-foreground">{free.tagline}</p>
@@ -115,6 +116,10 @@ export function PlanoScreen({ email, name }: { email: string; name: string }) {
               </div>
             ))}
           </div>
+        </BentoCard>
+
+        <BentoCard className="col-span-12" title="Cobrança" actions={<SoonBadge />}>
+          <p className="max-w-[72ch] text-[15px] leading-6 text-muted-foreground">O pagamento ainda não está disponível. Não há cobrança nem histórico de faturas por enquanto; ao abrir, tudo aparece aqui.</p>
         </BentoCard>
       </Bento>
 
