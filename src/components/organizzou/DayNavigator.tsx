@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 /**
- * "‹ segunda, 9 de novembro ›": the one day navigator of the app. The arrows are fixed 44 × 44 buttons at the two edges and the title is
- * centered in the space between them (it goes to today when pressed). Full width, so on phones the title is centered on the screen.
+ * "‹ segunda, 9 de novembro ›": the one day navigator of the app, one responsive layout. It is a compact group (44 × 44 arrows right next to the title): centered on phones, at the start of its container from 768 px up. The title goes to today when pressed.
  */
 export function DayNavigator({
   label,
@@ -29,9 +28,9 @@ export function DayNavigator({
   labelTestId?: string
   className?: string
 }) {
-  const title = "tabular min-w-0 flex-1 truncate rounded-full px-2 text-center text-[15px] leading-6 font-semibold whitespace-nowrap"
+  const title = "tabular min-w-0 truncate rounded-full px-2 text-center text-[15px] leading-6 font-semibold whitespace-nowrap"
   return (
-    <div data-testid={testId} className={cn("flex h-11 w-full items-center", className)}>
+    <div data-testid={testId} className={cn("flex h-11 w-full items-center justify-center md:justify-start", className)}>
       <Button variant="ghost" aria-label="Dia anterior" className="size-11 shrink-0 rounded-full p-0 md:size-11" onClick={onPrev}>
         <ChevronLeftIcon strokeWidth={1.75} />
       </Button>
