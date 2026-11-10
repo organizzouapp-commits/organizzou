@@ -482,3 +482,8 @@ html[data-splash] [data-fallback-splash] { display: none !important; }
   --fade-r: 0px;
   mask-image: linear-gradient(to right, transparent, var(--foreground) var(--fade-l), var(--foreground) calc(100% - var(--fade-r)), transparent);
 }
+
+/* A vertically scrolling list that fades out at its bottom edge while there is more below. */
+.fade-y-end {
+  mask-image: linear-gradient(to bottom, var(--foreground) calc(100% - 28px), transparent);
+}
