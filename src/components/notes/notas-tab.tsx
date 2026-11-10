@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { groupNotes, previewLines } from "@/features/notes/notes"
 import type { NoteRow } from "@/features/notes/types"
@@ -188,7 +189,7 @@ function NotesBody({ c, columns }: { c: NotesController; columns: number }) {
   )
 }
 
-// ------------------------------------------------------------------ mobile full-screen editor
+// ------------------------------------------------------------------ mobile bottom sheet
 
 /** Follows the visible part of the screen, so the toolbar stays above the on-screen keyboard (iOS keeps the layout viewport and only shrinks the visual one). */
 function useVisibleBox() {
@@ -208,25 +209,24 @@ function useVisibleBox() {
   return box
 }
 
-function FullScreenEditor({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+/**
+ * The note on phones: an off-canvas bottom sheet like the quick-capture one (scrim, 24px top corners, drag handle, up to 92dvh). Swiping down,
+ * tapping the scrim, Esc or the close button dismiss it. Autosave keeps running after it closes (the screen owns the save timer), so closing never
+ * loses text and needs no confirmation. The body scrolls inside; the toolbar stays pinned at the bottom and rides above the keyboard
+ * (the sheet is sized and offset from the visual viewport). Vaul locks the page scroll, traps focus and sets aria-modal.
+ */
+function NoteSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   const box = useVisibleBox()
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [])
-  // Above the floating bottom nav (z-30): inside the editor the main navigation is out of the way.
+  // Keyboard open (iOS): the layout viewport keeps its size, so lift the sheet by the part of it the keyboard covers.
+  const lift = box ? Math.max(0, window.innerHeight - (box.top + box.height)) : 0
+  const height = box ? Math.round(box.height * 0.92) : undefined
   return (
-    <div data-testid="note-fullscreen" role="dialog" aria-label="Editor de nota" className="fixed inset-x-0 z-50 flex flex-col bg-background" style={{ top: box?.top ?? 0, height: box ? box.height : "100dvh" }}>
-      {children}
-    </div>
+    <Drawer open={open} onOpenChange={(next) => !next && onClose()} repositionInputs={false}>
+      <DrawerContent data-testid="note-sheet" aria-describedby={undefined} className="max-h-[92dvh] gap-0 overflow-hidden rounded-t-[24px] border-border bg-card" style={{ height: height ?? "92dvh", bottom: lift }}>
+        <DrawerTitle className="sr-only">Editor de nota</DrawerTitle>
+        <div className="flex min-h-0 flex-1 flex-col pt-1">{children}</div>
+      </DrawerContent>
+    </Drawer>
   )
 }
 
@@ -314,7 +314,7 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
       {isMobile ? <FloatingAddSpacer /> : null}
       {isMobile ? <FloatingAddMenu label="Adicionar" hidden={Boolean(note) || c.folderDialog !== null || c.moving !== null || c.toDelete !== null} items={[{ id: "note", label: "Nova nota", icon: NotebookPenIcon, onSelect: c.createNote }, { id: "folder", label: "Nova pasta", icon: FolderPlusIcon, onSelect: () => c.setFolderDialog({ mode: "create" }) }]} /> : null}
 
-      {note && isMobile ? <FullScreenEditor onClose={c.close}>{editor}</FullScreenEditor> : null}
+      {isMobile ? <NoteSheet open={Boolean(note)} onClose={c.close}>{editor}</NoteSheet> : null}
       {!isMobile ? (
         <Dialog open={Boolean(note)} onOpenChange={(open) => !open && c.close()}>
           <DialogContent showCloseButton={false} data-testid="note-dialog" className="flex h-[min(720px,80vh)] max-h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
