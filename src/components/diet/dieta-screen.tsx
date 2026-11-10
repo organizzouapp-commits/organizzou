@@ -40,7 +40,7 @@ import { recentFoods } from "@/features/diet/foods"
 import type { HistoryPeriod } from "@/features/diet/history"
 import { localFoodMetaRepo, type FoodMeta } from "@/features/diet/food-meta"
 import { localWeightNoteRepo } from "@/features/diet/weight-notes"
-import { sortWeights, type WeightPeriod } from "@/features/diet/weight"
+import { sortWeights, type WeightPeriod, withTargetWeight } from "@/features/diet/weight"
 import { dayTotals } from "@/features/diet/stats"
 import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -90,7 +90,7 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
   const [histPeriod, setHistPeriod] = useState<HistoryPeriod>(15)
   const [editingGoal, setEditingGoal] = useState(false)
   // The daily goals: one row per person (saved through the same hook as every other table; the row id is only a handle for it).
-  const [goalRows, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", initial.goal ? [{ ...initial.goal, id: "goal" }] : [])
+  const [goalRows, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", () => (initial.goal ? [{ ...initial.goal, id: "goal" }] : []))
   const goal: DietGoalRow = goalRows[0] ?? DEFAULT_GOAL
   // The day whose diary is open (today by default; the arrows go back through the days that were loaded, never forward).
   const [day, setDay] = useState(today)
@@ -338,8 +338,8 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
         target={target}
         onClose={() => setEditingTarget(false)}
         onSave={(kg) => {
-          setGoalRows((rows) => [{ ...(rows[0] ?? { ...DEFAULT_GOAL, id: "goal" }), target_weight_kg: kg }])
-          toast.success(kg === null ? "Meta removida." : "Meta atualizada.")
+          setGoalRows((rows) => withTargetWeight(rows, { ...DEFAULT_GOAL, id: "goal" }, kg))
+          toast.success(kg === null ? "Meta removida." : "Meta salva.")
         }}
       />
       <EditItemDialog
