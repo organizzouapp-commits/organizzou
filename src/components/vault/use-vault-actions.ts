@@ -50,12 +50,16 @@ export function useVaultActions() {
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
   }
 
-  /** Copies a value; the clipboard is emptied again after 30 seconds (or when the vault locks). */
-  async function copy(text: string, what: string) {
+  /**
+   * Copies a value and says so ("Senha copiada. Limpa em 30 s."); 30 seconds later the clipboard is emptied, only if it still holds the copied
+   * value. When an item is given, its last-copy time is remembered (inside its own encrypted record).
+   */
+  async function copy(text: string, message: string, item?: VaultItem) {
     touch()
     try {
       await copySecret(text)
-      toast.success(`${what} copiado. A área de transferência é limpa em ${CLIPBOARD_CLEAR_MS / 1000} s.`)
+      toast.success(`${message}. Limpa em ${CLIPBOARD_CLEAR_MS / 1000} s.`)
+      if (item) await save({ ...item, copied_at: new Date().toISOString() })
     } catch {
       toast("Não consegui copiar. Selecione o texto e copie à mão.")
     }

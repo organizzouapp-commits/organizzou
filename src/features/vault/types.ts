@@ -35,6 +35,10 @@ export type VaultItem = {
   // document
   file?: VaultFileInfo
   updated_at: string
+  /** When the item was first saved (older items do not have it). */
+  created_at?: string
+  /** The last time a value of this item was copied. */
+  copied_at?: string
 }
 
 /** The largest file a document can hold (it is encrypted in memory and kept in the browser's storage). */

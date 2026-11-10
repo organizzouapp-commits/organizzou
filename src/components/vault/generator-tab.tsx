@@ -43,7 +43,7 @@ export function GeneratorTab() {
           <Button type="button" variant="outline" data-testid="regenerate" onClick={() => setPassword(generatePassword(options))} disabled={!password} className="h-12 rounded-full sm:flex-1">
             <RefreshCwIcon strokeWidth={1.75} /> Gerar outra
           </Button>
-          <Button type="button" data-testid="copy-generated" onClick={() => void actions.copy(password, "Senha")} disabled={!password} className="h-12 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90 sm:flex-1">
+          <Button type="button" data-testid="copy-generated" onClick={() => void actions.copy(password, "Senha copiada")} disabled={!password} className="h-12 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90 sm:flex-1">
             <CopyIcon strokeWidth={1.75} /> Copiar
           </Button>
         </div>

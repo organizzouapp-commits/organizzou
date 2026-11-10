@@ -55,7 +55,7 @@ export const appNav: NavConfig = {
     "/dashboard/dieta": { title: "Dieta", subtitle: "Calorias, macros e água do dia." },
     "/dashboard/estudos": { title: "Estudos", subtitle: "Foco, constância e revisão no tempo certo." },
     "/dashboard/notas": { title: "Notas e lembretes", subtitle: "Anote agora, encontre depois." },
-    "/dashboard/cofre": { title: "Cofre", subtitle: "Criptografado no seu aparelho." },
+    "/dashboard/cofre": { title: "Cofre", subtitle: "Criptografado no seu aparelho. Só você abre." },
     "/dashboard/metas": { title: "Metas", subtitle: "Objetivos alimentados pelos seus módulos." },
     "/dashboard/diario": { title: "Diário", subtitle: "Um minuto por dia para entender seu humor." },
     "/dashboard/configuracoes": { title: "Configurações", subtitle: "Aparência, avisos e segurança." },

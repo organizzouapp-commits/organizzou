@@ -67,7 +67,8 @@ function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | n
     if (!valid || busy) return
     setBusy(true)
     try {
-      const base: VaultItem = { id: item?.id ?? newId(), type, name: v.name.trim(), notes: v.notes.trim() || undefined, updated_at: new Date().toISOString() }
+      const stamp = new Date().toISOString()
+      const base: VaultItem = { id: item?.id ?? newId(), type, name: v.name.trim(), notes: v.notes.trim() || undefined, updated_at: stamp, created_at: item?.created_at ?? (item ? undefined : stamp), copied_at: item?.copied_at }
       let next: VaultItem = base
       if (type === "login") next = { ...base, username: v.username.trim() || undefined, password: v.password || undefined, url: v.url.trim() || undefined }
       if (type === "card") next = { ...base, holder: v.holder.trim() || undefined, number: v.number.replace(/\s+/g, "") || undefined, expiry: v.expiry.trim() || undefined, cvv: v.cvv.trim() || undefined }

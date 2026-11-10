@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { EllipsisIcon, LockIcon, LockKeyholeIcon, PlusIcon } from "lucide-react"
+import { LockIcon, LockKeyholeIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { GeneratorTab } from "@/components/vault/generator-tab"
@@ -13,11 +13,11 @@ import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { WrongPasswordError } from "@/features/vault/crypto"
-import { lockVault, touch, unlockSession, useVaultSession, watchAuthSession } from "@/features/vault/session"
+import { countdownText } from "@/features/vault/health"
+import { lockVault, touch, unlockSession, useLockCountdown, useVaultSession, watchAuthSession } from "@/features/vault/session"
 import { createIndexedDbRepo, storageAvailable, type VaultRepo } from "@/features/vault/storage"
 import { createVault, loadItems, unlock } from "@/features/vault/vault"
 
@@ -35,6 +35,8 @@ const TAB_ITEMS = [
  */
 export function CofreScreen({ userId }: { userId: string }) {
   const session = useVaultSession()
+  const remaining = useLockCountdown()
+  const [now] = useState(() => new Date())
   const isMobile = useIsMobile()
   const [repo, setRepo] = useState<VaultRepo | null>(null)
   const [unsupported, setUnsupported] = useState(false)
@@ -143,6 +145,7 @@ export function CofreScreen({ userId }: { userId: string }) {
 
   // ---------------------------------------------------------- the open vault
   const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Cofre" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
+  const countdown = <LockChip seconds={remaining} autoLock={session.autoLock} />
 
   return (
     <VaultContext.Provider value={{ repo, scope: userId }}>
@@ -150,55 +153,58 @@ export function CofreScreen({ userId }: { userId: string }) {
         <PageHeader />
 
         {isMobile ? (
-          <section aria-label="Cofre" data-testid="cofre-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-[18px] leading-6 font-semibold">Cofre</h2>
-                <p className="truncate text-[13px] leading-5 text-muted-foreground">Criptografado no seu aparelho.</p>
+          <>
+            <section aria-label="Cofre" data-testid="cofre-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-[18px] leading-6 font-semibold">Cofre</h2>
+                  <p className="truncate text-[13px] leading-5 text-muted-foreground">Criptografado no seu aparelho. Só você abre.</p>
+                </div>
+                <Button type="button" variant="outline" size="icon" aria-label="Bloquear agora" data-testid="lock-icon" onClick={() => lockVault()} className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
+                  <LockIcon strokeWidth={1.75} />
+                </Button>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="Opções do Cofre" data-testid="cofre-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
-                    <EllipsisIcon strokeWidth={1.75} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setTab("itens")
-                      setAdding(true)
-                    }}
-                  >
-                    <PlusIcon strokeWidth={1.75} /> Adicionar item
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => lockVault()}>
-                    <LockIcon strokeWidth={1.75} /> Bloquear agora
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {tabs}
-          </section>
+              {tabs}
+            </section>
+            <div className="flex justify-center">{countdown}</div>
+          </>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {tabs}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {countdown}
               <Button type="button" variant="outline" data-testid="lock-header" onClick={() => lockVault()} className="h-9 rounded-full px-4">
                 <LockIcon strokeWidth={1.75} /> Bloquear agora
               </Button>
-              {tab === "itens" ? (
-                <Button type="button" data-testid="add-header" onClick={() => setAdding(true)} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-                  <PlusIcon strokeWidth={1.75} /> Adicionar item
-                </Button>
-              ) : null}
+              <Button
+                type="button"
+                data-testid="add-header"
+                onClick={() => {
+                  setTab("itens")
+                  setAdding(true)
+                }}
+                className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90"
+              >
+                <PlusIcon strokeWidth={1.75} /> Adicionar item
+              </Button>
             </div>
           </div>
         )}
 
-        {tab === "itens" ? <ItemsTab items={session.items} adding={adding} onAddingChange={setAdding} /> : null}
+        {tab === "itens" ? <ItemsTab items={session.items} adding={adding} onAddingChange={setAdding} onOpenReport={() => setTab("seguranca")} now={now} /> : null}
         {tab === "gerador" ? <GeneratorTab /> : null}
         {tab === "seguranca" ? <SecurityTab items={session.items} autoLock={session.autoLock} /> : null}
       </div>
     </VaultContext.Provider>
+  )
+}
+
+/** "Bloqueia em 4:32": the live countdown of the auto-lock timer (or, when it locks on leaving the tab, a plain note). */
+function LockChip({ seconds, autoLock }: { seconds: number | null; autoLock: string }) {
+  return (
+    <span data-testid="lock-countdown" aria-live="off" className="tabular inline-flex h-8 items-center gap-1.5 rounded-full border border-foreground/25 px-3 text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
+      <LockIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
+      {autoLock === "hidden" ? "Bloqueia ao sair da aba" : seconds === null ? "Bloqueio automático" : `Bloqueia em ${countdownText(seconds)}`}
+    </span>
   )
 }
