@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { CircleAlertIcon, DicesIcon, FileIcon, PaperclipIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PasswordField, StrengthMeter } from "@/components/vault/vault-kit"
+import { useRestoreFocus } from "@/components/vault/use-restore-focus"
 import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { ITEM_ICONS } from "@/components/vault/item-icons"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
@@ -24,6 +25,7 @@ const TEXT = "min-h-24 rounded-[12px] px-3 py-2.5 text-[15px] focus-visible:bord
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`
 
 export function ItemSheet({ open, item, defaultType, prefillPassword, onClose, onSaved }: { open: boolean; item: VaultItem | null; defaultType: VaultItemType; prefillPassword?: string; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+  useRestoreFocus(open)
   const [dirty, setDirty] = useState(false)
   const [asking, setAsking] = useState(false)
   // Closing by any way (Esc, outside click, drag, Cancelar) asks first when something was typed; saving closes without asking.
@@ -84,7 +86,8 @@ function ItemForm({ item, defaultType, prefillPassword, onDirtyChange, onCancel,
   const [file, setFile] = useState<File | null>(null)
   const [initial] = useState(() => JSON.stringify([type, v]))
   const dirty = file !== null || JSON.stringify([type, v]) !== initial
-  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
+  // Layout effect: the parent must know before the very next keystroke (Esc right after typing), not a frame later.
+  useLayoutEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   const [fileError, setFileError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const picker = useRef<HTMLInputElement>(null)

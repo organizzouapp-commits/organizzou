@@ -5,6 +5,7 @@ import { AlertTriangleIcon, CircleAlertIcon, DownloadIcon, UploadIcon } from "lu
 import { toast } from "sonner"
 
 import { ItemRow } from "@/components/vault/item-row"
+import { useRestoreFocus } from "@/components/vault/use-restore-focus"
 import { MIN_MASTER_LENGTH, PasswordField, StrengthMeter, chip, SMALL_CAPS, useVaultRepo } from "@/components/vault/vault-kit"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
@@ -214,6 +215,7 @@ function Backup({ scope }: { scope: string }) {
 }
 
 function ImportSheet({ backup, onClose, onExportCurrent }: { scope: string; backup: VaultBackup | null; onClose: () => void; onExportCurrent: () => void }) {
+  useRestoreFocus(Boolean(backup))
   return (
     <ResponsiveSheet open={Boolean(backup)} onOpenChange={(o) => !o && onClose()} title="Importar backup" description="O Cofre atual será substituído pelo conteúdo do backup.">
       {backup ? <ImportForm backup={backup} onClose={onClose} onExportCurrent={onExportCurrent} /> : null}

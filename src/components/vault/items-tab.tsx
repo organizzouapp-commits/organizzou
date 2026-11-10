@@ -7,6 +7,7 @@ import { AddPill } from "@/components/finance/parts"
 import { ItemDetail } from "@/components/vault/item-detail"
 import { ItemRow } from "@/components/vault/item-row"
 import { ItemSheet } from "@/components/vault/item-form"
+import { useRestoreFocus } from "@/components/vault/use-restore-focus"
 import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { VaultSummary } from "@/components/vault/vault-summary"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
@@ -31,6 +32,8 @@ export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now, ini
   const [editing, setEditing] = useState<VaultItem | null>(null)
   const [toDelete, setToDelete] = useState<VaultItem | null>(null)
 
+  useRestoreFocus(Boolean(toDelete))
+  useRestoreFocus(detailOpen && !wide)
   const health = vaultHealth(items)
   const q = query.trim().toLowerCase()
   // Search looks only at names and non-secret details, never at passwords, card numbers or note text.
