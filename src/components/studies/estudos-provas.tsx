@@ -240,13 +240,13 @@ export function ProvasTab({ deadlines, subjects, metas, today, isMobile, onQuick
 
   return (
     <div data-testid="estudos-provas" className="@container flex min-w-0 flex-col gap-4">
-      <QuickAdd label="Nova prova ou prazo… ex.: Prova de Cálculo, 20 de nov" shortLabel="Nova prova ou prazo…" ariaLabel="Nova prova ou prazo" isMobile={isMobile} onSubmit={onQuick} />
+      <QuickAdd label="Nova prova ou prazo… ex.: Prova de Cálculo, 20 de nov" shortLabel="Nova prova ou prazo…" ariaLabel="Nova prova ou prazo" isMobile={isMobile} requireText="Digite o título da prova ou do prazo e toque no +." onSubmit={onQuick} />
       {isMobile ? (
-        // Phone order: pill, next deadline, list, calendar.
+        // Phone order: pill, calendar, next deadline, list.
         <>
+          {calendar}
           {hero}
           {list}
-          {calendar}
         </>
       ) : (
         <div className="grid grid-cols-1 gap-4 @min-[880px]:grid-cols-12">
