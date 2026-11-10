@@ -14,7 +14,10 @@ import { useRouter } from "next/navigation"
 import { DeadlineSheet, type DeadlineDraft } from "@/components/studies/deadline-sheet"
 import { FlashcardsTab } from "@/components/studies/estudos-flashcards"
 import { HojeTab } from "@/components/studies/estudos-hoje"
+import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { MateriasTab } from "@/components/studies/estudos-materias"
+import { SubjectSheet } from "@/components/studies/subject-sheet"
+import { localSubjectMetaRepo, setArchived, type SubjectMeta } from "@/features/studies/subject-meta"
 import { ProvasTab } from "@/components/studies/estudos-provas"
 import { localDeadlineMetaRepo, parseQuickAdd, typeOf, type DeadlineMetaMap } from "@/features/studies/deadlines"
 import { CardSheet, ReviewSheet } from "@/components/studies/flashcard-dialogs"
@@ -24,7 +27,6 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
-import { SwatchPicker } from "@/components/organizzou/SwatchPicker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -36,21 +38,15 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import { isDue, review, type Rating } from "@/features/studies/spaced-repetition"
 import {
-  PRIORITY_LABELS,
-  SUBJECT_TYPE_LABELS,
   type DeadlineRow,
   type FlashcardDeckRow,
   type FlashcardRow,
-  type Priority,
   type StudySessionRow,
   type SubjectRow,
-  type SubjectType,
 } from "@/features/studies/types"
-import type { SwatchId } from "@/lib/swatches"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
@@ -79,7 +75,24 @@ export type StudiesInitial = { subjects: SubjectRow[]; sessions: StudySessionRow
 export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: StudiesInitial }) {
   const today = dayOf(nowIso)
   const weekStart = format(startOfWeek(parseISO(today), { weekStartsOn: 1 }), "yyyy-MM-dd")
-  const [subjects, setSubjects] = usePersistedRows<SubjectRow>("subjects", initial.subjects)
+  const [allSubjects, setSubjects] = usePersistedRows<SubjectRow>("subjects", initial.subjects)
+  // Archived subjects leave the timer, the deadlines and the charts but keep their history (the flag lives in localStorage until subjects has a column: see subject-meta.ts).
+  const [subjectMeta, setSubjectMeta] = useState<SubjectMeta>({ archived: [] })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSubjectMeta(localSubjectMetaRepo.load())
+  }, [])
+  const subjects = allSubjects.filter((s) => !subjectMeta.archived.includes(s.id))
+  const [subjectSheet, setSubjectSheet] = useState<{ subject: SubjectRow | null } | null>(null)
+  const [deletingSubject, setDeletingSubject] = useState<SubjectRow | null>(null)
+  function archiveSubject(subject: SubjectRow, archived: boolean) {
+    setSubjectMeta((current) => {
+      const next = setArchived(current, subject.id, archived)
+      localSubjectMetaRepo.save(next)
+      return next
+    })
+    toast.success(archived ? "Matéria arquivada." : "Matéria restaurada.")
+  }
   const [sessions, setSessions] = usePersistedRows<StudySessionRow>("study_sessions", initial.sessions)
   const [deadlines, setDeadlines] = usePersistedRows<DeadlineRow>("study_deadlines", initial.deadlines)
   const [decks, setDecks] = usePersistedRows<FlashcardDeckRow>("flashcard_decks", initial.decks)
@@ -95,7 +108,6 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   }, [])
   const [creatingDeck, setCreatingDeck] = useState(false)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
-  const [creatingSubject, setCreatingSubject] = useState(false)
   const [deadlineDraft, setDeadlineDraft] = useState<DeadlineDraft | null>(null)
   const [metas, setMetas] = useState<DeadlineMetaMap>({})
   useEffect(() => {
@@ -173,7 +185,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
     sessions.filter((s) => s.studied_on >= weekStart && (!subjectId || s.subject_id === subjectId)).reduce((sum, s) => sum + s.minutes, 0)
   const dueCards = cards.filter((c) => isDue(c, today))
 
-  usePrimaryAction("Nova matéria", () => setCreatingSubject(true))
+  usePrimaryAction("Nova matéria", () => setSubjectSheet({ subject: null }))
 
   const updateMetas = (change: (current: DeadlineMetaMap) => DeadlineMetaMap) =>
     setMetas((current) => {
@@ -248,7 +260,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setCreatingSubject(true)}>
+                <DropdownMenuItem onSelect={() => setSubjectSheet({ subject: null })}>
                   <PlusIcon strokeWidth={1.75} /> Nova matéria
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDeadlineDraft(blankDraft(today))}>
@@ -307,12 +319,12 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           }}
           onAllDeadlines={() => setTab("provas")}
           onPlanBlock={() => router.push("/dashboard/agenda")}
-          onNewSubject={() => setCreatingSubject(true)}
+          onNewSubject={() => setSubjectSheet({ subject: null })}
         />
       ) : null}
 
         {/* -------------------------------------------------------- subjects */}
-      {tab === "materias" ? <MateriasTab subjects={subjects} weekMinutes={weekMinutes} onNew={() => setCreatingSubject(true)} /> : null}
+      {tab === "materias" ? <MateriasTab subjects={allSubjects} archivedIds={subjectMeta.archived} weekMinutes={weekMinutes} isMobile={isMobile} onNew={() => setSubjectSheet({ subject: null })} onEdit={(s) => setSubjectSheet({ subject: s })} onArchive={archiveSubject} onDelete={setDeletingSubject} /> : null}
 
         {/* ------------------------------------------------------ flashcards */}
       {tab === "flashcards" ? (
@@ -345,13 +357,29 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
         />
       ) : null}
 
-      <SubjectDialog
-        open={creatingSubject}
-        onOpenChange={setCreatingSubject}
+      <SubjectSheet
+        open={subjectSheet !== null}
+        subject={subjectSheet?.subject ?? null}
         nowIso={nowIso}
-        onCreate={(s) => {
-          setSubjects((current) => [...current, s])
-          toast.success("Matéria criada.")
+        userId={USER}
+        onClose={() => setSubjectSheet(null)}
+        onSave={(s) => {
+          const isNew = !allSubjects.some((x) => x.id === s.id)
+          setSubjects((current) => (isNew ? [...current, s] : current.map((x) => (x.id === s.id ? s : x))))
+          toast.success(isNew ? "Matéria criada." : "Matéria salva.")
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(deletingSubject)}
+        onOpenChange={(o) => !o && setDeletingSubject(null)}
+        title={deletingSubject ? `Excluir “${deletingSubject.name}”?` : "Excluir matéria?"}
+        description="Os registros de estudo dessa matéria também serão apagados. Para guardá-la sem apagar nada, arquive."
+        onConfirm={() => {
+          const target = deletingSubject
+          setDeletingSubject(null)
+          if (!target) return
+          setSubjects((current) => current.filter((x) => x.id !== target.id))
+          toast.success("Matéria excluída.")
         }}
       />
       <DeadlineSheet draft={deadlineDraft} today={today} subjects={subjects} onClose={() => setDeadlineDraft(null)} onSave={saveDeadline} />
@@ -421,109 +449,3 @@ function DeckForm({ onCreate, onClose }: { onCreate: (name: string) => void; onC
   )
 }
 
-function SubjectDialog({
-  open,
-  onOpenChange,
-  nowIso,
-  onCreate,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  nowIso: string
-  onCreate: (subject: SubjectRow) => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <SubjectForm nowIso={nowIso} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
-    </Dialog>
-  )
-}
-
-function SubjectForm({ nowIso, onCreate, onClose }: { nowIso: string; onCreate: (subject: SubjectRow) => void; onClose: () => void }) {
-  const [name, setName] = useState("")
-  const [type, setType] = useState<SubjectType>("subject")
-  const [priority, setPriority] = useState<Priority>("medium")
-  const [goal, setGoal] = useState("4")
-  const [swatch, setSwatch] = useState<SwatchId>("neutro")
-
-  return (
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!name.trim()) return
-        onCreate({
-          id: newId(),
-          user_id: USER,
-          name: name.trim(),
-          type,
-          priority,
-          swatch,
-          weekly_goal_min: Math.round((Number(goal.replace(",", ".")) || 1) * 60),
-          progress_pct: type === "course" || type === "book" || type === "exam" ? 0 : null,
-          progress_label: null,
-          created_at: nowIso,
-          updated_at: nowIso,
-        })
-        onClose()
-      }}
-    >
-      <DialogHeader>
-        <DialogTitle>Nova matéria</DialogTitle>
-        <DialogDescription className="sr-only">Cadastre uma matéria, curso, livro ou concurso.</DialogDescription>
-      </DialogHeader>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="sub-name">Nome</Label>
-        <Input id="sub-name" autoFocus value={name} maxLength={80} placeholder="Ex.: Direito Administrativo" onChange={(e) => setName(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="sub-type">Tipo</Label>
-          <Select value={type} onValueChange={(v) => setType(v as SubjectType)}>
-            <SelectTrigger id="sub-type" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(SUBJECT_TYPE_LABELS) as SubjectType[]).map((t) => (
-                <SelectItem key={t} value={t}>
-                  {SUBJECT_TYPE_LABELS[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="sub-priority">Prioridade</Label>
-          <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-            <SelectTrigger id="sub-priority" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(PRIORITY_LABELS) as Priority[]).map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PRIORITY_LABELS[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="sub-goal">Meta semanal (horas)</Label>
-          <Input id="sub-goal" inputMode="decimal" value={goal} onChange={(e) => setGoal(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Cor</Label>
-          <SwatchPicker value={swatch} onChange={setSwatch} />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={!name.trim()}>
-          Criar matéria
-        </Button>
-      </DialogFooter>
-    </form>
-  )
-}
