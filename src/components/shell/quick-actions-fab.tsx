@@ -33,6 +33,7 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
   const button = useRef<HTMLButtonElement>(null)
   const timer = useRef<number | undefined>(undefined)
   const byHover = useRef(false)
+  const skipFocusOpen = useRef(false)
 
   const close = useCallback(() => {
     window.clearTimeout(timer.current)
@@ -56,7 +57,10 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
       close()
+      // Giving the focus back must not reopen the menu through the focus-open rule.
+      skipFocusOpen.current = true
       button.current?.focus()
+      skipFocusOpen.current = false
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
@@ -171,7 +175,7 @@ export function QuickActionsFab({ items }: { items: FabItem[] }) {
             }
           }}
           onFocus={(event) => {
-            if (event.currentTarget.matches(":focus-visible")) setOpen(true)
+            if (!skipFocusOpen.current && event.currentTarget.matches(":focus-visible")) setOpen(true)
           }}
           className="relative flex size-14 items-center justify-center rounded-full bg-highlight text-highlight-foreground outline-none transition-transform duration-120 ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
         >
