@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { FolderPlusIcon, NotebookPenIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InfoLine, LembretesTab } from "@/components/notes/lembretes-tab"
@@ -53,7 +54,7 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
   const c = useNotes({ notes, setNotes, folders, setFolders })
 
   // The top bar's primary button follows the tab.
-  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setReminderDraft(blankDraft(now))))
+  usePrimaryAction(tab === "notas" ? "Nova nota" : "Novo lembrete", () => (tab === "notas" ? c.createNote() : setReminderDraft(blankDraft(now))), tab === "notas" ? [{ id: "note", label: "Nova nota", icon: NotebookPenIcon, onSelect: c.createNote }, { id: "folder", label: "Nova pasta", icon: FolderPlusIcon, onSelect: () => c.setFolderDialog({ mode: "create" }) }] : undefined)
 
   const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Notas e lembretes" items={TAB_ITEMS} value={tab} onSelect={(item) => {
     // Leaving the Notas tab drops an empty draft.

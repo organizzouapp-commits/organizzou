@@ -2,12 +2,13 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { PlusIcon, SearchIcon, BadgeDollarSignIcon } from "lucide-react"
+import { ChevronDownIcon, PlusIcon, SearchIcon, BadgeDollarSignIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { usePlan } from "@/components/organizzou/plan-context"
 import { ThemeSwitch } from "@/components/organizzou/ThemeToggle"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Bell, UserMenu } from "@/components/shell/app-topbar"
 import type { ShellUser } from "@/components/shell/app-sidebar"
 import { BackToAppButton } from "@/components/shell/nav-brand"
@@ -126,9 +127,32 @@ export function HeaderActions({ user, onSearch }: { user: ShellUser; onSearch: (
           </Link>
         </Button>
       )}
-      <Button size="lg" className="h-11 rounded-full px-3 min-[1280px]:px-5" aria-label={primaryLabel} onClick={primary?.onClick ?? openQuickCapture}>
-        <PlusIcon strokeWidth={1.75} /> <span className="hidden min-[1280px]:inline">{primaryLabel}</span>
-      </Button>
+      {primary?.menu && primary.menu.length > 0 ? (
+        // Split button: the main part does the primary action, the chevron opens the other creations of the screen.
+        <div className="flex h-11 items-center" data-testid="primary-split">
+          <Button size="lg" className="h-11 rounded-l-full rounded-r-none pr-3 pl-3 min-[1280px]:pl-5" aria-label={primaryLabel} onClick={primary.onClick}>
+            <PlusIcon strokeWidth={1.75} /> <span className="hidden min-[1280px]:inline">{primaryLabel}</span>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="lg" aria-label={`Mais opções: ${primaryLabel}`} aria-haspopup="menu" data-testid="primary-split-chevron" className="h-11 w-11 rounded-l-none rounded-r-full border-l border-primary-foreground/25 px-0">
+                <ChevronDownIcon strokeWidth={1.75} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 min-w-48">
+              {primary.menu.map(({ id, label, icon: Icon, onSelect }) => (
+                <DropdownMenuItem key={id} className="min-h-11 gap-3 px-3 text-[14px]" onSelect={onSelect}>
+                  {Icon ? <Icon strokeWidth={1.75} /> : null} {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : (
+        <Button size="lg" className="h-11 rounded-full px-3 min-[1280px]:px-5" aria-label={primaryLabel} onClick={primary?.onClick ?? openQuickCapture}>
+          <PlusIcon strokeWidth={1.75} /> <span className="hidden min-[1280px]:inline">{primaryLabel}</span>
+        </Button>
+      )}
     </div>
   )
 }

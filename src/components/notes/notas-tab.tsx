@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, FolderIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
+import { CheckIcon, FolderIcon, FolderPlusIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { FolderDialog } from "@/components/notes/folder-dialog"
+import { FloatingAddMenu, FloatingAddSpacer } from "@/components/organizzou/floating-add-menu"
 import { NoteEditor } from "@/components/notes/note-editor"
 import type { NotesController } from "@/components/notes/use-notes"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import { PillTabs, dashedPillClass } from "@/components/tasks/pill-tabs"
+import { PillTabs } from "@/components/tasks/pill-tabs"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -25,15 +26,6 @@ const chip = "tabular inline-flex h-6 max-w-32 items-center rounded-full border 
 const LIMA = "bg-highlight text-highlight-foreground hover:bg-highlight/90"
 
 // ------------------------------------------------------------------ folders and search
-
-/** The dashed "+ Nova pasta" pill: opens the folder dialog (never typed inline in the row). */
-function NewFolder({ onOpen }: { onOpen: () => void }) {
-  return (
-    <button type="button" data-testid="new-folder" aria-haspopup="dialog" onClick={onOpen} className={cn(dashedPillClass, "shrink-0")}>
-      <PlusIcon aria-hidden strokeWidth={1.75} className="size-3.5" /> Nova pasta
-    </button>
-  )
-}
 
 function SearchField({ c, mobile }: { c: NotesController; mobile: boolean }) {
   const [open, setOpen] = useState(false)
@@ -67,7 +59,6 @@ function FolderRow({ c, mobile }: { c: NotesController; mobile: boolean }) {
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="folder-row">
       <div className="flex min-w-0 flex-1 items-center gap-2 basis-60">
         <PillTabs kind="tabs" ariaLabel="Pastas" items={c.entries.map((e) => ({ id: e.key, label: e.label, count: e.count }))} value={c.folder} onSelect={(item) => c.setFolder(item.id)} itemProps={(item) => ({ "data-folder": item.id })} className="min-w-0 flex-1" />
-        <NewFolder onOpen={() => c.setFolderDialog({ mode: "create" })} />
       </div>
       <SearchField c={c} mobile={mobile} />
     </div>
@@ -320,6 +311,8 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
     <div ref={rootRef} data-testid="notas-tab" className="flex min-w-0 flex-col gap-4">
       <FolderRow c={c} mobile={isMobile} />
       <NotesBody c={c} columns={columns} />
+      {isMobile ? <FloatingAddSpacer /> : null}
+      {isMobile ? <FloatingAddMenu label="Adicionar" hidden={Boolean(note) || c.folderDialog !== null || c.moving !== null || c.toDelete !== null} items={[{ id: "note", label: "Nova nota", icon: NotebookPenIcon, onSelect: c.createNote }, { id: "folder", label: "Nova pasta", icon: FolderPlusIcon, onSelect: () => c.setFolderDialog({ mode: "create" }) }]} /> : null}
 
       {note && isMobile ? <FullScreenEditor onClose={c.close}>{editor}</FullScreenEditor> : null}
       {!isMobile ? (
