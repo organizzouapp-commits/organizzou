@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, FolderIcon, ListChecksIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
+import { CheckIcon, FolderIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { NoteEditor } from "@/components/notes/note-editor"
@@ -22,19 +22,6 @@ import { cn } from "@/lib/utils"
 
 const chip = "tabular inline-flex h-6 max-w-32 items-center rounded-full border border-foreground/25 px-2 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 const LIMA = "bg-highlight text-highlight-foreground hover:bg-highlight/90"
-
-// ------------------------------------------------------------------ the "Criar uma nota…" bar
-
-/** The whole bar is a button: pressing it opens the note editor right away (no typing in the bar first). */
-function CreateBar({ onCreate }: { onCreate: () => void }) {
-  return (
-    <button type="button" data-testid="create-note-bar" aria-haspopup="dialog" onClick={onCreate} className="mx-auto flex h-12 w-full max-w-[600px] items-center gap-3 rounded-[20px] border border-border bg-card px-4 text-left text-[15px] text-muted-foreground outline-none transition-colors duration-[400ms] hover:text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transition-none">
-      <span className="min-w-0 flex-1 truncate">Criar uma nota…</span>
-      <ListChecksIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-      <FolderIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-    </button>
-  )
-}
 
 // ------------------------------------------------------------------ folders and search
 
@@ -354,7 +341,6 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
 
   return (
     <div ref={rootRef} data-testid="notas-tab" className="flex min-w-0 flex-col gap-4">
-      <CreateBar onCreate={c.createNote} />
       <FolderRow c={c} mobile={isMobile} />
       <NotesBody c={c} columns={columns} />
 
