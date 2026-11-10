@@ -197,7 +197,7 @@ export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, 
 
   return (
     <div data-testid="estudos-flashcards" className="@container flex min-w-0 flex-col gap-4">
-      <QuickAdd label="Novo baralho… ex.: Direito Penal — princípios" shortLabel="Novo baralho…" ariaLabel="Nome do novo baralho" isMobile={isMobile} onSubmit={(name) => (name ? onCreateDeck(name) : onOpenDeckDialog())} />
+      <QuickAdd label="Novo baralho… ex.: Direito Penal — princípios" shortLabel="Novo baralho…" ariaLabel="Nome do novo baralho" isMobile={isMobile} requireText="Digite um nome para o baralho e toque no +." onSubmit={onCreateDeck} />
       <div className="grid grid-cols-1 gap-4 @min-[880px]:grid-cols-12">
         {hero}
         {accuracy}
@@ -211,7 +211,7 @@ export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, 
           <AddPill label="Criar o primeiro baralho" onClick={onOpenDeckDialog} className="max-w-72" />
         </div>
       ) : (
-        <div data-testid="deck-grid" className="grid grid-cols-1 gap-4 @min-[720px]:grid-cols-2">
+        <div data-testid="deck-grid" className="grid grid-cols-1 gap-4 @min-[560px]:grid-cols-2 @min-[900px]:grid-cols-3">
           {decks.map((deck) => (
             <DeckCard key={deck.id} deck={deck} cards={cards.filter((c) => c.deck_id === deck.id)} today={today} onStudy={() => onStudyDeck(deck.id)} onAddCard={() => onAddCard(deck)} />
           ))}
