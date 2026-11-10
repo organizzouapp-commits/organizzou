@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckIcon, FolderIcon, FolderPlusIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
+import { CheckIcon, FolderIcon, NotebookPenIcon, PinIcon, PlusIcon, SearchIcon, XIcon, type LucideIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { FolderDialog } from "@/components/notes/folder-dialog"
-import { FloatingAddMenu, FloatingAddSpacer } from "@/components/organizzou/floating-add-menu"
 import { NoteEditor } from "@/components/notes/note-editor"
 import type { NotesController } from "@/components/notes/use-notes"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
@@ -311,8 +310,6 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
     <div ref={rootRef} data-testid="notas-tab" className="flex min-w-0 flex-col gap-4">
       <FolderRow c={c} mobile={isMobile} />
       <NotesBody c={c} columns={columns} />
-      {isMobile ? <FloatingAddSpacer /> : null}
-      {isMobile ? <FloatingAddMenu label="Adicionar" hidden={Boolean(note) || c.folderDialog !== null || c.moving !== null || c.toDelete !== null} items={[{ id: "note", label: "Nova nota", icon: NotebookPenIcon, onSelect: c.createNote }, { id: "folder", label: "Nova pasta", icon: FolderPlusIcon, onSelect: () => c.setFolderDialog({ mode: "create" }) }]} /> : null}
 
       {isMobile ? <NoteSheet open={Boolean(note)} onClose={c.close}>{editor}</NoteSheet> : null}
       {!isMobile ? (

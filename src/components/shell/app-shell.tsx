@@ -17,7 +17,6 @@ import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
-import { AssistantFloatingButton } from "./assistant-card"
 import { isPro, type PlanId } from "@/lib/plans"
 import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
 import { AppSidebar, type ShellUser } from "./app-sidebar"
@@ -79,18 +78,19 @@ function useIsTablet() {
   )
 }
 
-type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void; onAssistant: (() => void) | null }
+type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void }
 
 /**
  * Phones: one fixed row 16 px above the bottom safe area and 16 px from both edges. The floating nav takes the width that is left and
- * the assistant button (Pro only, hidden while the assistant is open) sits at its right. The row hides while the keyboard is open.
+ * the quick-actions button (QuickActionsFab) floats at its right. The row hides while the keyboard is open.
  */
-function ShellBottomBar({ items, activeId, onSelect, onAssistant }: ShellBottomBarProps) {
+function ShellBottomBar({ items, activeId, onSelect }: ShellBottomBarProps) {
   const typing = useTextEntryFocused()
   return (
     <div className={cn("fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-30 flex items-center gap-3 md:hidden", typing && "hidden")}>
       <BottomNav items={items} activeId={activeId} onSelect={onSelect} className="flex-1" />
-      {onAssistant ? <AssistantFloatingButton onClick={onAssistant} /> : null}
+      {/* The slot of the quick-actions button (QuickActionsFab floats over it), so the nav pill never runs under it. */}
+      <div aria-hidden className="size-14 shrink-0" />
     </div>
   )
 }
@@ -235,7 +235,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
             </div>
           </SidebarInset>
 
-          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} onAssistant={withAssistant && pro && !assistantOpen ? openAssistant : null} />
+          <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} />
 
           {withAssistant ? (
             <>

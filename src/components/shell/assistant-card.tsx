@@ -59,18 +59,3 @@ export function AssistantRailButton({ className }: { className?: string }) {
     </Tooltip>
   )
 }
-
-/** Phones only (the sidebar is a drawer there): the 56 px Lima circle that opens the assistant. Pro only; the shell hides it while the assistant is open. */
-export function AssistantFloatingButton({ onClick, className }: { onClick: () => void; className?: string }) {
-  return (
-    <button
-      type="button"
-      aria-label="Abrir assistente virtual"
-      data-testid="assistant-fab"
-      onClick={onClick}
-      className={cn("flex size-14 shrink-0 items-center justify-center rounded-full bg-highlight text-highlight-foreground outline-none transition-transform duration-120 ease-organizzou focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95", className)}
-    >
-      <SparklesIcon aria-hidden strokeWidth={1.75} className="size-6" />
-    </button>
-  )
-}
