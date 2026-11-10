@@ -342,6 +342,84 @@ function RestRing({ rest }: { rest: RestState | null }) {
   )
 }
 
+/** A 32px version of the rest ring for the phone bar. */
+function MiniRestRing({ rest }: { rest: RestState | null }) {
+  const R = 13.5
+  const C = 2 * Math.PI * R
+  const progress = rest && rest.total > 0 ? rest.remaining / rest.total : 0
+  return (
+    <span aria-hidden className="relative flex size-8 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 32 32" className="absolute inset-0 -rotate-90">
+        <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2.5" className="stroke-foreground/15" />
+        <circle cx="16" cy="16" r={R} fill="none" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - progress)} className="stroke-primary transition-[stroke-dashoffset] duration-1000 ease-linear motion-reduce:transition-none" />
+      </svg>
+      <TimerIcon strokeWidth={1.75} className="size-4" />
+    </span>
+  )
+}
+
+/** Small buttons for the phone bar: 36px tall, with the touch area grown to 44px by an invisible overlay. */
+const MOBILE_BTN = "relative h-9 rounded-full px-3 text-[13px] after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] md:h-9"
+
+/**
+ * The phone rest bar: a compact floating card (about 96px, one row of 56px while no rest runs) stacked just above the bottom nav row, so it never
+ * covers the nav pill or the assistant button. Row 1: ring, "DESCANSO" with the next set, the clock. Row 2: sets done with a thin hatched bar, "Pular", "Finalizar treino".
+ */
+function MobileRestBar({ cardRef, rest, next, doneSets, totalSets, pct, enabled, finished, helper, onSkip, onFinish, hidden }: { cardRef: React.Ref<HTMLDivElement>; rest: RestState | null; next: { name: string; set: number } | null; doneSets: number; totalSets: number; pct: number; enabled: boolean; finished: boolean; helper: string; onSkip: () => void; onFinish: () => void; hidden: boolean }) {
+  const progress = (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <p className="tabular truncate text-[12px] leading-4 text-muted-foreground">
+        {doneSets} de {totalSets} séries
+      </p>
+      <HatchedProgress value={pct} label="Séries feitas" className="h-1" />
+    </div>
+  )
+  const finish = (
+    <Button data-testid="finish-workout" aria-disabled={!enabled} aria-describedby="finish-helper" className={cn(MOBILE_BTN, "shrink-0", enabled ? "bg-highlight text-highlight-foreground hover:bg-highlight/90" : "bg-muted text-muted-foreground hover:bg-muted")} onClick={() => enabled && onFinish()}>
+      {finished ? "Registrado" : "Finalizar treino"}
+    </Button>
+  )
+  return (
+    <div ref={cardRef} data-testid="action-bar" data-compact={rest ? "running" : "idle"} className={cn("fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-30 flex flex-col gap-1.5 rounded-[20px] border border-border bg-card p-2.5 md:hidden", hidden && "hidden")}>
+      {rest ? (
+        <>
+          <div role="timer" aria-label="Descanso" className="flex h-8 min-w-0 items-center gap-2.5">
+            <MiniRestRing rest={rest} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] leading-3 font-semibold tracking-[0.12em] text-muted-foreground uppercase">Descanso</p>
+              <p className="truncate text-[12px] leading-4 text-muted-foreground">{next ? `Próxima: ${next.name} · série ${next.set}` : "Todas as séries marcadas"}</p>
+            </div>
+            <span data-testid="rest-clock" className="tabular shrink-0 text-[20px] leading-8 font-semibold tracking-[-0.02em]">
+              {clock(rest.remaining)}
+            </span>
+          </div>
+          <div className="flex min-w-0 items-center gap-2">
+            {progress}
+            <Button variant="outline" className={cn(MOBILE_BTN, "shrink-0")} onClick={onSkip}>
+              Pular
+            </Button>
+            {finish}
+          </div>
+        </>
+      ) : (
+        <div className="flex min-w-0 items-center gap-2">
+          <span role="timer" aria-label="Descanso" className="sr-only">
+            Sem descanso em andamento
+          </span>
+          <span data-testid="rest-clock" className="sr-only">
+            --:--
+          </span>
+          {progress}
+          {finish}
+        </div>
+      )}
+      <span id="finish-helper" className="sr-only">
+        {helper}
+      </span>
+    </div>
+  )
+}
+
 /**
  * The rest timer card, docked bottom-right (above the bottom nav on phones): the ring and the next set, the big clock, the sets done with
  * a hatched bar, and "Pular" / "Finalizar treino". It floats, so an invisible spacer of its own height keeps the page from ending under it.
@@ -357,6 +435,7 @@ export function ActionBar({
   onSkip,
   onFinish,
   hiddenOnPhone,
+  mobile,
 }: {
   rest: RestState | null
   next: { name: string; set: number } | null
@@ -370,11 +449,21 @@ export function ActionBar({
   onFinish: () => void
   /** The phone keyboard is open: the card steps aside. */
   hiddenOnPhone: boolean
+  /** Phones get the compact bar; desktop keeps the docked card. */
+  mobile: boolean
 }) {
   const [cardRef, size] = useElementSize<HTMLDivElement>()
   const pct = totalSets === 0 ? 0 : (doneSets / totalSets) * 100
   const helper = finished ? "Treino registrado" : (blocked ?? "Marque todas as séries para finalizar")
   const enabled = canFinish && !finished && !blocked
+  if (mobile) {
+    return (
+      <>
+        <div aria-hidden data-testid="action-bar-spacer" style={{ height: hiddenOnPhone ? 0 : size.height + 16 }} />
+        <MobileRestBar cardRef={cardRef} rest={rest} next={next} doneSets={doneSets} totalSets={totalSets} pct={pct} enabled={enabled} finished={finished} helper={helper} onSkip={onSkip} onFinish={onFinish} hidden={hiddenOnPhone} />
+      </>
+    )
+  }
   return (
     <>
       <div aria-hidden data-testid="action-bar-spacer" style={{ height: size.height + 16 }} className={cn(hiddenOnPhone && "max-md:hidden")} />

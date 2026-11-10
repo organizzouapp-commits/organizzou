@@ -392,6 +392,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
                 onSkip={() => setRest(null)}
                 onFinish={finishWorkout}
                 hiddenOnPhone={typing}
+                mobile={isMobile}
               />
             </>
           )}
