@@ -17,3 +17,18 @@ export function useElementSize<T extends HTMLElement>() {
   }, [])
   return [ref, size] as const
 }
+
+/** Like useElementSize, but for an element that may mount later than the component (a tab, a conditional block): a callback ref returns the width. */
+export function useElementWidth<T extends HTMLElement>() {
+  const [element, setElement] = useState<T | null>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    if (!element) return
+    const update = () => setWidth(element.clientWidth)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element])
+  return [setElement, width] as const
+}

@@ -36,7 +36,9 @@ import { PromptDialog } from "@/components/organizzou/PromptDialog"
 import { addWeekday, reorderExercises, toggleWeekday } from "@/features/workouts/plans"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useElementWidth } from "@/hooks/use-element-size"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { splitColumns } from "@/lib/columns"
 import { doneVolume, estimatedMinutes, lastVolume, nextPendingSet, planLetter, restAfterSet, type SetDraft } from "@/features/workouts/session"
 import type { ExerciseRow, PlanExerciseRow, SetLogRow, WorkoutPlanRow, WorkoutSessionRow } from "@/features/workouts/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
@@ -73,6 +75,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   const exerciseName = (id: string) => exercises.find((e) => e.id === id)?.name ?? "Exercício"
   const today = dayOf(nowIso)
   const isMobile = useIsMobile()
+  const [listRef, listWidth] = useElementWidth<HTMLDivElement>()
   const [plans, setPlans] = usePersistedRows<WorkoutPlanRow>("workout_plans", initial.plans)
   const [planExercises, setPlanExercises] = usePersistedRows<PlanExerciseRow>("plan_exercises", initial.planExercises)
   const [sessions, setSessions] = usePersistedRows<WorkoutSessionRow>("workout_sessions", initial.sessions)
@@ -346,29 +349,35 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
                 onPick={pickPlan}
               />
 
-              <div className="grid items-start gap-3 @min-[900px]:grid-cols-2" data-testid="exercise-list">
-                {items.map((item, position) => {
-                  const exerciseId = exerciseOf(item)
-                  const exercise = exercises.find((e) => e.id === exerciseId)
-                  return (
-                    <ExerciseCard
-                      key={item.id}
-                      name={exerciseName(exerciseId)}
-                      icon={exerciseIcon(exercise?.name ?? "", exercise?.muscle_group ?? "")}
-                      setsCount={draftsFor(item).length}
-                      reps={item.reps}
-                      restSeconds={item.rest_seconds}
-                      drafts={draftsFor(item)}
-                      previous={(index) => previousSet(exerciseId, index)}
-                      open={openCards[item.id] ?? position === 0}
-                      onToggle={() => setOpenCards((o) => ({ ...o, [item.id]: !(o[item.id] ?? position === 0) }))}
-                      next={nextPending?.item.id === item.id ? nextPending.index : null}
-                      onChange={(index, patch) => updateDraft(item, index, patch)}
-                      onAddSet={() => addSet(item)}
-                      onSwap={() => setSwapping(item)}
-                    />
-                  )
-                })}
+              {/* Two independent columns (cards dealt one by one) so a tall open card never leaves a gap under its neighbour. One column on narrow widths. */}
+              <div ref={listRef} className="flex items-start gap-3" data-testid="exercise-list">
+                {splitColumns(items, listWidth >= 900 ? 2 : 1).map((column, columnIndex) => (
+                  <div key={columnIndex} data-exercise-column={columnIndex} className="flex min-w-0 flex-1 flex-col gap-3">
+                    {column.map((item) => {
+                      const position = items.indexOf(item)
+                      const exerciseId = exerciseOf(item)
+                      const exercise = exercises.find((e) => e.id === exerciseId)
+                      return (
+                        <ExerciseCard
+                          key={item.id}
+                          name={exerciseName(exerciseId)}
+                          icon={exerciseIcon(exercise?.name ?? "", exercise?.muscle_group ?? "")}
+                          setsCount={draftsFor(item).length}
+                          reps={item.reps}
+                          restSeconds={item.rest_seconds}
+                          drafts={draftsFor(item)}
+                          previous={(index) => previousSet(exerciseId, index)}
+                          open={openCards[item.id] ?? position === 0}
+                          onToggle={() => setOpenCards((o) => ({ ...o, [item.id]: !(o[item.id] ?? position === 0) }))}
+                          next={nextPending?.item.id === item.id ? nextPending.index : null}
+                          onChange={(index, patch) => updateDraft(item, index, patch)}
+                          onAddSet={() => addSet(item)}
+                          onSwap={() => setSwapping(item)}
+                        />
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
               <AddExerciseRow onClick={() => setAddingTo(activePlan)} />
 
