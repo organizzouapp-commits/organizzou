@@ -134,20 +134,3 @@ export function completedOn(goal: Completable, metas: GoalMetaMap): { day: strin
   return recorded ? { day: dayOfIso(recorded), known: true } : { day: dayOfIso(goal.updated_at), known: false }
 }
 
-/** How many of the goals were completed in the year of `today`. */
-export function completedThisYear(goals: Completable[], metas: GoalMetaMap, today: string): number {
-  return goals.filter((g) => completedOn(g, metas).day.slice(0, 4) === today.slice(0, 4)).length
-}
-
-/** The latest deadline that was met (the goal was completed on or before it); null when none was. */
-export function lastMetDeadline<T extends Completable>(goals: T[], metas: GoalMetaMap): { goal: T; deadline: string } | null {
-  const met = goals.filter((g) => g.deadline && completedOn(g, metas).day <= g.deadline)
-  const last = [...met].sort((a, b) => (b.deadline as string).localeCompare(a.deadline as string) || a.id.localeCompare(b.id))[0]
-  return last ? { goal: last, deadline: last.deadline as string } : null
-}
-
-/** Average days from creating a goal to completing it, over the goals whose completion date was recorded (never the estimates). Null without any. */
-export function averageDaysToComplete(goals: Completable[], metas: GoalMetaMap): number | null {
-  const days = goals.filter((g) => completedOn(g, metas).known).map((g) => Math.max(0, daysBetween(completedOn(g, metas).day, dayOfIso(g.created_at))))
-  return days.length === 0 ? null : Math.round(days.reduce((a, b) => a + b, 0) / days.length)
-}
