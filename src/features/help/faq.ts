@@ -28,7 +28,7 @@ export const FAQ: FaqItem[] = [
   {
     id: "tema",
     q: "Como mudo entre o tema claro e o escuro?",
-    a: ["Use o botão de sol e lua no topo da tela, ou escolha em ", { label: "Configurações > Aparência", href: settingsHref("aparencia") }, ". O app lembra a sua escolha e a usa em todos os seus aparelhos."],
+    a: ["Use o botão de sol e lua no topo da tela. O app lembra a sua escolha e a usa em todos os seus aparelhos."],
   },
   {
     id: "plano",

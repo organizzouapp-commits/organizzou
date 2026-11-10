@@ -11,7 +11,7 @@ describe("filterFaq", () => {
 
   it("ignores case and accents", () => {
     expect(filterFaq(FAQ, "CONFIGURACOES").length).toBeGreaterThan(0)
-    expect(filterFaq(FAQ, "aparência").map((i) => i.id)).toContain("tema")
+    expect(filterFaq(FAQ, "SEGURANÇA").map((i) => i.id)).toContain("seguranca")
   })
 
   it("looks at the answers, not only the questions", () => {

@@ -3,7 +3,7 @@
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDownIcon, FolderIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, BadgeDollarSignIcon } from "lucide-react"
+import { ChevronDownIcon, FolderIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, BadgeDollarSignIcon, UserIcon } from "lucide-react"
 
 import { Logo } from "@/components/organizzou/Logo"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -58,7 +58,7 @@ function NavRow({ item, pathname, counts }: { item: NavItem; pathname: string; c
   )
 }
 
-function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: NavGroup; pathname: string; counts: Counts; open: boolean; onOpenChange: (open: boolean) => void }) {
+function FoldedGroup({ group, pathname, counts, open, onOpenChange, footer }: { group: NavGroup; pathname: string; counts: Counts; open: boolean; onOpenChange: (open: boolean) => void; footer?: React.ReactNode }) {
   const Icon = group.icon ?? FolderIcon
   const total = groupCount(group, counts)
   return (
@@ -78,31 +78,21 @@ function FoldedGroup({ group, pathname, counts, open, onOpenChange }: { group: N
           {group.items.map((item) => (
             <NavRow key={item.id} item={item} pathname={pathname} counts={counts} />
           ))}
+          {footer}
         </div>
       </CollapsibleContent>
     </Collapsible>
   )
 }
 
-/** After Organização: Configurações and Ajuda as plain rows (no group to fold), then Sair (asks for confirmation). */
-function AccountLinks({ account, pathname }: { account: Account; pathname: string }) {
+/** "Sair" at the end of the Conta group: it asks for confirmation before signing out. */
+function SignOutRow() {
   const requestSignOut = useRequestSignOut()
   return (
-    <div className="flex flex-col gap-0.5" data-testid="account-links">
-      {account.items.map((item) => {
-        const active = isActivePath(pathname, item.href)
-        return (
-          <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
-            <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        )
-      })}
-      <button type="button" onClick={requestSignOut} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
-        <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
-        Sair
-      </button>
-    </div>
+    <button type="button" onClick={requestSignOut} className={cn(rowBase, "w-full text-left", ease, focus, rowIdle)}>
+      <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+      Sair
+    </button>
   )
 }
 
@@ -140,11 +130,12 @@ function RailLink({ item, pathname, counts }: { item: NavItem; pathname: string;
   )
 }
 
-function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: string; counts: Counts }) {
+function RailGroup({ group, pathname, counts, footer, align = "start" }: { group: NavGroup; pathname: string; counts: Counts; footer?: (close: () => void) => React.ReactNode; align?: "start" | "end" }) {
+  const [open, setOpen] = useState(false)
   const Icon = group.icon ?? FolderIcon
   const hasActive = groupHasActive(group, pathname)
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <RailTip label={group.label}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={group.label} className={cn(railBase, ease, focus, hasActive ? "bg-highlight text-highlight-foreground" : rowIdle)}>
@@ -153,7 +144,7 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
           </button>
         </PopoverTrigger>
       </RailTip>
-      <PopoverContent side="right" align="start" sideOffset={14} className="w-60 gap-0 p-2">
+      <PopoverContent side="right" align={align} sideOffset={14} className="w-60 gap-0 p-2">
         <p className="px-3 py-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">{group.label}</p>
         {group.items.map((item) => {
           const active = isActivePath(pathname, item.href)
@@ -165,6 +156,7 @@ function RailGroup({ group, pathname, counts }: { group: NavGroup; pathname: str
             </Link>
           )
         })}
+        {footer?.(() => setOpen(false))}
       </PopoverContent>
     </Popover>
   )
@@ -182,27 +174,26 @@ function RailUpgrade() {
   )
 }
 
-/** Collapsed rail: the same flat entries as icon buttons with a tooltip, then Sair. */
-function RailAccount({ account, pathname }: { account: Account; pathname: string }) {
+/** The Conta group (Configurações, Ajuda, then Sair): the same group component as Vida and Organização, pinned above the bottom card. */
+function accountGroup(account: Account): NavGroup {
+  return { id: "conta", label: account.label, icon: UserIcon, items: account.items }
+}
+
+/** "Sair" at the end of the Conta flyout in the collapsed rail. */
+function RailSignOut({ close }: { close: () => void }) {
   const requestSignOut = useRequestSignOut()
   return (
-    <>
-      {account.items.map((item) => {
-        const active = isActivePath(pathname, item.href)
-        return (
-          <RailTip key={item.id} label={item.label}>
-            <Link href={item.href} aria-label={item.label} aria-current={active ? "page" : undefined} className={cn(railBase, ease, focus, active ? "bg-highlight text-highlight-foreground" : rowIdle)}>
-              <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
-            </Link>
-          </RailTip>
-        )
-      })}
-      <RailTip label="Sair">
-        <button type="button" aria-label="Sair" onClick={requestSignOut} className={cn(railBase, ease, focus, rowIdle)}>
-          <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5" />
-        </button>
-      </RailTip>
-    </>
+    <button
+      type="button"
+      onClick={() => {
+        close()
+        requestSignOut()
+      }}
+      className={cn("flex h-11 w-full items-center gap-3 rounded-full px-3 text-left text-[15px] hover:bg-accent", ease, focus)}
+    >
+      <LogOutIcon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+      Sair
+    </button>
   )
 }
 
@@ -221,9 +212,8 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
   const account = nav.account
 
   // The group that contains the current page, if any.
-  const activeGroup =
-    foldedGroups.find((g) => groupHasActive(g, pathname))?.label ??
-    null
+  const accountNav = account ? accountGroup(account) : null
+  const activeGroup = foldedGroups.find((g) => groupHasActive(g, pathname))?.label ?? (accountNav && groupHasActive(accountNav, pathname) ? accountNav.label : null)
 
   // Accordion: a single piece of state, so opening one group closes the others. It is not persisted: on load only the group
   // that holds the current route is open (none on any other route), and navigating into a group opens it.
@@ -267,9 +257,12 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
           {foldedGroups.map((group) => (
             <RailGroup key={group.label} group={group} pathname={pathname} counts={counts} />
           ))}
-          {account ? <RailAccount account={account} pathname={pathname} /> : null}
+
         </nav>
-        <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">{nav.features.plan ? <RailUpgrade /> : <BackToAppRail />}</div>
+        <div className="flex shrink-0 flex-col items-center gap-1 pt-2 pb-4">
+          {accountNav ? <RailGroup group={accountNav} pathname={pathname} counts={counts} align="end" footer={(close) => <RailSignOut close={close} />} /> : null}
+          {nav.features.plan ? <RailUpgrade /> : <BackToAppRail />}
+        </div>
         <SidebarRail />
       </Sidebar>
     )
@@ -292,11 +285,12 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
         {foldedGroups.map((group) => (
           <FoldedGroup key={group.label} group={group} pathname={pathname} counts={counts} {...groupProps(group.label)} />
         ))}
-        {account ? <AccountLinks account={account} pathname={pathname} /> : null}
+
       </nav>
 
-      {/* The only thing anchored at the bottom: the card (the upgrade card for Free users, the virtual assistant for Pro). */}
-      <div className="flex shrink-0 flex-col px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
+      {/* Pinned at the bottom, never scrolled away: the Conta group (Configurações, Ajuda, Sair) above the card (the upgrade card for Free users, the virtual assistant for Pro). When Conta opens, the list above is what shrinks and scrolls. */}
+      <div className="flex shrink-0 flex-col gap-2 px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
+        {accountNav ? <FoldedGroup group={accountNav} pathname={pathname} counts={counts} {...groupProps(accountNav.label)} footer={<SignOutRow />} /> : null}
         {nav.features.plan ? <SidebarCta /> : <BackToAppButton className="w-full justify-start px-4" />}
       </div>
       <SidebarRail />

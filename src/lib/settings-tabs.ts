@@ -2,7 +2,6 @@
 
 export const SETTINGS_TABS = [
   { id: "perfil", label: "Perfil" },
-  { id: "aparencia", label: "Aparência" },
   { id: "avisos", label: "Avisos" },
   { id: "seguranca", label: "Segurança e dados" },
   { id: "plano", label: "Plano e cobrança" },

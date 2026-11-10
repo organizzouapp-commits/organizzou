@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { format, formatDistanceToNowStrict } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { AlarmClockIcon, ArrowLeftIcon, BadgeDollarSignIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
+import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownIcon, ChevronRightIcon, DumbbellIcon, GraduationCapIcon, InfoIcon, LogOutIcon, ReceiptTextIcon, RepeatIcon, ShieldIcon, SquareCheckIcon, TargetIcon, type LucideIcon } from "lucide-react"
 
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -217,22 +217,15 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             </Link>
           </DropdownMenuItem>
         ) : null}
-        {nav.account ? (
-          <>
-            <DropdownMenuItem asChild className={menuItem}>
-              <Link href={AVATAR_LINKS.settings.href}>
-                <AVATAR_LINKS.settings.icon strokeWidth={1.75} className={menuIcon} /> {AVATAR_LINKS.settings.label}
-              </Link>
-            </DropdownMenuItem>
-            {nav.features.plan ? (
-              <DropdownMenuItem asChild className={menuItem}>
-                <Link href={AVATAR_LINKS.plan.href}>
-                  <BadgeDollarSignIcon strokeWidth={1.75} className={menuIcon} /> {AVATAR_LINKS.plan.label}
+        {nav.account
+          ? [AVATAR_LINKS.profile, AVATAR_LINKS.help, AVATAR_LINKS.settings].map((link) => (
+              <DropdownMenuItem key={link.label} asChild className={menuItem}>
+                <Link href={link.href}>
+                  <link.icon strokeWidth={1.75} className={menuIcon} /> {link.label}
                 </Link>
               </DropdownMenuItem>
-            ) : null}
-          </>
-        ) : null}
+            ))
+          : null}
         {isAdmin && !inAdmin ? (
           <DropdownMenuItem asChild className={menuItem}>
             <Link href="/admin">

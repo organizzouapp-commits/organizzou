@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest"
 import { LEGACY_SETTINGS_ROUTES, SETTINGS_TABS, legacySettingsRedirect, parseSettingsTab, settingsHref } from "./settings-tabs"
 
 describe("parseSettingsTab", () => {
-  it("accepts the five tabs", () => {
-    expect(SETTINGS_TABS.map((t) => parseSettingsTab(t.id))).toEqual(["perfil", "aparencia", "avisos", "seguranca", "plano"])
+  it("accepts the four tabs", () => {
+    expect(SETTINGS_TABS.map((t) => parseSettingsTab(t.id))).toEqual(["perfil", "avisos", "seguranca", "plano"])
   })
 
-  it("falls back to perfil for a missing, unknown, wrongly cased or removed tab", () => {
-    for (const bad of [undefined, null, "", "Plano", "nao-existe", "perfil "]) expect(parseSettingsTab(bad)).toBe("perfil")
+  it("falls back to perfil for a missing, unknown, wrongly cased or removed tab (Aparência is gone)", () => {
+    for (const bad of [undefined, null, "", "Plano", "nao-existe", "perfil ", "aparencia"]) expect(parseSettingsTab(bad)).toBe("perfil")
   })
 
   it("uses the first value when the parameter is repeated", () => {

@@ -15,7 +15,6 @@ import type { SettingsProfile } from "./tabs/profile-tab"
 // One lazy segment per tab: only the open tab's code is loaded.
 const loading = () => <Skeleton className="h-72 w-full rounded-[24px]" />
 const ProfileTab = dynamic(() => import("./tabs/profile-tab"), { loading })
-const AppearanceTab = dynamic(() => import("./tabs/appearance-tab"), { loading })
 const NotificationsTab = dynamic(() => import("./tabs/notifications-tab"), { loading })
 const SecurityTab = dynamic(() => import("./tabs/security-tab"), { loading })
 const PlanTab = dynamic(() => import("./tabs/plan-tab"), { loading })
@@ -49,7 +48,7 @@ function FadingTabs({ active, onChange, className }: { active: SettingsTab; onCh
 }
 
 /**
- * Configurações: Perfil, Aparência, Avisos, Segurança e dados and Plano e cobrança in one page. The open tab lives in the URL (?aba=…) and
+ * Configurações: Perfil, Avisos, Segurança e dados and Plano e cobrança in one page. The open tab lives in the URL (?aba=…) and
  * switching it changes only the URL (no server round trip). Desktop: tabs under the title, content in a 12-column bento grid; phones: a
  * solid header card with a scrollable tab row.
  */
@@ -80,7 +79,6 @@ export function SettingsShell({ profile, usage }: { profile: SettingsProfile; us
 
       <div role="tabpanel" aria-label={SETTINGS_TABS.find((t) => t.id === active)?.label} className="min-w-0">
         {active === "perfil" ? <ProfileTab profile={profile} /> : null}
-        {active === "aparencia" ? <AppearanceTab /> : null}
         {active === "avisos" ? <NotificationsTab /> : null}
         {active === "seguranca" ? <SecurityTab /> : null}
         {active === "plano" ? <PlanTab email={profile.email} name={profile.displayName} usage={usage} /> : null}

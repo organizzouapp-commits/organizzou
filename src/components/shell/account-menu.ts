@@ -1,4 +1,4 @@
-import { CircleHelpIcon, SettingsIcon, type LucideIcon } from "lucide-react"
+import { CircleHelpIcon, SettingsIcon, UserIcon, type LucideIcon } from "lucide-react"
 
 import { settingsHref } from "@/lib/settings-tabs"
 
@@ -13,8 +13,13 @@ export const ACCOUNT_ITEMS: AccountItem[] = [
   { id: "ajuda", label: "Ajuda", href: "/dashboard/ajuda", icon: CircleHelpIcon },
 ]
 
-/** The avatar menu goes straight to two tabs of the settings page. */
+/**
+ * The avatar menu: Perfil, Ajuda and Configurações (which opens the first tab after Perfil, so the two do not duplicate each other).
+ * The plan is reached from the plan chip's arrow in the menu card (and the Plano e cobrança tab), not from a menu item.
+ */
 export const AVATAR_LINKS = {
-  settings: { label: "Configurações", href: settingsHref("perfil"), icon: SettingsIcon },
+  profile: { label: "Perfil", href: settingsHref("perfil"), icon: UserIcon },
+  help: { label: "Ajuda", href: "/dashboard/ajuda", icon: CircleHelpIcon },
+  settings: { label: "Configurações", href: settingsHref("avisos"), icon: SettingsIcon },
   plan: { label: "Plano e cobrança", href: settingsHref("plano") },
 } as const
