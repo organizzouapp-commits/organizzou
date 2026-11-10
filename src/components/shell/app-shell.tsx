@@ -235,7 +235,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
             {/* The frame stays put; only this box scrolls (hidden scrollbar), clipped to the card radius. `@container` drives the
                 bento reflow by the width that is really available next to the sidebar. */}
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
-              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:px-0 md:pt-0 md:pb-0">
+              <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:px-0 md:pt-0 md:pb-24">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
                 {children}
               </div>

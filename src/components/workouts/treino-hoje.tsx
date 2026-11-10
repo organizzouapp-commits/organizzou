@@ -421,7 +421,7 @@ function MobileRestBar({ cardRef, rest, next, doneSets, totalSets, pct, enabled,
 }
 
 /**
- * The rest timer card, docked bottom-right (above the bottom nav on phones): the ring and the next set, the big clock, the sets done with
+ * The rest timer card, docked bottom-right, left of the quick-actions button (the phone version is MobileRestBar): the ring and the next set, the big clock, the sets done with
  * a hatched bar, and "Pular" / "Finalizar treino". It floats, so an invisible spacer of its own height keeps the page from ending under it.
  */
 export function ActionBar({
@@ -471,7 +471,7 @@ export function ActionBar({
         ref={cardRef}
         data-testid="action-bar"
         className={cn(
-          "fixed z-30 flex w-[280px] flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:right-6 md:bottom-6 max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] max-md:w-auto",
+          "fixed z-30 flex w-[280px] flex-col gap-3 rounded-[20px] border border-border bg-card p-4 md:right-24 md:bottom-6 max-md:inset-x-4 max-md:bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] max-md:w-auto",
           hiddenOnPhone && "max-md:hidden"
         )}
       >
