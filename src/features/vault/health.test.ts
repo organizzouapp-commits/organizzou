@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { ageLabel, countdownText, vaultHealth } from "./health"
+import { ageLabel, countdownText, lastBackupLabel, vaultHealth } from "./health"
 import type { VaultItemType } from "./types"
 
 // Fake strings only: nothing here resembles a real credential.
@@ -83,5 +83,34 @@ describe("countdownText", () => {
     expect(countdownText(9)).toBe("0:09")
     expect(countdownText(-4)).toBe("0:00")
     expect(countdownText(899.4)).toBe("14:59")
+  })
+})
+
+describe("the security report (weak and repeated passwords)", () => {
+  it("lists an item that is both weak and repeated once in each list, and leaves unique strong ones out", () => {
+    const h = vaultHealth([item("a", WEAK), item("b", WEAK), item("c", STRONG_A), item("d", MEDIUM)])
+    expect(h.weakIds).toEqual(["a", "b"])
+    expect(h.reusedGroups).toEqual([["a", "b"]])
+    expect(h.reusedItems).toBe(2)
+    expect([...h.weakIds, ...h.reusedGroups.flat()].includes("c")).toBe(false)
+  })
+
+  it("finds several repeated groups and ignores empty passwords", () => {
+    const h = vaultHealth([item("a", STRONG_A), item("b", STRONG_A), item("c", STRONG_B), item("d", STRONG_B), item("e", STRONG_B), item("f", ""), item("g", undefined)])
+    expect(h.reusedGroups).toEqual([["a", "b"], ["c", "d", "e"]])
+    expect(h.passwords).toBe(5)
+  })
+
+  it("does not compare passwords by case or trimming: only exact copies are repeats", () => {
+    const h = vaultHealth([item("a", STRONG_A), item("b", STRONG_A.toLowerCase())])
+    expect(h.reusedGroups).toEqual([])
+  })
+})
+
+describe("lastBackupLabel", () => {
+  it("says nunca before the first backup, and the day afterwards", () => {
+    expect(lastBackupLabel(null)).toBe("nunca")
+    expect(lastBackupLabel("not a date")).toBe("nunca")
+    expect(lastBackupLabel("2026-11-10T15:00:00.000Z")).toBe("10 de nov 2026")
   })
 })

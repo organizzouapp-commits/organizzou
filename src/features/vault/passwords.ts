@@ -15,13 +15,17 @@ export function entropyBits(password: string) {
   return Math.round(password.length * Math.log2(Math.max(pool, 2)))
 }
 
-export function passwordStrength(password: string): Strength {
-  const lower = password.toLowerCase()
-  if (password.length < 8 || COMMON.some((word) => lower.includes(word))) return "weak"
-  const bits = entropyBits(password)
+/** Below 50 bits is weak, below 75 is medium, from 75 up is strong. */
+export function strengthFromBits(bits: number): Strength {
   if (bits < 50) return "weak"
   if (bits < 75) return "medium"
   return "strong"
+}
+
+export function passwordStrength(password: string): Strength {
+  const lower = password.toLowerCase()
+  if (password.length < 8 || COMMON.some((word) => lower.includes(word))) return "weak"
+  return strengthFromBits(entropyBits(password))
 }
 
 /** Groups of item ids that share the same password. */
@@ -43,6 +47,20 @@ const SETS = {
   symbols: "!@#$%&*?-_+=",
 }
 
+/** The generator's wording for the same three levels ("Boa" instead of "Média"). */
+export const GENERATOR_STRENGTH_LABELS: Record<Strength, string> = { weak: "Fraca", medium: "Boa", strong: "Forte" }
+
+/** How many distinct characters the generator draws from with these options. */
+export function generatorPoolSize(options: Omit<GeneratorOptions, "length">): number {
+  return (Object.keys(SETS) as (keyof typeof SETS)[]).reduce((sum, key) => sum + (options[key] ? SETS[key].length : 0), 0)
+}
+
+/** Bits of randomness of a generated password: length × log2(pool size). Zero when no set is on. */
+export function generatorEntropyBits(options: GeneratorOptions): number {
+  const pool = generatorPoolSize(options)
+  return pool < 2 ? 0 : Math.round(options.length * Math.log2(pool))
+}
+
 /** Uses crypto.getRandomValues; guarantees one character from every enabled set. */
 export function generatePassword(options: GeneratorOptions, random: (max: number) => number = secureRandom) {
   const pools = (Object.keys(SETS) as (keyof typeof SETS)[]).filter((key) => options[key]).map((key) => SETS[key])
@@ -57,7 +75,8 @@ export function generatePassword(options: GeneratorOptions, random: (max: number
   return chars.slice(0, options.length).join("")
 }
 
-function secureRandom(max: number) {
+/** An unbiased random integer in [0, max): draws that fall in the uneven tail of the 32-bit range are thrown away (rejection sampling). */
+export function secureRandom(max: number) {
   const limit = Math.floor(0x1_0000_0000 / max) * max
   const buffer = new Uint32Array(1)
   do {

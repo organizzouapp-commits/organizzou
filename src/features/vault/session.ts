@@ -5,20 +5,15 @@ import "client-only"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { clearClipboardNow } from "./clipboard"
+import { settingsRepo, type AutoLock } from "./settings"
 import type { VaultItem } from "./types"
 
-export type AutoLock = "1" | "5" | "15" | "hidden"
-export const AUTO_LOCK_OPTIONS: { value: AutoLock; label: string }[] = [
-  { value: "1", label: "Após 1 minuto" },
-  { value: "5", label: "Após 5 minutos" },
-  { value: "15", label: "Após 15 minutos" },
-  { value: "hidden", label: "Ao sair da aba" },
-]
+export { AUTO_LOCK_OPTIONS, type AutoLock } from "./settings"
+
 
 /** `lockAt` is the moment (ms) the auto-lock timer will lock the vault; null while locked or when it locks on leaving the tab. */
 type Snapshot = { status: "locked" | "unlocked"; scope: string | null; items: VaultItem[]; autoLock: AutoLock; lockAt: number | null }
 
-const SETTINGS_KEY = "organizzou:cofre-settings"
 const LOCKED: Snapshot = { status: "locked", scope: null, items: [], autoLock: "5", lockAt: null }
 
 let key: CryptoKey | null = null
@@ -32,14 +27,7 @@ function emit(next: Snapshot) {
   listeners.forEach((listener) => listener())
 }
 
-function loadAutoLock(): AutoLock {
-  try {
-    const value = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}").autoLock
-    return value === "1" || value === "5" || value === "15" || value === "hidden" ? value : "5"
-  } catch {
-    return "5"
-  }
-}
+const loadAutoLock = (): AutoLock => settingsRepo.load().autoLock
 
 function schedule() {
   if (timer) clearTimeout(timer)
@@ -111,11 +99,7 @@ export function touch() {
 }
 
 export function setAutoLock(value: AutoLock) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ autoLock: value }))
-  } catch {
-    // Private mode: the choice just does not survive the visit.
-  }
+  settingsRepo.save({ autoLock: value })
   emit({ ...state, autoLock: value, lockAt: null })
   schedule()
 }

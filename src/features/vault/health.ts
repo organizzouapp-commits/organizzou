@@ -67,3 +67,11 @@ export function countdownText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }
+
+/** "nunca" until a backup was exported, then the day in words ("10 de nov 2026"). */
+export function lastBackupLabel(iso: string | null): string {
+  if (!iso) return "nunca"
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return "nunca"
+  return date.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" }).replace(".", "").replace(/ de (\d{4})$/, " $1")
+}

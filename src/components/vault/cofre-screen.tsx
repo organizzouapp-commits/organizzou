@@ -43,6 +43,9 @@ export function CofreScreen({ userId }: { userId: string }) {
   const [initialized, setInitialized] = useState<boolean | null>(null)
   const [tab, setTab] = useState<TabId>("itens")
   const [adding, setAdding] = useState(false)
+  // An item picked in the security report: the Itens tab opens with it selected.
+  const [openItemId, setOpenItemId] = useState<string | null>(null)
+  const selectTab = (next: TabId) => (setOpenItemId(null), setTab(next))
   const ready = session.status === "unlocked" && session.scope === userId
 
   // Open this account's vault in this browser (after mount: IndexedDB does not exist on the server).
@@ -144,7 +147,7 @@ export function CofreScreen({ userId }: { userId: string }) {
   }
 
   // ---------------------------------------------------------- the open vault
-  const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Cofre" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
+  const tabs = <PillTabs className={isMobile ? "w-full" : "w-fit max-w-full"} ariaLabel="Cofre" items={TAB_ITEMS} value={tab} onSelect={(item) => selectTab(item.id as TabId)} />
   const countdown = <LockChip seconds={remaining} autoLock={session.autoLock} />
 
   return (
@@ -191,9 +194,9 @@ export function CofreScreen({ userId }: { userId: string }) {
           </div>
         )}
 
-        {tab === "itens" ? <ItemsTab items={session.items} adding={adding} onAddingChange={setAdding} onOpenReport={() => setTab("seguranca")} now={now} /> : null}
+        {tab === "itens" ? <ItemsTab items={session.items} adding={adding} onAddingChange={setAdding} onOpenReport={() => selectTab("seguranca")} now={now} initialOpenId={openItemId} /> : null}
         {tab === "gerador" ? <GeneratorTab /> : null}
-        {tab === "seguranca" ? <SecurityTab items={session.items} autoLock={session.autoLock} /> : null}
+        {tab === "seguranca" ? <SecurityTab items={session.items} autoLock={session.autoLock} onOpenItem={(id) => (setOpenItemId(id), setTab("itens"))} /> : null}
       </div>
     </VaultContext.Provider>
   )

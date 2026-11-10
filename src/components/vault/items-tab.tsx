@@ -3,13 +3,12 @@
 import { useState } from "react"
 import { ArrowLeftIcon, SearchIcon, ShieldCheckIcon } from "lucide-react"
 
-import { AddPill, LIST_CARD } from "@/components/finance/parts"
+import { AddPill } from "@/components/finance/parts"
 import { ItemDetail } from "@/components/vault/item-detail"
-import { ITEM_ICONS } from "@/components/vault/item-icons"
+import { ItemRow } from "@/components/vault/item-row"
 import { ItemSheet } from "@/components/vault/item-form"
 import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { VaultSummary } from "@/components/vault/vault-summary"
-import { chip } from "@/components/vault/vault-kit"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
@@ -17,27 +16,18 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { vaultHealth } from "@/features/vault/health"
-import { VAULT_TYPES, VAULT_TYPE_LABELS, type VaultItem, type VaultItemType } from "@/features/vault/types"
-import { cn } from "@/lib/utils"
-
-/** What a list row says under the name: never a secret. */
-function subtitle(item: VaultItem): string {
-  if (item.type === "login") return item.username || item.url || "Sem usuário"
-  if (item.type === "card") return item.number ? `•••• ${item.number.slice(-4)}` : "Cartão"
-  if (item.type === "document") return item.file?.name ?? "Documento"
-  return "Nota segura"
-}
+import { VAULT_TYPES, type VaultItem, type VaultItemType } from "@/features/vault/types"
 
 const FILTER_LABELS: Record<VaultItemType, string> = { login: "Senhas", card: "Cartões", document: "Docs", secure_note: "Notas" }
 
-export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now }: { items: VaultItem[]; adding: boolean; onAddingChange: (open: boolean) => void; onOpenReport: () => void; now: Date }) {
+export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now, initialOpenId = null }: { items: VaultItem[]; adding: boolean; onAddingChange: (open: boolean) => void; onOpenReport: () => void; now: Date; initialOpenId?: string | null }) {
   const actions = useVaultActions()
   const wide = useMediaQuery("(min-width: 1024px)")
   const phone = useIsMobile()
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<"all" | VaultItemType>("all")
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(initialOpenId)
+  const [detailOpen, setDetailOpen] = useState(initialOpenId !== null)
   const [editing, setEditing] = useState<VaultItem | null>(null)
   const [toDelete, setToDelete] = useState<VaultItem | null>(null)
 
@@ -116,32 +106,17 @@ export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now }: {
         ) : (
           <ul className="flex flex-col gap-2">
             {visible.map((item) => {
-              const Icon = ITEM_ICONS[item.type]
               const selected = wide && open?.id === item.id
               return (
                 <li key={item.id}>
-                  <button
-                    type="button"
-                    data-item={item.id}
-                    data-selected={selected}
-                    aria-current={selected ? "true" : undefined}
+                  <ItemRow
+                    item={item}
+                    selected={selected}
                     onClick={() => {
                       setOpenId(item.id)
                       setDetailOpen(true)
                     }}
-                    className={cn(LIST_CARD, "flex min-h-[60px] w-full items-center gap-3 p-3 text-left outline-none transition-colors duration-[400ms] hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none", selected && "border-primary bg-primary/[0.08] ring-1 ring-primary ring-inset hover:bg-primary/[0.12]")}
-                  >
-                    <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border">
-                      <Icon strokeWidth={1.75} className="size-4" />
-                    </span>
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-[15px] leading-6 font-semibold">{item.name}</span>
-                      <span className="truncate text-[13px] leading-5 text-muted-foreground">{subtitle(item)}</span>
-                    </span>
-                    <span data-chip className={chip}>
-                      {VAULT_TYPE_LABELS[item.type]}
-                    </span>
-                  </button>
+                  />
                 </li>
               )
             })}

@@ -1,9 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { AlertTriangleIcon, CircleAlertIcon, DownloadIcon, LockIcon, UploadIcon } from "lucide-react"
+import { AlertTriangleIcon, CircleAlertIcon, DownloadIcon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { ItemRow } from "@/components/vault/item-row"
 import { MIN_MASTER_LENGTH, PasswordField, StrengthMeter, chip, SMALL_CAPS, useVaultRepo } from "@/components/vault/vault-kit"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
@@ -11,8 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { fieldClass, StickyFooter } from "@/components/workouts/sheet-fields"
 import { WrongPasswordError } from "@/features/vault/crypto"
-import { findReused, passwordStrength } from "@/features/vault/passwords"
-import { AUTO_LOCK_OPTIONS, lockVault, replaceKey, setAutoLock, unlockSession, type AutoLock } from "@/features/vault/session"
+import { passwordStrength } from "@/features/vault/passwords"
+import { lastBackupLabel, vaultHealth } from "@/features/vault/health"
+import { AUTO_LOCK_OPTIONS, replaceKey, setAutoLock, unlockSession, type AutoLock } from "@/features/vault/session"
+import { settingsRepo } from "@/features/vault/settings"
 import type { VaultItem } from "@/features/vault/types"
 import { BackupError, changePassword, exportBackup, importBackup, loadItems, parseBackup, unlock, type VaultBackup } from "@/features/vault/vault"
 import { cn } from "@/lib/utils"
@@ -32,13 +35,12 @@ function download(text: string, filename: string) {
 
 // ------------------------------------------------------------------ report (computed here, on the device)
 
-function Report({ items }: { items: VaultItem[] }) {
-  const logins = items.filter((i) => i.type === "login" && i.password)
-  const weak = logins.filter((i) => passwordStrength(i.password as string) === "weak")
-  const reusedGroups = findReused(logins.map((i) => ({ id: i.id, password: i.password })))
-  const reusedIds = new Set(reusedGroups.flat())
-  const byId = new Map(items.map((i) => [i.id, i]))
-  const attention = logins.filter((i) => weak.includes(i) || reusedIds.has(i.id))
+function Report({ items, onOpenItem }: { items: VaultItem[]; onOpenItem: (id: string) => void }) {
+  // The same counting as the hero of the Itens tab (vaultHealth): only counts and ids leave it.
+  const health = vaultHealth(items)
+  const weak = new Set(health.weakIds)
+  const reused = new Set(health.reusedGroups.flat())
+  const attention = items.filter((i) => weak.has(i.id) || reused.has(i.id)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
   return (
     <section aria-label="Relatório de senhas" data-testid="vault-report" className={CARD}>
       <div className="flex items-center justify-between gap-3">
@@ -49,9 +51,9 @@ function Report({ items }: { items: VaultItem[] }) {
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Senhas", value: logins.length },
-          { label: "Fracas", value: weak.length },
-          { label: "Repetidas", value: reusedIds.size },
+          { label: "Senhas", value: health.passwords },
+          { label: "Fracas", value: health.weakIds.length },
+          { label: "Repetidas", value: health.reusedGroups.length },
         ].map((stat) => (
           <div key={stat.label} data-stat={stat.label} className="flex flex-col gap-0.5 rounded-[14px] border border-border p-3">
             <span className={SMALL_CAPS}>{stat.label}</span>
@@ -60,14 +62,14 @@ function Report({ items }: { items: VaultItem[] }) {
         ))}
       </div>
       {attention.length === 0 ? (
-        <p className="text-[13px] leading-5 text-muted-foreground">{logins.length === 0 ? "Quando você guardar senhas, mostramos aqui as que são fracas ou repetidas." : "Nenhuma senha fraca ou repetida. Tudo certo por aqui."}</p>
+        <p data-testid="report-empty" className="text-[13px] leading-5 text-muted-foreground">
+          {health.passwords === 0 ? "Quando você guardar senhas, mostramos aqui as que são fracas ou repetidas." : "Nenhuma senha fraca ou repetida. Tudo certo por aqui."}
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {attention.map((item) => (
-            <li key={item.id} data-attention={item.id} className="flex min-h-12 items-center gap-2 rounded-[14px] border border-border px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{byId.get(item.id)?.name}</span>
-              {weak.includes(item) ? <span data-chip className={chip}>Fraca</span> : null}
-              {reusedIds.has(item.id) ? <span data-chip className={chip}>Repetida</span> : null}
+            <li key={item.id} data-attention={item.id}>
+              <ItemRow item={item} onClick={() => onOpenItem(item.id)} badges={[...(weak.has(item.id) ? ["Fraca"] : []), ...(reused.has(item.id) ? ["Repetida"] : [])]} />
             </li>
           ))}
         </ul>
@@ -109,8 +111,8 @@ function ChangePassword() {
   }
 
   return (
-    <section aria-label="Alterar a senha mestra" data-testid="change-password" className={CARD}>
-      <h3 className="text-[17px] leading-6 font-semibold">Alterar a senha mestra</h3>
+    <section aria-label="Alterar senha mestra" data-testid="change-password" className={CARD}>
+      <h3 className="text-[17px] leading-6 font-semibold">Alterar senha mestra</h3>
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {
@@ -138,10 +140,10 @@ function ChangePassword() {
           </p>
         ) : null}
         <p className="flex items-start gap-2 text-[13px] leading-5 text-muted-foreground">
-          <AlertTriangleIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" /> A nova senha também não pode ser recuperada.
+          <AlertTriangleIcon aria-hidden strokeWidth={1.75} className="mt-0.5 size-4 shrink-0" /> Não há como recuperar a senha mestra. Anote em lugar seguro.
         </p>
         <Button type="submit" data-testid="change-button" disabled={!valid || busy} className="h-12 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90">
-          {busy ? "Criptografando de novo…" : "Alterar a senha mestra"}
+          {busy ? "Criptografando de novo…" : "Alterar senha mestra"}
         </Button>
       </form>
     </section>
@@ -155,10 +157,15 @@ function Backup({ scope }: { scope: string }) {
   const picker = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<VaultBackup | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => settingsRepo.load().lastBackupAt)
 
   async function exportNow() {
     try {
       download(await exportBackup(repo), `organizzou-cofre-backup-${new Date().toISOString().slice(0, 10)}.json`)
+      // Only the day is remembered (on this device); the contents of a backup are never kept.
+      const at = new Date().toISOString()
+      settingsRepo.save({ lastBackupAt: at })
+      setLastBackupAt(at)
       toast.success("Backup criptografado baixado. Ele só abre com a sua senha mestra.")
     } catch {
       toast("Não consegui gerar o backup.")
@@ -178,14 +185,19 @@ function Backup({ scope }: { scope: string }) {
 
   return (
     <section aria-label="Backup" data-testid="vault-backup" className={CARD}>
-      <h3 className="text-[17px] leading-6 font-semibold">Backup criptografado</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-[17px] leading-6 font-semibold">Backup criptografado</h3>
+        <span data-chip data-testid="last-backup" className={chip}>
+          Último backup: {lastBackupLabel(lastBackupAt)}
+        </span>
+      </div>
       <p className="text-[13px] leading-5 text-muted-foreground">O arquivo guarda só o conteúdo já criptografado, nunca texto aberto, e só abre com a senha mestra do momento em que foi feito.</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button type="button" variant="outline" data-testid="export-backup" onClick={() => void exportNow()} className="h-11 flex-1 rounded-full">
-          <DownloadIcon strokeWidth={1.75} /> Exportar backup
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" data-testid="export-backup" aria-label="Exportar backup" onClick={() => void exportNow()} className="h-11 flex-1 rounded-full">
+          <DownloadIcon strokeWidth={1.75} /> Exportar
         </Button>
-        <Button type="button" variant="outline" data-testid="import-backup" onClick={() => picker.current?.click()} className="h-11 flex-1 rounded-full">
-          <UploadIcon strokeWidth={1.75} /> Importar backup
+        <Button type="button" variant="outline" data-testid="import-backup" aria-label="Importar backup" onClick={() => picker.current?.click()} className="h-11 flex-1 rounded-full">
+          <UploadIcon strokeWidth={1.75} /> Importar
         </Button>
         <input ref={picker} type="file" accept="application/json,.json" aria-label="Arquivo de backup" data-testid="backup-file" className="sr-only" onChange={(e) => (void pick(e.target.files?.[0] ?? null), (e.target.value = ""))} />
       </div>
@@ -272,11 +284,13 @@ function ImportForm({ backup, onClose, onExportCurrent }: { backup: VaultBackup;
 
 // ------------------------------------------------------------------ the tab
 
-export function SecurityTab({ items, autoLock }: { items: VaultItem[]; autoLock: AutoLock }) {
+export function SecurityTab({ items, autoLock, onOpenItem }: { items: VaultItem[]; autoLock: AutoLock; onOpenItem: (id: string) => void }) {
   const { scope } = useVaultRepo()
+  // One column on phones (Relatório, Bloqueio, Alterar senha, Backup, in that order); two columns of 6 on desktop.
   return (
     <div data-testid="vault-security" className="grid grid-cols-1 gap-4 md:grid-cols-12">
       <div className="flex min-w-0 flex-col gap-4 md:col-span-6">
+        <Report items={items} onOpenItem={onOpenItem} />
         <section aria-label="Bloqueio" className={CARD}>
           <h3 className="text-[17px] leading-6 font-semibold">Bloqueio automático</h3>
           <div className="flex flex-col gap-2">
@@ -293,16 +307,12 @@ export function SecurityTab({ items, autoLock }: { items: VaultItem[]; autoLock:
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[13px] leading-5 text-muted-foreground">O Cofre também bloqueia ao sair da conta ou quando a sessão termina, e a área de transferência é limpa.</p>
+            <p className="text-[13px] leading-5 text-muted-foreground">Também bloqueia ao sair da conta ou fechar a sessão.</p>
           </div>
-          <Button type="button" variant="outline" data-testid="lock-now" onClick={() => lockVault()} className="h-11 rounded-full">
-            <LockIcon strokeWidth={1.75} /> Bloquear agora
-          </Button>
         </section>
-        <ChangePassword />
       </div>
       <div className="flex min-w-0 flex-col gap-4 md:col-span-6">
-        <Report items={items} />
+        <ChangePassword />
         <Backup scope={scope} />
       </div>
     </div>

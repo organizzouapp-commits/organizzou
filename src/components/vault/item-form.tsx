@@ -23,10 +23,10 @@ const TEXT = "min-h-24 rounded-[12px] px-3 py-2.5 text-[15px] focus-visible:bord
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`
 
 /** "Adicionar item" / "Editar item": a dialog on desktop and a bottom sheet on phones. Everything typed here is encrypted before it is stored. */
-export function ItemSheet({ open, item, defaultType, onClose, onSaved }: { open: boolean; item: VaultItem | null; defaultType: VaultItemType; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+export function ItemSheet({ open, item, defaultType, prefillPassword, onClose, onSaved }: { open: boolean; item: VaultItem | null; defaultType: VaultItemType; prefillPassword?: string; onClose: () => void; onSaved: (item: VaultItem) => void }) {
   return (
     <ResponsiveSheet open={open} onOpenChange={(o) => !o && onClose()} title={item ? "Editar item" : "Adicionar item"} description="Tudo é criptografado no seu aparelho antes de ser guardado.">
-      {open ? <ItemForm key={item?.id ?? "new"} item={item} defaultType={defaultType} onClose={onClose} onSaved={onSaved} /> : null}
+      {open ? <ItemForm key={item?.id ?? "new"} item={item} defaultType={defaultType} prefillPassword={prefillPassword} onClose={onClose} onSaved={onSaved} /> : null}
     </ResponsiveSheet>
   )
 }
@@ -40,13 +40,13 @@ function Field({ id, label, value, onChange, placeholder, inputMode, maxLength }
   )
 }
 
-function ItemForm({ item, defaultType, onClose, onSaved }: { item: VaultItem | null; defaultType: VaultItemType; onClose: () => void; onSaved: (item: VaultItem) => void }) {
+function ItemForm({ item, defaultType, prefillPassword, onClose, onSaved }: { item: VaultItem | null; defaultType: VaultItemType; prefillPassword?: string; onClose: () => void; onSaved: (item: VaultItem) => void }) {
   const actions = useVaultActions()
   const [type, setType] = useState<VaultItemType>(item?.type ?? defaultType)
   const [v, setV] = useState({
     name: item?.name ?? "",
     username: item?.username ?? "",
-    password: item?.password ?? "",
+    password: item?.password ?? prefillPassword ?? "",
     url: item?.url ?? "",
     holder: item?.holder ?? "",
     number: item?.number ?? "",
