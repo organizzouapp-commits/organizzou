@@ -9,6 +9,8 @@ import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
+import { QuickActionsFab } from "./quick-actions-fab"
+import { useQuickActionItems } from "./use-quick-action-items"
 import { splashLog } from "@/components/organizzou/splash/splash-debug"
 import { splash } from "@/components/organizzou/splash/splash-store"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -79,6 +81,11 @@ function useIsTablet() {
 }
 
 type ShellBottomBarProps = { items: BottomNavItem[]; activeId: string; onSelect: (id: string) => void }
+
+/** The speed dial lives in the app (not the admin area); it reads the shell contexts, so it is its own component. */
+function ShellQuickActions() {
+  return <QuickActionsFab items={useQuickActionItems()} />
+}
 
 /**
  * Phones: one fixed row 16 px above the bottom safe area and 16 px from both edges. The floating nav takes the width that is left and
@@ -192,7 +199,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
   // The virtual assistant is a Pro feature: Free users who reach it (a link, the palette) land on the plans page instead.
   const pro = isPro(plan)
   const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push(PLANS_HREF)), [pro, router])
-  const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true) }), [openAssistant])
+  const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true), openSearch }), [openAssistant, openSearch])
 
   const withAssistant = nav.features.assistant
 
@@ -236,6 +243,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
           </SidebarInset>
 
           <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} />
+          {withAssistant ? <ShellQuickActions /> : null}
 
           {withAssistant ? (
             <>
