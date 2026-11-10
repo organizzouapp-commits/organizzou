@@ -161,8 +161,8 @@ function StatCards({ subjects, sessions, dueCards, today, weekStart, isMobile, o
 // ------------------------------------------------------------------ focus timer
 
 function FocusCard({ subjects, timer, today, sessions, isMobile, onNewSubject, className }: { subjects: SubjectRow[]; timer: TimerProps; today: string; sessions: StudySessionRow[]; isMobile: boolean; onNewSubject: () => void; className?: string }) {
-  const size = isMobile ? 200 : 224
-  const stroke = 10
+  const size = isMobile ? 120 : 140
+  const stroke = 8
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const elapsed = timer.totalSeconds > 0 ? Math.min(1, Math.max(0, (timer.totalSeconds - timer.remaining) / timer.totalSeconds)) : 0
@@ -185,45 +185,43 @@ function FocusCard({ subjects, timer, today, sessions, isMobile, onNewSubject, c
         </span>
       }
     >
-      <div className="@container flex flex-1 flex-col justify-center gap-5">
-        <div className="flex flex-col items-center gap-5 @min-[560px]:flex-row @min-[560px]:items-center @min-[560px]:gap-8">
+      <div className="@container flex flex-1 flex-col justify-center">
+        <div className="flex flex-col items-center gap-3 @min-[560px]:flex-row @min-[560px]:items-center @min-[560px]:gap-6">
           <div className="relative shrink-0" style={{ width: size, height: size }}>
             <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
               <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
               <circle data-ring cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round" stroke="var(--primary)" strokeDasharray={c} strokeDashoffset={c * (1 - elapsed)} className="transition-[stroke-dashoffset] duration-1000 ease-linear motion-reduce:transition-none" style={{ opacity: elapsed > 0 ? 1 : 0 }} />
             </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center">
-              <span role="timer" aria-label={`Cronômetro de foco: ${timer.clock}`} data-testid="study-clock" className={cn("tabular font-semibold tracking-[-0.03em]", isMobile ? "text-[44px] leading-[48px]" : "text-[52px] leading-[56px]")}>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-4 text-center">
+              <span role="timer" aria-label={`Cronômetro de foco: ${timer.clock}`} data-testid="study-clock" className={cn("tabular font-semibold tracking-[-0.03em]", isMobile ? "text-[30px] leading-9" : "text-[34px] leading-10")}>
                 {timer.clock}
               </span>
-              <span className="max-w-full truncate text-[13px] leading-5 text-muted-foreground">{subject?.name ?? "Sem matéria"}</span>
+              <span className="max-w-full truncate text-[12px] leading-4 text-muted-foreground">{subject?.name ?? "Sem matéria"}</span>
             </div>
           </div>
 
-          <div className="flex w-full min-w-0 flex-1 flex-col gap-4">
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-3">
             <SegmentedPills ariaLabel="Modo do cronômetro" items={timer.modes.map((m) => ({ id: m.value, label: m.label }))} value={timer.mode} onChange={timer.onMode} className="w-full [&>button]:flex-1" />
-            <div className="flex min-w-0 flex-col gap-2">
-              <span className="text-[13px] leading-5 font-medium text-muted-foreground">Estudando</span>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="shrink-0 text-[13px] leading-5 font-medium text-muted-foreground">Estudando</span>
               {subjects.length === 0 ? (
-                <AddPill label="Cadastrar uma matéria" onClick={onNewSubject} />
+                <AddPill label="Cadastrar uma matéria" onClick={onNewSubject} className="min-w-0 flex-1" />
               ) : (
-                <PillTabs kind="toggles" ariaLabel="Matéria do cronômetro" items={subjects.map((s) => ({ id: s.id, label: s.name.split(" — ")[0] }))} isOn={(item) => item.id === timer.subjectId} onSelect={(item) => timer.onSubject(item.id)} className="-mx-4 px-4 @min-[560px]:mx-0 @min-[560px]:px-0" />
+                <PillTabs kind="toggles" ariaLabel="Matéria do cronômetro" items={subjects.map((s) => ({ id: s.id, label: s.name.split(" — ")[0] }))} isOn={(item) => item.id === timer.subjectId} onSelect={(item) => timer.onSubject(item.id)} className="min-w-0 flex-1" />
               )}
             </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Button type="button" data-testid="study-toggle" onClick={timer.onToggle} className="h-12 min-w-0 flex-1 rounded-full bg-highlight px-6 text-[15px] text-highlight-foreground hover:bg-highlight/90">
-                  {timer.running ? <PauseIcon strokeWidth={1.75} /> : <PlayIcon strokeWidth={1.75} />}
-                  {timer.primaryLabel}
-                </Button>
-                <Button type="button" variant="outline" onClick={timer.onReset} className="h-12 rounded-full px-5">
-                  <RotateCcwIcon strokeWidth={1.75} /> Zerar
-                </Button>
-              </div>
-              <Button type="button" variant="ghost" onClick={timer.onLog} className="h-11 rounded-full">
-                <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
+            <div className="flex items-center gap-2">
+              <Button type="button" data-testid="study-toggle" onClick={timer.onToggle} className="h-11 min-w-0 flex-1 rounded-full bg-highlight px-6 text-[15px] text-highlight-foreground hover:bg-highlight/90 md:h-11">
+                {timer.running ? <PauseIcon strokeWidth={1.75} /> : <PlayIcon strokeWidth={1.75} />}
+                {timer.primaryLabel}
+              </Button>
+              <Button type="button" variant="outline" aria-label="Zerar" title="Zerar" onClick={timer.onReset} className="size-11 shrink-0 rounded-full p-0 md:size-11">
+                <RotateCcwIcon strokeWidth={1.75} />
               </Button>
             </div>
+            <Button type="button" variant="ghost" onClick={timer.onLog} className="h-9 w-fit self-start rounded-full px-3 text-[13px] text-muted-foreground md:h-9">
+              <CheckIcon strokeWidth={1.75} /> Registrar o que estudei
+            </Button>
           </div>
         </div>
       </div>
@@ -243,8 +241,8 @@ function BlocksCard({ onPlan, className }: { onPlan: () => void; className?: str
   )
 }
 
-function CountdownCard({ deadlines, today, onAll, className }: { deadlines: DeadlineRow[]; today: string; onAll: () => void; className?: string }) {
-  const next = nextDeadlines(deadlines, today, 3)
+function CountdownCard({ deadlines, today, onAll, className, isMobile }: { deadlines: DeadlineRow[]; today: string; onAll: () => void; className?: string; isMobile: boolean }) {
+  const next = nextDeadlines(deadlines, today, isMobile ? 3 : 2)
   return (
     <BentoCard
       title="Contagem regressiva"
@@ -361,7 +359,7 @@ export function HojeTab(props: Props) {
   const stats = <StatCards subjects={subjects} sessions={sessions} dueCards={props.dueCards} today={today} weekStart={weekStart} isMobile={isMobile} onReview={props.onReview} />
   const focus = <FocusCard subjects={subjects} timer={timer} today={today} sessions={sessions} isMobile={isMobile} onNewSubject={props.onNewSubject} className="h-full" />
   const blocks = <BlocksCard onPlan={props.onPlanBlock} className="flex-1" />
-  const countdown = <CountdownCard deadlines={deadlines} today={today} onAll={props.onAllDeadlines} className="flex-1" />
+  const countdown = <CountdownCard deadlines={deadlines} today={today} onAll={props.onAllDeadlines} className="flex-1" isMobile={isMobile} />
   const hours = <HoursCard subjects={subjects} sessions={sessions} weekStart={weekStart} onNewSubject={props.onNewSubject} className="h-full" />
   const days = <DaysCard sessions={sessions} today={today} weekStart={weekStart} className="h-full" />
 
