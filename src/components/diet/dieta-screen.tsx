@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label"
 import { shiftDay } from "@/features/habits/stats"
 import { recentFoods } from "@/features/diet/foods"
 import type { HistoryPeriod } from "@/features/diet/history"
+import { localFoodMetaRepo, type FoodMeta } from "@/features/diet/food-meta"
 import { localWeightNoteRepo } from "@/features/diet/weight-notes"
 import { sortWeights, type WeightPeriod } from "@/features/diet/weight"
 import { dayTotals } from "@/features/diet/stats"
@@ -72,14 +73,16 @@ export type DietInitial = {
 const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
 
 export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+  // The foods: the shared catalog and the ones the person created (saved like every other table).
+  const [foods, setFoods] = usePersistedRows<FoodRow>("foods", initial.foods)
   return (
-    <FoodsContext.Provider value={initial.foods}>
-      <DietBody nowIso={nowIso} initial={initial} />
+    <FoodsContext.Provider value={foods}>
+      <DietBody nowIso={nowIso} initial={initial} setFoods={setFoods} />
     </FoodsContext.Provider>
   )
 }
 
-function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
+function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: DietInitial; setFoods: (update: (rows: FoodRow[]) => FoodRow[]) => void }) {
   const foods = useFoods()
   const today = dayOf(nowIso)
   const isMobile = useIsMobile()
@@ -119,6 +122,35 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotes(localWeightNoteRepo.load())
   }, [])
+
+  // What a custom food needs beyond its row (deleted flag, fiber): localStorage until the foods columns exist (see food-meta.ts).
+  const [foodMeta, setFoodMeta] = useState<FoodMeta>({ archived: [], fiber: {} })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFoodMeta(localFoodMetaRepo.load())
+  }, [])
+  // A deleted food only leaves the lists: the rows stay, so the meals already logged with it keep their numbers.
+  const pickableFoods = foods.filter((f) => !foodMeta.archived.includes(f.id))
+  const updateMeta = (update: (meta: FoodMeta) => FoodMeta) =>
+    setFoodMeta((current) => {
+      const next = update(current)
+      localFoodMetaRepo.save(next)
+      return next
+    })
+  function saveFood(food: FoodRow, fiber: number | null) {
+    setFoods((rows) => (rows.some((r) => r.id === food.id) ? rows.map((r) => (r.id === food.id ? food : r)) : [...rows, food]).sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))
+    updateMeta((m) => {
+      const rest = { ...m.fiber }
+      if (fiber === null) delete rest[food.id]
+      else rest[food.id] = fiber
+      return { ...m, fiber: rest }
+    })
+    toast.success("Alimento salvo.")
+  }
+  function deleteFood(food: FoodRow) {
+    updateMeta((m) => ({ ...m, archived: [...m.archived, food.id] }))
+    toast.success("Alimento excluído.")
+  }
 
   const totals = dayTotals(items, foods)
 
@@ -299,7 +331,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
           toast.success("Meta atualizada.")
         }}
       />
-      <FoodSheet meal={adding} foods={foods} recents={recentFoods(allItems, foods)} onClose={() => setAdding(null)} onAdd={addItem} />
+      <FoodSheet meal={adding} foods={pickableFoods} recents={recentFoods(allItems, pickableFoods)} fiberOf={(id) => foodMeta.fiber[id] ?? null} onClose={() => setAdding(null)} onAdd={addItem} onSaveFood={saveFood} onDeleteFood={deleteFood} />
       <WeightSheet draft={weighing} today={today} onClose={() => setWeighing(null)} onSave={saveWeight} />
       <WeightGoalSheet
         open={editingTarget}
