@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LockIcon, LockKeyholeIcon, PlusIcon } from "lucide-react"
+import { LockIcon, LockKeyholeIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { GeneratorTab } from "@/components/vault/generator-tab"
@@ -178,17 +178,6 @@ export function CofreScreen({ userId }: { userId: string }) {
               {countdown}
               <Button type="button" variant="outline" data-testid="lock-header" onClick={() => lockVault()} className="h-9 rounded-full px-4">
                 <LockIcon strokeWidth={1.75} /> Bloquear agora
-              </Button>
-              <Button
-                type="button"
-                data-testid="add-header"
-                onClick={() => {
-                  setTab("itens")
-                  setAdding(true)
-                }}
-                className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90"
-              >
-                <PlusIcon strokeWidth={1.75} /> Adicionar item
               </Button>
             </div>
           </div>
