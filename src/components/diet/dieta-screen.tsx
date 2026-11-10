@@ -198,12 +198,6 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
     <PillTabs equal={isMobile} className={isMobile ? "grid-cols-3" : "w-fit max-w-full"} ariaLabel="Dieta" items={TAB_ITEMS} value={tab} onSelect={(item) => setTab(item.id as TabId)} />
   )
   const periodSwitch = tab === "historico" ? <HistoryPeriodSwitch value={histPeriod} onChange={setHistPeriod} className={isMobile ? "w-full [&>button]:flex-1" : undefined} /> : null
-  const weightAction =
-    tab === "peso" ? (
-      <Button type="button" data-testid="register-weight" onClick={() => openWeigh()} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-        <PlusIcon strokeWidth={1.75} /> Registrar peso
-      </Button>
-    ) : null
   const dayNav =
     tab === "hoje" ? (
       <DayNavigator testId="diet-day-nav" labelTestId="diet-day-label" label={dayNavLabel(day)} onPrev={() => setDay((d) => shiftDay(d, -1))} onNext={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))} onToday={() => setDay(today)} nextDisabled={day >= today} />
@@ -238,14 +232,12 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
           </section>
           {dayNav ? <div className="px-1">{dayNav}</div> : null}
           {periodSwitch}
-          {tab === "peso" ? <AddPill label="Registrar peso…" onClick={() => openWeigh()} /> : null}
         </>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {dayNav}
           {periodSwitch}
-          {weightAction}
         </div>
       )}
 

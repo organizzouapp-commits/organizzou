@@ -62,9 +62,11 @@ function TopCards({ sorted, inPeriod, period, target, isMobile, onRegister, onGo
       }
       support={last ? `último registro: ${shortDate(last.log_date)}` : "Nenhum registro ainda"}
       actions={
+        isMobile ? (
         <Button type="button" data-testid="register-weight-hero" onClick={onRegister} className={cn(pillOnLima, "mt-auto")}>
           <PlusIcon strokeWidth={1.75} /> Registrar peso
         </Button>
+        ) : undefined
       }
     />
   )
