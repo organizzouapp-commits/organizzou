@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { parseMarkdown, wordCount } from "./markdown"
-import { applyMarkdown, duplicateNote, excerpt, exportMarkdown, filterNotes, folderEntries, groupNotes, isEmptyNote, shouldDiscardDraft, shouldPersistDraft, slugify, startDraft, toggleCheckbox } from "./notes"
+import { applyMarkdown, duplicateNote, excerpt, exportMarkdown, filterNotes, folderEntries, groupNotes, isEmptyNote, shouldDiscardDraft, previewLines, shouldPersistDraft, slugify, startDraft, toggleCheckbox } from "./notes"
 import type { NoteRow } from "./types"
 
 const note = (over: Partial<NoteRow> = {}): NoteRow => ({ id: "n", user_id: "u", folder_id: null, title: "", body: "", pinned: false, tags: [], created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z", ...over })
@@ -181,5 +181,24 @@ describe("checklists", () => {
     expect(toggleCheckbox("- [ ] a\n- [x] b", 1)).toBe("- [ ] a\n- [ ] b")
     expect(toggleCheckbox("- [ ] a", 5)).toBe("- [ ] a")
     expect(toggleCheckbox("texto", 0)).toBe("texto")
+  })
+})
+
+describe("previewLines", () => {
+  it("keeps the kind of each line and removes the marks", () => {
+    expect(previewLines("# Mercado\n- [ ] leite\n- [x] **pão**\n- ovos\n\numa *nota*")).toEqual([
+      { kind: "heading", text: "Mercado" },
+      { kind: "todo", text: "leite", done: false },
+      { kind: "todo", text: "pão", done: true },
+      { kind: "bullet", text: "ovos" },
+      { kind: "text", text: "uma nota" },
+    ])
+  })
+
+  it("stops at the maximum and handles an empty body", () => {
+    expect(previewLines("a\nb\nc\nd\ne\nf\ng\nh")).toHaveLength(6)
+    expect(previewLines("a\nb\nc", 2)).toHaveLength(2)
+    expect(previewLines("")).toEqual([])
+    expect(previewLines("\n  \n")).toEqual([])
   })
 })

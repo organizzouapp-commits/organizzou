@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { EllipsisIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { InfoLine, LembretesTab } from "@/components/notes/lembretes-tab"
@@ -12,13 +11,6 @@ import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useRestoreFocus } from "@/hooks/use-restore-focus"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { NoteFolderRow, NoteRow, ReminderRow } from "@/features/notes/types"
 import { groupReminders, localReminderMetaRepo, nextOccurrence, type ReminderMetaMap } from "@/features/notes/reminders"
@@ -133,26 +125,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
               <h2 className="truncate text-[18px] leading-6 font-semibold">Notas e lembretes</h2>
               <p className="truncate text-[13px] leading-5 text-muted-foreground">Anote agora, encontre depois.</p>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Opções de notas e lembretes" data-testid="notas-options" className="relative size-9 shrink-0 rounded-full after:absolute after:-inset-1">
-                  <EllipsisIcon strokeWidth={1.75} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setTab("notas")
-                    c.createNote()
-                  }}
-                >
-                  <PlusIcon strokeWidth={1.75} /> Nova nota
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setReminderDraft(blankDraft(now))}>
-                  <PlusIcon strokeWidth={1.75} /> Novo lembrete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
           {tabs}
         </section>
@@ -160,11 +132,6 @@ export function NotasScreen({ nowIso, initial }: { nowIso: string; initial: Note
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {tabs}
           {tab === "lembretes" ? <InfoLine /> : null}
-          {tab === "notas" ? (
-            <Button type="button" data-testid="new-note" onClick={c.createNote} className="h-9 rounded-full bg-highlight px-4 text-highlight-foreground hover:bg-highlight/90">
-              <PlusIcon strokeWidth={1.75} /> Nova nota
-            </Button>
-          ) : null}
         </div>
       )}
 

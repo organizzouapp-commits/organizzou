@@ -154,3 +154,22 @@ export function toggleCheckbox(body: string, line: number): string {
   lines[line] = lines[line].replace(/^(\s*-\s+\[)([ xX])(\])/, (_m, a: string, state: string, c: string) => `${a}${state === " " ? "x" : " "}${c}`)
   return lines.join("\n")
 }
+
+export type PreviewLine = { kind: "heading" | "text" | "bullet" | "todo"; text: string; done?: boolean }
+
+/** The first lines of a note for its card: headings, bullets and to-dos kept as such (so a checklist reads as one), marks removed, blanks skipped. */
+export function previewLines(body: string, max = 6): PreviewLine[] {
+  const clean = (text: string) => text.replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1").trim()
+  const out: PreviewLine[] = []
+  for (const raw of body.split("\n")) {
+    if (out.length === max) break
+    const line = raw.trim()
+    if (!line) continue
+    const todo = /^[-•]\s+\[([ xX])\]\s+(.*)$/.exec(line)
+    if (todo) out.push({ kind: "todo", text: clean(todo[2]), done: todo[1].toLowerCase() === "x" })
+    else if (/^[-•]\s+/.test(line)) out.push({ kind: "bullet", text: clean(line.replace(/^[-•]\s+/, "")) })
+    else if (/^#{1,6}\s+/.test(line)) out.push({ kind: "heading", text: clean(line.replace(/^#{1,6}\s+/, "")) })
+    else out.push({ kind: "text", text: clean(line) })
+  }
+  return out
+}
