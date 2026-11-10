@@ -10,7 +10,7 @@ import { SecurityTab } from "@/components/vault/security-tab"
 import { SetupCard, UnlockCard } from "@/components/vault/unlock-cards"
 import { VaultContext } from "@/components/vault/vault-kit"
 import { PageHeader } from "@/components/organizzou/PageHeader"
-import { usePrimaryAction } from "@/components/shell/primary-action"
+import { usePrimaryAction, useQuickActions } from "@/components/shell/primary-action"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -86,6 +86,8 @@ export function CofreScreen({ userId }: { userId: string }) {
     setTab("itens")
     setAdding(true)
   })
+  // The quick-actions button offers "Adicionar item" only while unlocked (it never learns anything else about the Cofre).
+  useQuickActions(ready ? [{ id: "item", label: "Adicionar item", onSelect: () => (setTab("itens"), setAdding(true)) }] : null)
 
   async function handleUnlock(password: string): Promise<boolean> {
     if (!repo) return false

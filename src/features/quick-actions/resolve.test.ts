@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { resolveContextualActions, screenOf } from "./resolve"
 
-const none = { quick: null, primary: null, vaultLocked: false }
+const none = { quick: null, primary: null }
 
 describe("screenOf", () => {
   it("reads the module from the path", () => {
@@ -42,13 +42,9 @@ describe("resolveContextualActions", () => {
     expect(resolveContextualActions({ ...none, pathname: "/dashboard/ajuda" })[0].source).toBe("capture")
   })
 
-  it("Cofre: Adicionar item only when unlocked, nothing at all while locked", () => {
+  it("Cofre: only the action the screen registered while unlocked; nothing when locked", () => {
     const primary = { label: "Adicionar item" }
-    expect(resolveContextualActions({ ...none, pathname: "/dashboard/cofre", primary, vaultLocked: false }).map((a) => a.label)).toEqual(["Adicionar item"])
-    expect(resolveContextualActions({ ...none, pathname: "/dashboard/cofre", primary, vaultLocked: true })).toEqual([])
-  })
-
-  it("a locked vault does not affect other screens", () => {
-    expect(resolveContextualActions({ ...none, pathname: "/dashboard/notas", primary: { label: "Nova nota" }, vaultLocked: true })).toHaveLength(1)
+    expect(resolveContextualActions({ ...none, pathname: "/dashboard/cofre", primary, quick: [{ id: "item", label: "Adicionar item" }] }).map((a) => a.label)).toEqual(["Adicionar item"])
+    expect(resolveContextualActions({ ...none, pathname: "/dashboard/cofre", primary })).toEqual([])
   })
 })

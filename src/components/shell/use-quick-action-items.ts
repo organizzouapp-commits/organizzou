@@ -8,12 +8,11 @@ import { useAssistant } from "@/components/assistant/assistant-context"
 import { usePrimaryActionValue, useQuickActionsValue } from "@/components/shell/primary-action"
 import type { FabItem } from "@/components/shell/quick-actions-fab"
 import { resolveContextualActions } from "@/features/quick-actions/resolve"
-import { useVaultSession } from "@/features/vault/session"
 
 /**
  * The items of the quick-actions button, from the button upward: the screen's own add action(s) (resolved by route, with the same handlers
  * as the page header button), then "Falar com o assistente", "Pesquisar" and "Ajuda". Only labels and handlers pass through here, never
- * vault content: while the Cofre is locked its action is hidden.
+ * vault content: the Cofre screen registers its action only while unlocked.
  */
 export function useQuickActionItems(): FabItem[] {
   const { openAssistant, openQuickCapture, openSearch } = useAssistant()
@@ -21,10 +20,9 @@ export function useQuickActionItems(): FabItem[] {
   const pathname = usePathname()
   const primary = usePrimaryActionValue()
   const quick = useQuickActionsValue()
-  const vaultLocked = useVaultSession().status !== "unlocked"
 
   return useMemo(() => {
-    const contextual = resolveContextualActions({ pathname, quick, primary, vaultLocked })
+    const contextual = resolveContextualActions({ pathname, quick, primary })
     const handlerOf = (id: string, source: "page" | "capture"): (() => void) => {
       if (source === "capture") return openQuickCapture
       if (id === "primary") return () => primary?.onClick()
@@ -36,5 +34,5 @@ export function useQuickActionItems(): FabItem[] {
       { id: "search", label: "Pesquisar", icon: SearchIcon, onSelect: openSearch },
       { id: "help", label: "Ajuda", icon: LifeBuoyIcon, onSelect: () => router.push("/dashboard/ajuda") },
     ]
-  }, [pathname, quick, primary, vaultLocked, openAssistant, openQuickCapture, openSearch, router])
+  }, [pathname, quick, primary, openAssistant, openQuickCapture, openSearch, router])
 }
