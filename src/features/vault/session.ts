@@ -4,7 +4,7 @@ import "client-only"
 
 import { useEffect, useState, useSyncExternalStore } from "react"
 
-import { createLockTimer, locksOnHide } from "./auto-lock"
+import { createLockTimer, locksOnHide, shouldLock } from "./auto-lock"
 import { clearClipboardNow } from "./clipboard"
 import { flushPendingDeletes } from "./pending-delete"
 import { settingsRepo, type AutoLock } from "./settings"
@@ -43,11 +43,14 @@ function schedule() {
   else lockTimer.start(state.autoLock)
 }
 
+/** Locks if the absolute deadline has passed (called on every countdown tick and when the page becomes visible again). */export function checkExpiry() {  if (key && shouldLock(state.lockAt, Date.now())) lockVault()}
 function hook() {
   if (hooked || typeof document === "undefined") return
   hooked = true
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden" && key && locksOnHide(state.autoLock)) lockVault()
+    // Back from sleep or from another tab: the timer may not have run, so the absolute deadline decides.
+    if (document.visibilityState === "visible") checkExpiry()
   })
 }
 
@@ -125,7 +128,10 @@ export function useLockCountdown(): number | null {
   const [now, setNow] = useState(0)
   useEffect(() => {
     if (lockAt === null) return
-    const tick = () => setNow(Date.now())
+    const tick = () => {
+      setNow(Date.now())
+      checkExpiry()
+    }
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)

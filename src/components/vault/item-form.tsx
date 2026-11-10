@@ -1,6 +1,6 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { CircleAlertIcon, DicesIcon, FileIcon, PaperclipIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { fieldClass, pillBase, pillOff, pillOn, StickyFooter } from "@/components/workouts/sheet-fields"
 import { generatePassword } from "@/features/vault/passwords"
+import { touch } from "@/features/vault/session"
 import { MAX_FILE_BYTES, VAULT_TYPES, VAULT_TYPE_LABELS, type VaultItem, type VaultItemType } from "@/features/vault/types"
 import { FileTooLargeError } from "@/features/vault/vault"
 import { newId } from "@/lib/sp-time"
@@ -85,6 +86,8 @@ function ItemForm({ item, defaultType, prefillPassword, onDirtyChange, onCancel,
   const set = (key: keyof typeof v) => (value: string) => setV((s) => ({ ...s, [key]: value }))
   const [file, setFile] = useState<File | null>(null)
   const [initial] = useState(() => JSON.stringify([type, v]))
+  // Typing in the form is activity too (the lock timer is pushed back, throttled).
+  useEffect(() => touch(), [v, type])
   const dirty = file !== null || JSON.stringify([type, v]) !== initial
   // Layout effect: the parent must know before the very next keystroke (Esc right after typing), not a frame later.
   useLayoutEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])

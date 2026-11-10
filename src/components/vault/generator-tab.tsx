@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
+import { touch } from "@/features/vault/session"
 import { GENERATOR_STRENGTH_LABELS, generatePassword, generatorEntropyBits, strengthFromBits, type GeneratorOptions } from "@/features/vault/passwords"
 
 const OPTIONS: { key: "upper" | "lower" | "digits" | "symbols"; label: string; sample: string }[] = [
@@ -39,6 +40,7 @@ export function GeneratorTab() {
   const strength = strengthFromBits(bits)
 
   function change(next: GeneratorOptions) {
+    touch()
     setOptions(next)
     setPassword(generatePassword(next))
   }
@@ -51,7 +53,7 @@ export function GeneratorTab() {
           {password || <span className="font-sans text-[15px] leading-6 text-muted-foreground">Ligue ao menos um tipo de caractere.</span>}
         </output>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="outline" data-testid="regenerate" onClick={() => setPassword(generatePassword(options))} disabled={!password} className="h-11 rounded-full md:h-11 sm:flex-1">
+          <Button type="button" variant="outline" data-testid="regenerate" onClick={() => (touch(), setPassword(generatePassword(options)))} disabled={!password} className="h-11 rounded-full md:h-11 sm:flex-1">
             <RefreshCwIcon strokeWidth={1.75} /> Gerar outra
           </Button>
           <Button type="button" data-testid="copy-generated" onClick={() => void actions.copy(password, "Senha copiada")} disabled={!password} className="h-11 rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90 md:h-11 sm:flex-1">

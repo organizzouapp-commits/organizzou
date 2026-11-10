@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { WrongPasswordError } from "@/features/vault/crypto"
 import { countdownText } from "@/features/vault/health"
-import { lockVault, touch, unlockSession, useLockCountdown, useVaultSession, watchAuthSession } from "@/features/vault/session"
+import { lockVault, unlockSession, useLockCountdown, useVaultSession, watchAuthSession } from "@/features/vault/session"
 import { createIndexedDbRepo, storageAvailable, type VaultRepo } from "@/features/vault/storage"
 import { createVault, loadItems, unlock } from "@/features/vault/vault"
 
@@ -152,7 +152,7 @@ export function CofreScreen({ userId }: { userId: string }) {
 
   return (
     <VaultContext.Provider value={{ repo, scope: userId }}>
-      <div className={`flex min-w-0 flex-col gap-4${isMobile ? " pb-24" : ""}`} data-testid="cofre" data-state="unlocked" onPointerDownCapture={touch} onKeyDownCapture={touch}>
+      <div className={`flex min-w-0 flex-col gap-4${isMobile ? " pb-24" : ""}`} data-testid="cofre" data-state="unlocked">
         <PageHeader />
 
         {isMobile ? (

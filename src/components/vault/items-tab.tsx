@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { vaultHealth } from "@/features/vault/health"
+import { touch } from "@/features/vault/session"
 import { VAULT_TYPES, type VaultItem, type VaultItemType } from "@/features/vault/types"
 
 const FILTER_LABELS: Record<VaultItemType, string> = { login: "Senhas", card: "Cartões", document: "Docs", secure_note: "Notas" }
@@ -89,7 +90,7 @@ export function ItemsTab({ items, adding, onAddingChange, onOpenReport, now, ini
     <section aria-label="Itens do Cofre" data-testid="vault-list" className="flex h-full min-h-0 min-w-0 flex-col gap-3 rounded-[20px] border border-border bg-card p-4">
       <div className="relative">
         <SearchIcon aria-hidden strokeWidth={1.75} className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar no cofre" aria-label="Buscar itens" autoComplete="off" data-testid="vault-search" className="h-11 w-full rounded-full border border-input bg-transparent pr-4 pl-10 text-[15px] outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary" />
+        <input type="search" value={query} onChange={(e) => (touch(), setQuery(e.target.value))} placeholder="Buscar no cofre" aria-label="Buscar itens" autoComplete="off" data-testid="vault-search" className="h-11 w-full rounded-full border border-input bg-transparent pr-4 pl-10 text-[15px] outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary" />
       </div>
       <PillTabs
         kind="tabs"

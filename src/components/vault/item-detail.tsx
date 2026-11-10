@@ -12,6 +12,7 @@ import { useVaultActions } from "@/components/vault/use-vault-actions"
 import { SMALL_CAPS, chip } from "@/components/vault/vault-kit"
 import { Button } from "@/components/ui/button"
 import { ageLabel } from "@/features/vault/health"
+import { touch } from "@/features/vault/session"
 import { STRENGTH_LABELS, passwordStrength } from "@/features/vault/passwords"
 import { VAULT_TYPE_LABELS, type VaultItem } from "@/features/vault/types"
 import { cn } from "@/lib/utils"
@@ -41,7 +42,7 @@ function FieldCard({ label, value, secret, copyMessage, onCopy, multiline, class
         </span>
       </div>
       {secret ? (
-        <button type="button" aria-label={shown ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`} aria-pressed={shown} onClick={() => setShown((s) => !s)} className={ICON_BUTTON}>
+        <button type="button" aria-label={shown ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`} aria-pressed={shown} onClick={() => (touch(), setShown((s) => !s))} className={ICON_BUTTON}>
           {shown ? <EyeOffIcon aria-hidden strokeWidth={1.75} className="size-4" /> : <EyeIcon aria-hidden strokeWidth={1.75} className="size-4" />}
         </button>
       ) : null}
