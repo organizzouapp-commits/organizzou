@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckCheckIcon, EllipsisIcon, FlameIcon, LibraryIcon, PlusIcon } from "lucide-react"
 
-import { QuickAdd } from "@/components/organizzou/quick-add"
+import { OpenRow } from "@/components/organizzou/open-row"
 import { BentoCard, BentoStat } from "@/components/finance/bento"
 import { AddPill, HeroCard } from "@/components/finance/parts"
 import { HATCH_STYLE } from "@/components/habits/hoje-tab"
@@ -29,7 +29,6 @@ type Props = {
   onStudyAll: () => void
   onStudyDeck: (deckId: string) => void
   onAddCard: (deck: FlashcardDeckRow) => void
-  onCreateDeck: (name: string) => void
   onOpenDeckDialog: () => void
 }
 
@@ -156,7 +155,7 @@ function DeckCard({ deck, cards, today, onStudy, onAddCard }: { deck: FlashcardD
 
 // ------------------------------------------------------------------ the tab
 
-export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, onStudyDeck, onAddCard, onCreateDeck, onOpenDeckDialog }: Props) {
+export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, onStudyDeck, onAddCard, onOpenDeckDialog }: Props) {
   const due = cards.filter((c) => isDue(c, today))
   const next = nextDueDate(cards, today)
   const days = accuracyByDay(log, today, 7)
@@ -197,7 +196,7 @@ export function FlashcardsTab({ decks, cards, log, today, isMobile, onStudyAll, 
 
   return (
     <div data-testid="estudos-flashcards" className="@container flex min-w-0 flex-col gap-4">
-      <QuickAdd label="Novo baralho… ex.: Direito Penal — princípios" shortLabel="Novo baralho…" ariaLabel="Nome do novo baralho" isMobile={isMobile} requireText="Digite um nome para o baralho e toque no +." onSubmit={onCreateDeck} />
+      <OpenRow label="Novo baralho… ex.: Direito Penal — princípios" shortLabel="Novo baralho…" isMobile={isMobile} onOpen={onOpenDeckDialog} />
       <div className="grid grid-cols-1 gap-4 @min-[880px]:grid-cols-12">
         {hero}
         {accuracy}

@@ -160,18 +160,6 @@ export function parseDate(text: string, today: string): string | null {
   return validDay(year, month, day) ? iso(year, month, day) : null
 }
 
-/** "Prova de Cálculo, 20 de nov" → title + date. The text after the last comma is the date; when it does not parse, the whole text is the title. */
-export function parseQuickAdd(text: string, today: string): { title: string; date: string | null } {
-  const trimmed = text.trim()
-  const cut = trimmed.lastIndexOf(",")
-  if (cut > 0) {
-    const date = parseDate(trimmed.slice(cut + 1), today)
-    const title = trimmed.slice(0, cut).trim()
-    if (date && title) return { title, date }
-  }
-  return { title: trimmed, date: null }
-}
-
 // ------------------------------------------------------------------ month calendar
 
 /** The cells of a month grid starting on Sunday: leading blanks as null, then every day of the month. `month` is "yyyy-MM". */

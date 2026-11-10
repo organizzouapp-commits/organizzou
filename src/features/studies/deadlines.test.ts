@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { dayBlock, daysLeft, formatBR, formatLong, formatShort, groupDeadlines, groupOf, monthCells, monthTitle, nextDeadline, parseDate, parseQuickAdd, shiftMonth, typeOf } from "./deadlines"
+import { dayBlock, daysLeft, formatBR, formatLong, formatShort, groupDeadlines, groupOf, monthCells, monthTitle, nextDeadline, parseDate, shiftMonth, typeOf } from "./deadlines"
 
 const TODAY = "2026-11-09"
 
@@ -108,17 +108,6 @@ describe("parseDate", () => {
   })
 })
 
-describe("parseQuickAdd", () => {
-  it("splits the title from a trailing date", () => {
-    expect(parseQuickAdd("Prova de Cálculo, 20 de nov", TODAY)).toEqual({ title: "Prova de Cálculo", date: "2026-11-20" })
-    expect(parseQuickAdd("Entrega, do trabalho, 15/12", TODAY)).toEqual({ title: "Entrega, do trabalho", date: "2026-12-15" })
-  })
-  it("falls back to the whole text as the title", () => {
-    expect(parseQuickAdd("Prova de Cálculo, em breve", TODAY)).toEqual({ title: "Prova de Cálculo, em breve", date: null })
-    expect(parseQuickAdd("  Seminário ", TODAY)).toEqual({ title: "Seminário", date: null })
-    expect(parseQuickAdd(", 20 nov", TODAY)).toEqual({ title: ", 20 nov", date: null })
-  })
-})
 
 describe("month calendar", () => {
   it("lays out a month from Sunday", () => {

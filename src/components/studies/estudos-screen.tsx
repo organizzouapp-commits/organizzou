@@ -17,9 +17,12 @@ import { HojeTab } from "@/components/studies/estudos-hoje"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { MateriasTab } from "@/components/studies/estudos-materias"
 import { SubjectSheet } from "@/components/studies/subject-sheet"
+import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { fieldClass, StickyFooter } from "@/components/workouts/sheet-fields"
+import { useRestoreFocus } from "@/hooks/use-restore-focus"
 import { localSubjectMetaRepo, setArchived, type SubjectMeta } from "@/features/studies/subject-meta"
 import { ProvasTab } from "@/components/studies/estudos-provas"
-import { localDeadlineMetaRepo, parseQuickAdd, typeOf, type DeadlineMetaMap } from "@/features/studies/deadlines"
+import { localDeadlineMetaRepo, typeOf, type DeadlineMetaMap } from "@/features/studies/deadlines"
 import { CardSheet, ReviewSheet } from "@/components/studies/flashcard-dialogs"
 import { localReviewLogRepo, type ReviewLogEntry } from "@/features/studies/review"
 import { PillTabs } from "@/components/tasks/pill-tabs"
@@ -28,14 +31,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -107,8 +102,11 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
     setReviewLog(localReviewLogRepo.load())
   }, [])
   const [creatingDeck, setCreatingDeck] = useState(false)
+  // The creation rows open these from state (no Radix trigger), so focus is handed back to the row when they close.
+  useRestoreFocus(creatingDeck)
   const [addingCardTo, setAddingCardTo] = useState<FlashcardDeckRow | null>(null)
   const [deadlineDraft, setDeadlineDraft] = useState<DeadlineDraft | null>(null)
+  useRestoreFocus(deadlineDraft !== null)
   const [metas, setMetas] = useState<DeadlineMetaMap>({})
   useEffect(() => {
     // localStorage only exists in the browser; read after mount so the server and the first client render match.
@@ -194,12 +192,6 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
       return next
     })
 
-  /** A short text such as "Prova de Cálculo, 20 de nov" opens the dialog with the title and, when it reads as a date, the date filled in. */
-  function quickDeadline(text: string) {
-    if (!text) return setDeadlineDraft(blankDraft(today))
-    const { title, date } = parseQuickAdd(text, today)
-    setDeadlineDraft({ ...blankDraft(today), title, date: date ?? today })
-  }
 
   function editDeadline(row: DeadlineRow) {
     const meta = metas[row.id]
@@ -337,7 +329,6 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           onStudyAll={() => setStudyDeck("all")}
           onStudyDeck={setStudyDeck}
           onAddCard={setAddingCardTo}
-          onCreateDeck={createDeck}
           onOpenDeckDialog={() => setCreatingDeck(true)}
         />
       ) : null}
@@ -350,7 +341,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
           metas={metas}
           today={today}
           isMobile={isMobile}
-          onQuick={quickDeadline}
+          onNew={() => setDeadlineDraft(blankDraft(today))}
           onEdit={editDeadline}
           onToggleDone={toggleDeadlineDone}
           onDelete={deleteDeadline}
@@ -391,19 +382,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
         onAnswer={answerCard}
         onClose={() => setStudyDeck(null)}
       />
-      <Dialog open={creatingDeck} onOpenChange={setCreatingDeck}>
-        <DialogContent>
-          {creatingDeck ? (
-            <DeckForm
-              onCreate={(name) => {
-                setDecks((current) => [...current, { id: newId(), user_id: USER, subject_id: null, name }])
-                toast.success("Baralho criado.")
-              }}
-              onClose={() => setCreatingDeck(false)}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+<ResponsiveSheet open={creatingDeck} onOpenChange={setCreatingDeck} title="Novo baralho" description="Dê um nome ao baralho de cartões.">        {creatingDeck ? <DeckForm onCreate={createDeck} onClose={() => setCreatingDeck(false)} /> : null}      </ResponsiveSheet>
       <CardSheet
         deck={addingCardTo}
         today={today}
@@ -429,23 +408,18 @@ function DeckForm({ onCreate, onClose }: { onCreate: (name: string) => void; onC
         onClose()
       }}
     >
-      <DialogHeader>
-        <DialogTitle>Novo baralho</DialogTitle>
-        <DialogDescription className="sr-only">Dê um nome ao baralho de cartões.</DialogDescription>
-      </DialogHeader>
       <div className="flex flex-col gap-2">
         <Label htmlFor="deck-name">Nome</Label>
-        <Input id="deck-name" autoFocus value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+        <Input id="deck-name" autoFocus value={name} maxLength={100} placeholder="Ex.: Direito Penal — princípios" autoComplete="off" onChange={(e) => setName(e.target.value)} className={fieldClass} />
       </div>
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose}>
+      <StickyFooter>
+        <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!name.trim()}>
+        <Button type="submit" disabled={!name.trim()} className="bg-highlight text-highlight-foreground hover:bg-highlight/90">
           Criar baralho
         </Button>
-      </DialogFooter>
+      </StickyFooter>
     </form>
   )
 }
-

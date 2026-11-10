@@ -6,7 +6,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, EllipsisIcon, PencilIcon,
 import { BentoCard } from "@/components/finance/bento"
 import { HeroCard, LIST_CARD } from "@/components/finance/parts"
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
-import { QuickAdd } from "@/components/organizzou/quick-add"
+import { OpenRow } from "@/components/organizzou/open-row"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -40,7 +40,7 @@ type Props = {
   metas: DeadlineMetaMap
   today: string
   isMobile: boolean
-  onQuick: (text: string) => void
+  onNew: () => void
   onEdit: (row: DeadlineRow) => void
   onToggleDone: (row: DeadlineRow) => void
   onDelete: (row: DeadlineRow) => void
@@ -171,7 +171,7 @@ function CalendarCard({ deadlines, metas, today, month, onMonth, onPick, classNa
 
 // ------------------------------------------------------------------ the tab
 
-export function ProvasTab({ deadlines, subjects, metas, today, isMobile, onQuick, onEdit, onToggleDone, onDelete }: Props) {
+export function ProvasTab({ deadlines, subjects, metas, today, isMobile, onNew, onEdit, onToggleDone, onDelete }: Props) {
   const groups = groupDeadlines(deadlines, metas, today)
   const next = nextDeadline(deadlines, metas, today)
   const [openGroups, setOpenGroups] = useState<Partial<Record<GroupId, boolean>>>({})
@@ -205,7 +205,7 @@ export function ProvasTab({ deadlines, subjects, metas, today, isMobile, onQuick
       value={nextLeft === null ? "—" : nextLeft === 0 ? "hoje" : <>{nextLeft} {dim(nextLeft === 1 ? "dia" : "dias")}</>}
       support={next ? `${next.title} · ${formatLong(next.due_on)}` : "Nenhum prazo à vista"}
       actions={
-        <Button type="button" data-testid="next-edit" onClick={() => (next ? onEdit(next) : onQuick(""))} className="mt-auto h-10 w-fit rounded-full bg-highlight-foreground px-5 text-highlight hover:bg-highlight-foreground/90">
+        <Button type="button" data-testid="next-edit" onClick={() => (next ? onEdit(next) : onNew())} className="mt-auto h-10 w-fit rounded-full bg-highlight-foreground px-5 text-highlight hover:bg-highlight-foreground/90">
           {next ? <PencilIcon strokeWidth={1.75} /> : null}
           {next ? "Editar" : "Novo prazo"}
         </Button>
@@ -240,7 +240,7 @@ export function ProvasTab({ deadlines, subjects, metas, today, isMobile, onQuick
 
   return (
     <div data-testid="estudos-provas" className="@container flex min-w-0 flex-col gap-4">
-      <QuickAdd label="Nova prova ou prazo… ex.: Prova de Cálculo, 20 de nov" shortLabel="Nova prova ou prazo…" ariaLabel="Nova prova ou prazo" isMobile={isMobile} requireText="Digite o título da prova ou do prazo e toque no +." onSubmit={onQuick} />
+      <OpenRow label="Nova prova ou prazo… ex.: Prova de Cálculo, 20 de nov" shortLabel="Nova prova ou prazo…" isMobile={isMobile} onOpen={onNew} />
       {isMobile ? (
         // Phone order: pill, calendar, next deadline, list.
         <>
