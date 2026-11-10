@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation"
 import { PillTabs } from "@/components/tasks/pill-tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useIsMobile } from "@/hooks/use-mobile"
+import type { PlanUsage } from "@/lib/plan-usage"
 import { SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "@/lib/settings-tabs"
 
 import type { SettingsProfile } from "./tabs/profile-tab"
@@ -52,7 +53,7 @@ function FadingTabs({ active, onChange, className }: { active: SettingsTab; onCh
  * switching it changes only the URL (no server round trip). Desktop: tabs under the title, content in a 12-column bento grid; phones: a
  * solid header card with a scrollable tab row.
  */
-export function SettingsShell({ profile }: { profile: SettingsProfile }) {
+export function SettingsShell({ profile, usage }: { profile: SettingsProfile; usage: PlanUsage }) {
   const params = useSearchParams()
   const active = parseSettingsTab(params.get("aba"))
   const isMobile = useIsMobile()
@@ -82,7 +83,7 @@ export function SettingsShell({ profile }: { profile: SettingsProfile }) {
         {active === "aparencia" ? <AppearanceTab /> : null}
         {active === "avisos" ? <NotificationsTab /> : null}
         {active === "seguranca" ? <SecurityTab /> : null}
-        {active === "plano" ? <PlanTab email={profile.email} name={profile.displayName} /> : null}
+        {active === "plano" ? <PlanTab email={profile.email} name={profile.displayName} usage={usage} /> : null}
       </div>
     </div>
   )

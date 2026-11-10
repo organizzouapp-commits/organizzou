@@ -129,21 +129,30 @@ export function CookieConsent({ privacyHref = "/politicas#privacidade" }: Cookie
                     {category.label}
                     <span className="text-[13px] leading-5 font-normal text-muted-foreground">{category.hint}</span>
                   </label>
-                  <Switch
-                    id={id}
-                    checked={checked}
-                    disabled={category.key === "necessary"}
-                    onCheckedChange={(value) => {
-                      if (category.key !== "necessary") setDraft((d) => ({ ...d, [category.key]: value }))
-                    }}
-                  />
+                  {category.key === "necessary" ? (
+                    <span data-chip="always" className="tabular inline-flex h-6 shrink-0 items-center rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground">
+                      Sempre ativo
+                    </span>
+                  ) : (
+                    <Switch id={id} checked={checked} onCheckedChange={(value) => setDraft((d) => ({ ...d, [category.key]: value }))} />
+                  )}
                 </li>
               )
             })}
           </ul>
           <DialogFooter>
             <Button
+              variant="outline"
               className={motion}
+              onClick={() => {
+                rejectOptional()
+                setOpen(false)
+              }}
+            >
+              Só essenciais
+            </Button>
+            <Button
+              className={cn(motion, "bg-highlight text-highlight-foreground hover:bg-highlight/90")}
               onClick={() => {
                 saveConsent(draft)
                 setOpen(false)
