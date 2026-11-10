@@ -31,7 +31,7 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
           <DrawerDescription className="sr-only">Escolha uma página para abrir.</DrawerDescription>
         </DrawerHeader>
         <div className="no-scrollbar flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {/* Same slot as the sidebar card: the upgrade card for Free users, the virtual assistant for Pro (no floating button on phones). */}
+          {/* Same slot as the sidebar card: the upgrade card for Free users (the assistant is in the quick-actions button). */}
           {nav.features.plan ? <SidebarCta onNavigate={() => onOpenChange(false)} className="[&]:min-h-14" /> : null}
         <nav aria-label={more.title} className="flex flex-col gap-4">
           {more.sections.map((section, index) => (

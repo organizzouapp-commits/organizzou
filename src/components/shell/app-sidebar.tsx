@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils"
 import { BackToAppButton, BackToAppRail, NavBrand } from "./nav-brand"
 import { groupHasActive, isActivePath, useNav, type NavGroup, type NavItem } from "./nav-config"
 import { useRequestSignOut } from "./sign-out-dialog"
-import { AssistantRailButton } from "./assistant-card"
+
 import { PLANS_HREF, SidebarCta } from "./plan-cta"
 
 export type ShellUser = { name: string; email: string }
@@ -164,7 +164,7 @@ function RailGroup({ group, pathname, counts, footer, align = "start" }: { group
 
 function RailUpgrade() {
   const { pro } = usePlan()
-  if (pro) return <AssistantRailButton />
+  if (pro) return null
   return (
     <RailTip label="Fazer upgrade">
       <Link href={PLANS_HREF} aria-label="Fazer upgrade" className={cn(railBase, ease, focus, rowIdle)}>
@@ -288,7 +288,7 @@ export const AppSidebar = memo(function AppSidebar({ counts }: AppSidebarProps) 
 
       </nav>
 
-      {/* Pinned at the bottom, never scrolled away: the Conta group (Configurações, Ajuda, Sair) above the card (the upgrade card for Free users, the virtual assistant for Pro). When Conta opens, the list above is what shrinks and scrolls. */}
+      {/* Pinned at the bottom, never scrolled away: the Conta group (Configurações, Ajuda, Sair) above the upgrade card (Free users only; the assistant lives in the quick-actions button). When Conta opens, the list above is what shrinks and scrolls. */}
       <div className="flex shrink-0 flex-col gap-2 px-3 pt-2 pb-4 empty:hidden [@media(max-height:900px)]:pb-3">
         {accountNav ? <FoldedGroup group={accountNav} pathname={pathname} counts={counts} {...groupProps(accountNav.label)} footer={<SignOutRow />} /> : null}
         {nav.features.plan ? <SidebarCta /> : <BackToAppButton className="w-full justify-start px-4" />}
