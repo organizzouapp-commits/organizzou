@@ -17,8 +17,17 @@ export function useRestoreFocus(open: boolean) {
       const target = event.target as HTMLElement | null
       if (target && !target.closest(INSIDE_OVERLAY)) last.current = target
     }
+    // Radix triggers (menus) cancel the focus a pointer press would give them, so remember the pressed control as well.
+    const onPointerDown = (event: PointerEvent) => {
+      const control = (event.target as HTMLElement | null)?.closest<HTMLElement>("button,a[href],[role=button]")
+      if (control && !control.closest(INSIDE_OVERLAY)) last.current = control
+    }
+    document.addEventListener("pointerdown", onPointerDown, true)
     document.addEventListener("focusin", onFocusIn)
-    return () => document.removeEventListener("focusin", onFocusIn)
+    return () => {
+      document.removeEventListener("focusin", onFocusIn)
+      document.removeEventListener("pointerdown", onPointerDown, true)
+    }
   }, [])
 
   useEffect(() => {
