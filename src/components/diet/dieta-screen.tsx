@@ -1,9 +1,11 @@
 "use client"
 
+import { DayNavigator } from "@/components/organizzou/DayNavigator"
+import { dayNavLabel } from "@/lib/day-label"
 import { createContext, useContext, useEffect, useState } from "react"
-import { format, parseISO } from "date-fns"
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
-import { ptBR } from "date-fns/locale"
+
+import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
+
 import { toast } from "sonner"
 
 import { HistoricoTab, HistoryPeriodSwitch } from "@/components/diet/dieta-historico"
@@ -52,7 +54,6 @@ const TAB_ITEMS = [
   { id: "historico", label: "Histórico" },
   { id: "peso", label: "Peso" },
 ]
-const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 
 
 /** The food catalog (shared rows plus the person's own; the example list only in the local prototype). */
@@ -173,17 +174,7 @@ function DietBody({ nowIso, initial }: { nowIso: string; initial: DietInitial })
     ) : null
   const dayNav =
     tab === "hoje" ? (
-      <div data-testid="diet-day-nav" className="flex h-10 items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Dia anterior" className="shrink-0" onClick={() => setDay((d) => shiftDay(d, -1))}>
-          <ChevronLeftIcon strokeWidth={1.75} />
-        </Button>
-        <button type="button" data-testid="diet-day-label" aria-label="Ir para hoje" title="Ir para hoje" onClick={() => setDay(today)} className="min-w-0 rounded-full px-2 text-[15px] leading-6 font-semibold whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          {WEEKDAY_NAMES[parseISO(day).getDay()]}, {format(parseISO(day), "d 'de' MMMM", { locale: ptBR })}
-        </button>
-        <Button variant="ghost" size="icon" aria-label="Próximo dia" className="shrink-0" disabled={day >= today} onClick={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))}>
-          <ChevronRightIcon strokeWidth={1.75} />
-        </Button>
-      </div>
+      <DayNavigator testId="diet-day-nav" labelTestId="diet-day-label" label={dayNavLabel(day)} onPrev={() => setDay((d) => shiftDay(d, -1))} onNext={() => setDay((d) => (d >= today ? d : shiftDay(d, 1)))} onToday={() => setDay(today)} nextDisabled={day >= today} />
     ) : null
 
   return (
