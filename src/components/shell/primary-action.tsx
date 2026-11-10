@@ -9,15 +9,18 @@ export type PrimaryMenuItem = { id: string; label: string; icon?: LucideIcon; on
 type PrimaryAction = { label: string; onClick: () => void; menu?: PrimaryMenuItem[] }
 
 type PrimaryActionContextValue = {
+  quick: PrimaryMenuItem[] | null
+  setQuick: (items: PrimaryMenuItem[] | null) => void
   action: PrimaryAction | null
   setAction: (action: PrimaryAction | null) => void
 }
 
-const PrimaryActionContext = createContext<PrimaryActionContextValue>({ action: null, setAction: () => {} })
+const PrimaryActionContext = createContext<PrimaryActionContextValue>({ action: null, setAction: () => {}, quick: null, setQuick: () => {} })
 
 export function PrimaryActionProvider({ children }: { children: React.ReactNode }) {
   const [action, setAction] = useState<PrimaryAction | null>(null)
-  return <PrimaryActionContext.Provider value={{ action, setAction }}>{children}</PrimaryActionContext.Provider>
+  const [quick, setQuick] = useState<PrimaryMenuItem[] | null>(null)
+  return <PrimaryActionContext.Provider value={{ action, setAction, quick, setQuick }}>{children}</PrimaryActionContext.Provider>
 }
 
 /** What the "+ Novo" button in the top bar does on the current screen. */
@@ -47,4 +50,27 @@ export function usePrimaryAction(label: string, onClick: () => void, menu?: Prim
     setAction({ label, onClick: () => latest.current(), menu: items })
     return () => setAction(null)
   }, [label, menuKey, setAction])
+}
+
+/** The screen's actions for the quick-actions button, when they differ from its header button (e.g. per tab). */
+export function useQuickActionsValue() {
+  return useContext(PrimaryActionContext).quick
+}
+
+/**
+ * A screen registers what the quick-actions button offers on it (closest to the button first), with the same handlers as its own UI.
+ * Registered on mount, dropped on unmount; the handlers are read at click time, so they are never stale.
+ */
+export function useQuickActions(items: PrimaryMenuItem[] | null) {
+  const { setQuick } = useContext(PrimaryActionContext)
+  const latest = useRef(items)
+  useEffect(() => {
+    latest.current = items
+  })
+  const key = items ? items.map((item) => `${item.id}:${item.label}`).join("|") : ""
+  useEffect(() => {
+    const current = latest.current
+    setQuick(current ? current.map((item) => ({ ...item, onSelect: () => latest.current?.find((m) => m.id === item.id)?.onSelect() })) : null)
+    return () => setQuick(null)
+  }, [key, setQuick])
 }

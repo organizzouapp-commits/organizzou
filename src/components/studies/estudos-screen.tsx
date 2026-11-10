@@ -29,7 +29,7 @@ import { PillTabs } from "@/components/tasks/pill-tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { PageHeader } from "@/components/organizzou/PageHeader"
-import { usePrimaryAction } from "@/components/shell/primary-action"
+import { usePrimaryAction, useQuickActions } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -184,6 +184,8 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   const dueCards = cards.filter((c) => isDue(c, today))
 
   usePrimaryAction("Nova matéria", () => setSubjectSheet({ subject: null }))
+  // The quick-actions button follows the tab (the header button stays "Nova matéria").
+  useQuickActions(tab === "flashcards" ? [{ id: "deck", label: "Novo baralho", onSelect: () => setCreatingDeck(true) }] : tab === "provas" ? [{ id: "deadline", label: "Nova prova", onSelect: () => setDeadlineDraft(blankDraft(today)) }] : [{ id: "subject", label: "Nova matéria", onSelect: () => setSubjectSheet({ subject: null }) }])
 
   const updateMetas = (change: (current: DeadlineMetaMap) => DeadlineMetaMap) =>
     setMetas((current) => {

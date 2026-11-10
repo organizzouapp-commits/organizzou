@@ -12,6 +12,7 @@ import { EditEntrySheet, EntriesList, type EntryValues } from "@/components/jour
 import { MoodPicker, SleepRow } from "@/components/journal/mood-picker"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import { PageHeader } from "@/components/organizzou/PageHeader"
+import { useQuickActions } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
@@ -43,6 +44,13 @@ export function DiarioScreen({ nowIso, initial }: { nowIso: string; initial: Jou
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGoal(localJournalSettingsRepo.load().sleepGoal)
   }, [])
+
+  // The quick-actions button: "Novo registro" takes the person to today's check-in and focuses the note field.
+  useQuickActions([{ id: "entry", label: "Novo registro", onSelect: () => {
+    const field = document.getElementById("journal-text")
+    field?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+    field?.focus({ preventScroll: true })
+  } }])
 
   const todayEntry = days.find((d) => d.entry_date === today)
   const sorted = [...days].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
