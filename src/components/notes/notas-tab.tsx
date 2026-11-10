@@ -253,8 +253,13 @@ function useVisibleBox() {
   return box
 }
 
-function FullScreenEditor({ children }: { children: React.ReactNode }) {
+function FullScreenEditor({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   const box = useVisibleBox()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = "hidden"
@@ -353,7 +358,7 @@ export function NotasTab({ c, isMobile }: { c: NotesController; isMobile: boolea
       <FolderRow c={c} mobile={isMobile} />
       <NotesBody c={c} columns={columns} />
 
-      {note && isMobile ? <FullScreenEditor>{editor}</FullScreenEditor> : null}
+      {note && isMobile ? <FullScreenEditor onClose={c.close}>{editor}</FullScreenEditor> : null}
       {!isMobile ? (
         <Dialog open={Boolean(note)} onOpenChange={(open) => !open && c.close()}>
           <DialogContent showCloseButton={false} data-testid="note-dialog" className="flex h-[min(720px,80vh)] max-h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
