@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { CheckIcon, ChevronDownIcon, FlameIcon, PencilIcon } from "lucide-react"
@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
 export type HistoryMode = "mes" | "semanas"
 export const HISTORY_MODES = [
   { id: "mes" as const, label: "Mês" },
-  { id: "semanas" as const, label: "4 semanas" },
+  { id: "semanas" as const, label: "Semanas" },
 ]
 
 const WEEKDAY_LETTERS = ["D", "S", "T", "Q", "Q", "S", "S"]
@@ -101,17 +101,19 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
   const cells = mode === "mes" ? monthCells(month) : fourWeekCells(today)
   const title = mode === "mes" ? format(parseISO(`${month}-01`), "MMMM 'de' yyyy", { locale: ptBR }).replace(/^./, (c) => c.toUpperCase()) : "Últimas 4 semanas"
   const scope = single ? [single] : habits
+  const weeks = mode === "semanas"
 
   return (
     <BentoCard title={title} data-testid="history-calendar" actions={isMobile ? null : <HistoryModeSwitch value={mode} onChange={onMode} />}>
       <div className="@container flex flex-col gap-3">
-        <div className="grid grid-cols-7 gap-1.5 @min-[560px]:gap-2">
+        <div className={cn("grid gap-1.5 @min-[560px]:gap-2", weeks ? "grid-cols-[2.25rem_repeat(7,minmax(0,1fr))] @min-[560px]:grid-cols-[3rem_repeat(7,minmax(0,1fr))]" : "grid-cols-7")}>
+          {weeks ? <span aria-hidden /> : null}
           {WEEKDAY_LETTERS.map((letter, i) => (
             <span key={i} aria-hidden className="pb-0.5 text-center text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
               {letter}
             </span>
           ))}
-          {cells.map(({ day, inMonth }) => {
+          {cells.map(({ day, inMonth }, index) => {
             const record = dayRecord(scope, logs, day)
             const future = day > today
             const isToday = day === today
@@ -123,8 +125,14 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
             const status = single ? (kind === "done" ? "feito" : kind === "missed" ? "não feito" : kind === "off" ? "sem agenda" : "pendente") : record.total === 0 ? "sem hábitos" : `${record.done} de ${record.total} hábitos`
             const fraction = !single && inMonth && !future && record.total > 0 ? `${record.done}/${record.total}` : null
             return (
+              <Fragment key={day}>
+              {weeks && index % 7 === 0 ? (
+                <span data-week-label className="tabular flex flex-col items-center justify-center text-[11px] leading-4 text-muted-foreground @min-[560px]:items-start">
+                  <span className="font-semibold">S{index / 7 + 1}</span>
+                  <span className="hidden @min-[560px]:inline">{format(parseISO(day), "dd/MM")}</span>
+                </span>
+              ) : null}
               <button
-                key={day}
                 type="button"
                 data-day={day}
                 data-level={filled ? level : hatched ? 0 : undefined}
@@ -145,6 +153,7 @@ function CalendarCard({ habits, logs, today, habitId, month, mode, selected, onS
                 </span>
                 {fraction ? <span className="tabular hidden text-[12px] leading-4 @min-[560px]:block">{fraction}</span> : null}
               </button>
+              </Fragment>
             )
           })}
         </div>
