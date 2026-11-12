@@ -81,3 +81,15 @@ export function monthlySeries(transactions: TransactionRow[], month: string, cou
     return { month: key, ...totals(transactions, key) }
   })
 }
+
+/**
+ * The lançamento that paying `bill` created (the payment is not linked by an id, so it is found by what payBill writes: an expense with the
+ * bill's name, amount and category, dated in the month it was paid). The most recent match wins; null when it was already edited or deleted.
+ */
+export function findBillPayment(transactions: TransactionRow[], bill: RecurringBillRow, paidMonth: string): TransactionRow | null {
+  const matches = transactions.filter((t) => t.kind === "out" && t.description === bill.name && t.amount_cents === bill.amount_cents && t.category_id === bill.category_id && monthOf(t.occurred_on) === paidMonth)
+  return matches.sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null
+}
+
+/** The "last month paid" a bill goes back to when its payment of `month` is reopened: the month before. */
+export const reopenedLastPaid = (month: string) => shiftMonth(month, -1)

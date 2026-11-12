@@ -56,6 +56,8 @@ export type Finance = {
   // bills
   saveBill: (row: RecurringBillRow) => void
   payBill: (bill: RecurringBillRow) => void
+  /** Asks to reopen a paid bill (a confirmation first; the payment is reversed and Desfazer is offered). */
+  reopenBill: (bill: RecurringBillRow) => void
   removeBill: (bill: RecurringBillRow) => void
   editBill: (bill: RecurringBillRow) => void
   openNewBill: () => void

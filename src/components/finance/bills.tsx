@@ -3,7 +3,7 @@
 import { createContext, useContext, useState } from "react"
 import { format, getDaysInMonth, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, WalletIcon } from "lucide-react"
+import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, RotateCcwIcon, WalletIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { Button } from "@/components/ui/button"
@@ -44,6 +44,7 @@ function BillCard({ view }: { view: BillView }) {
       onOpen={() => f.editBill(bill)}
       onEdit={() => f.editBill(bill)}
       onDelete={() => f.removeBill(bill)}
+      extra={paid ? [{ label: "Reabrir conta", icon: RotateCcwIcon, onSelect: () => f.reopenBill(bill) }] : undefined}
     />
   )
 }

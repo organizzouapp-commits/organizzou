@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckIcon, ClockIcon } from "lucide-react"
+import { CheckIcon, ClockIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import type { BillView } from "@/features/finance/stats"
@@ -56,7 +56,7 @@ export function BillMini({ view, withBadge = false, withMenu = false, withCatego
           </span>
         </div>
       </div>
-      {withMenu ? <RowMenu title={bill.name} onEdit={() => f.editBill(bill)} onDelete={() => f.removeBill(bill)} className="-mr-1 self-start" /> : null}
+      {withMenu ? <RowMenu title={bill.name} onEdit={() => f.editBill(bill)} onDelete={() => f.removeBill(bill)} extra={paid ? [{ label: "Reabrir conta", icon: RotateCcwIcon, onSelect: () => f.reopenBill(bill) }] : undefined} className="-mr-1 self-start" /> : null}
     </div>
   )
   if (!swipe) return card

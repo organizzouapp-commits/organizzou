@@ -17,7 +17,8 @@ import { GOAL_ICON_KEYS, localGoalIconRepo, type GoalIconKey } from "@/features/
 import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-history"
 import { localAccountMetaRepo, orderAccounts, type AccountLayout, type AccountMeta } from "@/features/finance/account-meta"
 import { featureFirst, localGoalLayoutRepo } from "@/features/finance/goal-layout"
-import { monthOf, shiftMonth } from "@/features/finance/stats"
+import { findBillPayment, monthOf, reopenedLastPaid, shiftMonth } from "@/features/finance/stats"
+import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import type { TableName } from "@/features/persist/registry"
@@ -93,6 +94,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [goalOrder, setGoalOrderState] = useState<string[]>([])
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
+  const [reopening, setReopening] = useState<RecurringBillRow | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
   const [fundGoal, setFundGoal] = useState<FinancialGoalRow | null>(null)
   const [accountDialog, setAccountDialog] = useState<{ row: AccountRow | null } | null>(null)
@@ -212,6 +214,18 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     undoable(`${bill.name} paga.`, () => {
       setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: previous } : b)))
       setTransactions((current) => current.filter((t) => t.id !== txId))
+    })
+  }
+
+  /** Reverts this month's payment: the bill goes back to unpaid (or overdue) and its lançamento is removed, so balances and totals follow. */
+  function reopenBill(bill: RecurringBillRow) {
+    const payment = findBillPayment(transactions, bill, monthOf(today)) ?? findBillPayment(transactions, bill, month)
+    const previous = bill.last_paid_month
+    setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: reopenedLastPaid(month) } : b)))
+    if (payment) setTransactions((current) => current.filter((t) => t.id !== payment.id))
+    undoable(`${bill.name} reaberta.`, () => {
+      setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: previous } : b)))
+      if (payment) setTransactions((current) => [payment, ...current].sort(byDayDesc))
     })
   }
 
@@ -363,6 +377,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     categoryUsage,
     saveBill,
     payBill,
+    reopenBill: setReopening,
     removeBill,
     editBill: (row) => setBillDialog({ row }),
     openNewBill: () => setBillDialog({ row: null }),
@@ -480,6 +495,18 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       </div>
 
       <TransactionDialog open={Boolean(txDialog)} onOpenChange={(open) => !open && setTxDialog(null)} row={txDialog?.row ?? null} />
+      <ConfirmDialog
+        open={Boolean(reopening)}
+        onOpenChange={(open) => !open && setReopening(null)}
+        title="Reabrir esta conta?"
+        description={reopening ? `“${reopening.name}” volta para “a pagar” e o lançamento do pagamento é removido, então o saldo e os totais do mês voltam como estavam antes de pagar.` : ""}
+        confirmLabel="Reabrir conta"
+        onConfirm={() => {
+          const bill = reopening
+          setReopening(null)
+          if (bill) reopenBill(bill)
+        }}
+      />
       <BillDialog open={Boolean(billDialog)} onOpenChange={(open) => !open && setBillDialog(null)} row={billDialog?.row ?? null} />
       <GoalDialog open={Boolean(goalDialog)} onOpenChange={(open) => !open && setGoalDialog(null)} row={goalDialog?.row ?? null} />
       <FundDialog goal={fundGoal} onClose={() => setFundGoal(null)} />
