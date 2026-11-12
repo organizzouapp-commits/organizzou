@@ -190,7 +190,7 @@ describe("admin write actions", () => {
   it("every exported action re-checks admin (begin() -> requireAdminForAction) before doing anything", () => {
     expect(actions).toMatch(/const admin = await requireAdminForAction\(\)/)
     const exported = [...actions.matchAll(/export async function (\w+)\(([^)]*)\)[^{]*\{([\s\S]*?)\n\}/g)]
-    expect(exported.map((m) => m[1]).sort()).toEqual(["changePlan", "exportUsersCsv", "exportWaitlistCsv", "resendConfirmation", "setSuspended", "signOutEverywhere"])
+    expect(exported.map((m) => m[1]).sort()).toEqual(["changePlan", "deleteUser", "exportUsersCsv", "exportWaitlistCsv", "resendConfirmation", "setSuspended", "signOutEverywhere"])
     for (const [, name, , body] of exported) expect(body, name).toMatch(/await begin\(\)/)
   })
 
