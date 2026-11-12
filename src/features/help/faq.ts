@@ -39,7 +39,7 @@ export const FAQ: FaqItem[] = [
   {
     id: "avisos",
     q: "Como escolho o que o Organizzou avisa?",
-    a: ["Em ", { label: "Configurações > Avisos", href: settingsHref("avisos") }, " você escolhe os eventos e o horário de silêncio. Os avisos ainda não são enviados; suas escolhas ficam guardadas neste aparelho para quando o envio abrir."],
+    a: ["Em ", { label: "Configurações > Avisos", href: settingsHref("avisos") }, " você escolhe os eventos e o horário de silêncio, e ativa as notificações em cada aparelho. No iPhone, primeiro adicione o app à Tela de Início."],
   },
   {
     id: "excluir",
