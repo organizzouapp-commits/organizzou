@@ -1,6 +1,9 @@
 "use server"
 
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+
+import { STRONG_COOKIE } from "@/lib/auth/strong-auth"
 
 import { getSiteUrl } from "@/lib/supabase/env"
 import { safeNextPath } from "@/lib/safe-next"
@@ -131,5 +134,7 @@ export async function signInWithGoogle(next = "/dashboard"): Promise<OAuthResult
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  // The proof of the second step belongs to the session that just ended.
+  ;(await cookies()).delete(STRONG_COOKIE)
   redirect("/login?saiu=1")
 }

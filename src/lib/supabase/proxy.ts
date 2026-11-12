@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
 import { isAdminClaims } from "@/lib/admin/claims"
+import { requiresSecondStep, STRONG_COOKIE, strongSecret, verifyStrongProof } from "@/lib/auth/strong-auth"
 import { bypassAuth } from "./bypass"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
@@ -73,6 +74,31 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
     loginUrl.pathname = "/login"
     loginUrl.search = ""
     loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
+    return NextResponse.redirect(loginUrl)
+  }
+
+  // The second step (e-mail code or passkey), enforced HERE on the server: with it switched on, every dashboard page, admin page and API call
+  // answers only once a signed cookie proves this session passed it. The flag comes from the JWT's app_metadata, which only the server can set.
+  const sessionClaims = data?.claims
+  const guarded = isProtected(pathname) || isAdminPath(pathname) || (pathname.startsWith("/api/") && !pathname.startsWith("/api/cron/"))
+  if (isAuthenticated && guarded && requiresSecondStep(sessionClaims)) {
+    const proven = await verifyStrongProof(strongSecret(), request.cookies.get(STRONG_COOKIE)?.value, String(sessionClaims?.sub), String((sessionClaims as { session_id?: unknown } | undefined)?.session_id ?? ""))
+    if (!proven) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "second_step_required" }, { status: 401 })
+      const verifyUrl = request.nextUrl.clone()
+      verifyUrl.pathname = "/verificar"
+      verifyUrl.search = ""
+      verifyUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
+      const redirect = NextResponse.redirect(verifyUrl)
+      response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+      return redirect
+    }
+  }
+
+  if (!isAuthenticated && pathname === "/verificar") {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = "/login"
+    loginUrl.search = ""
     return NextResponse.redirect(loginUrl)
   }
 

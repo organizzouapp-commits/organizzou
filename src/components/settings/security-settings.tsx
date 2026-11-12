@@ -1,15 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { CookieIcon, FingerprintIcon, MonitorSmartphoneIcon, ShieldCheckIcon, type LucideIcon } from "lucide-react"
-import { toast } from "sonner"
+
+import { CookieIcon, FingerprintIcon, MonitorSmartphoneIcon, type LucideIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { ExportData } from "@/components/settings/export-data"
+import { useTwoFactor } from "@/components/settings/two-factor-row"
 
 const chip = "tabular inline-flex h-6 shrink-0 items-center rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 
@@ -31,15 +30,13 @@ function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; t
 
 /** Segurança e dados: account security and your data on the left, privacy on the right (one column on phones, same order). */
 export function SecuritySettings() {
+  const twoFactor = useTwoFactor()
   return (
     <Bento className="@container gap-4">
       <div className="col-span-12 flex min-w-0 flex-col gap-4 @min-[900px]:col-span-7">
         <BentoCard title="Segurança da conta">
           <div className="flex flex-col">
-            <Row icon={ShieldCheckIcon} title="Verificação em duas etapas" description="Em breve: pedir um código do app autenticador ao entrar.">
-              <Switch size="lg" checked={false} disabled aria-label="Verificação em duas etapas (em breve)" />
-              <SoonBadge />
-            </Row>
+<Row icon={twoFactor.icon} title="Verificação em duas etapas" description={twoFactor.description}>              {twoFactor.control}            </Row>
             <Row icon={FingerprintIcon} title="Passkey" description="Entrar com biometria ou chave de segurança.">
               <Button type="button" variant="outline" disabled className="h-11 rounded-full md:h-11">
                 Adicionar
