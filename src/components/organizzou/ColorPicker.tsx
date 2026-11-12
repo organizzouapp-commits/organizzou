@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { CheckIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { ScrollRow } from "@/components/organizzou/scroll-row"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -127,7 +128,7 @@ function CustomPanel({ full, onSave }: { full: boolean; onSave: (hex: string) =>
 }
 
 /**
- * The one color picker of Tarefas (tasks, tags, categories, priorities): a single row that never wraps (it scrolls sideways only
+ * The one color picker of Tarefas (tasks, tags, categories, priorities): a single row that never wraps (it scrolls sideways, by touch, drag, wheel or arrow keys,
  * when the container is narrower than the row): "Sem cor" ring, the five default colors, the person's saved colors (and a stored
  * legacy color in use, so it still shows) and a "+" that opens the custom-color panel. 28 px circles, 8 px gap, 44 px hit area.
  */
@@ -137,7 +138,7 @@ export function ColorPicker({ value, onChange, custom, onSaveCustom, onRemoveCus
   // A stored value that is neither a default nor saved (an old swatch, a hex from before) is listed after the saved colors.
   const stray = value && !isDefault && current && !custom.includes(value) ? value : null
   return (
-    <div role="radiogroup" aria-label={label} data-color-row className={cn("no-scrollbar flex min-h-11 flex-nowrap items-center gap-2 overflow-x-auto px-1.5 py-2", className)}>
+    <ScrollRow role="radiogroup" aria-label={label} data-color-row className={cn("flex min-h-11 w-full max-w-full min-w-0 flex-nowrap items-center gap-2 px-1.5 py-2", className)}>
       <Swatch hex={null} ring label="Sem cor" selected={!value} onSelect={() => onChange(null)} />
       {BUILT_IN_COLORS.map((color) => (
         <Swatch key={color.id} hex={color.hex} ink={color.ink} label={color.label} selected={value === color.id} onSelect={() => onChange(color.id)} />
@@ -155,6 +156,6 @@ export function ColorPicker({ value, onChange, custom, onSaveCustom, onRemoveCus
           return saved || custom.includes(value)
         }}
       />
-    </div>
+    </ScrollRow>
   )
 }
