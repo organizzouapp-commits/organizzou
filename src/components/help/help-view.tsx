@@ -1,13 +1,14 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useId, useState, useTransition } from "react"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { ChevronDownIcon, MailIcon, SearchIcon, SparklesIcon } from "lucide-react"
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { usePlan } from "@/components/organizzou/plan-context"
-import { SoonBadge } from "@/components/organizzou/SoonBadge"
+import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FAQ, filterFaq } from "@/features/help/faq"
 import { SUPPORT_EMAIL } from "@/lib/support"
+import { sendProblemReport } from "@/features/help/actions"
+import { REPORT_MAX, validateReport } from "@/features/help/report"
 import { cn } from "@/lib/utils"
 
 
@@ -115,19 +118,51 @@ export function HelpView() {
           )}
         </BentoCard>
 
-        <BentoCard title="Reportar problema" actions={<SoonBadge />} className="order-3 col-span-12 @min-[900px]:col-span-4 @min-[900px]:col-start-9 @min-[900px]:row-start-2" bodyClassName="flex flex-col gap-4">
-          <p className="text-[13px] leading-5 text-muted-foreground">O envio por aqui ainda não está disponível. Por enquanto, descreva o problema por e-mail.</p>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="report-text" className="text-muted-foreground">
-              O que aconteceu?
-            </Label>
-            <Textarea id="report-text" disabled placeholder="Conte o que você fez e o que esperava ver" />
-          </div>
-          <Button type="button" disabled className="h-11 w-full rounded-full md:h-11">
-            Enviar relato
-          </Button>
+        <BentoCard title="Reportar problema" className="order-3 col-span-12 @min-[900px]:col-span-4 @min-[900px]:col-start-9 @min-[900px]:row-start-2" bodyClassName="flex flex-col gap-4">
+          <ReportForm />
         </BentoCard>
       </Bento>
     </div>
+  )
+}
+
+/** "Reportar problema": the text goes to the support e-mail (with who, where and which browser). Clear on success, retry on error. */
+function ReportForm() {
+  const route = usePathname()
+  const [text, setText] = useState("")
+  const [state, setState] = useState<{ kind: "idle" } | { kind: "sent" } | { kind: "error"; message: string }>({ kind: "idle" })
+  const [pending, startTransition] = useTransition()
+  const ready = validateReport(text).ok
+
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!ready || pending) return
+    startTransition(async () => {
+      const result = await sendProblemReport({ text, route }).catch(() => ({ ok: false as const, error: "Não consegui enviar agora. Verifique a conexão e tente de novo." }))
+      if (result.ok) {
+        setText("")
+        setState({ kind: "sent" })
+      } else setState({ kind: "error", message: result.error })
+    })
+  }
+
+  return (
+    <form onSubmit={onSubmit} data-testid="report-form" className="flex flex-col gap-4">
+      <p className="text-[13px] leading-5 text-muted-foreground">Conte o que aconteceu. Enviamos para o suporte junto com a tela em que você estava e o seu navegador; respondemos no e-mail da sua conta.</p>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="report-text" className="text-muted-foreground">
+          O que aconteceu?
+        </Label>
+        <Textarea id="report-text" value={text} maxLength={REPORT_MAX} disabled={pending} onChange={(e) => (setText(e.target.value), state.kind !== "idle" && setState({ kind: "idle" }))} placeholder="Conte o que você fez e o que esperava ver" className="min-h-28" />
+        <p className="tabular text-right text-[12px] leading-4 text-muted-foreground">
+          {text.length}/{REPORT_MAX}
+        </p>
+      </div>
+      {state.kind === "sent" ? <FormMessage kind="success">Relato enviado. Obrigado! Respondemos no seu e-mail.</FormMessage> : null}
+      {state.kind === "error" ? <FormMessage kind="error">{state.message}</FormMessage> : null}
+      <Button type="submit" disabled={!ready || pending} data-testid="send-report" className="h-11 w-full rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90 md:h-11">
+        {pending ? "Enviando…" : state.kind === "error" ? "Tentar de novo" : "Enviar relato"}
+      </Button>
+    </form>
   )
 }
