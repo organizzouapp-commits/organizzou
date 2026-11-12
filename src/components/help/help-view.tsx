@@ -14,10 +14,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { FAQ, filterFaq } from "@/features/help/faq"
+import { SUPPORT_EMAIL } from "@/lib/support"
 import { cn } from "@/lib/utils"
 
-// Placeholder: the real support address is defined before launch.
-const SUPPORT_EMAIL = "suporte@organizzouapp.com"
 
 /** The questions as an accordion: one open at a time, a button per row (52 px) with aria-expanded, the chevron turns when it opens. */
 function Faq({ items }: { items: typeof FAQ }) {
