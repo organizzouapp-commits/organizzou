@@ -1,4 +1,4 @@
-import { applyFilters, EMPTY_FILTERS, type DueFilter, type TaskFilters } from "./filters"
+import { applyFilters, EMPTY_FILTERS, type DueFilter, type SortKey, type TaskFilters } from "./filters"
 import { tagIdsForLegacyPriorities } from "./priority-to-tags"
 import type { TagRow, TaskView } from "./types"
 import { isPending } from "./view"
@@ -17,6 +17,8 @@ export type ShortcutCriteria = {
   query: string
   /** Priorities a shortcut used before they became tags: converted to tag ids once the tags are known (see `convertLegacyPriorities`). */
   legacyPriorities?: string[]
+  /** The sort the shortcut was saved with (applied when the shortcut is picked); built-in shortcuts leave the current sort alone. */
+  sort?: SortKey
 }
 
 export type ShortcutDef = {
@@ -44,6 +46,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
 export const STORAGE_KEY = "organizzou:tarefas-shortcuts"
 
 const DUES: DueFilter[] = ["all", "overdue", "today", "week", "none"]
+const SORTS: SortKey[] = ["manual", "due", "title", "created"]
 
 /** Reads what was saved, tolerating anything: unknown or broken entries are dropped and missing built-ins come back at the end. */
 export function parseShortcuts(raw: string | null): ShortcutDef[] {
@@ -77,6 +80,7 @@ export function parseShortcuts(raw: string | null): ShortcutDef[] {
             tagIds: Array.isArray(c.tagIds) ? c.tagIds.filter((v): v is string => typeof v === "string") : [],
             categories: Array.isArray(c.categories) ? c.categories.filter((v): v is string => typeof v === "string") : [],
             query: typeof c.query === "string" ? c.query : "",
+            ...(SORTS.includes(c.sort as SortKey) ? { sort: c.sort as SortKey } : {}),
             ...(Array.isArray((c as { priorities?: unknown }).priorities) && ((c as { priorities: unknown[] }).priorities.length > 0)
               ? { legacyPriorities: (c as { priorities: unknown[] }).priorities.filter((v): v is string => typeof v === "string" && v !== "none") }
               : {}),
@@ -108,8 +112,8 @@ export function criteriaToFilters(c: ShortcutCriteria, keep: Pick<TaskFilters, "
   return { ...EMPTY_FILTERS, showCompleted: keep.showCompleted, due: c.due, range: c.range, listIds: c.listIds, tagIds: c.tagIds, categories: c.categories, query: c.query }
 }
 
-export function filtersToCriteria(f: TaskFilters): ShortcutCriteria {
-  return { due: f.due, range: f.range, listIds: f.listIds, tagIds: f.tagIds, categories: f.categories, query: f.query.trim() }
+export function filtersToCriteria(f: TaskFilters, sort?: SortKey): ShortcutCriteria {
+  return { due: f.due, range: f.range, listIds: f.listIds, tagIds: f.tagIds, categories: f.categories, query: f.query.trim(), ...(sort && sort !== "manual" ? { sort } : {}) }
 }
 
 /** Shortcuts that filtered by priority now filter by the equivalent tag (Baixa / Média / Alta). Returns the same array when nothing needed it. */
