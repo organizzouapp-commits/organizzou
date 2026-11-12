@@ -18,11 +18,15 @@ export function GroupHeader({ label, count, open, onToggle, className }: { label
   )
 }
 
-/** The body of a group: height animates 0.4s, closed content is inert and invisible. */
-export function Collapse({ open, children, className }: { open: boolean; children: React.ReactNode; className?: string }) {
+/**
+ * The body of a group: height animates (0.4s, or 0.25s with `fast`), the content fades with it, and closed content is inert and invisible.
+ * Instant under prefers-reduced-motion. One shared behavior for every collapsible (groups, FAQ).
+ */
+export function Collapse({ open, children, className, fast = false, id, ...aria }: { open: boolean; children: React.ReactNode; className?: string; fast?: boolean } & Omit<React.HTMLAttributes<HTMLDivElement>, "className" | "children">) {
+  const duration = fast ? "duration-250" : "duration-[400ms]"
   return (
-    <div inert={!open} className={cn("grid transition-[grid-template-rows,visibility] duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]", className)}>
-      <div className="min-h-0 overflow-hidden">{children}</div>
+    <div {...aria} id={id} inert={!open} className={cn("grid transition-[grid-template-rows,visibility] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none", duration, open ? "grid-rows-[1fr]" : "invisible grid-rows-[0fr]", className)}>
+      <div className={cn("min-h-0 overflow-hidden transition-opacity ease-out motion-reduce:transition-none", duration, open ? "opacity-100" : "opacity-0")}>{children}</div>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import { ChevronDownIcon, MailIcon, SearchIcon, SparklesIcon } from "lucide-reac
 
 import { useAssistant } from "@/components/assistant/assistant-context"
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
+import { Collapse } from "@/components/organizzou/Group"
 import { usePlan } from "@/components/organizzou/plan-context"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { Button } from "@/components/ui/button"
@@ -45,10 +46,11 @@ function Faq({ items }: { items: typeof FAQ }) {
                 className="flex min-h-[52px] w-full items-center justify-between gap-3 rounded-lg py-3 text-left text-[15px] leading-6 font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {item.q}
-                <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", isOpen && "rotate-180")} />
+                <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-250 motion-reduce:transition-none", isOpen && "rotate-180")} />
               </button>
             </h3>
-            <div id={panel} role="region" aria-labelledby={`${panel}-q`} hidden={!isOpen} className="max-w-[72ch] pb-4 text-[15px] leading-6 text-muted-foreground">
+            <Collapse fast open={isOpen} id={panel} role="region" aria-labelledby={`${panel}-q`}>
+              <div className="max-w-[72ch] pb-4 text-[15px] leading-6 text-muted-foreground">
               {item.a.map((part, index) =>
                 typeof part === "string" ? (
                   <span key={index}>{part}</span>
@@ -58,7 +60,8 @@ function Faq({ items }: { items: typeof FAQ }) {
                   </Link>
                 )
               )}
-            </div>
+              </div>
+            </Collapse>
           </li>
         )
       })}
