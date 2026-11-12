@@ -1,20 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { CookieIcon, DownloadIcon, FingerprintIcon, MonitorSmartphoneIcon, ShieldCheckIcon, Trash2Icon, type LucideIcon } from "lucide-react"
+import { CookieIcon, DownloadIcon, FingerprintIcon, MonitorSmartphoneIcon, ShieldCheckIcon, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
-import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { useRestoreFocus } from "@/hooks/use-restore-focus"
-import { DELETE_CONFIRMATION, isDeleteConfirmation } from "@/features/settings/delete-account"
-import { fieldClass, StickyFooter } from "@/components/workouts/sheet-fields"
 
 const chip = "tabular inline-flex h-6 shrink-0 items-center rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 
@@ -34,47 +28,8 @@ function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; t
   )
 }
 
-/**
- * The confirmation step of "Excluir minha conta": type EXCLUIR to enable the button. Deleting the account is not available, so the entry
- * point is disabled and this button calls nothing: it only says so.
- */
-function DeleteAccountDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [typed, setTyped] = useState("")
-  useRestoreFocus(open)
-  return (
-    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title="Excluir minha conta" description="Isso apagaria sua conta e todos os seus dados. Não dá para desfazer.">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="delete-confirm">
-            Digite <strong className="font-semibold">{DELETE_CONFIRMATION}</strong> para confirmar
-          </Label>
-          <Input id="delete-confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} className={fieldClass} />
-        </div>
-        <StickyFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={!isDeleteConfirmation(typed)}
-            onClick={() => {
-              onOpenChange(false)
-              setTyped("")
-              toast("A exclusão de conta ainda não está disponível.")
-            }}
-          >
-            <Trash2Icon strokeWidth={1.75} /> Excluir conta
-          </Button>
-        </StickyFooter>
-      </div>
-    </ResponsiveSheet>
-  )
-}
-
-/** Segurança e dados: account security and your data on the left, privacy and account deletion on the right (one column on phones, same order). */
+/** Segurança e dados: account security and your data on the left, privacy on the right (one column on phones, same order). */
 export function SecuritySettings() {
-  const [deleting, setDeleting] = useState(false)
   return (
     <Bento className="@container gap-4">
       <div className="col-span-12 flex min-w-0 flex-col gap-4 @min-[900px]:col-span-7">
@@ -120,18 +75,7 @@ export function SecuritySettings() {
             </Button>
           </Row>
         </BentoCard>
-
-        <BentoCard title="Excluir minha conta">
-          <Row icon={Trash2Icon} title="Excluir minha conta" description="A exclusão da conta ainda não está disponível por aqui.">
-            <Button type="button" variant="outline" disabled onClick={() => setDeleting(true)} className="h-11 rounded-full md:h-11">
-              Excluir
-            </Button>
-            <SoonBadge />
-          </Row>
-        </BentoCard>
       </div>
-
-      <DeleteAccountDialog open={deleting} onOpenChange={setDeleting} />
     </Bento>
   )
 }
