@@ -17,6 +17,7 @@ import { GOAL_ICON_KEYS, GOAL_ICON_LABELS, type GoalIconKey } from "@/features/f
 import type { AccountRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { CurrencyInput } from "@/components/organizzou/currency-input"
 import { formatBRL } from "@/lib/money"
+import { goalStart, validateGoalDates } from "@/features/finance/goal-schedule"
 import { installmentAmount, installmentCents, installmentPreview, MAX_INSTALLMENTS, MIN_INSTALLMENTS, newInstallmentMeta, remainingFrom, type AmountMode, type Scope } from "@/features/finance/installments"
 import type { SwatchId } from "@/lib/swatches"
 import { newId } from "@/lib/sp-time"
@@ -414,7 +415,7 @@ function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => vo
   const f = useFinance()
   const [cents, setCents] = useState<number | null>(null)
   const [tried, setTried] = useState(false)
-  const monthly = projection(goal, f.today).monthly
+  const monthly = projection(goal, f.today, f.goalMeta[goal.id]).monthly
   const suggestions = [...new Set([monthly, 50_000, 10_000].filter((v) => v > 0))]
   const error = cents && cents > 0 ? null : "Informe um valor maior que zero."
   return (
@@ -449,7 +450,7 @@ function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => vo
 
 export function GoalDialog({ open, onOpenChange, row }: { open: boolean; onOpenChange: (open: boolean) => void; row: FinancialGoalRow | null }) {
   return (
-    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={row ? "Editar meta" : "Nova meta"} description="Uma meta de economia, com valor e prazo.">
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={row ? "Editar meta" : "Nova meta"} description="Uma meta de economia, com valor, início e prazo.">
       {open ? <GoalForm key={row?.id ?? "new"} row={row} onClose={() => onOpenChange(false)} /> : null}
     </ResponsiveSheet>
   )
@@ -461,9 +462,13 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
   const [name, setName] = useState(row?.name ?? "")
   const [cents, setCents] = useState<number | null>(row?.target_cents ?? null)
   const [deadline, setDeadline] = useState(row?.deadline ?? "")
+  const meta = row ? f.goalMeta[row.id] : undefined
+  const [saved, setSaved] = useState<number | null>(meta?.openingCents ?? null)
+  const [startDate, setStartDate] = useState(row ? goalStart(row, meta) : f.today)
   const [icon, setIcon] = useState<GoalIconKey>(row ? (f.goalIcons[row.id] ?? "piggy") : "piggy")
   const [tried, setTried] = useState(false)
-  const errors = { name: name.trim() ? null : "Dê um nome para a meta.", target: cents && cents > 0 ? null : "Informe um valor maior que zero." }
+  const dates = validateGoalDates(startDate, deadline)
+  const errors = { name: name.trim() ? null : "Dê um nome para a meta.", target: cents && cents > 0 ? null : "Informe um valor maior que zero.", saved: saved !== null && cents && saved > cents ? "O valor já guardado passa do valor da meta." : null, start: dates.start, end: dates.end }
   return (
     <form
       noValidate
@@ -471,11 +476,12 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
       onSubmit={(e) => {
         e.preventDefault()
         setTried(true)
-        if (errors.name || errors.target || !cents) return
+        if (errors.name || errors.target || errors.saved || errors.start || errors.end || !cents) return
         const now = new Date().toISOString()
         f.saveGoal(
           { ...(row ?? {}), id: row?.id ?? newId(), user_id: USER, name: name.trim(), target_cents: cents, current_cents: row?.current_cents ?? 0, deadline: deadline || null, created_at: row?.created_at ?? now, updated_at: now },
-          icon
+          icon,
+          { startDate, openingCents: saved ?? 0 }
         )
         onClose()
       }}
@@ -483,14 +489,6 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
       <Field label="Nome" htmlFor="goal-name" error={tried ? errors.name : null}>
         <Input id="goal-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Viagem de fim de ano" aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Valor da meta" htmlFor="goal-target" error={tried ? errors.target : null}>
-          <CurrencyInput id="goal-target" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.target)} className={INPUT} />
-        </Field>
-        <Field label="Prazo (opcional)" htmlFor="goal-deadline">
-          <Input id="goal-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
-        </Field>
-      </div>
       <Field label="Ícone">
         <div role="radiogroup" aria-label="Ícone da meta" className="flex flex-wrap gap-2">
           {GOAL_ICON_KEYS.map((key) => {
@@ -504,6 +502,22 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
           })}
         </div>
       </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Valor da meta" htmlFor="goal-target" error={tried ? errors.target : null}>
+          <CurrencyInput id="goal-target" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.target)} className={INPUT} />
+        </Field>
+        <Field label="Quanto já guardei" htmlFor="goal-saved" error={tried ? errors.saved : null} helper="Opcional. Conta no progresso, não vira lançamento.">
+          <CurrencyInput id="goal-saved" value={saved} onValueChange={setSaved} aria-invalid={tried && Boolean(errors.saved)} className={INPUT} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Data de início" htmlFor="goal-start" error={tried ? errors.start : null}>
+          <Input id="goal-start" type="date" value={startDate} aria-invalid={tried && Boolean(errors.start)} onChange={(e) => setStartDate(e.target.value)} className={INPUT} />
+        </Field>
+        <Field label="Prazo final" htmlFor="goal-deadline" error={tried || deadline ? errors.end : null}>
+          <Input id="goal-deadline" type="date" value={deadline} min={startDate} aria-invalid={Boolean(errors.end) && (tried || Boolean(deadline))} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
+        </Field>
+      </div>
       <Footer
         onCancel={onClose}
         submit={row ? "Salvar" : "Criar meta"}

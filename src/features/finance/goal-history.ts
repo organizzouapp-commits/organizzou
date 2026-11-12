@@ -1,7 +1,8 @@
 // The contributions made with "Guardar", per goal, so the featured goal can draw its sparkline. There is no table for them yet, and
 // series B must not invent data: with no history the sparkline is simply hidden. localStorage adapter; nothing to migrate.
 
-export type Contribution = { day: string; cents: number }
+/** `opening` marks the "Saldo inicial": the amount already saved when the goal was created (one per goal, never a lançamento). */
+export type Contribution = { day: string; cents: number; opening?: boolean }
 export type GoalHistory = Record<string, Contribution[]>
 
 export type GoalHistoryRepo = {
@@ -18,7 +19,7 @@ export const localGoalHistoryRepo: GoalHistoryRepo = {
       const out: GoalHistory = {}
       for (const [id, list] of Object.entries(parsed)) {
         if (!Array.isArray(list)) continue
-        out[id] = list.filter((c): c is Contribution => Boolean(c) && typeof c.day === "string" && typeof c.cents === "number" && c.cents > 0)
+        out[id] = list.filter((c): c is Contribution => Boolean(c) && typeof c.day === "string" && typeof c.cents === "number" && c.cents > 0).map((c) => (c.opening === true ? c : { day: c.day, cents: c.cents }))
       }
       return out
     } catch {

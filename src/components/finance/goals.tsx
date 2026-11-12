@@ -1,10 +1,11 @@
 "use client"
 
+import { goalStart, monthsToGo, periodLabel, type GoalMeta } from "@/features/finance/goal-schedule"
 import { useState } from "react"
 import { DndContext, closestCenter, type Announcements, type DragEndEvent, type UniqueIdentifier } from "@dnd-kit/core"
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { differenceInCalendarDays, format, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { ArrowDownIcon, ArrowUpIcon, CalendarClockIcon, GripVerticalIcon, PiggyBankIcon, PlusIcon, StarIcon, TargetIcon, WalletIcon } from "lucide-react"
 
@@ -23,17 +24,17 @@ import { FinanceDeck, type FinanceSlide } from "./finance-deck"
 import { EmptyBlock, GOAL_ICONS, HeroCard, MoneyText, ProgressRing, RowMenu } from "./parts"
 
 /** Months left until a deadline (at least one) and the monthly amount that reaches the goal. */
-export function projection(goal: FinancialGoalRow, today: string) {
+export function projection(goal: FinancialGoalRow, today: string, meta?: GoalMeta) {
   const remaining = Math.max(0, goal.target_cents - goal.current_cents)
   if (remaining === 0) return { remaining, monthly: 0, text: "Meta alcançada" }
   if (!goal.deadline) return { remaining, monthly: 0, text: `Faltam ${formatBRL(remaining)}.` }
-  const months = Math.max(1, Math.ceil(differenceInCalendarDays(parseISO(goal.deadline), parseISO(today)) / 30))
+  const months = monthsToGo(today, goalStart(goal, meta), goal.deadline)
   const monthly = Math.ceil(remaining / months)
   return { remaining, monthly, text: `Guardando ${formatBRL(monthly)} por mês você chega em ${format(parseISO(goal.deadline), "MMM 'de' yyyy", { locale: ptBR }).replace(".", "")}.` }
 }
 
 const ratioOf = (g: FinancialGoalRow) => (g.target_cents === 0 ? 0 : Math.min(100, (g.current_cents / g.target_cents) * 100))
-const deadlineText = (g: FinancialGoalRow) => (g.deadline ? `Até ${format(parseISO(g.deadline), "d 'de' MMMM 'de' yyyy", { locale: ptBR })}` : "Sem prazo")
+const deadlineText = (g: FinancialGoalRow, meta?: GoalMeta) => periodLabel(goalStart(g, meta), g.deadline)
 
 export function GoalRing({ goal, size = 64, tone = "default" }: { goal: FinancialGoalRow; size?: number; tone?: "default" | "inverse" }) {
   return <ProgressRing value={ratioOf(goal)} label={`Progresso de ${goal.name}`} size={size} tone={tone} />
@@ -81,7 +82,7 @@ function useGoalFigures() {
   const f = useFinance()
   const { open } = useGoalSets()
   const missing = open.reduce((sum, g) => sum + (g.target_cents - g.current_cents), 0)
-  const monthly = open.filter((g) => g.deadline).reduce((sum, g) => sum + projection(g, f.today).monthly, 0)
+  const monthly = open.filter((g) => g.deadline).reduce((sum, g) => sum + projection(g, f.today, f.goalMeta[g.id]).monthly, 0)
   const next = [...open].filter((g) => g.deadline).sort((a, b) => a.deadline!.localeCompare(b.deadline!))[0]
   return { open, missing, monthly, next }
 }
@@ -196,7 +197,7 @@ function EmptySpark({ compact, dark }: { compact: boolean; dark: boolean }) {
  */
 export function GoalCard({ goal, grip, touch, featured = false, compact = false, mobile = false, order }: { goal: FinancialGoalRow; grip?: React.ReactNode; touch?: Pick<React.HTMLAttributes<HTMLElement>, "onTouchStart">; featured?: boolean; compact?: boolean; /** The phone size: padding 14, ring 64, amount 20, sparkline 48, a 36px Guardar beside the projection. Reorder is a long press on the card. */ mobile?: boolean; order: string[] }) {
   const f = useFinance()
-  const { text } = projection(goal, f.today)
+  const { text } = projection(goal, f.today, f.goalMeta[goal.id])
   const points = runningTotal(goal.current_cents, f.goalHistory[goal.id] ?? [])
   const muted = featured ? "text-palette-papel/70" : "text-muted-foreground"
   const small = compact || mobile
@@ -226,7 +227,7 @@ export function GoalCard({ goal, grip, touch, featured = false, compact = false,
             <button type="button" data-goal-title onClick={() => f.editGoal(goal)} className={cn("truncate text-left font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring/50", small ? "text-[15px] leading-6" : "text-[17px] leading-6")}>
               {goal.name}
             </button>
-            <span className={cn("truncate leading-5", mobile ? "text-[12px]" : "text-[13px]", muted)}>{deadlineText(goal)}</span>
+            <span className={cn("truncate leading-5", mobile ? "text-[12px]" : "text-[13px]", muted)}>{deadlineText(goal, f.goalMeta[goal.id])}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">

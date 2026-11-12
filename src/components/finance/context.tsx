@@ -4,6 +4,7 @@ import { createContext, useContext } from "react"
 
 import type { GoalHistory } from "@/features/finance/goal-history"
 import type { BillMetaMap, InstallmentMeta, Scope } from "@/features/finance/installments"
+import type { GoalMetaMap } from "@/features/finance/goal-schedule"
 import type { AccountMeta } from "@/features/finance/account-meta"
 import type { GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
@@ -71,7 +72,10 @@ export type Finance = {
   /** Opens the "Guardar" dialog. */
   fundGoal: (goal: FinancialGoalRow) => void
   saveGoalFunds: (goal: FinancialGoalRow, cents: number) => void
-  saveGoal: (row: FinancialGoalRow, icon: GoalIconKey) => void
+  /** `schedule` carries the start date and the amount already saved ("Saldo inicial", never a lançamento). */
+  saveGoal: (row: FinancialGoalRow, icon: GoalIconKey, schedule?: { startDate: string; openingCents: number }) => void
+  /** Start date and opening balance of each goal, by goal id. */
+  goalMeta: GoalMetaMap
   removeGoal: (goal: FinancialGoalRow) => void
   editGoal: (goal: FinancialGoalRow) => void
   /** Saves the order of the goals in progress (the first becomes the featured one). */

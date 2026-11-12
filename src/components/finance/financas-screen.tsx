@@ -18,6 +18,7 @@ import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-
 import { localAccountMetaRepo, orderAccounts, type AccountLayout, type AccountMeta } from "@/features/finance/account-meta"
 import { featureFirst, localGoalLayoutRepo } from "@/features/finance/goal-layout"
 import { findBillPayment, monthOf, reopenedLastPaid, shiftMonth } from "@/features/finance/stats"
+import { localGoalMetaRepo, withOpening, type GoalMetaMap } from "@/features/finance/goal-schedule"
 import { installmentLabel, installmentView, localBillMetaRepo, removeInstallments, setInstallmentAmount, setInstallmentPaid, type BillMetaMap, type InstallmentMeta, type Scope } from "@/features/finance/installments"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
@@ -92,6 +93,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [goals, setGoals] = useRows<FinancialGoalRow>("finance_goals", initial.goals, memory)
   const [goalIcons, setGoalIcons] = useState<Record<string, GoalIconKey>>({})
   const [goalHistory, setGoalHistory] = useState<GoalHistory>({})
+  const [goalMeta, setGoalMeta] = useState<GoalMetaMap>({})
   const [goalOrder, setGoalOrderState] = useState<string[]>([])
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
@@ -115,6 +117,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     setGoalOrderState(localGoalLayoutRepo.load())
     setAccountLayout(localAccountMetaRepo.load())
     setBillMeta(localBillMetaRepo.load())
+    setGoalMeta(localGoalMetaRepo.load())
   }, [])
 
   const setFilters = useCallback((next: Partial<Filters>) => setFiltersState((current) => ({ ...current, ...next })), [])
@@ -288,16 +291,38 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   }
 
   // ----------------------------------------------------------------- goals
-  function saveGoal(row: FinancialGoalRow, icon: GoalIconKey) {
+  function saveGoal(row: FinancialGoalRow, icon: GoalIconKey, schedule?: { startDate: string; openingCents: number }) {
     const exists = goals.some((g) => g.id === row.id)
-    setGoals((current) => (exists ? current.map((g) => (g.id === row.id ? row : g)) : [...current, row]))
+    const previous = goals.find((g) => g.id === row.id)
+    const before = goalMeta[row.id]
+    // "Já guardei": one opening entry per goal. Editing it moves only that entry (the money saved later stays); it is not a lançamento.
+    const opening = schedule?.openingCents ?? before?.openingCents ?? 0
+    const saved: FinancialGoalRow = schedule ? { ...row, current_cents: withOpening(row.current_cents, before?.openingCents ?? 0, opening) } : row
+    setGoals((current) => (exists ? current.map((g) => (g.id === row.id ? saved : g)) : [...current, saved]))
     setGoalIcons((current) => {
       const next = { ...current, [row.id]: GOAL_ICON_KEYS.includes(icon) ? icon : "piggy" }
       localGoalIconRepo.save(next)
       return next
     })
+    if (schedule) {
+      setGoalMeta((current) => {
+        const next = { ...current, [row.id]: { startDate: schedule.startDate, openingCents: opening || undefined } }
+        localGoalMetaRepo.save(next)
+        return next
+      })
+      setGoalHistory((current) => {
+        const rest = (current[row.id] ?? []).filter((c) => !c.opening)
+        const next = { ...current, [row.id]: opening > 0 ? [{ day: schedule.startDate, cents: opening, opening: true as const }, ...rest] : rest }
+        localGoalHistoryRepo.save(next)
+        return next
+      })
+    }
     if (exists) toast("Meta atualizada.")
-    else undoable("Meta criada.", () => setGoals((current) => current.filter((g) => g.id !== row.id)))
+    else
+      undoable("Meta criada.", () => {
+        setGoals((current) => current.filter((g) => g.id !== row.id))
+        if (previous === undefined) setGoalMeta((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== row.id)))
+      })
   }
 
   function saveGoalFunds(goal: FinancialGoalRow, cents: number) {
@@ -413,6 +438,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     goals,
     goalIcons,
     goalHistory,
+    goalMeta,
     goalOrder,
     filters,
     setFilters,
