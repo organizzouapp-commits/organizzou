@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
 
 import { isAdminClaims } from "@/lib/admin/claims"
-import { requiresSecondStep, STRONG_COOKIE, strongSecret, verifyStrongProof } from "@/lib/auth/strong-auth"
+import { CHECK_INTERVAL_SECONDS, placeFromHeaders, sessionLabel } from "@/features/auth/sessions"
+import { requiresSecondStep, signStrongProof, STRONG_COOKIE, strongSecret, verifyStrongProof } from "@/lib/auth/strong-auth"
 import { bypassAuth } from "./bypass"
 import type { Database } from "./types"
 import { getSupabaseEnv } from "./env"
@@ -27,6 +28,7 @@ function isAdminPath(pathname: string) {
 export { bypassAuth }
 
 /** While this cookie exists the person was already counted as "seen": last_seen_at is written at most once every 10 minutes. */
+const SESSION_CHECK_COOKIE = "org_sess_ok"
 const SEEN_COOKIE = "org_seen"
 const SEEN_TTL_SECONDS = 10 * 60
 
@@ -92,6 +94,31 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
       const redirect = NextResponse.redirect(verifyUrl)
       response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
       return redirect
+    }
+  }
+
+  // Active sessions: once a minute each session checks in (a signed, session-bound throttle cookie, so it cannot be forged to skip the check).
+  // The check records the device and learns whether this session was ended from another device: if so it is signed out here and now.
+  const secret = strongSecret()
+  const sessionId = String((sessionClaims as { session_id?: unknown } | undefined)?.session_id ?? "")
+  if (isAuthenticated && guarded && secret && sessionId && sessionClaims?.sub) {
+    const checked = await verifyStrongProof(secret, request.cookies.get(SESSION_CHECK_COOKIE)?.value, sessionClaims.sub, `chk:${sessionId}`)
+    if (!checked) {
+      const place = placeFromHeaders(request.headers.get("x-vercel-ip-city"), request.headers.get("x-vercel-ip-country"))
+      // An error (the migration is not applied yet) is ignored: the list then shows only the current session.
+      const { data: revoked } = await (supabase as unknown as SupabaseClient).rpc("register_session", { p_session: sessionId, p_label: sessionLabel(request.headers.get("user-agent") ?? ""), p_place: place })
+      if (revoked === true) {
+        await supabase.auth.signOut()
+        if (pathname.startsWith("/api/")) return NextResponse.json({ error: "session_revoked" }, { status: 401 })
+        const loginUrl = request.nextUrl.clone()
+        loginUrl.pathname = "/login"
+        loginUrl.search = ""
+        loginUrl.searchParams.set("saiu", "1")
+        const redirect = NextResponse.redirect(loginUrl)
+        response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+        return redirect
+      }
+      response.cookies.set(SESSION_CHECK_COOKIE, await signStrongProof(secret, sessionClaims.sub, `chk:${sessionId}`, Date.now(), CHECK_INTERVAL_SECONDS), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: CHECK_INTERVAL_SECONDS, path: "/" })
     }
   }
 
