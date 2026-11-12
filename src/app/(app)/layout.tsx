@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getNotifications } from "@/features/notifications/queries"
 import { getUserPlan } from "@/lib/plan-server"
 import { bypassAuth } from "@/lib/supabase/proxy"
+import { loadAvatarUrl } from "@/lib/avatar-server"
 import { parsePlan } from "@/lib/plans"
 import { reportTimings, timed, withTimings } from "@/lib/server-timing"
 import { getSession } from "@/lib/supabase/session"
@@ -26,13 +27,14 @@ async function loadShell(children: React.ReactNode) {
 
   // Independent reads: run them together.
   const loose = supabase as unknown as SupabaseClient
-  const [profileResult, plan, openTasks, notifications, probe] = await Promise.all([
+  const [profileResult, plan, openTasks, notifications, probe, avatarUrl] = await Promise.all([
     timed("profiles", supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()),
     timed("plan", getUserPlan(supabase, userId)),
     timed("open tasks (boards, then tasks)", bypassAuth ? 0 : openTaskCount(supabase)),
     timed("notifications", getNotifications(loose)),
     // One cheap probe: are the module tables there yet? (The database update can land after the app update.)
     timed("modules probe", loose.from("habits").select("id", { head: true, count: "exact" })),
+    timed("avatar", loadAvatarUrl(supabase, userId)),
   ])
   const dataPending = probe.error?.code === "PGRST205" || probe.error?.code === "42P01"
   let profile = profileResult.data
@@ -57,7 +59,7 @@ async function loadShell(children: React.ReactNode) {
     <AppShell
       nav="app"
       isAdmin={isAdmin}
-      user={{ name, email }}
+      user={{ name, email, avatarUrl }}
       theme={profile?.theme}
       plan={planNow}
       nowIso={new Date().toISOString()}

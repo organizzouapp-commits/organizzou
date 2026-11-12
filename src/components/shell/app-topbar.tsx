@@ -10,7 +10,7 @@ import { AlarmClockIcon, ArrowLeftIcon, BellIcon, CalendarDaysIcon, ChevronDownI
 import { HeaderActions } from "@/components/organizzou/header-actions"
 import { usePlan } from "@/components/organizzou/plan-context"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/organizzou/user-avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -180,9 +180,7 @@ export function UserMenu({ user, compact = false, header = false }: { user: Shel
             header ? "h-9 pr-2 min-[1440px]:pr-3" : "p-1 md:pr-3"
           )}
         >
-          <Avatar className={cn("shrink-0", header ? "size-9" : "size-10")}>
-            <AvatarFallback>{initials(user.name)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar url={user.avatarUrl} initials={initials(user.name)} className={cn("shrink-0", header ? "size-9" : "size-10")} />
           {compact ? null : (
             <>
               <span className="hidden min-w-0 flex-col leading-tight min-[1440px]:flex">

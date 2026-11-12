@@ -19,7 +19,7 @@ import { useRequestSignOut } from "./sign-out-dialog"
 
 import { PLANS_HREF, SidebarCta } from "./plan-cta"
 
-export type ShellUser = { name: string; email: string }
+export type ShellUser = { name: string; email: string; avatarUrl?: string | null }
 
 type Counts = Partial<Record<string, number>>
 
