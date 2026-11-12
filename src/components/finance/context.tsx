@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react"
 
 import type { GoalHistory } from "@/features/finance/goal-history"
+import type { BillMetaMap, InstallmentMeta, Scope } from "@/features/finance/installments"
 import type { AccountMeta } from "@/features/finance/account-meta"
 import type { GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
@@ -54,11 +55,16 @@ export type Finance = {
   deleteCategory: (id: string) => void
   categoryUsage: (id: string) => number
   // bills
-  saveBill: (row: RecurringBillRow) => void
+  /** `series` makes it an installment bill (Parcelada). */
+  saveBill: (row: RecurringBillRow, series?: InstallmentMeta) => void
+  /** The installment series of each bill, by bill id (a bill without an entry repeats monthly with no end). */
+  billMeta: BillMetaMap
+  /** Edits one installment's amount for this month only, from this month on, or the whole series; name and category apply to the series. */
+  saveInstallmentEdit: (bill: RecurringBillRow, patch: { name: string; category_id: string | null; cents: number }, scope: Scope) => void
   payBill: (bill: RecurringBillRow) => void
   /** Asks to reopen a paid bill (a confirmation first; the payment is reversed and Desfazer is offered). */
   reopenBill: (bill: RecurringBillRow) => void
-  removeBill: (bill: RecurringBillRow) => void
+  removeBill: (bill: RecurringBillRow, scope?: Scope) => void
   editBill: (bill: RecurringBillRow) => void
   openNewBill: () => void
   // goals

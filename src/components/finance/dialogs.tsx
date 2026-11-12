@@ -17,6 +17,7 @@ import { GOAL_ICON_KEYS, GOAL_ICON_LABELS, type GoalIconKey } from "@/features/f
 import type { AccountRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
 import { CurrencyInput } from "@/components/organizzou/currency-input"
 import { formatBRL } from "@/lib/money"
+import { installmentAmount, installmentCents, installmentPreview, MAX_INSTALLMENTS, MIN_INSTALLMENTS, newInstallmentMeta, remainingFrom, type AmountMode, type Scope } from "@/features/finance/installments"
 import type { SwatchId } from "@/lib/swatches"
 import { newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
@@ -224,62 +225,173 @@ export function BillDialog({ open, onOpenChange, row }: { open: boolean; onOpenC
   )
 }
 
+type BillKind = "monthly" | "installments"
+
 function BillForm({ row, onClose }: { row: RecurringBillRow | null; onClose: () => void }) {
   const f = useFinance()
+  const series = row ? f.billMeta[row.id] : undefined
+  const [kind, setKind] = useState<BillKind>("monthly")
   const [name, setName] = useState(row?.name ?? "")
-  const [cents, setCents] = useState<number | null>(row?.amount_cents ?? null)
+  const shownCents = row && series ? installmentAmount(row, series, f.month) : (row?.amount_cents ?? null)
+  const [cents, setCents] = useState<number | null>(shownCents)
+  const [mode, setMode] = useState<AmountMode>("installment")
+  const [count, setCount] = useState("10")
+  const [firstDate, setFirstDate] = useState(f.today)
   const [day, setDay] = useState(String(row?.due_day ?? 10))
   const [category, setCategory] = useState(row?.category_id ?? (f.categories.find((c) => c.name === "Assinaturas") ?? f.categories[0])?.id ?? "")
   const [tried, setTried] = useState(false)
+  const [scopeAsk, setScopeAsk] = useState<{ name: string; category: string | null; cents: number } | null>(null)
+  const creatingInstallments = !row && kind === "installments"
   const dueDay = Number(day)
+  const installments = Number(count)
+  const perInstallment = cents && creatingInstallments ? installmentCents(mode, cents, installments) : cents
   const errors = {
     name: name.trim() ? null : "Dê um nome para a conta.",
     amount: cents && cents > 0 ? null : "Informe um valor maior que zero.",
-    day: Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28 ? null : "Use um dia de 1 a 28.",
+    day: creatingInstallments || series || (Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28) ? null : "Use um dia de 1 a 28.",
+    count: !creatingInstallments || (Number.isInteger(installments) && installments >= MIN_INSTALLMENTS && installments <= MAX_INSTALLMENTS) ? null : `Use de ${MIN_INSTALLMENTS} a ${MAX_INSTALLMENTS} parcelas.`,
+    date: !creatingInstallments || /^\d{4}-\d{2}-\d{2}$/.test(firstDate) ? null : "Escolha a data da primeira parcela.",
   }
+  const left = row && series ? remainingFrom(row, series, f.month) : null
 
   return (
-    <form
-      noValidate
-      className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        setTried(true)
-        if (errors.name || errors.amount || errors.day || !cents) return
-        const now = new Date().toISOString()
-        f.saveBill({
-          ...(row ?? {}),
-          id: row?.id ?? newId(),
-          user_id: USER,
-          name: name.trim(),
-          amount_cents: cents,
-          due_day: dueDay,
-          category_id: category || null,
-          active: row?.active ?? true,
-          last_paid_month: row?.last_paid_month ?? null,
-          created_at: row?.created_at ?? now,
-          updated_at: now,
-        })
-        onClose()
-      }}
-    >
-      <Field label="Nome" htmlFor="bill-name" error={tried ? errors.name : null}>
-        <Input id="bill-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Disney+" aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Valor" htmlFor="bill-amount" error={tried ? errors.amount : null}>
-          <CurrencyInput id="bill-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
+    <>
+      <form
+        noValidate
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setTried(true)
+          if (errors.name || errors.amount || errors.day || errors.count || errors.date || !cents || !perInstallment) return
+          const now = new Date().toISOString()
+          if (row && series) {
+            // An installment already running: the amount may apply to this one, to the next ones or to all; ask before saving.
+            if (perInstallment !== shownCents) return setScopeAsk({ name: name.trim(), category: category || null, cents: perInstallment })
+            f.saveInstallmentEdit(row, { name: name.trim(), category_id: category || null, cents: perInstallment }, "all")
+            return onClose()
+          }
+          f.saveBill(
+            {
+              ...(row ?? {}),
+              id: row?.id ?? newId(),
+              user_id: USER,
+              name: name.trim(),
+              amount_cents: perInstallment,
+              due_day: creatingInstallments ? Math.min(28, Number(firstDate.slice(8, 10))) : dueDay,
+              category_id: category || null,
+              active: row?.active ?? true,
+              last_paid_month: row?.last_paid_month ?? null,
+              created_at: row?.created_at ?? now,
+              updated_at: now,
+            },
+            creatingInstallments ? newInstallmentMeta(installments, firstDate) : undefined
+          )
+          onClose()
+        }}
+      >
+        {!row ? (
+          <div role="radiogroup" aria-label="Tipo de conta fixa" className="flex gap-2">
+            {(
+              [
+                ["monthly", "Mensal"],
+                ["installments", "Parcelada"],
+              ] as const
+            ).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={kind === value} data-bill-kind={value} onClick={() => setKind(value)} className={pillClass(kind === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <Field label="Nome" htmlFor="bill-name" error={tried ? errors.name : null}>
+          <Input id="bill-name" autoFocus value={name} maxLength={60} placeholder={creatingInstallments ? "Ex.: Notebook" : "Ex.: Disney+"} aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
         </Field>
-        <Field label="Vence no dia" htmlFor="bill-day" error={tried ? errors.day : null}>
-          <Input id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={day} aria-invalid={tried && Boolean(errors.day)} onChange={(e) => setDay(e.target.value)} className={INPUT} />
+        {creatingInstallments ? (
+          <div role="radiogroup" aria-label="O valor informado é" className="flex flex-wrap gap-2">
+            {(
+              [
+                ["installment", "Valor da parcela"],
+                ["total", "Valor total"],
+              ] as const
+            ).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={mode === value} data-amount-mode={value} onClick={() => setMode(value)} className={pillClass(mode === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={creatingInstallments ? (mode === "total" ? "Valor total" : "Valor da parcela") : series ? "Valor desta parcela" : "Valor"} htmlFor="bill-amount" error={tried ? errors.amount : null}>
+            <CurrencyInput id="bill-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
+          </Field>
+          {creatingInstallments ? (
+            <Field label="Parcelas" htmlFor="bill-count" error={tried ? errors.count : null}>
+              <Input id="bill-count" type="number" inputMode="numeric" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS} value={count} aria-invalid={tried && Boolean(errors.count)} onChange={(e) => setCount(e.target.value)} className={INPUT} />
+            </Field>
+          ) : series ? null : (
+            <Field label="Vence no dia" htmlFor="bill-day" error={tried ? errors.day : null}>
+              <Input id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={day} aria-invalid={tried && Boolean(errors.day)} onChange={(e) => setDay(e.target.value)} className={INPUT} />
+            </Field>
+          )}
+        </div>
+        {creatingInstallments ? (
+          <Field label="Primeira parcela vence em" htmlFor="bill-first" error={tried ? errors.date : null}>
+            <Input id="bill-first" type="date" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} className={INPUT} />
+          </Field>
+        ) : null}
+        <Field label="Categoria">
+          <CategoryChips value={category} onChange={setCategory} />
         </Field>
+        {creatingInstallments && perInstallment && !errors.count && !errors.date ? (
+          <p data-testid="installment-preview" className="rounded-[12px] border border-border px-3 py-2 text-[14px] leading-5">
+            {installmentPreview(installments, perInstallment, firstDate.slice(0, 7))}
+            <span className="block text-[13px] text-muted-foreground">Total: {formatBRL(perInstallment * installments)}</span>
+          </p>
+        ) : null}
+        {left ? (
+          <p data-testid="installment-remaining" className="text-[13px] leading-5 text-muted-foreground">
+            Restam {left.count} {left.count === 1 ? "parcela" : "parcelas"} · {formatBRL(left.cents)}. Ao mudar o valor você escolhe se vale só para esta parcela, para as próximas ou para todas.
+          </p>
+        ) : (
+          <p className="text-[13px] leading-5 text-muted-foreground">{creatingInstallments ? "Vence todo mês, nas datas da série, e termina sozinha na última parcela." : "Vence todo mês e entra em “A pagar”."}</p>
+        )}
+        <Footer onCancel={onClose} submit={row ? "Salvar" : creatingInstallments ? "Criar conta parcelada" : "Criar conta fixa"} />
+      </form>
+      <ScopeSheet
+        open={scopeAsk !== null}
+        title="Alterar o valor de qual parcela?"
+        onCancel={() => setScopeAsk(null)}
+        onPick={(scope) => {
+          if (row && scopeAsk) f.saveInstallmentEdit(row, { name: scopeAsk.name, category_id: scopeAsk.category, cents: scopeAsk.cents }, scope)
+          setScopeAsk(null)
+          onClose()
+        }}
+      />
+    </>
+  )
+}
+
+/** "Só esta parcela / Esta e as próximas / Todas": the question every edit or delete of an installment series asks. */
+export function ScopeSheet({ open, title, description, onPick, onCancel }: { open: boolean; title: string; description?: string; onPick: (scope: Scope) => void; onCancel: () => void }) {
+  return (
+    <ResponsiveSheet open={open} onOpenChange={(next) => !next && onCancel()} title={title} description={description ?? "Esta conta é parcelada: escolha o que muda."}>
+      <div className="flex flex-col gap-2 pb-1" data-testid="scope-sheet">
+        {(
+          [
+            ["this", "Só esta parcela"],
+            ["following", "Esta e as próximas"],
+            ["all", "Todas as parcelas"],
+          ] as const
+        ).map(([scope, label]) => (
+          <Button key={scope} type="button" variant="outline" data-scope={scope} className="h-12 justify-start rounded-[12px] px-4 text-[15px]" onClick={() => onPick(scope)}>
+            {label}
+          </Button>
+        ))}
+        <Button type="button" variant="ghost" className="h-11 rounded-full" onClick={onCancel}>
+          Cancelar
+        </Button>
       </div>
-      <Field label="Categoria">
-        <CategoryChips value={category} onChange={setCategory} />
-      </Field>
-      <p className="text-[13px] leading-5 text-muted-foreground">Vence todo mês e entra em “A pagar”.</p>
-      <Footer onCancel={onClose} submit={row ? "Salvar" : "Criar conta fixa"} />
-    </form>
+    </ResponsiveSheet>
   )
 }
 

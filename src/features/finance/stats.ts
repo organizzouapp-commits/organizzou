@@ -49,7 +49,7 @@ export function spendByCategory(categories: CategoryRow[], transactions: Transac
 
 export type BillStatus = "paid" | "overdue" | "soon" | "upcoming"
 
-export type BillView = { bill: RecurringBillRow; status: BillStatus; daysLeft: number; dueOn: string }
+export type BillView = { bill: RecurringBillRow; status: BillStatus; daysLeft: number; dueOn: string; /** Set for an installment bill: which one this is ("Parcela 3/10"). */ installment?: { index: number; total: number } }
 
 /**
  * Where a recurring bill stands in `month` (a "yyyy-MM"; the current one by default). The storage is unchanged: only the last month paid is
