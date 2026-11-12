@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ACCOUNT_ICON_KEYS, ACCOUNT_ICON_LABELS, ACCOUNT_KINDS, ACCOUNT_KIND_LABELS, DEFAULT_ICON, type AccountIconKey, type AccountKind, type AccountMeta } from "@/features/finance/account-meta"
 import { GOAL_ICON_KEYS, GOAL_ICON_LABELS, type GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
-import { formatBRL, parseBRL } from "@/lib/money"
+import { CurrencyInput } from "@/components/organizzou/currency-input"
+import { formatBRL } from "@/lib/money"
 import type { SwatchId } from "@/lib/swatches"
 import { newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
@@ -124,13 +125,12 @@ export function TransactionDialog({ open, onOpenChange, row }: { open: boolean; 
 function TransactionForm({ row, onClose }: { row: TransactionRow | null; onClose: () => void }) {
   const f = useFinance()
   const [kind, setKind] = useState<TransactionKind>(row?.kind ?? "out")
-  const [amount, setAmount] = useState(row ? (row.amount_cents / 100).toFixed(2).replace(".", ",") : "")
+  const [cents, setCents] = useState<number | null>(row?.amount_cents ?? null)
   const [description, setDescription] = useState(row?.description ?? "")
   const [category, setCategory] = useState(row?.category_id ?? (f.categories.find((c) => !INCOME_CATEGORIES.includes(c.name)) ?? f.categories[0])?.id ?? "")
   const [account, setAccount] = useState(row?.account_id ?? f.accounts[0]?.id ?? "")
   const [date, setDate] = useState(row?.occurred_on ?? f.today)
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
   const errors = {
     description: description.trim() ? null : "Escreva uma descrição.",
     amount: cents && cents > 0 ? null : "Informe um valor maior que zero.",
@@ -186,7 +186,7 @@ function TransactionForm({ row, onClose }: { row: TransactionRow | null; onClose
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Valor" htmlFor="tx-amount" error={tried ? errors.amount : null}>
-          <Input id="tx-amount" inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(errors.amount)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+          <CurrencyInput id="tx-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
         </Field>
         <Field label="Data" htmlFor="tx-date">
           <Input id="tx-date" type="date" value={date} max={f.today} onChange={(e) => setDate(e.target.value)} className={INPUT} />
@@ -227,11 +227,10 @@ export function BillDialog({ open, onOpenChange, row }: { open: boolean; onOpenC
 function BillForm({ row, onClose }: { row: RecurringBillRow | null; onClose: () => void }) {
   const f = useFinance()
   const [name, setName] = useState(row?.name ?? "")
-  const [amount, setAmount] = useState(row ? (row.amount_cents / 100).toFixed(2).replace(".", ",") : "")
+  const [cents, setCents] = useState<number | null>(row?.amount_cents ?? null)
   const [day, setDay] = useState(String(row?.due_day ?? 10))
   const [category, setCategory] = useState(row?.category_id ?? (f.categories.find((c) => c.name === "Assinaturas") ?? f.categories[0])?.id ?? "")
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
   const dueDay = Number(day)
   const errors = {
     name: name.trim() ? null : "Dê um nome para a conta.",
@@ -269,7 +268,7 @@ function BillForm({ row, onClose }: { row: RecurringBillRow | null; onClose: () 
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Valor" htmlFor="bill-amount" error={tried ? errors.amount : null}>
-          <Input id="bill-amount" inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(errors.amount)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+          <CurrencyInput id="bill-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
         </Field>
         <Field label="Vence no dia" htmlFor="bill-day" error={tried ? errors.day : null}>
           <Input id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={day} aria-invalid={tried && Boolean(errors.day)} onChange={(e) => setDay(e.target.value)} className={INPUT} />
@@ -301,9 +300,8 @@ export function FundDialog({ goal, onClose }: { goal: FinancialGoalRow | null; o
 
 function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => void }) {
   const f = useFinance()
-  const [amount, setAmount] = useState("")
+  const [cents, setCents] = useState<number | null>(null)
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
   const monthly = projection(goal, f.today).monthly
   const suggestions = [...new Set([monthly, 50_000, 10_000].filter((v) => v > 0))]
   const error = cents && cents > 0 ? null : "Informe um valor maior que zero."
@@ -320,11 +318,11 @@ function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => vo
       }}
     >
       <Field label="Valor" htmlFor="fund-amount" error={tried ? error : null}>
-        <Input id="fund-amount" autoFocus inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(error)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+        <CurrencyInput id="fund-amount" autoFocus value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(error)} className={INPUT} />
       </Field>
       <div className="flex flex-wrap gap-2" role="group" aria-label="Sugestões de valor">
         {suggestions.map((value) => (
-          <button key={value} type="button" data-suggestion onClick={() => setAmount((value / 100).toFixed(2).replace(".", ","))} className={pillClass(cents === value)}>
+          <button key={value} type="button" data-suggestion onClick={() => setCents(value)} className={pillClass(cents === value)}>
             {formatBRL(value)}
             {value === monthly ? " por mês" : ""}
           </button>
@@ -349,11 +347,10 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
   const f = useFinance()
   const sets = useGoalSets()
   const [name, setName] = useState(row?.name ?? "")
-  const [target, setTarget] = useState(row ? (row.target_cents / 100).toFixed(2).replace(".", ",") : "")
+  const [cents, setCents] = useState<number | null>(row?.target_cents ?? null)
   const [deadline, setDeadline] = useState(row?.deadline ?? "")
   const [icon, setIcon] = useState<GoalIconKey>(row ? (f.goalIcons[row.id] ?? "piggy") : "piggy")
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(target)
   const errors = { name: name.trim() ? null : "Dê um nome para a meta.", target: cents && cents > 0 ? null : "Informe um valor maior que zero." }
   return (
     <form
@@ -376,7 +373,7 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Valor da meta" htmlFor="goal-target" error={tried ? errors.target : null}>
-          <Input id="goal-target" inputMode="decimal" placeholder="R$ 0,00" value={target} aria-invalid={tried && Boolean(errors.target)} onChange={(e) => setTarget(e.target.value)} className={INPUT} />
+          <CurrencyInput id="goal-target" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.target)} className={INPUT} />
         </Field>
         <Field label="Prazo (opcional)" htmlFor="goal-deadline">
           <Input id="goal-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
@@ -445,7 +442,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
   const meta = row ? f.accountMeta[row.id] : undefined
   const [name, setName] = useState(row?.name ?? "")
   const [institution, setInstitution] = useState(row && row.institution !== row.name ? row.institution : "")
-  const [opening, setOpening] = useState(row ? (row.opening_balance_cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "")
+  const [opening, setOpening] = useState<number | null>(row?.opening_balance_cents ?? null)
   const [kind, setKind] = useState<AccountKind>(meta?.kind ?? "bank")
   const [icon, setIcon] = useState<AccountIconKey | null>(meta?.icon ?? null)
   const [color, setColor] = useState<SwatchId>(meta?.color ?? "neutro")
@@ -467,7 +464,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
           user_id: row?.user_id ?? USER,
           name: name.trim(),
           institution: institution.trim() || name.trim(),
-          opening_balance_cents: parseBRL(opening) ?? 0,
+          opening_balance_cents: opening ?? 0,
           created_at: row?.created_at ?? now,
           updated_at: now,
         }
@@ -507,7 +504,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
         <SwatchPicker value={color} onChange={setColor} label="Cor da conta" />
       </Field>
       <Field label={row ? "Saldo inicial" : "Saldo inicial (opcional)"} htmlFor="acc-open" helper={row ? "O saldo atual é este valor mais as entradas e menos as saídas. Ajuste-o para corrigir o saldo." : undefined}>
-        <Input id="acc-open" inputMode="decimal" placeholder="R$ 0,00" value={opening} onChange={(e) => setOpening(e.target.value)} className={INPUT} />
+        <CurrencyInput id="acc-open" allowNegative value={opening} onValueChange={setOpening} className={INPUT} />
       </Field>
       {row ? (
         <label className="flex min-h-11 items-center justify-between gap-3 text-[15px]">
@@ -543,19 +540,19 @@ export function LimitsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 function LimitsForm({ onClose }: { onClose: () => void }) {
   const f = useFinance()
   const spending = f.categories.filter((c) => !INCOME_CATEGORIES.includes(c.name))
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(spending.map((c) => [c.id, c.monthly_limit_cents ? (c.monthly_limit_cents / 100).toFixed(2).replace(".", ",") : ""])))
+  const [values, setValues] = useState<Record<string, number | null>>(() => Object.fromEntries(spending.map((c) => [c.id, c.monthly_limit_cents || null])))
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        f.saveLimits(Object.fromEntries(spending.map((c) => [c.id, parseBRL(values[c.id] ?? "") || null])))
+        f.saveLimits(Object.fromEntries(spending.map((c) => [c.id, values[c.id] || null])))
         onClose()
       }}
     >
       {spending.map((c) => (
         <Field key={c.id} label={c.name} htmlFor={`limit-${c.id}`}>
-          <Input id={`limit-${c.id}`} inputMode="decimal" placeholder="Sem limite" value={values[c.id] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [c.id]: e.target.value }))} className={INPUT} />
+          <CurrencyInput id={`limit-${c.id}`} placeholder="Sem limite" value={values[c.id] ?? null} onValueChange={(next) => setValues((v) => ({ ...v, [c.id]: next }))} className={INPUT} />
         </Field>
       ))}
       <Footer onCancel={onClose} submit="Salvar limites" />
