@@ -1,7 +1,7 @@
 import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import webpush from "web-push"
+import * as webpush from "web-push"
 
 // Sends web push. The VAPID private key is read here, on the server, and never leaves it: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY (the public key is
 // also what the browser needs to subscribe; it is public by design) and VAPID_SUBJECT (mailto:...). Subscriptions the push service no longer
