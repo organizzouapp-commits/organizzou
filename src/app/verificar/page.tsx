@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 
+import { PasskeyLogin } from "@/components/auth/passkey-login"
 import { VerifyForm } from "@/components/auth/verify-form"
+import { hasPasskey } from "@/features/auth/passkey-actions"
 import { sessionIsVerified } from "@/features/auth/two-factor-actions"
 import { maskEmail } from "@/features/auth/two-factor"
 import { safeNextPath } from "@/lib/safe-next"
@@ -16,7 +18,8 @@ async function Content({ searchParams }: { searchParams: Promise<{ next?: string
   const target = safeNextPath(next ?? null)
   // Already verified (or the second step is off): nothing to do here.
   if (await sessionIsVerified()) redirect(target)
-  return <VerifyForm maskedEmail={maskEmail(email)} next={target} />
+  const passkey = await hasPasskey()
+  return <VerifyForm maskedEmail={maskEmail(email)} next={target} alternative={passkey ? <PasskeyLogin next={target} label="Usar outro método: passkey" className="h-11 w-full rounded-full" /> : null} />
 }
 
 export default function Page({ searchParams }: { searchParams: Promise<{ next?: string }> }) {

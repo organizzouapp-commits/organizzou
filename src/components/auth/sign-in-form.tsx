@@ -14,6 +14,7 @@ import { signIn } from "@/features/auth/actions"
 import { cn } from "@/lib/utils"
 import { signInSchema, type SignInInput } from "@/features/auth/schemas"
 
+import { PasskeyLogin } from "./passkey-login"
 import { AuthLink, authButtonClass, authInputClass, authLabelClass, authLinkClass, GoogleButton, OrDivider, PasswordInput, R, rs } from "./auth-parts"
 
 export function SignInForm({ next, linkError, oauthError }: { next: string; linkError?: boolean; oauthError?: boolean }) {
@@ -75,7 +76,7 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
           <Input
             id="login-email"
             type="email"
-            autoComplete="email"
+            autoComplete="username webauthn"
             inputMode="email"
             placeholder="Seu e-mail aqui"
             className={authInputClass}
@@ -105,6 +106,7 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
       </div>
       <div className={R} style={rs(6)}>
         <GoogleButton next={next} />
+        <PasskeyLogin next={next} />
       </div>
 
       <p className={cn("text-center text-(length:--auth-text) leading-6 text-muted-foreground", R)} style={rs(7)}>

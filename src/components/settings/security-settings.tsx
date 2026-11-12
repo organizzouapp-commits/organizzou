@@ -5,9 +5,9 @@ import { CookieIcon, FingerprintIcon, MonitorSmartphoneIcon, type LucideIcon } f
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
-import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Button } from "@/components/ui/button"
 import { ExportData } from "@/components/settings/export-data"
+import { PasskeySection } from "@/components/settings/passkey-row"
 import { useTwoFactor } from "@/components/settings/two-factor-row"
 
 const chip = "tabular inline-flex h-6 shrink-0 items-center rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
@@ -37,12 +37,7 @@ export function SecuritySettings() {
         <BentoCard title="Segurança da conta">
           <div className="flex flex-col">
 <Row icon={twoFactor.icon} title="Verificação em duas etapas" description={twoFactor.description}>              {twoFactor.control}            </Row>
-            <Row icon={FingerprintIcon} title="Passkey" description="Entrar com biometria ou chave de segurança.">
-              <Button type="button" variant="outline" disabled className="h-11 rounded-full md:h-11">
-                Adicionar
-              </Button>
-              <SoonBadge />
-            </Row>
+<Row icon={FingerprintIcon} title="Passkey" description="Entrar com a biometria do celular ou do computador. Vale como a segunda etapa.">              <span aria-hidden />            </Row>            <div className="border-b border-border py-3 pl-0 md:pl-14">              <PasskeySection />            </div>
             <Row icon={MonitorSmartphoneIcon} title="Este navegador" description="Sessão atual">
               <span data-chip="active" className={chip}>
                 Ativa

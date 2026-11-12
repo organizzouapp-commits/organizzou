@@ -80,7 +80,7 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
   // The second step (e-mail code or passkey), enforced HERE on the server: with it switched on, every dashboard page, admin page and API call
   // answers only once a signed cookie proves this session passed it. The flag comes from the JWT's app_metadata, which only the server can set.
   const sessionClaims = data?.claims
-  const guarded = isProtected(pathname) || isAdminPath(pathname) || (pathname.startsWith("/api/") && !pathname.startsWith("/api/cron/"))
+  const guarded = isProtected(pathname) || isAdminPath(pathname) || (pathname.startsWith("/api/") && !pathname.startsWith("/api/cron/") && !pathname.startsWith("/api/passkey/login-"))
   if (isAuthenticated && guarded && requiresSecondStep(sessionClaims)) {
     const proven = await verifyStrongProof(strongSecret(), request.cookies.get(STRONG_COOKIE)?.value, String(sessionClaims?.sub), String((sessionClaims as { session_id?: unknown } | undefined)?.session_id ?? ""))
     if (!proven) {
