@@ -50,3 +50,12 @@ describe("shortcut matching", () => {
     expect(isActiveShortcut(DEFAULT_SHORTCUTS[0], EMPTY_FILTERS)).toBe(true)
   })
 })
+
+describe("visibleShortcuts", () => {
+  it("lists every enabled shortcut in order, even with nothing pending", async () => {
+    const { visibleShortcuts, DEFAULT_SHORTCUTS: defaults } = await import("./shortcuts")
+    expect(visibleShortcuts(defaults).map((s) => s.id)).toEqual(["todas", "hoje", "semana", "atrasadas", "sem-data"])
+    const edited = defaults.map((s) => (s.id === "hoje" ? { ...s, hidden: true } : s))
+    expect(visibleShortcuts(edited).map((s) => s.id)).toEqual(["todas", "semana", "atrasadas", "sem-data"])
+  })
+})

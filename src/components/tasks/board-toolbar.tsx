@@ -38,7 +38,7 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
-import type { ShortcutDef } from "@/features/tasks/shortcuts"
+import { visibleShortcuts, type ShortcutDef } from "@/features/tasks/shortcuts"
 import type { ListRow, TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
@@ -296,7 +296,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   ]
   const viewTabs = <ViewTabs tabs={views} value={props.view} onChange={props.onViewChange} ariaLabel="Visão" isMobile={isMobile} />
 
-  // Editable shortcut chips with PENDING counts; hidden at 0 unless pinned (or active). Lima = active.
+  // Editable shortcut chips with PENDING counts: exactly the ones switched on in "Editar atalhos", in that order. Lima = active.
   const chips = (
     <PillTabs
       kind="toggles"
@@ -306,8 +306,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
         if (chip) props.onShortcut(chip)
       }}
       isOn={(item) => props.activeShortcutId === item.id}
-      items={props.shortcuts
-        .filter((chip) => !chip.hidden && (chip.pinned || (props.counts[chip.id] ?? 0) > 0 || props.activeShortcutId === chip.id))
+      items={visibleShortcuts(props.shortcuts)
         .map((chip) => ({ id: chip.id, label: chip.label, count: props.counts[chip.id] ?? 0 }))}
       trailing={
         <button type="button" aria-label="Editar atalhos" onClick={props.onEditShortcuts} className={dashedPillClass}>

@@ -147,3 +147,8 @@ export function countForShortcut(def: ShortcutDef, tasks: TaskView[], context: {
 export function newShortcutId() {
   return `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 }
+
+/** The chips of the bar: exactly the ones switched on in "Editar atalhos", in the configured order (a count of 0 never hides a chip). */
+export function visibleShortcuts(defs: ShortcutDef[]): ShortcutDef[] {
+  return defs.filter((chip) => !chip.hidden)
+}
