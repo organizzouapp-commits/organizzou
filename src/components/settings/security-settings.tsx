@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CookieIcon, DownloadIcon, FingerprintIcon, MonitorSmartphoneIcon, ShieldCheckIcon, type LucideIcon } from "lucide-react"
+import { CookieIcon, FingerprintIcon, MonitorSmartphoneIcon, ShieldCheckIcon, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
@@ -9,6 +9,7 @@ import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
 import { SoonBadge } from "@/components/organizzou/SoonBadge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { ExportData } from "@/components/settings/export-data"
 
 const chip = "tabular inline-flex h-6 shrink-0 items-center rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 
@@ -54,16 +55,7 @@ export function SecuritySettings() {
         </BentoCard>
 
         <BentoCard title="Seus dados">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" disabled className="h-11 rounded-full md:h-11">
-              <DownloadIcon strokeWidth={1.75} /> Exportar tudo (JSON)
-            </Button>
-            <Button type="button" variant="outline" disabled className="h-11 rounded-full md:h-11">
-              <DownloadIcon strokeWidth={1.75} /> Planilhas (CSV)
-            </Button>
-            <SoonBadge />
-          </div>
-          <p className="text-[13px] leading-5 text-muted-foreground">A exportação ainda não está disponível. O Cofre é exportado criptografado, e só de dentro do próprio Cofre.</p>
+<ExportData />
         </BentoCard>
       </div>
 
