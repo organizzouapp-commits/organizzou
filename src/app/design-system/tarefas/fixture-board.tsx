@@ -147,8 +147,8 @@ function createFixtureApi(initial: BoardData): BoardApi {
       checklists.set(taskId, [...(checklists.get(taskId) ?? []), item])
       return { ok: true, data: item }
     },
-    updateChecklistItem: async ({ id: itemId, text, done }) => {
-      for (const [taskId, list] of checklists) checklists.set(taskId, list.map((i) => (i.id === itemId ? { ...i, ...(text !== undefined ? { text } : {}), ...(done !== undefined ? { done } : {}) } : i)))
+    updateChecklistItem: async ({ id: itemId, text, done, position }) => {
+      for (const [taskId, list] of checklists) checklists.set(taskId, list.map((i) => (i.id === itemId ? { ...i, ...(text !== undefined ? { text } : {}), ...(done !== undefined ? { done } : {}), ...(position !== undefined ? { position } : {}) } : i)))
       return ok
     },
     deleteChecklistItem: async (itemId) => {
