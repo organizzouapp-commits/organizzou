@@ -6,6 +6,7 @@ import { CheckIcon } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
+import { PasswordInput } from "@/components/auth/auth-parts"
 import { HatchedProgress } from "@/components/finance/parts"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { usePlan } from "@/components/organizzou/plan-context"
@@ -150,7 +151,7 @@ export function PasswordForm() {
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <Label htmlFor="new-password">Nova senha</Label>
-        <Input id="new-password" type="password" autoComplete="new-password" placeholder="Sua nova senha" aria-invalid={Boolean(errors.password)} className={FIELD} {...register("password")} />
+        <PasswordInput id="new-password" autoComplete="new-password" placeholder="Sua nova senha" aria-invalid={Boolean(errors.password)} className={FIELD} {...register("password")} />
         <div data-testid="password-strength" data-level={strength.level} className="flex flex-col gap-1.5">
           <HatchedProgress value={strength.percent} label={`Força da senha: ${strength.label}`} />
           <p className="text-[13px] leading-5 text-muted-foreground" aria-live="polite">
@@ -171,7 +172,7 @@ export function PasswordForm() {
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-        <Input id="confirm-password" type="password" autoComplete="new-password" placeholder="Repita a senha" aria-invalid={mismatch || Boolean(errors.confirmPassword)} className={FIELD} {...register("confirmPassword")} />
+        <PasswordInput id="confirm-password" autoComplete="new-password" placeholder="Repita a senha" aria-invalid={mismatch || Boolean(errors.confirmPassword)} className={FIELD} {...register("confirmPassword")} />
         {mismatch ? <FormMessage kind="error">As senhas não são iguais.</FormMessage> : null}
       </div>
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}
