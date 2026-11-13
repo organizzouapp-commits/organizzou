@@ -377,6 +377,8 @@ type FinanceListItemProps = {
   /** The ⋯ menu entries; Editar / Excluir only. */
   onEdit?: () => void
   onDelete?: () => void
+  /** Extra ⋯ entries before Editar (Reabrir conta). */
+  extra?: { label: string; icon: LucideIcon; onSelect: () => void }[]
   /** Tapping the card (not a button inside it). */
   onOpen?: () => void
   /** Phone layout of the bills: row 1 = leading + text + ⋯, row 2 = amount left and the pill right. */
@@ -392,8 +394,8 @@ type FinanceListItemProps = {
  * Titles ellipsize; amounts never do. The whole card opens `onOpen` through the title button's stretched hit area, while the pill and
  * the menu stay on top of it.
  */
-export function FinanceListItem({ leading, title, subtitle, amount, action, chip, onEdit, onDelete, onOpen, stacked = false, swipe, className, ...data }: FinanceListItemProps) {
-  const menu = <RowMenu title={title} onEdit={onEdit} onDelete={onDelete} />
+export function FinanceListItem({ leading, title, subtitle, amount, action, chip, onEdit, onDelete, extra, onOpen, stacked = false, swipe, className, ...data }: FinanceListItemProps) {
+  const menu = <RowMenu title={title} onEdit={onEdit} onDelete={onDelete} extra={extra} />
   const titleButton = (
     <button type="button" data-item-title onClick={onOpen} disabled={!onOpen} className="flex min-w-0 flex-col text-left outline-none after:absolute after:inset-0 after:rounded-[14px] focus-visible:after:ring-3 focus-visible:after:ring-ring/50">
       <span className="flex min-w-0 items-center gap-2">

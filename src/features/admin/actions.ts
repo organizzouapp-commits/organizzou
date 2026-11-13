@@ -31,7 +31,7 @@ async function targetOf(secret: ReturnType<typeof createSecretClient>, id: strin
 /** The audit entry is part of the action: when it cannot be written the admin is told, not left with a silent change. */
 async function finish(
   ctx: Extract<Awaited<ReturnType<typeof begin>>, { ok: true }>,
-  entry: { action: string; targetUserId: string; targetEmail?: string; payload?: Record<string, unknown> },
+  entry: { action: string; targetUserId?: string; targetEmail?: string; payload?: Record<string, unknown> },
   message: string
 ): Promise<AdminActionResult> {
   const logged = await logAdminAction(ctx.secret, { adminId: ctx.admin.adminId, adminEmail: ctx.admin.email, ...entry })
@@ -252,3 +252,28 @@ export async function exportWaitlistCsv(input: { search: string | null; source: 
   return { ok: true, csv, filename: `lista-de-espera-${new Date().toISOString().slice(0, 10)}.csv`, rows: rows.length }
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Deleting an account lives ONLY here. There is no user-facing delete endpoint: this action re-checks admin on the server (JWT and database),
+// needs the secret key, makes the admin type the account's e-mail, refuses the admin's own account, and writes the audit entry.
+
+const deleteInput = z.object({ userId, confirmEmail: z.string().trim().min(3).max(320) })
+
+export async function deleteUser(input: z.input<typeof deleteInput>): Promise<AdminActionResult> {
+  const parsed = deleteInput.safeParse(input)
+  if (!parsed.success) return fail("Dados inválidos.")
+  const ctx = await begin()
+  if (!ctx.ok) return fail(ctx.error)
+
+  const { userId: id, confirmEmail } = parsed.data
+  if (id === ctx.admin.adminId) return fail("Você não pode excluir a própria conta.")
+  const target = await targetOf(ctx.secret, id)
+  if (!target) return fail("Usuário não encontrado.")
+  if (!target.email || target.email.toLowerCase() !== confirmEmail.toLowerCase()) return fail("O e-mail digitado não confere com o da conta.")
+
+  const { error } = await ctx.secret.auth.admin.deleteUser(id)
+  if (error) return fail("Não foi possível excluir esta conta.")
+
+  // The account is gone, so the entry cannot point at it (a foreign key would refuse): the id and e-mail go in the entry itself.
+  return finish(ctx, { action: "user.delete", targetEmail: target.email, payload: { deletedUserId: id } }, "Conta excluída.")
+}

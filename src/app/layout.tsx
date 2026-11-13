@@ -1,3 +1,4 @@
+import { ServiceWorkerRegister } from "@/components/organizzou/service-worker-register"
 import Script from "next/script";
 import { Suspense } from "react";
 import type { Metadata } from "next";
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {/* The post-login splash: in the server HTML, shown before first paint when this document continues a login (Google). */}
           <SplashShell />
           <TooltipProvider>{children}</TooltipProvider>
+          <ServiceWorkerRegister />
           <Toaster />
           <CookieConsent />
           <Suspense fallback={null}>

@@ -13,6 +13,7 @@ import {
   CopyIcon,
   DownloadIcon,
   EllipsisIcon,
+  GripVerticalIcon,
   LayoutListIcon,
   ListIcon,
   PaperclipIcon,
@@ -25,7 +26,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
+import { moveChecklistItem } from "@/features/tasks/checklist-order"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -535,6 +541,25 @@ function DetailBody({
     setChecklist((c) => c.map((i) => (i.id === item.id ? { ...i, text: value } : i)))
     await save.track(async () => (await api.updateChecklistItem({ id: item.id, text: value })).ok)
   }
+  const checklistSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    // The grip is the only drag handle and has touch-action: none, so scrolling the dialog with a finger never starts a drag.
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  /** Optimistic: the order changes at once; one position write follows, and a failure puts the old order back. */
+  async function reorderChecklist(event: DragEndEvent) {
+    if (!event.over) return
+    const result = moveChecklistItem(checklistRef.current, String(event.active.id), String(event.over.id))
+    if (!result) return
+    const before = checklistRef.current
+    setChecklist(result.items)
+    const ok = await save.track(async () => (await api.updateChecklistItem({ id: result.moved.id, position: result.moved.position })).ok)
+    if (!ok) {
+      setChecklist(before)
+      toast.error("Não consegui reordenar o checklist.")
+    }
+  }
   function removeItem(item: ChecklistItemRow) {
     const before = checklistRef.current
     const next = before.filter((i) => i.id !== item.id)
@@ -856,9 +881,13 @@ function DetailBody({
         <Skeleton className="h-16 w-full" />
       ) : (
         <ul className="flex flex-col">
+          <DndContext sensors={checklistSensors} collisionDetection={closestCenter} onDragEnd={(event) => void reorderChecklist(event)} accessibility={{ announcements: CHECKLIST_ANNOUNCEMENTS, screenReaderInstructions: { draggable: "Para reordenar o item, aperte espaço, use as setas para mover e aperte espaço de novo para soltar." } }}>
+          <SortableContext items={checklist.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           {checklist.map((item) => (
             <ChecklistRow key={item.id} item={item} onToggle={() => void toggleItem(item)} onRename={(text) => void renameItem(item, text)} onRemove={() => void removeItem(item)} onEnter={() => newItemRef.current?.focus()} />
           ))}
+          </SortableContext>
+          </DndContext>
           <li>
             <form
               className="flex min-h-11 items-center gap-3"
@@ -1140,12 +1169,23 @@ function DetailBody({
   )
 }
 
-/** One checklist row (44 px): circular check, text edited in place, ⋯ menu (no always-visible X). */
+const CHECKLIST_ANNOUNCEMENTS = {
+  onDragStart: () => "Item do checklist pego.",
+  onDragOver: () => "Movendo o item.",
+  onDragEnd: () => "Item solto na nova posição.",
+  onDragCancel: () => "Reordenação cancelada.",
+}
+
+/** One checklist row (44 px): grip to reorder, circular check, text edited in place, ⋯ menu (no always-visible X). */
 function ChecklistRow({ item, onToggle, onRename, onRemove, onEnter }: { item: ChecklistItemRow; onToggle: () => void; onRename: (text: string) => void; onRemove: () => void; onEnter: () => void }) {
   const [text, setText] = useState(item.text)
   const input = useRef<HTMLInputElement>(null)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   return (
-    <li className="flex min-h-11 items-center gap-3" data-testid="checklist-row">
+    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative flex min-h-11 items-center gap-1", isDragging && "z-10 rounded-lg bg-card opacity-80 shadow-none ring-1 ring-ring/40")} data-testid="checklist-row" data-checklist-item={item.id}>
+      <button type="button" {...attributes} {...listeners} aria-label={`Reordenar ${item.text}`} data-testid="checklist-grip" className="flex size-11 shrink-0 touch-none items-center justify-center rounded-lg text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:size-7">
+        <GripVerticalIcon aria-hidden strokeWidth={1.75} className="size-4" />
+      </button>
       <span className="flex size-11 shrink-0 items-center justify-center md:size-7">
         <Checkbox checked={item.done} onCheckedChange={onToggle} aria-label={`Marcar ${item.text}`} className="size-5 after:-inset-3 [&_svg]:size-3" />
       </span>

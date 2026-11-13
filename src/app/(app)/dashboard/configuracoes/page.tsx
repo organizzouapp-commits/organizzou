@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 
 import { SettingsShell } from "@/components/settings/settings-shell"
 import { Skeleton } from "@/components/ui/skeleton"
+import { loadAvatarUrl } from "@/lib/avatar-server"
 import { loadPlanUsage } from "@/lib/plan-usage-server"
 import { getSession } from "@/lib/supabase/session"
 
@@ -12,8 +13,8 @@ export const metadata: Metadata = { title: "Configurações" }
 async function SettingsContent() {
   const { supabase, userId, email } = await getSession()
   const { data: profile } = await supabase.from("profiles").select("display_name, phone, created_at").eq("id", userId).maybeSingle()
-  const usage = await loadPlanUsage(supabase)
-  return <SettingsShell usage={usage} profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "", createdAt: profile?.created_at ?? "" }} />
+  const [usage, avatarUrl] = await Promise.all([loadPlanUsage(supabase), loadAvatarUrl(supabase, userId)])
+  return <SettingsShell usage={usage} profile={{ displayName: profile?.display_name ?? "", email, phone: profile?.phone ?? "", createdAt: profile?.created_at ?? "", avatarUrl }} />
 }
 
 export default function SettingsPage() {

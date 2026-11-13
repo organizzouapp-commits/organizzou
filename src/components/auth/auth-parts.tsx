@@ -83,7 +83,7 @@ export function OrDivider() {
 
 type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, "type">
 
-/** Password field with a show/hide button. */
+/** Password field with a show/hide button (44 px target, aria-pressed). The one password input of the whole app; it is hidden again when the form unmounts. */
 export function PasswordInput({ className, ...props }: PasswordInputProps) {
   const [visible, setVisible] = useState(false)
   return (
@@ -92,11 +92,12 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
         aria-pressed={visible}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => setVisible((v) => !v)}
-        className={cn("absolute inset-y-0 right-2 my-auto rounded-full", authMotion)}
+        className={cn("absolute top-1/2 right-0 size-11 -translate-y-1/2 rounded-full", authMotion)}
       >
         {visible ? <EyeOffIcon strokeWidth={1.75} /> : <EyeIcon strokeWidth={1.75} />}
       </Button>

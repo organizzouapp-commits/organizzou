@@ -5,6 +5,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "user.reactivate": "Conta reativada",
   "user.resend_confirmation": "Confirmação reenviada",
   "user.sign_out_all": "Sessões encerradas",
+  "user.delete": "Conta excluída",
   "users.export": "Usuários exportados",
   "waitlist.export": "Lista de espera exportada",
   "admin.grant": "Admin concedido",

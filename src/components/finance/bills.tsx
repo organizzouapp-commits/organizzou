@@ -3,10 +3,11 @@
 import { createContext, useContext, useState } from "react"
 import { format, getDaysInMonth, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, WalletIcon } from "lucide-react"
+import { CheckCheckIcon, CheckIcon, CircleAlertIcon, ReceiptIcon, RotateCcwIcon, WalletIcon } from "lucide-react"
 
 import { Collapse, GroupHeader } from "@/components/organizzou/Group"
 import { Button } from "@/components/ui/button"
+import { installmentLabel } from "@/features/finance/installments"
 import type { BillView } from "@/features/finance/stats"
 
 import { BentoCard, BentoStat, CategoryDonut, MonthTimeline, SegmentedPills } from "./bento"
@@ -19,7 +20,7 @@ import { AddPill, CardStack, DayBadge, EmptyBlock, FinanceListItem, HeroCard, Mo
 /** The desktop bill card (series A): badge, name, subtitle, amount, pill, ⋯. */
 function BillCard({ view }: { view: BillView }) {
   const f = useFinance()
-  const { bill, status, daysLeft } = view
+  const { bill, status, daysLeft, installment } = view
   const paid = status === "paid"
   return (
     <FinanceListItem
@@ -27,7 +28,7 @@ function BillCard({ view }: { view: BillView }) {
       data-status={status}
       leading={<DayBadge day={bill.due_day} />}
       title={bill.name}
-      subtitle={`${f.categoryName(bill.category_id)} · ${paid ? "pago" : dueText(daysLeft, status).toLowerCase()}`}
+      subtitle={`${f.categoryName(bill.category_id)} · ${installment ? `${installmentLabel(installment.index, installment.total)} · ` : ""}${paid ? "pago" : dueText(daysLeft, status).toLowerCase()}`}
       chip={status === "overdue" ? <StatusChip icon={CircleAlertIcon}>Atrasada</StatusChip> : null}
       amount={<MoneyText cents={bill.amount_cents} />}
       action={
@@ -44,6 +45,7 @@ function BillCard({ view }: { view: BillView }) {
       onOpen={() => f.editBill(bill)}
       onEdit={() => f.editBill(bill)}
       onDelete={() => f.removeBill(bill)}
+      extra={paid ? [{ label: "Reabrir conta", icon: RotateCcwIcon, onSelect: () => f.reopenBill(bill) }] : undefined}
     />
   )
 }

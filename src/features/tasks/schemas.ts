@@ -65,6 +65,8 @@ export const updateChecklistItemSchema = z.object({
   id,
   text: z.string().trim().min(1).max(300).optional(),
   done: z.boolean().optional(),
+  /** New place in the list (a drag): a finite number between its neighbours. */
+  position: z.number().finite().optional(),
 })
 
 export const addCommentSchema = z.object({

@@ -1,4 +1,5 @@
 // The Ajuda FAQ: the questions, answers written as text and links (so they can point at a tab of Configurações), and the live search.
+import { SUPPORT_EMAIL } from "@/lib/support"
 import { settingsHref } from "@/lib/settings-tabs"
 
 export type AnswerPart = string | { label: string; href: string }
@@ -38,12 +39,12 @@ export const FAQ: FaqItem[] = [
   {
     id: "avisos",
     q: "Como escolho o que o Organizzou avisa?",
-    a: ["Em ", { label: "Configurações > Avisos", href: settingsHref("avisos") }, " você escolhe os eventos e o horário de silêncio. Os avisos ainda não são enviados; suas escolhas ficam guardadas neste aparelho para quando o envio abrir."],
+    a: ["Em ", { label: "Configurações > Avisos", href: settingsHref("avisos") }, " você escolhe os eventos e o horário de silêncio, e ativa as notificações em cada aparelho. No iPhone, primeiro adicione o app à Tela de Início."],
   },
   {
     id: "excluir",
     q: "Como excluo minha conta?",
-    a: ["A exclusão pela própria tela ainda não está disponível (em ", { label: "Configurações > Segurança e dados", href: settingsHref("seguranca") }, " o botão aparece desabilitado). Fale com a gente pelo contato ao lado e cuidamos disso com você."],
+    a: [`Para excluir sua conta, fale com o suporte em ${SUPPORT_EMAIL}. Cuidamos disso com você.`],
   },
 ]
 

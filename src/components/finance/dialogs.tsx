@@ -15,7 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ACCOUNT_ICON_KEYS, ACCOUNT_ICON_LABELS, ACCOUNT_KINDS, ACCOUNT_KIND_LABELS, DEFAULT_ICON, type AccountIconKey, type AccountKind, type AccountMeta } from "@/features/finance/account-meta"
 import { GOAL_ICON_KEYS, GOAL_ICON_LABELS, type GoalIconKey } from "@/features/finance/goal-icons"
 import type { AccountRow, FinancialGoalRow, RecurringBillRow, TransactionKind, TransactionRow } from "@/features/finance/types"
-import { formatBRL, parseBRL } from "@/lib/money"
+import { CurrencyInput } from "@/components/organizzou/currency-input"
+import { formatBRL } from "@/lib/money"
+import { goalStart, validateGoalDates } from "@/features/finance/goal-schedule"
+import { installmentAmount, installmentCents, installmentPreview, MAX_INSTALLMENTS, MIN_INSTALLMENTS, newInstallmentMeta, remainingFrom, type AmountMode, type Scope } from "@/features/finance/installments"
 import type { SwatchId } from "@/lib/swatches"
 import { newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
@@ -124,13 +127,12 @@ export function TransactionDialog({ open, onOpenChange, row }: { open: boolean; 
 function TransactionForm({ row, onClose }: { row: TransactionRow | null; onClose: () => void }) {
   const f = useFinance()
   const [kind, setKind] = useState<TransactionKind>(row?.kind ?? "out")
-  const [amount, setAmount] = useState(row ? (row.amount_cents / 100).toFixed(2).replace(".", ",") : "")
+  const [cents, setCents] = useState<number | null>(row?.amount_cents ?? null)
   const [description, setDescription] = useState(row?.description ?? "")
   const [category, setCategory] = useState(row?.category_id ?? (f.categories.find((c) => !INCOME_CATEGORIES.includes(c.name)) ?? f.categories[0])?.id ?? "")
   const [account, setAccount] = useState(row?.account_id ?? f.accounts[0]?.id ?? "")
   const [date, setDate] = useState(row?.occurred_on ?? f.today)
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
   const errors = {
     description: description.trim() ? null : "Escreva uma descrição.",
     amount: cents && cents > 0 ? null : "Informe um valor maior que zero.",
@@ -186,7 +188,7 @@ function TransactionForm({ row, onClose }: { row: TransactionRow | null; onClose
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Valor" htmlFor="tx-amount" error={tried ? errors.amount : null}>
-          <Input id="tx-amount" inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(errors.amount)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+          <CurrencyInput id="tx-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
         </Field>
         <Field label="Data" htmlFor="tx-date">
           <Input id="tx-date" type="date" value={date} max={f.today} onChange={(e) => setDate(e.target.value)} className={INPUT} />
@@ -224,63 +226,173 @@ export function BillDialog({ open, onOpenChange, row }: { open: boolean; onOpenC
   )
 }
 
+type BillKind = "monthly" | "installments"
+
 function BillForm({ row, onClose }: { row: RecurringBillRow | null; onClose: () => void }) {
   const f = useFinance()
+  const series = row ? f.billMeta[row.id] : undefined
+  const [kind, setKind] = useState<BillKind>("monthly")
   const [name, setName] = useState(row?.name ?? "")
-  const [amount, setAmount] = useState(row ? (row.amount_cents / 100).toFixed(2).replace(".", ",") : "")
+  const shownCents = row && series ? installmentAmount(row, series, f.month) : (row?.amount_cents ?? null)
+  const [cents, setCents] = useState<number | null>(shownCents)
+  const [mode, setMode] = useState<AmountMode>("installment")
+  const [count, setCount] = useState("10")
+  const [firstDate, setFirstDate] = useState(f.today)
   const [day, setDay] = useState(String(row?.due_day ?? 10))
   const [category, setCategory] = useState(row?.category_id ?? (f.categories.find((c) => c.name === "Assinaturas") ?? f.categories[0])?.id ?? "")
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
+  const [scopeAsk, setScopeAsk] = useState<{ name: string; category: string | null; cents: number } | null>(null)
+  const creatingInstallments = !row && kind === "installments"
   const dueDay = Number(day)
+  const installments = Number(count)
+  const perInstallment = cents && creatingInstallments ? installmentCents(mode, cents, installments) : cents
   const errors = {
     name: name.trim() ? null : "Dê um nome para a conta.",
     amount: cents && cents > 0 ? null : "Informe um valor maior que zero.",
-    day: Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28 ? null : "Use um dia de 1 a 28.",
+    day: creatingInstallments || series || (Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28) ? null : "Use um dia de 1 a 28.",
+    count: !creatingInstallments || (Number.isInteger(installments) && installments >= MIN_INSTALLMENTS && installments <= MAX_INSTALLMENTS) ? null : `Use de ${MIN_INSTALLMENTS} a ${MAX_INSTALLMENTS} parcelas.`,
+    date: !creatingInstallments || /^\d{4}-\d{2}-\d{2}$/.test(firstDate) ? null : "Escolha a data da primeira parcela.",
   }
+  const left = row && series ? remainingFrom(row, series, f.month) : null
 
   return (
-    <form
-      noValidate
-      className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        setTried(true)
-        if (errors.name || errors.amount || errors.day || !cents) return
-        const now = new Date().toISOString()
-        f.saveBill({
-          ...(row ?? {}),
-          id: row?.id ?? newId(),
-          user_id: USER,
-          name: name.trim(),
-          amount_cents: cents,
-          due_day: dueDay,
-          category_id: category || null,
-          active: row?.active ?? true,
-          last_paid_month: row?.last_paid_month ?? null,
-          created_at: row?.created_at ?? now,
-          updated_at: now,
-        })
-        onClose()
-      }}
-    >
-      <Field label="Nome" htmlFor="bill-name" error={tried ? errors.name : null}>
-        <Input id="bill-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Disney+" aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Valor" htmlFor="bill-amount" error={tried ? errors.amount : null}>
-          <Input id="bill-amount" inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(errors.amount)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+    <>
+      <form
+        noValidate
+        className="flex flex-col gap-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setTried(true)
+          if (errors.name || errors.amount || errors.day || errors.count || errors.date || !cents || !perInstallment) return
+          const now = new Date().toISOString()
+          if (row && series) {
+            // An installment already running: the amount may apply to this one, to the next ones or to all; ask before saving.
+            if (perInstallment !== shownCents) return setScopeAsk({ name: name.trim(), category: category || null, cents: perInstallment })
+            f.saveInstallmentEdit(row, { name: name.trim(), category_id: category || null, cents: perInstallment }, "all")
+            return onClose()
+          }
+          f.saveBill(
+            {
+              ...(row ?? {}),
+              id: row?.id ?? newId(),
+              user_id: USER,
+              name: name.trim(),
+              amount_cents: perInstallment,
+              due_day: creatingInstallments ? Math.min(28, Number(firstDate.slice(8, 10))) : dueDay,
+              category_id: category || null,
+              active: row?.active ?? true,
+              last_paid_month: row?.last_paid_month ?? null,
+              created_at: row?.created_at ?? now,
+              updated_at: now,
+            },
+            creatingInstallments ? newInstallmentMeta(installments, firstDate) : undefined
+          )
+          onClose()
+        }}
+      >
+        {!row ? (
+          <div role="radiogroup" aria-label="Tipo de conta fixa" className="flex gap-2">
+            {(
+              [
+                ["monthly", "Mensal"],
+                ["installments", "Parcelada"],
+              ] as const
+            ).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={kind === value} data-bill-kind={value} onClick={() => setKind(value)} className={pillClass(kind === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <Field label="Nome" htmlFor="bill-name" error={tried ? errors.name : null}>
+          <Input id="bill-name" autoFocus value={name} maxLength={60} placeholder={creatingInstallments ? "Ex.: Notebook" : "Ex.: Disney+"} aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
         </Field>
-        <Field label="Vence no dia" htmlFor="bill-day" error={tried ? errors.day : null}>
-          <Input id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={day} aria-invalid={tried && Boolean(errors.day)} onChange={(e) => setDay(e.target.value)} className={INPUT} />
+        {creatingInstallments ? (
+          <div role="radiogroup" aria-label="O valor informado é" className="flex flex-wrap gap-2">
+            {(
+              [
+                ["installment", "Valor da parcela"],
+                ["total", "Valor total"],
+              ] as const
+            ).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={mode === value} data-amount-mode={value} onClick={() => setMode(value)} className={pillClass(mode === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={creatingInstallments ? (mode === "total" ? "Valor total" : "Valor da parcela") : series ? "Valor desta parcela" : "Valor"} htmlFor="bill-amount" error={tried ? errors.amount : null}>
+            <CurrencyInput id="bill-amount" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.amount)} className={INPUT} />
+          </Field>
+          {creatingInstallments ? (
+            <Field label="Parcelas" htmlFor="bill-count" error={tried ? errors.count : null}>
+              <Input id="bill-count" type="number" inputMode="numeric" min={MIN_INSTALLMENTS} max={MAX_INSTALLMENTS} value={count} aria-invalid={tried && Boolean(errors.count)} onChange={(e) => setCount(e.target.value)} className={INPUT} />
+            </Field>
+          ) : series ? null : (
+            <Field label="Vence no dia" htmlFor="bill-day" error={tried ? errors.day : null}>
+              <Input id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={day} aria-invalid={tried && Boolean(errors.day)} onChange={(e) => setDay(e.target.value)} className={INPUT} />
+            </Field>
+          )}
+        </div>
+        {creatingInstallments ? (
+          <Field label="Primeira parcela vence em" htmlFor="bill-first" error={tried ? errors.date : null}>
+            <Input id="bill-first" type="date" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} className={INPUT} />
+          </Field>
+        ) : null}
+        <Field label="Categoria">
+          <CategoryChips value={category} onChange={setCategory} />
         </Field>
+        {creatingInstallments && perInstallment && !errors.count && !errors.date ? (
+          <p data-testid="installment-preview" className="rounded-[12px] border border-border px-3 py-2 text-[14px] leading-5">
+            {installmentPreview(installments, perInstallment, firstDate.slice(0, 7))}
+            <span className="block text-[13px] text-muted-foreground">Total: {formatBRL(perInstallment * installments)}</span>
+          </p>
+        ) : null}
+        {left ? (
+          <p data-testid="installment-remaining" className="text-[13px] leading-5 text-muted-foreground">
+            Restam {left.count} {left.count === 1 ? "parcela" : "parcelas"} · {formatBRL(left.cents)}. Ao mudar o valor você escolhe se vale só para esta parcela, para as próximas ou para todas.
+          </p>
+        ) : (
+          <p className="text-[13px] leading-5 text-muted-foreground">{creatingInstallments ? "Vence todo mês, nas datas da série, e termina sozinha na última parcela." : "Vence todo mês e entra em “A pagar”."}</p>
+        )}
+        <Footer onCancel={onClose} submit={row ? "Salvar" : creatingInstallments ? "Criar conta parcelada" : "Criar conta fixa"} />
+      </form>
+      <ScopeSheet
+        open={scopeAsk !== null}
+        title="Alterar o valor de qual parcela?"
+        onCancel={() => setScopeAsk(null)}
+        onPick={(scope) => {
+          if (row && scopeAsk) f.saveInstallmentEdit(row, { name: scopeAsk.name, category_id: scopeAsk.category, cents: scopeAsk.cents }, scope)
+          setScopeAsk(null)
+          onClose()
+        }}
+      />
+    </>
+  )
+}
+
+/** "Só esta parcela / Esta e as próximas / Todas": the question every edit or delete of an installment series asks. */
+export function ScopeSheet({ open, title, description, onPick, onCancel }: { open: boolean; title: string; description?: string; onPick: (scope: Scope) => void; onCancel: () => void }) {
+  return (
+    <ResponsiveSheet open={open} onOpenChange={(next) => !next && onCancel()} title={title} description={description ?? "Esta conta é parcelada: escolha o que muda."}>
+      <div className="flex flex-col gap-2 pb-1" data-testid="scope-sheet">
+        {(
+          [
+            ["this", "Só esta parcela"],
+            ["following", "Esta e as próximas"],
+            ["all", "Todas as parcelas"],
+          ] as const
+        ).map(([scope, label]) => (
+          <Button key={scope} type="button" variant="outline" data-scope={scope} className="h-12 justify-start rounded-[12px] px-4 text-[15px]" onClick={() => onPick(scope)}>
+            {label}
+          </Button>
+        ))}
+        <Button type="button" variant="ghost" className="h-11 rounded-full" onClick={onCancel}>
+          Cancelar
+        </Button>
       </div>
-      <Field label="Categoria">
-        <CategoryChips value={category} onChange={setCategory} />
-      </Field>
-      <p className="text-[13px] leading-5 text-muted-foreground">Vence todo mês e entra em “A pagar”.</p>
-      <Footer onCancel={onClose} submit={row ? "Salvar" : "Criar conta fixa"} />
-    </form>
+    </ResponsiveSheet>
   )
 }
 
@@ -301,10 +413,9 @@ export function FundDialog({ goal, onClose }: { goal: FinancialGoalRow | null; o
 
 function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => void }) {
   const f = useFinance()
-  const [amount, setAmount] = useState("")
+  const [cents, setCents] = useState<number | null>(null)
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(amount)
-  const monthly = projection(goal, f.today).monthly
+  const monthly = projection(goal, f.today, f.goalMeta[goal.id]).monthly
   const suggestions = [...new Set([monthly, 50_000, 10_000].filter((v) => v > 0))]
   const error = cents && cents > 0 ? null : "Informe um valor maior que zero."
   return (
@@ -320,11 +431,11 @@ function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => vo
       }}
     >
       <Field label="Valor" htmlFor="fund-amount" error={tried ? error : null}>
-        <Input id="fund-amount" autoFocus inputMode="decimal" placeholder="R$ 0,00" value={amount} aria-invalid={tried && Boolean(error)} onChange={(e) => setAmount(e.target.value)} className={INPUT} />
+        <CurrencyInput id="fund-amount" autoFocus value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(error)} className={INPUT} />
       </Field>
       <div className="flex flex-wrap gap-2" role="group" aria-label="Sugestões de valor">
         {suggestions.map((value) => (
-          <button key={value} type="button" data-suggestion onClick={() => setAmount((value / 100).toFixed(2).replace(".", ","))} className={pillClass(cents === value)}>
+          <button key={value} type="button" data-suggestion onClick={() => setCents(value)} className={pillClass(cents === value)}>
             {formatBRL(value)}
             {value === monthly ? " por mês" : ""}
           </button>
@@ -339,7 +450,7 @@ function FundForm({ goal, onClose }: { goal: FinancialGoalRow; onClose: () => vo
 
 export function GoalDialog({ open, onOpenChange, row }: { open: boolean; onOpenChange: (open: boolean) => void; row: FinancialGoalRow | null }) {
   return (
-    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={row ? "Editar meta" : "Nova meta"} description="Uma meta de economia, com valor e prazo.">
+    <ResponsiveSheet open={open} onOpenChange={onOpenChange} title={row ? "Editar meta" : "Nova meta"} description="Uma meta de economia, com valor, início e prazo.">
       {open ? <GoalForm key={row?.id ?? "new"} row={row} onClose={() => onOpenChange(false)} /> : null}
     </ResponsiveSheet>
   )
@@ -349,12 +460,15 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
   const f = useFinance()
   const sets = useGoalSets()
   const [name, setName] = useState(row?.name ?? "")
-  const [target, setTarget] = useState(row ? (row.target_cents / 100).toFixed(2).replace(".", ",") : "")
+  const [cents, setCents] = useState<number | null>(row?.target_cents ?? null)
   const [deadline, setDeadline] = useState(row?.deadline ?? "")
+  const meta = row ? f.goalMeta[row.id] : undefined
+  const [saved, setSaved] = useState<number | null>(meta?.openingCents ?? null)
+  const [startDate, setStartDate] = useState(row ? goalStart(row, meta) : f.today)
   const [icon, setIcon] = useState<GoalIconKey>(row ? (f.goalIcons[row.id] ?? "piggy") : "piggy")
   const [tried, setTried] = useState(false)
-  const cents = parseBRL(target)
-  const errors = { name: name.trim() ? null : "Dê um nome para a meta.", target: cents && cents > 0 ? null : "Informe um valor maior que zero." }
+  const dates = validateGoalDates(startDate, deadline)
+  const errors = { name: name.trim() ? null : "Dê um nome para a meta.", target: cents && cents > 0 ? null : "Informe um valor maior que zero.", saved: saved !== null && cents && saved > cents ? "O valor já guardado passa do valor da meta." : null, start: dates.start, end: dates.end }
   return (
     <form
       noValidate
@@ -362,11 +476,12 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
       onSubmit={(e) => {
         e.preventDefault()
         setTried(true)
-        if (errors.name || errors.target || !cents) return
+        if (errors.name || errors.target || errors.saved || errors.start || errors.end || !cents) return
         const now = new Date().toISOString()
         f.saveGoal(
           { ...(row ?? {}), id: row?.id ?? newId(), user_id: USER, name: name.trim(), target_cents: cents, current_cents: row?.current_cents ?? 0, deadline: deadline || null, created_at: row?.created_at ?? now, updated_at: now },
-          icon
+          icon,
+          { startDate, openingCents: saved ?? 0 }
         )
         onClose()
       }}
@@ -374,14 +489,6 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
       <Field label="Nome" htmlFor="goal-name" error={tried ? errors.name : null}>
         <Input id="goal-name" autoFocus value={name} maxLength={60} placeholder="Ex.: Viagem de fim de ano" aria-invalid={tried && Boolean(errors.name)} onChange={(e) => setName(e.target.value)} className={INPUT} />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Valor da meta" htmlFor="goal-target" error={tried ? errors.target : null}>
-          <Input id="goal-target" inputMode="decimal" placeholder="R$ 0,00" value={target} aria-invalid={tried && Boolean(errors.target)} onChange={(e) => setTarget(e.target.value)} className={INPUT} />
-        </Field>
-        <Field label="Prazo (opcional)" htmlFor="goal-deadline">
-          <Input id="goal-deadline" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
-        </Field>
-      </div>
       <Field label="Ícone">
         <div role="radiogroup" aria-label="Ícone da meta" className="flex flex-wrap gap-2">
           {GOAL_ICON_KEYS.map((key) => {
@@ -395,6 +502,22 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
           })}
         </div>
       </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Valor da meta" htmlFor="goal-target" error={tried ? errors.target : null}>
+          <CurrencyInput id="goal-target" value={cents} onValueChange={setCents} aria-invalid={tried && Boolean(errors.target)} className={INPUT} />
+        </Field>
+        <Field label="Quanto já guardei" htmlFor="goal-saved" error={tried ? errors.saved : null} helper="Opcional. Conta no progresso, não vira lançamento.">
+          <CurrencyInput id="goal-saved" value={saved} onValueChange={setSaved} aria-invalid={tried && Boolean(errors.saved)} className={INPUT} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Data de início" htmlFor="goal-start" error={tried ? errors.start : null}>
+          <Input id="goal-start" type="date" value={startDate} aria-invalid={tried && Boolean(errors.start)} onChange={(e) => setStartDate(e.target.value)} className={INPUT} />
+        </Field>
+        <Field label="Prazo final" htmlFor="goal-deadline" error={tried || deadline ? errors.end : null}>
+          <Input id="goal-deadline" type="date" value={deadline} min={startDate} aria-invalid={Boolean(errors.end) && (tried || Boolean(deadline))} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
+        </Field>
+      </div>
       <Footer
         onCancel={onClose}
         submit={row ? "Salvar" : "Criar meta"}
@@ -445,7 +568,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
   const meta = row ? f.accountMeta[row.id] : undefined
   const [name, setName] = useState(row?.name ?? "")
   const [institution, setInstitution] = useState(row && row.institution !== row.name ? row.institution : "")
-  const [opening, setOpening] = useState(row ? (row.opening_balance_cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "")
+  const [opening, setOpening] = useState<number | null>(row?.opening_balance_cents ?? null)
   const [kind, setKind] = useState<AccountKind>(meta?.kind ?? "bank")
   const [icon, setIcon] = useState<AccountIconKey | null>(meta?.icon ?? null)
   const [color, setColor] = useState<SwatchId>(meta?.color ?? "neutro")
@@ -467,7 +590,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
           user_id: row?.user_id ?? USER,
           name: name.trim(),
           institution: institution.trim() || name.trim(),
-          opening_balance_cents: parseBRL(opening) ?? 0,
+          opening_balance_cents: opening ?? 0,
           created_at: row?.created_at ?? now,
           updated_at: now,
         }
@@ -507,7 +630,7 @@ function AccountForm({ row, onClose }: { row: AccountRow | null; onClose: () => 
         <SwatchPicker value={color} onChange={setColor} label="Cor da conta" />
       </Field>
       <Field label={row ? "Saldo inicial" : "Saldo inicial (opcional)"} htmlFor="acc-open" helper={row ? "O saldo atual é este valor mais as entradas e menos as saídas. Ajuste-o para corrigir o saldo." : undefined}>
-        <Input id="acc-open" inputMode="decimal" placeholder="R$ 0,00" value={opening} onChange={(e) => setOpening(e.target.value)} className={INPUT} />
+        <CurrencyInput id="acc-open" allowNegative value={opening} onValueChange={setOpening} className={INPUT} />
       </Field>
       {row ? (
         <label className="flex min-h-11 items-center justify-between gap-3 text-[15px]">
@@ -543,19 +666,19 @@ export function LimitsDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 function LimitsForm({ onClose }: { onClose: () => void }) {
   const f = useFinance()
   const spending = f.categories.filter((c) => !INCOME_CATEGORIES.includes(c.name))
-  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(spending.map((c) => [c.id, c.monthly_limit_cents ? (c.monthly_limit_cents / 100).toFixed(2).replace(".", ",") : ""])))
+  const [values, setValues] = useState<Record<string, number | null>>(() => Object.fromEntries(spending.map((c) => [c.id, c.monthly_limit_cents || null])))
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(e) => {
         e.preventDefault()
-        f.saveLimits(Object.fromEntries(spending.map((c) => [c.id, parseBRL(values[c.id] ?? "") || null])))
+        f.saveLimits(Object.fromEntries(spending.map((c) => [c.id, values[c.id] || null])))
         onClose()
       }}
     >
       {spending.map((c) => (
         <Field key={c.id} label={c.name} htmlFor={`limit-${c.id}`}>
-          <Input id={`limit-${c.id}`} inputMode="decimal" placeholder="Sem limite" value={values[c.id] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [c.id]: e.target.value }))} className={INPUT} />
+          <CurrencyInput id={`limit-${c.id}`} placeholder="Sem limite" value={values[c.id] ?? null} onValueChange={(next) => setValues((v) => ({ ...v, [c.id]: next }))} className={INPUT} />
         </Field>
       ))}
       <Footer onCancel={onClose} submit="Salvar limites" />

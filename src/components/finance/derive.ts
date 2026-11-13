@@ -1,4 +1,5 @@
-import { billStatusIn, monthlyFixedTotal, shiftMonth, spendByCategory, totalBalance, totals, type BillView } from "@/features/finance/stats"
+import { installmentView } from "@/features/finance/installments"
+import { billStatusIn, shiftMonth, spendByCategory, totalBalance, totals, type BillView } from "@/features/finance/stats"
 
 import type { Finance } from "./context"
 
@@ -12,7 +13,13 @@ export function derive(f: Finance) {
   const spentInBudget = categories.filter((c) => c.limit).reduce((sum, c) => sum + c.spent, 0)
   const views: BillView[] = f.bills
     .filter((b) => b.active)
-    .map((b) => billStatusIn(b, f.month, f.today))
+    .flatMap((b) => {
+      // An installment bill shows only in the months its series covers, with that month's amount and "Parcela n/N".
+      const series = f.billMeta[b.id]
+      if (!series) return [billStatusIn(b, f.month, f.today)]
+      const view = installmentView(b, series, f.month, f.today)
+      return view ? [view] : []
+    })
     .sort((a, b) => a.dueOn.localeCompare(b.dueOn))
   const paid = views.filter((v) => v.status === "paid")
   const overdue = views.filter((v) => v.status === "overdue")
@@ -32,7 +39,7 @@ export function derive(f: Finance) {
     overdue,
     toPay,
     watch,
-    fixedTotal: monthlyFixedTotal(f.bills),
+    fixedTotal: views.reduce((sum, v) => sum + v.bill.amount_cents, 0),
     paidTotal: sum(paid),
     overdueTotal: sum(overdue),
     toPayTotal: sum(toPay) + sum(overdue),

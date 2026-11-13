@@ -1,8 +1,9 @@
 "use client"
 
-import { CheckIcon, ClockIcon } from "lucide-react"
+import { CheckIcon, ClockIcon, RotateCcwIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { installmentLabel } from "@/features/finance/installments"
 import type { BillView } from "@/features/finance/stats"
 import { cn } from "@/lib/utils"
 
@@ -25,9 +26,10 @@ export function dueText(daysLeft: number, status: string) {
  */
 export function BillMini({ view, withBadge = false, withMenu = false, withCategory = false, swipe = false }: { view: BillView; withBadge?: boolean; withMenu?: boolean; withCategory?: boolean; swipe?: boolean }) {
   const f = useFinance()
-  const { bill, status, daysLeft } = view
+  const { bill, status, daysLeft, installment } = view
   const paid = status === "paid"
-  const when = paid ? "pago" : dueText(daysLeft, status).toLowerCase()
+  const base = paid ? "pago" : dueText(daysLeft, status).toLowerCase()
+  const when = installment ? `${installmentLabel(installment.index, installment.total).toLowerCase()} · ${base}` : base
   const card = (
     <div data-bill={bill.id} data-status={status} className={cn(LIST_CARD, "relative flex items-center gap-3 p-3")}>
       {withBadge ? <DayBadge day={bill.due_day} className="size-10" /> : null}
@@ -56,7 +58,7 @@ export function BillMini({ view, withBadge = false, withMenu = false, withCatego
           </span>
         </div>
       </div>
-      {withMenu ? <RowMenu title={bill.name} onEdit={() => f.editBill(bill)} onDelete={() => f.removeBill(bill)} className="-mr-1 self-start" /> : null}
+      {withMenu ? <RowMenu title={bill.name} onEdit={() => f.editBill(bill)} onDelete={() => f.removeBill(bill)} extra={paid ? [{ label: "Reabrir conta", icon: RotateCcwIcon, onSelect: () => f.reopenBill(bill) }] : undefined} className="-mr-1 self-start" /> : null}
     </div>
   )
   if (!swipe) return card

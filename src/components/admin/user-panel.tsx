@@ -2,14 +2,14 @@
 
 import { useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { BadgeDollarSignIcon, LogOutIcon, MailCheckIcon, PauseCircleIcon, PlayCircleIcon } from "lucide-react"
+import { BadgeDollarSignIcon, LogOutIcon, MailCheckIcon, PauseCircleIcon, PlayCircleIcon, Trash2Icon } from "lucide-react"
 
 import { ConfirmAction } from "@/components/admin/confirm-action"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { changePlan, resendConfirmation, setSuspended, signOutEverywhere } from "@/features/admin/actions"
+import { changePlan, deleteUser, resendConfirmation, setSuspended, signOutEverywhere } from "@/features/admin/actions"
 import type { AuditRow, PlanHistoryRow, UserDetail } from "@/lib/admin/data"
 import { fmtDate, fmtDateTime, fmtInt } from "@/lib/admin/format"
 import { actionLabel, PLAN_LABELS, providerLabel } from "@/lib/admin/labels"
@@ -238,9 +238,10 @@ export function UserPanel({ detail, plans, audit, canWrite, adminId, isTest = fa
                     confirmLabel="Encerrar sessões"
                     run={() => signOutEverywhere({ userId: detail.id })}
                   />
+                  <DeleteUserAction key={detail.id} detail={detail} disabled={!canWrite || self} />
                 </div>
                 {canWrite ? null : <p className="text-[13px] leading-5 text-muted-foreground">{SECRET_KEY_HINT}. Veja docs/ADMIN.md.</p>}
-                {self ? <p className="text-[13px] leading-5 text-muted-foreground">Esta é a sua conta: você não pode suspendê-la.</p> : null}
+                {self ? <p className="text-[13px] leading-5 text-muted-foreground">Esta é a sua conta: você não pode suspendê-la nem excluí-la.</p> : null}
               </Section>
 
               <Section title="Auditoria desta pessoa">
@@ -271,5 +272,36 @@ export function UserPanel({ detail, plans, audit, canWrite, adminId, isTest = fa
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** Deleting the account: the admin has to type the account's e-mail first. The server checks it again. */
+function DeleteUserAction({ detail, disabled }: { detail: UserDetail; disabled: boolean }) {
+  const [typed, setTyped] = useState("")
+  return (
+    <ConfirmAction
+      disabled={disabled}
+      trigger={
+        <>
+          <Trash2Icon strokeWidth={1.75} /> Excluir conta
+        </>
+      }
+      title="Excluir esta conta para sempre?"
+      description={`${detail.email} e todos os dados dessa pessoa serão apagados. Não dá para desfazer. A ação fica registrada na auditoria.`}
+      confirmLabel="Excluir conta"
+      canConfirm={typed.trim().toLowerCase() === detail.email.toLowerCase()}
+      run={async () => {
+        const result = await deleteUser({ userId: detail.id, confirmEmail: typed })
+        if (result.ok) setTyped("")
+        return result
+      }}
+    >
+      <div className="flex flex-col gap-2 px-1">
+        <label htmlFor="delete-user-email" className="text-[13px] leading-5 text-muted-foreground">
+          Digite <strong className="font-semibold text-foreground">{detail.email}</strong> para confirmar
+        </label>
+        <Input id="delete-user-email" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} className="h-11 rounded-xl" />
+      </div>
+    </ConfirmAction>
   )
 }

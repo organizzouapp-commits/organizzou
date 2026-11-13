@@ -75,7 +75,7 @@ Antes de qualquer `supabase db push`, leia as duas migrations novas (veja "O que
   `20260105000002_tasks_reminder_repeat.sql` (lembrete e repetição de tarefas). Aplicar só com o seu aval.
 - **Nada disso existe de verdade ainda** (aparece como "Em breve"): pagamentos, WhatsApp, Open Finance, avisos por app/WhatsApp, 2FA e passkeys,
   exportar dados, excluir conta pela tela, backup do cofre, foto de perfil, relato de problema, IA nos flashcards e no assistente.
-- O e-mail de suporte (`suporte@organizzouapp.com`) é provisório.
+- O e-mail de suporte é `organizzouapp@gmail.com` (constante `SUPPORT_EMAIL` em `src/lib/support.ts`).
 - Os dados de todos os módulos ainda são de exemplo (`src/mocks/`); só login, perfil, tema e a lista de espera usam o Supabase.
 - As rotas do dashboard só podem ser medidas em produção com uma conta real (o atalho de teste só funciona em desenvolvimento).
 - Chaves de cor: o contorno do chip "hoje" e o anel de progresso usam Tinta/Papel (nunca Lima fino sobre fundo claro).

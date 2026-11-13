@@ -469,9 +469,10 @@ export async function updateChecklistItem(input: z.input<typeof updateChecklistI
   const s = await session()
   if (!s) return { ok: false, error: SESSION_ERROR }
 
-  const patch: { text?: string; done?: boolean } = {}
+  const patch: { text?: string; done?: boolean; position?: number } = {}
   if (parsed.data.text !== undefined) patch.text = parsed.data.text
   if (parsed.data.done !== undefined) patch.done = parsed.data.done
+  if (parsed.data.position !== undefined) patch.position = parsed.data.position
   const { error } = await s.supabase.from("task_checklist_items").update(patch).eq("id", parsed.data.id)
   return error ? { ok: false, error: SAVE_ERROR } : { ok: true }
 }

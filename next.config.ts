@@ -19,7 +19,11 @@ const nextConfig: NextConfig = {
   images: { formats: ["image/avif", "image/webp"] },
   partialPrefetching: true,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The service worker is re-checked on every visit so a new version reaches everyone quickly.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
+    ];
   },
   // Old URLs -> new URLs (308, query string preserved: Next forwards it automatically).
   async redirects() {

@@ -50,3 +50,28 @@ describe("shortcut matching", () => {
     expect(isActiveShortcut(DEFAULT_SHORTCUTS[0], EMPTY_FILTERS)).toBe(true)
   })
 })
+
+describe("visibleShortcuts", () => {
+  it("lists every enabled shortcut in order, even with nothing pending", async () => {
+    const { visibleShortcuts, DEFAULT_SHORTCUTS: defaults } = await import("./shortcuts")
+    expect(visibleShortcuts(defaults).map((s) => s.id)).toEqual(["todas", "hoje", "semana", "atrasadas", "sem-data"])
+    const edited = defaults.map((s) => (s.id === "hoje" ? { ...s, hidden: true } : s))
+    expect(visibleShortcuts(edited).map((s) => s.id)).toEqual(["todas", "semana", "atrasadas", "sem-data"])
+  })
+})
+
+describe("shortcut sort", () => {
+  it("a saved filter keeps a non-default sort and the parser accepts only known sorts", async () => {
+    const { filtersToCriteria, parseShortcuts, EMPTY_CRITERIA } = await import("./shortcuts")
+    const { EMPTY_FILTERS } = await import("./filters")
+    expect(filtersToCriteria(EMPTY_FILTERS, "due").sort).toBe("due")
+    expect(filtersToCriteria(EMPTY_FILTERS, "manual").sort).toBeUndefined()
+    const raw = JSON.stringify([
+      { id: "custom-1", label: "A", hidden: false, criteria: { ...EMPTY_CRITERIA, sort: "title" } },
+      { id: "custom-2", label: "B", hidden: false, criteria: { ...EMPTY_CRITERIA, sort: "nope" } },
+    ])
+    const parsed = parseShortcuts(raw)
+    expect(parsed.find((s) => s.id === "custom-1")?.criteria.sort).toBe("title")
+    expect(parsed.find((s) => s.id === "custom-2")?.criteria.sort).toBeUndefined()
+  })
+})

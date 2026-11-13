@@ -90,3 +90,21 @@ describe("billStatusIn", () => {
     expect(billStatusIn(bill, "2026-04", "2026-04-20").status).toBe("overdue")
   })
 })
+
+describe("reopening a paid bill", () => {
+  const bill = { id: "b1", user_id: "u", name: "Internet", amount_cents: 10999, due_day: 20, category_id: "c1", active: true, last_paid_month: "2026-11", created_at: "", updated_at: "" }
+  const tx = (id: string, over: Partial<import("./types").TransactionRow> = {}): import("./types").TransactionRow => ({ id, user_id: "u", account_id: "a", category_id: "c1", kind: "out", amount_cents: 10999, occurred_on: "2026-11-10", method: "Pix", description: "Internet", source: "manual", created_at: "2026-11-10T10:00:00Z", updated_at: "", ...over })
+
+  it("finds the payment lançamento and ignores look-alikes", async () => {
+    const { findBillPayment } = await import("./stats")
+    const list = [tx("old", { occurred_on: "2026-10-10" }), tx("other", { amount_cents: 5 }), tx("in", { kind: "in" }), tx("pay")]
+    expect(findBillPayment(list, bill, "2026-11")?.id).toBe("pay")
+    expect(findBillPayment([tx("other", { amount_cents: 5 })], bill, "2026-11")).toBeNull()
+  })
+
+  it("goes back to the month before", async () => {
+    const { reopenedLastPaid } = await import("./stats")
+    expect(reopenedLastPaid("2026-11")).toBe("2026-10")
+    expect(reopenedLastPaid("2026-01")).toBe("2025-12")
+  })
+})

@@ -1,5 +1,5 @@
-// Notification preferences of the Avisos tab. They are a preview: nothing is delivered yet, so the choices are only remembered, on this device,
-// behind a small repository (swap the adapter for the account's profile when delivery exists). Pure apart from the localStorage adapter.
+// Notification preferences of the Avisos tab. They are saved in the account (notification_preferences.settings) and mirrored on this device,
+// behind a small repository (the localStorage adapter is the fallback until the migration is applied). Pure apart from that adapter.
 
 export const EVENT_KEYS = ["tasks", "agenda", "habits", "bills", "workout", "meals", "study", "summary"] as const
 export type EventKey = (typeof EVENT_KEYS)[number]

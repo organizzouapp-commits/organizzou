@@ -235,6 +235,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
     // Clicking the active chip clears it (back to "Todas").
     const target = activeShortcutId === def.id && def.id !== "todas" ? (shortcuts.find((s) => s.id === "todas") ?? def) : def
     setFilters((f) => criteriaToFilters(target.criteria, f))
+    if (!target.builtin) setSort(target.criteria.sort ?? "manual")
     const url = new URL(window.location.href)
     if (target.builtin && target.id !== "todas") url.searchParams.set("atalho", target.id)
     else url.searchParams.delete("atalho")
@@ -995,7 +996,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
           setEditorOpen(true)
         }}
         onSaveFilterAsShortcut={() => {
-          setShortcutDraft(filtersToCriteria(filters))
+          setShortcutDraft(filtersToCriteria(filters, sort))
           setEditorOpen(true)
         }}
         groupBy={groupBy}

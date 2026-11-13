@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import {
   DropdownMenu,
@@ -38,14 +39,14 @@ import {
   type SortKey,
   type TaskFilters,
 } from "@/features/tasks/filters"
-import type { ShortcutDef } from "@/features/tasks/shortcuts"
+import { visibleShortcuts, type ShortcutDef } from "@/features/tasks/shortcuts"
 import type { ListRow, TagRow } from "@/features/tasks/types"
 import { cn } from "@/lib/utils"
 
 import type { CalendarViewId } from "@/components/calendar/agenda-screen"
 import { resolveMode, useCalendarPrefs } from "./calendar-store"
 import { InlineInput } from "./inline-input"
-import { ExpandingSearch, SearchField, ToolbarSort } from "./toolbar-controls"
+import { ExpandingSearch, SearchField } from "./toolbar-controls"
 import { ViewTabs, type ViewTab } from "./view-tabs"
 import { dashedPillClass, PillTabs } from "./pill-tabs"
 import type { GroupBy } from "./list-view"
@@ -106,22 +107,26 @@ function toggle<T>(values: T[], value: T) {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value]
 }
 
-function SortSelect({ sort, onSortChange, className }: { sort: SortKey; onSortChange: (sort: SortKey) => void; className?: string }) {
-  return <ToolbarSort value={sort} onChange={onSortChange} className={className} options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({ id: key, label: SORT_LABELS[key] }))} />
-}
 
 function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort: boolean }) {
   const { filters, onFiltersChange } = props
   const labelColors = useLabelColors()
-  const active = countActiveFilters(filters)
+  const active = countActiveFilters(filters) + (props.sort !== "manual" ? 1 : 0)
   return (
-    <div className="flex flex-col gap-5">
-      {showSort ? (
-        <div className="flex flex-col gap-2">
-          <Label>Ordem</Label>
-          <SortSelect sort={props.sort} onSortChange={props.onSortChange} className="h-11 w-full" />
-        </div>
-      ) : null}
+    <div className="flex min-w-0 flex-col gap-5">
+      <fieldset className="flex flex-col gap-1">
+        <Label asChild>
+          <legend>Ordenar por</legend>
+        </Label>
+        <RadioGroup value={props.sort} onValueChange={(value) => props.onSortChange(value as SortKey)} aria-label="Ordenar por" className="gap-0">
+          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+            <label key={key} className="flex min-h-11 items-center gap-3 text-[15px] md:min-h-9">
+              <RadioGroupItem value={key} data-sort={key} />
+              {SORT_LABELS[key]}
+            </label>
+          ))}
+        </RadioGroup>
+      </fieldset>
       {props.view === "lista" ? (
         <div className="flex flex-col gap-2">
           <Label>Agrupar por</Label>
@@ -184,7 +189,7 @@ function FiltersPanel({ props, showSort }: { props: BoardToolbarProps; showSort:
       </label>
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="ghost" className="h-11 rounded-full" disabled={active === 0} onClick={() => onFiltersChange({ ...EMPTY_FILTERS, query: filters.query })}>
+        <Button variant="ghost" className="h-11 rounded-full" disabled={active === 0} onClick={() => (onFiltersChange({ ...EMPTY_FILTERS, query: filters.query }), props.onSortChange("manual"))}>
           <XIcon strokeWidth={1.75} /> Limpar filtros
         </Button>
         <Button variant="ghost" className="h-11 rounded-full" disabled={active === 0} onClick={props.onSaveFilterAsShortcut}>
@@ -220,7 +225,7 @@ function CalendarModes() {
 
 export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(function BoardToolbar(props, searchRef) {
   const { filters, onFiltersChange, isMobile } = props
-  const active = countActiveFilters(filters)
+  const active = countActiveFilters(filters) + (props.sort !== "manual" ? 1 : 0)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(Boolean(filters.query))
   const currentBoard = props.boards.find((b) => b.id === props.boardId)
@@ -296,7 +301,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
   ]
   const viewTabs = <ViewTabs tabs={views} value={props.view} onChange={props.onViewChange} ariaLabel="Visão" isMobile={isMobile} />
 
-  // Editable shortcut chips with PENDING counts; hidden at 0 unless pinned (or active). Lima = active.
+  // Editable shortcut chips with PENDING counts: exactly the ones switched on in "Editar atalhos", in that order. Lima = active.
   const chips = (
     <PillTabs
       kind="toggles"
@@ -306,8 +311,7 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
         if (chip) props.onShortcut(chip)
       }}
       isOn={(item) => props.activeShortcutId === item.id}
-      items={props.shortcuts
-        .filter((chip) => !chip.hidden && (chip.pinned || (props.counts[chip.id] ?? 0) > 0 || props.activeShortcutId === chip.id))
+      items={visibleShortcuts(props.shortcuts)
         .map((chip) => ({ id: chip.id, label: chip.label, count: props.counts[chip.id] ?? 0 }))}
       trailing={
         <button type="button" aria-label="Editar atalhos" onClick={props.onEditShortcuts} className={dashedPillClass}>
@@ -390,11 +394,10 @@ export const BoardToolbar = forwardRef<HTMLInputElement, BoardToolbarProps>(func
               {filtersBadge}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="max-h-[min(80dvh,640px)] w-80 max-w-[calc(100vw-2rem)] scroll-soft overflow-y-auto">
+          <PopoverContent align="end" className="max-h-[min(80dvh,640px)] w-80 max-w-[calc(100vw-2rem)] scroll-soft overflow-x-hidden overflow-y-auto">
             <FiltersPanel props={props} showSort={false} />
           </PopoverContent>
         </Popover>
-        <SortSelect sort={props.sort} onSortChange={props.onSortChange} className="h-10 rounded-full max-[1535px]:[&_[data-slot=select-value]]:sr-only" />
       </div>
     </div>
   )

@@ -6,11 +6,13 @@ import { CheckIcon } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
 
+import { PasswordInput } from "@/components/auth/auth-parts"
 import { HatchedProgress } from "@/components/finance/parts"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { usePlan } from "@/components/organizzou/plan-context"
-import { SoonBadge } from "@/components/organizzou/SoonBadge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserAvatar, useLocalAvatar } from "@/components/organizzou/user-avatar"
+import { AvatarDialog } from "@/components/profile/avatar-dialog"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,20 +22,20 @@ import { updateProfile } from "@/features/settings/actions"
 import { canChangePassword, isProfileDirty, memberSince, passwordRequirements, passwordStrength, profileInitials } from "@/features/settings/profile-helpers"
 import { cn } from "@/lib/utils"
 
-type ProfileViewProps = { displayName: string; email: string; phone: string; createdAt?: string }
+type ProfileViewProps = { displayName: string; email: string; phone: string; createdAt?: string; avatarUrl?: string | null }
 
 const chipClass = "tabular inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-foreground/25 px-2.5 text-[12px] leading-4 whitespace-nowrap text-muted-foreground"
 
-/** The card on top of the Perfil tab: avatar with initials, name, e-mail, the plan and the member-since chips, and the (not yet available) photo button. */
-export function ProfileCard({ displayName, email, createdAt }: ProfileViewProps) {
+/** The card on top of the Perfil tab: avatar with initials, name, e-mail, the plan and the member-since chips, and the photo button. */
+export function ProfileCard({ displayName, email, createdAt, avatarUrl }: ProfileViewProps) {
+  const [photoOpen, setPhotoOpen] = useState(false)
+  const local = useLocalAvatar()
   const { pro, definition } = usePlan()
   const since = memberSince(createdAt)
   return (
     <section aria-label="Seu perfil" data-testid="profile-card" className="flex flex-col gap-4 rounded-[24px] border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <div className="flex min-w-0 items-center gap-4">
-        <Avatar className="size-20 shrink-0">
-          <AvatarFallback className="text-2xl font-semibold">{profileInitials(displayName, email)}</AvatarFallback>
-        </Avatar>
+        <UserAvatar url={avatarUrl} initials={profileInitials(displayName, email)} className="size-20 shrink-0" fallbackClassName="text-2xl font-semibold" />
         <div className="flex min-w-0 flex-col gap-1.5">
           <p className="truncate text-[20px] leading-7 font-semibold">{displayName || "Sem nome"}</p>
           <p className="truncate text-[14px] leading-5 text-muted-foreground">{email}</p>
@@ -50,10 +52,10 @@ export function ProfileCard({ displayName, email, createdAt }: ProfileViewProps)
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2 max-sm:border-t max-sm:border-border max-sm:pt-3">
-        <Button type="button" variant="outline" disabled className="h-11 rounded-full px-5 md:h-11 max-sm:flex-1">
+        <Button type="button" variant="outline" data-testid="change-photo" onClick={() => setPhotoOpen(true)} className="h-11 rounded-full px-5 md:h-11 max-sm:flex-1">
           Alterar foto
         </Button>
-        <SoonBadge />
+        <AvatarDialog open={photoOpen} onOpenChange={setPhotoOpen} hasPhoto={Boolean(avatarUrl || local)} />
       </div>
     </section>
   )
@@ -150,7 +152,7 @@ export function PasswordForm() {
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <Label htmlFor="new-password">Nova senha</Label>
-        <Input id="new-password" type="password" autoComplete="new-password" placeholder="Sua nova senha" aria-invalid={Boolean(errors.password)} className={FIELD} {...register("password")} />
+        <PasswordInput id="new-password" autoComplete="new-password" placeholder="Sua nova senha" aria-invalid={Boolean(errors.password)} className={FIELD} {...register("password")} />
         <div data-testid="password-strength" data-level={strength.level} className="flex flex-col gap-1.5">
           <HatchedProgress value={strength.percent} label={`Força da senha: ${strength.label}`} />
           <p className="text-[13px] leading-5 text-muted-foreground" aria-live="polite">
@@ -171,7 +173,7 @@ export function PasswordForm() {
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="confirm-password">Confirmar nova senha</Label>
-        <Input id="confirm-password" type="password" autoComplete="new-password" placeholder="Repita a senha" aria-invalid={mismatch || Boolean(errors.confirmPassword)} className={FIELD} {...register("confirmPassword")} />
+        <PasswordInput id="confirm-password" autoComplete="new-password" placeholder="Repita a senha" aria-invalid={mismatch || Boolean(errors.confirmPassword)} className={FIELD} {...register("confirmPassword")} />
         {mismatch ? <FormMessage kind="error">As senhas não são iguais.</FormMessage> : null}
       </div>
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}

@@ -17,7 +17,10 @@ import { GOAL_ICON_KEYS, localGoalIconRepo, type GoalIconKey } from "@/features/
 import { localGoalHistoryRepo, type GoalHistory } from "@/features/finance/goal-history"
 import { localAccountMetaRepo, orderAccounts, type AccountLayout, type AccountMeta } from "@/features/finance/account-meta"
 import { featureFirst, localGoalLayoutRepo } from "@/features/finance/goal-layout"
-import { monthOf, shiftMonth } from "@/features/finance/stats"
+import { findBillPayment, monthOf, reopenedLastPaid, shiftMonth } from "@/features/finance/stats"
+import { localGoalMetaRepo, withOpening, type GoalMetaMap } from "@/features/finance/goal-schedule"
+import { installmentLabel, installmentView, localBillMetaRepo, removeInstallments, setInstallmentAmount, setInstallmentPaid, type BillMetaMap, type InstallmentMeta, type Scope } from "@/features/finance/installments"
+import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
 import type { AccountRow, CategoryRow, FinancialGoalRow, RecurringBillRow, TransactionRow } from "@/features/finance/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import type { TableName } from "@/features/persist/registry"
@@ -29,7 +32,7 @@ import { cn } from "@/lib/utils"
 import { BillsTab } from "./bills"
 import { FinanceProvider, type Filters, type Finance, type FinanceInitial, type TabId } from "./context"
 import { AccountManager, DeleteAccountDialog } from "./accounts"
-import { AccountDialog, BillDialog, FundDialog, GoalDialog, LimitsDialog, TransactionDialog } from "./dialogs"
+import { AccountDialog, BillDialog, FundDialog, GoalDialog, LimitsDialog, ScopeSheet, TransactionDialog } from "./dialogs"
 import { GoalsDesktop, GoalsMobile } from "./goals"
 import { OverviewDesktop, OverviewMobile } from "./overview"
 import { MonthToolbar } from "./parts"
@@ -90,9 +93,13 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [goals, setGoals] = useRows<FinancialGoalRow>("finance_goals", initial.goals, memory)
   const [goalIcons, setGoalIcons] = useState<Record<string, GoalIconKey>>({})
   const [goalHistory, setGoalHistory] = useState<GoalHistory>({})
+  const [goalMeta, setGoalMeta] = useState<GoalMetaMap>({})
   const [goalOrder, setGoalOrderState] = useState<string[]>([])
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
+  const [reopening, setReopening] = useState<RecurringBillRow | null>(null)
+  const [billMeta, setBillMeta] = useState<BillMetaMap>({})
+  const [seriesAsk, setSeriesAsk] = useState<RecurringBillRow | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
   const [fundGoal, setFundGoal] = useState<FinancialGoalRow | null>(null)
   const [accountDialog, setAccountDialog] = useState<{ row: AccountRow | null } | null>(null)
@@ -109,6 +116,8 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     setGoalHistory(localGoalHistoryRepo.load())
     setGoalOrderState(localGoalLayoutRepo.load())
     setAccountLayout(localAccountMetaRepo.load())
+    setBillMeta(localBillMetaRepo.load())
+    setGoalMeta(localGoalMetaRepo.load())
   }, [])
 
   const setFilters = useCallback((next: Partial<Filters>) => setFiltersState((current) => ({ ...current, ...next })), [])
@@ -175,11 +184,39 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const categoryUsage = (id: string) => transactions.filter((t) => t.category_id === id).length
 
   // ----------------------------------------------------------------- bills
-  function saveBill(row: RecurringBillRow) {
+  // The installment series (Parcelada) of each bill: kept on this device until the installment columns exist (see installments.ts).
+  function changeBillMeta(update: (map: BillMetaMap) => BillMetaMap) {
+    setBillMeta((current) => {
+      const next = update(current)
+      localBillMetaRepo.save(next)
+      return next
+    })
+  }
+
+  function saveBill(row: RecurringBillRow, series?: InstallmentMeta) {
     const exists = bills.some((b) => b.id === row.id)
     setBills((current) => (exists ? current.map((b) => (b.id === row.id ? row : b)) : [...current, row]))
+    if (series) changeBillMeta((map) => ({ ...map, [row.id]: series }))
     if (exists) toast("Conta fixa atualizada.")
-    else undoable("Conta fixa criada.", () => setBills((current) => current.filter((b) => b.id !== row.id)))
+    else
+      undoable(series ? "Conta parcelada criada." : "Conta fixa criada.", () => {
+        setBills((current) => current.filter((b) => b.id !== row.id))
+        if (series) changeBillMeta((map) => Object.fromEntries(Object.entries(map).filter(([id]) => id !== row.id)))
+      })
+  }
+
+  /** Editing one installment's amount: only this one, this and the next ones, or the whole series. Name and category belong to the series. */
+  function saveInstallmentEdit(bill: RecurringBillRow, patch: { name: string; category_id: string | null; cents: number }, scope: Scope) {
+    const series = billMeta[bill.id]
+    if (!series) return
+    const result = setInstallmentAmount(series, month, scope, patch.cents)
+    const before = { bill, series }
+    setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, name: patch.name, category_id: patch.category_id, amount_cents: result.billCents ?? b.amount_cents, updated_at: new Date().toISOString() } : b)))
+    changeBillMeta((map) => ({ ...map, [bill.id]: result.meta }))
+    undoable("Parcela atualizada.", () => {
+      setBills((current) => current.map((b) => (b.id === bill.id ? before.bill : b)))
+      changeBillMeta((map) => ({ ...map, [bill.id]: before.series }))
+    })
   }
 
   function payBill(bill: RecurringBillRow) {
@@ -187,9 +224,14 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       toast.error("Crie uma conta antes de pagar uma conta.")
       return
     }
+    const series = billMeta[bill.id]
+    const view = series ? installmentView(bill, series, month, today) : null
+    const amount = view?.bill.amount_cents ?? bill.amount_cents
+    const description = view ? `${bill.name} (${installmentLabel(view.installment.index, view.installment.total).toLowerCase()})` : bill.name
     const previous = bill.last_paid_month
     const txId = newId()
-    setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: month } : b)))
+    if (series) changeBillMeta((map) => ({ ...map, [bill.id]: setInstallmentPaid(series, month, true) }))
+    else setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: month } : b)))
     setTransactions((current) =>
       [
         {
@@ -198,10 +240,10 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
           account_id: accounts[0].id,
           category_id: bill.category_id,
           kind: "out" as const,
-          amount_cents: bill.amount_cents,
+          amount_cents: amount,
           occurred_on: today,
           method: "Pix",
-          description: bill.name,
+          description,
           source: "manual" as const,
           created_at: nowIso,
           updated_at: nowIso,
@@ -210,27 +252,77 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       ].sort(byDayDesc)
     )
     undoable(`${bill.name} paga.`, () => {
-      setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: previous } : b)))
+      if (series) changeBillMeta((map) => ({ ...map, [bill.id]: series }))
+      else setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: previous } : b)))
       setTransactions((current) => current.filter((t) => t.id !== txId))
     })
   }
 
-  function removeBill(bill: RecurringBillRow) {
+  /** Reverts this month's payment: the bill goes back to unpaid (or overdue) and its lançamento is removed, so balances and totals follow. */
+  function reopenBill(bill: RecurringBillRow) {
+    const series = billMeta[bill.id]
+    const view = series ? installmentView(bill, series, month, today) : null
+    const found = { ...bill, amount_cents: view?.bill.amount_cents ?? bill.amount_cents, name: view ? `${bill.name} (${installmentLabel(view.installment.index, view.installment.total).toLowerCase()})` : bill.name }
+    const payment = findBillPayment(transactions, found, monthOf(today)) ?? findBillPayment(transactions, found, month)
+    const previous = bill.last_paid_month
+    if (series) changeBillMeta((map) => ({ ...map, [bill.id]: setInstallmentPaid(series, month, false) }))
+    else setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: reopenedLastPaid(month) } : b)))
+    if (payment) setTransactions((current) => current.filter((t) => t.id !== payment.id))
+    undoable(`${bill.name} reaberta.`, () => {
+      if (series) changeBillMeta((map) => ({ ...map, [bill.id]: series }))
+      else setBills((current) => current.map((b) => (b.id === bill.id ? { ...b, last_paid_month: previous } : b)))
+      if (payment) setTransactions((current) => [payment, ...current].sort(byDayDesc))
+    })
+  }
+
+  /** Deleting a bill: an installment series asks first which installments go; a monthly bill goes at once (with Desfazer). */
+  function removeBill(bill: RecurringBillRow, scope?: Scope) {
+    const series = billMeta[bill.id]
+    if (series && !scope) return setSeriesAsk(bill)
+    if (series && scope) {
+      const next = removeInstallments(series, month, scope)
+      if (next) {
+        changeBillMeta((map) => ({ ...map, [bill.id]: next }))
+        return undoable(scope === "this" ? "Parcela removida." : "Parcelas removidas.", () => changeBillMeta((map) => ({ ...map, [bill.id]: series })))
+      }
+    }
     setBills((current) => current.filter((b) => b.id !== bill.id))
     undoable("Conta fixa excluída.", () => setBills((current) => [...current, bill]))
   }
 
   // ----------------------------------------------------------------- goals
-  function saveGoal(row: FinancialGoalRow, icon: GoalIconKey) {
+  function saveGoal(row: FinancialGoalRow, icon: GoalIconKey, schedule?: { startDate: string; openingCents: number }) {
     const exists = goals.some((g) => g.id === row.id)
-    setGoals((current) => (exists ? current.map((g) => (g.id === row.id ? row : g)) : [...current, row]))
+    const previous = goals.find((g) => g.id === row.id)
+    const before = goalMeta[row.id]
+    // "Já guardei": one opening entry per goal. Editing it moves only that entry (the money saved later stays); it is not a lançamento.
+    const opening = schedule?.openingCents ?? before?.openingCents ?? 0
+    const saved: FinancialGoalRow = schedule ? { ...row, current_cents: withOpening(row.current_cents, before?.openingCents ?? 0, opening) } : row
+    setGoals((current) => (exists ? current.map((g) => (g.id === row.id ? saved : g)) : [...current, saved]))
     setGoalIcons((current) => {
       const next = { ...current, [row.id]: GOAL_ICON_KEYS.includes(icon) ? icon : "piggy" }
       localGoalIconRepo.save(next)
       return next
     })
+    if (schedule) {
+      setGoalMeta((current) => {
+        const next = { ...current, [row.id]: { startDate: schedule.startDate, openingCents: opening || undefined } }
+        localGoalMetaRepo.save(next)
+        return next
+      })
+      setGoalHistory((current) => {
+        const rest = (current[row.id] ?? []).filter((c) => !c.opening)
+        const next = { ...current, [row.id]: opening > 0 ? [{ day: schedule.startDate, cents: opening, opening: true as const }, ...rest] : rest }
+        localGoalHistoryRepo.save(next)
+        return next
+      })
+    }
     if (exists) toast("Meta atualizada.")
-    else undoable("Meta criada.", () => setGoals((current) => current.filter((g) => g.id !== row.id)))
+    else
+      undoable("Meta criada.", () => {
+        setGoals((current) => current.filter((g) => g.id !== row.id))
+        if (previous === undefined) setGoalMeta((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== row.id)))
+      })
   }
 
   function saveGoalFunds(goal: FinancialGoalRow, cents: number) {
@@ -346,6 +438,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     goals,
     goalIcons,
     goalHistory,
+    goalMeta,
     goalOrder,
     filters,
     setFilters,
@@ -363,6 +456,9 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     categoryUsage,
     saveBill,
     payBill,
+    billMeta,
+    saveInstallmentEdit,
+    reopenBill: setReopening,
     removeBill,
     editBill: (row) => setBillDialog({ row }),
     openNewBill: () => setBillDialog({ row: null }),
@@ -480,6 +576,29 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       </div>
 
       <TransactionDialog open={Boolean(txDialog)} onOpenChange={(open) => !open && setTxDialog(null)} row={txDialog?.row ?? null} />
+      <ConfirmDialog
+        open={Boolean(reopening)}
+        onOpenChange={(open) => !open && setReopening(null)}
+        title="Reabrir esta conta?"
+        description={reopening ? `“${reopening.name}” volta para “a pagar” e o lançamento do pagamento é removido, então o saldo e os totais do mês voltam como estavam antes de pagar.` : ""}
+        confirmLabel="Reabrir conta"
+        onConfirm={() => {
+          const bill = reopening
+          setReopening(null)
+          if (bill) reopenBill(bill)
+        }}
+      />
+      <ScopeSheet
+        open={Boolean(seriesAsk)}
+        title="Excluir qual parcela?"
+        description="Esta conta é parcelada: escolha o que sai da série."
+        onCancel={() => setSeriesAsk(null)}
+        onPick={(scope) => {
+          const target = seriesAsk
+          setSeriesAsk(null)
+          if (target) removeBill(target, scope)
+        }}
+      />
       <BillDialog open={Boolean(billDialog)} onOpenChange={(open) => !open && setBillDialog(null)} row={billDialog?.row ?? null} />
       <GoalDialog open={Boolean(goalDialog)} onOpenChange={(open) => !open && setGoalDialog(null)} row={goalDialog?.row ?? null} />
       <FundDialog goal={fundGoal} onClose={() => setFundGoal(null)} />
