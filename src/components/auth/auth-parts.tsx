@@ -89,18 +89,21 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   return (
     <div className="relative">
       <Input type={visible ? "text" : "password"} className={cn(authInputClass, "pr-12", className)} {...props} />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-        aria-pressed={visible}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => setVisible((v) => !v)}
-        className={cn("absolute top-1/2 right-0 size-11 -translate-y-1/2 rounded-full", authMotion)}
-      >
-        {visible ? <EyeOffIcon strokeWidth={1.75} /> : <EyeIcon strokeWidth={1.75} />}
-      </Button>
+      {/* The wrapper does the centering, so the button itself never carries a transform (no jump on press). 44 x 44 hit area. */}
+      <span className="absolute top-0 right-0 flex h-full w-11 items-center justify-center">
+        <button
+          type="button"
+          aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
+          aria-pressed={visible}
+          data-testid="password-eye"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setVisible((v) => !v)}
+          className="flex size-11 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none [&_svg]:size-5"
+        >
+          {/* Visible password = open eye; hidden = slashed eye. */}
+          {visible ? <EyeIcon aria-hidden strokeWidth={1.75} /> : <EyeOffIcon aria-hidden strokeWidth={1.75} />}
+        </button>
+      </span>
     </div>
   )
 }
