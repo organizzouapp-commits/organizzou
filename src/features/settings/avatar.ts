@@ -84,3 +84,19 @@ export const localAvatarRepo: AvatarRepo = {
     }
   },
 }
+
+/**
+ * Dragging the picture inside the round preview: the pointer moved (`dx`, `dy` in preview pixels) from where it started, with the crop at
+ * `start` (focus values). Dragging the picture right moves the crop window left. The result is clamped to -1..1, so the circle stays filled.
+ */
+export function focusAfterDrag(width: number, height: number, zoom: number, start: { x: number; y: number }, dx: number, dy: number, previewPx: number): { x: number; y: number } {
+  const { sx, sy, size } = cropRect(width, height, zoom, start.x, start.y)
+  const scale = size / previewPx
+  const slackX = (width - size) / 2
+  const slackY = (height - size) / 2
+  const clamp = (v: number) => Math.min(1, Math.max(-1, v))
+  return {
+    x: slackX === 0 ? 0 : clamp((sx - dx * scale - slackX) / slackX),
+    y: slackY === 0 ? 0 : clamp((sy - dy * scale - slackY) / slackY),
+  }
+}

@@ -9,7 +9,7 @@ import { PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { HistoricoTab, HistoryPeriodSwitch } from "@/components/diet/dieta-historico"
-import { Meals, SummaryRow } from "@/components/diet/dieta-hoje"
+import { SummaryRow } from "@/components/diet/dieta-hoje"
 import { FoodSheet, WeightGoalSheet, WeightSheet, type WeightDraft, type WeightValues } from "@/components/diet/dieta-dialogs"
 import { PesoTab } from "@/components/diet/dieta-peso"
 import { GoalDialog } from "@/components/diet/goal-dialog"
@@ -42,7 +42,9 @@ import { localFoodMetaRepo, type FoodMeta } from "@/features/diet/food-meta"
 import { localWeightNoteRepo } from "@/features/diet/weight-notes"
 import { sortWeights, type WeightPeriod, withTargetWeight } from "@/features/diet/weight"
 import { dayTotals } from "@/features/diet/stats"
-import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
+import { DEFAULT_DIET_GOAL, type DietGoalRow, type FoodRow, type MealItemRow, type WeightLogRow } from "@/features/diet/types"
+import { addMeal, defaultLayout, editMeal, localMealLayoutRepo, moveMeal, mealIdOf, persistedPlacement, removeMeal, suggestedMeal, withPlacement, type MealDef, type MealInput, type MealLayout } from "@/features/diet/meals"
+import { DeleteMealDialog, MealDialog, MealsBoard } from "@/components/diet/meals-board"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { inTz } from "@/lib/dates"
 import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
@@ -70,7 +72,7 @@ export type DietInitial = {
 }
 
 /** What a new person gets before choosing anything (the same numbers the sign-up provisioning stores). */
-const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
+const DEFAULT_GOAL: DietGoalRow = DEFAULT_DIET_GOAL
 
 export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
   // The foods: the shared catalog and the ones the person created (saved like every other table).
@@ -111,7 +113,7 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
     }
   }
   const [weights, setWeights] = usePersistedRows<WeightLogRow>("weight_logs", initial.weights)
-  const [adding, setAdding] = useState<MealKind | null>(null)
+  const [adding, setAdding] = useState<string | null>(null)
   const [editing, setEditing] = useState<MealItemRow | null>(null)
   const [weighing, setWeighing] = useState<WeightDraft | null>(null)
   const [period, setPeriod] = useState<WeightPeriod>(90)
@@ -154,15 +156,81 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
 
   const totals = dayTotals(items, foods)
 
-  function addItem(meal: MealKind, foodId: string, servings: number) {
-    setItems((current) => [...current, { id: newId(), log_date: day, meal, food_id: foodId, servings }])
+  // The person's own meals (a list that is the same every day) and where each food sits; foods stay per date.
+  const [layout, setLayoutState] = useState<MealLayout>(defaultLayout)
+  const [mealDialog, setMealDialog] = useState<{ meal: MealDef | null } | null>(null)
+  const [mealToDelete, setMealToDelete] = useState<{ meal: MealDef; count: number } | null>(null)
+  useEffect(() => {
+    // localStorage only exists in the browser; read after mount so the server and the first client render match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLayoutState(localMealLayoutRepo.load())
+  }, [])
+  const changeLayout = (update: (current: MealLayout) => MealLayout) =>
+    setLayoutState((current) => {
+      const next = update(current)
+      localMealLayoutRepo.save(next)
+      return next
+    })
+  const mealName = (id: string) => layout.meals.find((m) => m.id === id)?.name ?? "Refeição"
+
+  function addItem(mealId: string, foodId: string, servings: number) {
+    const id = newId()
+    const { meal } = persistedPlacement(mealId)
+    setItems((current) => [...current, { id, log_date: day, meal, food_id: foodId, servings }])
+    changeLayout((l) => ({ ...l, assignments: withPlacement(l.assignments, id, mealId) }))
     toast.success("Alimento adicionado.")
   }
 
-  function copyMeal(from: MealKind, to: MealKind) {
-    const source = items.filter((i) => i.meal === from)
-    setItems((current) => [...current, ...source.map((i) => ({ ...i, id: newId(), log_date: day, meal: to }))])
-    toast.success(`${MEAL_LABELS[from]} copiado para ${MEAL_LABELS[to].toLowerCase()}.`)
+  /** Puts a food in a meal (at a place, when dragged): totals follow because they are derived from where each food sits. */
+  function placeItem(entryId: string, toMealId: string, index?: number) {
+    const assignments = withPlacement(layout.assignments, entryId, toMealId)
+    const next: MealLayout = { ...layout, assignments }
+    const { meal } = persistedPlacement(toMealId)
+    setItems((current) => {
+      const moving = current.find((i) => i.id === entryId)
+      if (!moving) return current
+      const rest = current.filter((i) => i.id !== entryId)
+      const target = rest.filter((i) => mealIdOf(i, next) === toMealId)
+      const others = rest.filter((i) => mealIdOf(i, next) !== toMealId)
+      target.splice(index === undefined ? target.length : Math.max(0, Math.min(index, target.length)), 0, { ...moving, meal })
+      return [...others, ...target]
+    })
+    changeLayout((l) => ({ ...l, assignments }))
+    if (index === undefined) toast(`Movido para ${mealName(toMealId).toLowerCase()}.`)
+  }
+
+  function copyMeal(from: string, to: string) {
+    const source = items.filter((i) => mealIdOf(i, layout) === from)
+    const copies = source.map((i) => ({ ...i, id: newId(), log_date: day, meal: persistedPlacement(to).meal }))
+    setItems((current) => [...current, ...copies])
+    changeLayout((l) => ({ ...l, assignments: copies.reduce((acc, c) => withPlacement(acc, c.id, to), l.assignments) }))
+    toast.success(`${mealName(from)} copiado para ${mealName(to).toLowerCase()}.`)
+  }
+
+  function clearMeal(mealId: string) {
+    setItems((current) => current.filter((i) => mealIdOf(i, layout) !== mealId))
+    toast(`${mealName(mealId)} limpo.`)
+  }
+
+  function saveMeal(input: MealInput, id: string | null) {
+    changeLayout((l) => (id ? editMeal(l, id, input) : addMeal(l, input, newId)))
+    toast.success(id ? "Refeição atualizada." : "Refeição criada.")
+  }
+
+  function deleteMeal(meal: MealDef, moveTo: string | null) {
+    const removed = removeMeal(layout, meal.id, items)
+    if (!removed) return
+    if (moveTo) {
+      const ids = new Set(removed.itemIds)
+      const { meal: kind } = persistedPlacement(moveTo)
+      setItems((current) => current.map((i) => (ids.has(i.id) ? { ...i, meal: kind } : i)))
+      changeLayout(() => ({ ...removed.layout, assignments: removed.itemIds.reduce((acc, id) => withPlacement(acc, id, moveTo), removed.layout.assignments) }))
+    } else {
+      const ids = new Set(removed.itemIds)
+      setItems((current) => current.filter((i) => !ids.has(i.id)))
+      changeLayout(() => removed.layout)
+    }
+    toast("Refeição excluída.")
   }
 
   const sortedWeights = sortWeights(weights)
@@ -191,7 +259,7 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
 
   // The "+ Novo" button adds a food to the meal that fits the time of day.
   const hour = inTz(new Date(nowIso), SP_TIMEZONE).getHours()
-  const nextMeal: MealKind = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : hour < 18 ? "snack" : "dinner"
+  const nextMeal = suggestedMeal(layout, hour)
   usePrimaryAction(tab === "peso" ? "Registrar peso" : "Adicionar alimento", () => (tab === "peso" ? openWeigh() : setAdding(nextMeal)))
 
   const tabs = (
@@ -256,23 +324,26 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
             }}
             onRemoveWater={() => setWater((w) => Math.max(0, w - GLASS_ML))}
           />
-          <Meals
+          <MealsBoard
+            layout={layout}
             items={items}
             foods={foods}
-            onAdd={setAdding}
-            onEdit={setEditing}
-            onRemove={(entry) => {
-              setItems((current) => current.filter((i) => i.id !== entry.id))
-              toast("Alimento removido.")
+            handlers={{
+              onEdit: setEditing,
+              onRemove: (entry) => {
+                setItems((current) => current.filter((i) => i.id !== entry.id))
+                toast("Alimento removido.")
+              },
+              onPlace: placeItem,
             }}
-            onMove={(entry, to) => {
-              setItems((current) => current.map((i) => (i.id === entry.id ? { ...i, meal: to } : i)))
-              toast(`Movido para ${MEAL_LABELS[to].toLowerCase()}.`)
-            }}
-            onCopy={copyMeal}
-            onClear={(meal) => {
-              setItems((current) => current.filter((i) => i.meal !== meal))
-              toast(`${MEAL_LABELS[meal]} limpo.`)
+            actions={{
+              onAdd: setAdding,
+              onCopy: copyMeal,
+              onClear: clearMeal,
+              onEditMeal: (meal) => setMealDialog({ meal }),
+              onMoveMeal: (id, direction) => changeLayout((l) => moveMeal(l, id, direction)),
+              onDeleteMeal: (meal) => setMealToDelete({ meal, count: items.filter((i) => mealIdOf(i, layout) === meal.id).length }),
+              onNewMeal: () => setMealDialog({ meal: null }),
             }}
           />
         </div>
@@ -323,7 +394,9 @@ function DietBody({ nowIso, initial, setFoods }: { nowIso: string; initial: Diet
           toast.success("Meta atualizada.")
         }}
       />
-      <FoodSheet meal={adding} foods={pickableFoods} recents={recentFoods(allItems, pickableFoods)} fiberOf={(id) => foodMeta.fiber[id] ?? null} onClose={() => setAdding(null)} onAdd={addItem} onSaveFood={saveFood} onDeleteFood={deleteFood} />
+      <MealDialog state={mealDialog} meals={layout.meals} onClose={() => setMealDialog(null)} onSave={saveMeal} />
+      <DeleteMealDialog state={mealToDelete} meals={layout.meals} onClose={() => setMealToDelete(null)} onConfirm={(moveTo) => mealToDelete && deleteMeal(mealToDelete.meal, moveTo)} />
+      <FoodSheet meals={layout.meals} meal={adding} foods={pickableFoods} recents={recentFoods(allItems, pickableFoods)} fiberOf={(id) => foodMeta.fiber[id] ?? null} onClose={() => setAdding(null)} onAdd={addItem} onSaveFood={saveFood} onDeleteFood={deleteFood} />
       <WeightSheet draft={weighing} today={today} onClose={() => setWeighing(null)} onSave={saveWeight} />
       <WeightGoalSheet
         open={editingTarget}

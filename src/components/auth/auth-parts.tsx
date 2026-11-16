@@ -29,6 +29,18 @@ export function GoogleMark({ className }: { className?: string }) {
   )
 }
 
+/** The one outline button of the auth screens ("Continuar com Google", "Entrar com biometria ou passkey"): same 48px height, radius, border and states. */
+export function OutlineAuthButton({ icon, className, children, ...props }: Omit<React.ComponentProps<typeof Button>, "variant" | "size"> & { icon: React.ReactNode }) {
+  return (
+    <Button type="button" variant="outline" size="xl" className={cn(authButtonClass, className)} {...props}>
+      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-5">
+        {icon}
+      </span>
+      {children}
+    </Button>
+  )
+}
+
 export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
   const [pending, startTransition] = useTransition()
   // Stays true after a successful call: the page is about to leave for Google.
@@ -37,13 +49,10 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="xl"
+      <OutlineAuthButton icon={busy ? <Loader2Icon className="animate-spin motion-reduce:animate-none" /> : <GoogleMark />}
         disabled={busy}
         aria-busy={busy}
-        className={authButtonClass}
+
         onClick={() =>
           startTransition(async () => {
             // The toast only shows for a real error; the happy path just navigates to Google.
@@ -65,8 +74,8 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
           })
         }
       >
-        {busy ? <Loader2Icon aria-hidden className="size-5 animate-spin" /> : <GoogleMark />} {busy ? "Conectando…" : "Continuar com Google"}
-      </Button>
+        {busy ? "Conectando…" : "Continuar com Google"}
+      </OutlineAuthButton>
     </div>
   )
 }
@@ -89,18 +98,21 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   return (
     <div className="relative">
       <Input type={visible ? "text" : "password"} className={cn(authInputClass, "pr-12", className)} {...props} />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
-        aria-pressed={visible}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => setVisible((v) => !v)}
-        className={cn("absolute top-1/2 right-0 size-11 -translate-y-1/2 rounded-full", authMotion)}
-      >
-        {visible ? <EyeOffIcon strokeWidth={1.75} /> : <EyeIcon strokeWidth={1.75} />}
-      </Button>
+      {/* The wrapper does the centering, so the button itself never carries a transform (no jump on press). 44 x 44 hit area. */}
+      <span className="absolute top-0 right-0 flex h-full w-11 items-center justify-center">
+        <button
+          type="button"
+          aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
+          aria-pressed={visible}
+          data-testid="password-eye"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setVisible((v) => !v)}
+          className="flex size-11 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none [&_svg]:size-5"
+        >
+          {/* Visible password = open eye; hidden = slashed eye. */}
+          {visible ? <EyeIcon aria-hidden strokeWidth={1.75} /> : <EyeOffIcon aria-hidden strokeWidth={1.75} />}
+        </button>
+      </span>
     </div>
   )
 }

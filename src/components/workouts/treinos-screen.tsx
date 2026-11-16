@@ -30,6 +30,7 @@ import { EmptyBlock } from "@/components/finance/parts"
 import { EvolucaoTab, PeriodSwitch } from "@/components/workouts/evolucao"
 import { type PeriodId } from "@/features/workouts/evolution"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
+import { ExerciseCombobox, type ExerciseChoice } from "@/components/workouts/exercise-combobox"
 import { NumberStepper, REST_PRESETS, RestPresets, StickyFooter, WeekdayPills, fieldClass } from "@/components/workouts/sheet-fields"
 import { MeusTreinos } from "@/components/workouts/meus-treinos"
 import { PromptDialog } from "@/components/organizzou/PromptDialog"
@@ -59,13 +60,25 @@ const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sext
 /** The exercise catalog (shared rows plus the person's own; the example list only in the local prototype). */
 const ExercisesContext = createContext<ExerciseRow[]>([])
 const useExercises = () => useContext(ExercisesContext)
+/** Creates a custom exercise in the person's own catalog (saved with the other rows) and returns it. */
+const CreateExerciseContext = createContext<(name: string) => ExerciseRow>(() => ({ id: "", user_id: null, name: "", muscle_group: "" }))
+const useCreateExercise = () => useContext(CreateExerciseContext)
 
 export type WorkoutsInitial = { exercises: ExerciseRow[]; plans: WorkoutPlanRow[]; planExercises: PlanExerciseRow[]; sessions: WorkoutSessionRow[]; setLogs: SetLogRow[] }
 
 export function TreinosScreen({ nowIso, initial }: { nowIso: string; initial: WorkoutsInitial }) {
+  // The catalog is persisted too: an exercise typed by name that does not exist yet is saved as the person's own.
+  const [exerciseRows, setExerciseRows] = usePersistedRows<ExerciseRow>("exercises", initial.exercises)
+  const createExercise = (name: string) => {
+    const row: ExerciseRow = { id: newId(), user_id: USER, name, muscle_group: "Outros" }
+    setExerciseRows((current) => [...current, row])
+    return row
+  }
   return (
-    <ExercisesContext.Provider value={initial.exercises}>
-      <WorkoutsBody nowIso={nowIso} initial={initial} />
+    <ExercisesContext.Provider value={exerciseRows}>
+      <CreateExerciseContext.Provider value={createExercise}>
+        <WorkoutsBody nowIso={nowIso} initial={initial} />
+      </CreateExerciseContext.Provider>
     </ExercisesContext.Provider>
   )
 }
@@ -123,6 +136,7 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
   }
 
   const [editingExercise, setEditingExercise] = useState<PlanExerciseRow | null>(null)
+  const [removingSet, setRemovingSet] = useState<{ item: PlanExerciseRow; index: number } | null>(null)
   const [removingExercise, setRemovingExercise] = useState<PlanExerciseRow | null>(null)
   const [renaming, setRenaming] = useState<WorkoutPlanRow | null>(null)
 
@@ -220,6 +234,38 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
     const current = draftsFor(item)
     const last = current[current.length - 1]
     setDrafts((all) => ({ ...all, [item.id]: [...current, { reps: last?.reps ?? String(item.reps), load: last?.load ?? "", done: false }] }))
+  }
+
+  /** Takes one set out of today's card. A set already checked asks first; the others go with a Desfazer. The plan keeps its own count. */
+  function removeSet(item: PlanExerciseRow, index: number, confirmed = false) {
+    const current = draftsFor(item)
+    if (current.length <= 1) return toast("Um exercício precisa de pelo menos uma série. Use “Remover exercício” para tirá-lo.")
+    if (current[index]?.done && !confirmed) return setRemovingSet({ item, index })
+    setDrafts((all) => ({ ...all, [item.id]: current.filter((_, i) => i !== index) }))
+    toast("Série removida.", { duration: 6000, action: { label: "Desfazer", onClick: () => setDrafts((all) => ({ ...all, [item.id]: current })) } })
+  }
+
+  /** A plan edit applies from now on and reaches today's open card: new series appear pending, fewer series drop only the unchecked ones at the end. Checked sets and history are never touched. */
+  function applyPlanEdit(before: PlanExerciseRow, after: PlanExerciseRow) {
+    setPlanExercises((all) => all.map((e) => (e.id === after.id ? after : e)))
+    setDrafts((all) => {
+      const open = all[after.id]
+      if (!open) return all
+      let next = [...open]
+      if (after.sets > next.length) next = [...next, ...Array.from({ length: after.sets - next.length }, () => ({ reps: String(after.reps), load: next[next.length - 1]?.load ?? "", done: false }))]
+      else if (after.sets < before.sets) {
+        let drop = Math.min(next.length - after.sets, next.length)
+        for (let i = next.length - 1; i >= 0 && drop > 0; i--) {
+          if (!next[i].done) {
+            next.splice(i, 1)
+            drop -= 1
+          }
+        }
+      }
+      if (after.reps !== before.reps) next = next.map((d) => (d.done ? d : { ...d, reps: String(after.reps) }))
+      return { ...all, [after.id]: next }
+    })
+    toast("Exercício atualizado.")
   }
 
   function swapExercise(item: PlanExerciseRow, exerciseId: string) {
@@ -373,6 +419,9 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
                           onChange={(index, patch) => updateDraft(item, index, patch)}
                           onAddSet={() => addSet(item)}
                           onSwap={() => setSwapping(item)}
+                          onEdit={() => setEditingExercise(item)}
+                          onRemove={() => setRemovingExercise(item)}
+                          onRemoveSet={(index) => removeSet(item, index)}
                         />
                       )
                     })}
@@ -456,10 +505,22 @@ function WorkoutsBody({ nowIso, initial }: { nowIso: string; initial: WorkoutsIn
         name={editingExercise ? exerciseName(editingExercise.exercise_id) : ""}
         onClose={() => setEditingExercise(null)}
         onSave={(row) => {
-          setPlanExercises((current) => current.map((e) => (e.id === row.id ? row : e)))
-          toast("Exercício atualizado.")
+          const before = planExercises.find((e) => e.id === row.id)
+          if (before) applyPlanEdit(before, row)
         }}
         onRemove={(row) => setRemovingExercise(row)}
+      />
+      <ConfirmDialog
+        open={Boolean(removingSet)}
+        onOpenChange={(open) => !open && setRemovingSet(null)}
+        title="Remover esta série?"
+        description="Essa série já foi marcada como feita. Ela sai do treino de hoje e do volume contado."
+        confirmLabel="Remover"
+        onConfirm={() => {
+          const target = removingSet
+          setRemovingSet(null)
+          if (target) removeSet(target.item, target.index, true)
+        }}
       />
       <ConfirmDialog
         open={Boolean(removingExercise)}
@@ -593,7 +654,9 @@ function AddExerciseForm({
   onClose: () => void
 }) {
   const exercises = useExercises()
-  const [exercise, setExercise] = useState(exercises[0]?.id ?? "")
+  const createExercise = useCreateExercise()
+  const [text, setText] = useState("")
+  const [choice, setChoice] = useState<ExerciseChoice | null>(null)
   const [sets, setSets] = useState("3")
   const [reps, setReps] = useState("10")
   const [restSeconds, setRestSeconds] = useState("60")
@@ -604,10 +667,12 @@ function AddExerciseForm({
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault()
+        if (!choice) return
+        const exerciseId = choice.kind === "existing" ? choice.id : createExercise(choice.name).id
         onAdd({
           id: newId(),
           plan_id: plan.id,
-          exercise_id: exercise,
+          exercise_id: exerciseId,
           position,
           sets: Math.max(1, Number(sets) || 1),
           reps: Math.max(1, Number(reps) || 1),
@@ -619,18 +684,7 @@ function AddExerciseForm({
     >
       <div className="flex flex-col gap-2">
         <Label htmlFor="ex-select">Exercício</Label>
-        <Select value={exercise} onValueChange={setExercise}>
-          <SelectTrigger id="ex-select" className="h-11 w-full rounded-[12px] data-[size=default]:h-11">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {exercises.map((e) => (
-              <SelectItem key={e.id} value={e.id}>
-                {e.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+<ExerciseCombobox id="ex-select" catalog={exercises} text={text} onText={setText} onChoice={setChoice} autoFocus />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
@@ -650,7 +704,7 @@ function AddExerciseForm({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" className="bg-highlight text-highlight-foreground hover:bg-highlight/90">
+        <Button type="submit" disabled={!choice} className="bg-highlight text-highlight-foreground hover:bg-highlight/90">
           Adicionar
         </Button>
       </StickyFooter>
@@ -716,6 +770,10 @@ function EditExerciseDialog({ row, name, onClose, onSave, onRemove }: { row: Pla
 }
 
 function EditExerciseForm({ row, name, onSave, onRemove, onClose }: { row: PlanExerciseRow; name: string; onSave: (row: PlanExerciseRow) => void; onRemove: (row: PlanExerciseRow) => void; onClose: () => void }) {
+  const exercises = useExercises()
+  const createExercise = useCreateExercise()
+  const [text, setText] = useState(name)
+  const [choice, setChoice] = useState<ExerciseChoice | null>({ kind: "existing", id: row.exercise_id })
   const [sets, setSets] = useState(String(row.sets))
   const [reps, setReps] = useState(String(row.reps))
   const [restSeconds, setRestSeconds] = useState(String(row.rest_seconds))
@@ -725,9 +783,11 @@ function EditExerciseForm({ row, name, onSave, onRemove, onClose }: { row: PlanE
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault()
+        if (!choice) return
         const parsedLoad = Number(load.replace(",", "."))
         onSave({
           ...row,
+          exercise_id: choice.kind === "existing" ? choice.id : createExercise(choice.name).id,
           sets: Math.max(1, Number(sets) || 1),
           reps: Math.max(1, Number(reps) || 1),
           rest_seconds: Math.max(0, Number(restSeconds) || 0),
@@ -737,9 +797,10 @@ function EditExerciseForm({ row, name, onSave, onRemove, onClose }: { row: PlanE
       }}
     >
       <DialogHeader>
-        <DialogTitle>{name}</DialogTitle>
-        <DialogDescription>Séries, repetições, descanso e carga inicial deste exercício.</DialogDescription>
+        <DialogTitle>Editar exercício</DialogTitle>
+        <DialogDescription>Nome, séries, repetições, descanso e carga. Vale daqui para frente; o histórico não muda.</DialogDescription>
       </DialogHeader>
+<div className="flex flex-col gap-2">        <Label htmlFor="edit-name">Exercício</Label>        <ExerciseCombobox id="edit-name" catalog={exercises} text={text} onText={setText} onChoice={setChoice} />      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="edit-sets">Séries</Label>

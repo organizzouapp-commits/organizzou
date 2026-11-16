@@ -1,3 +1,5 @@
+import { EMPTY_SOURCES, type GoalSources } from "@/features/goals/linked"
+import { withWaterLogs } from "@/features/habits/water"
 import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -49,11 +51,14 @@ const back = (now: string, days: number) => dayOf(now, -days)
 
 export async function loadHabits(now: string) {
   const supabase = await client()
-  const [habits, logs] = await Promise.all([
+  const [habits, logs, water, goal] = await Promise.all([
     rows<HabitRow>(supabase, "habits", { order: ["created_at"] }),
     rows<HabitLogRow>(supabase, "habit_logs", { since: ["log_date", back(now, 400)] }),
+    // The water habits read the Dieta water: its log and its goal.
+    rows<{ id: string; log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", back(now, 400)] }),
+    rows<DietGoalRow>(supabase, "diet_goals"),
   ])
-  return { habits, logs }
+  return { habits, logs, water, goal: goal[0] ?? null }
 }
 
 export async function loadFinance(now: string) {
@@ -252,7 +257,8 @@ export async function loadTodaySource(now: string) {
   ])
   return {
     habits,
-    logs,
+    // A water habit reads the Dieta water (one source): its quantity of today comes from the water log.
+    logs: withWaterLogs(habits, logs, water.map((w, index) => ({ id: String(index), log_date: w.log_date, ml: w.ml }))),
     transactions,
     bills,
     categories,
@@ -271,5 +277,63 @@ export async function loadTodaySource(now: string) {
     notes,
     journal,
     events,
+  }
+}
+
+/**
+ * The raw rows linked goals are computed from (progress is derived on the client, from the link the person made, so nothing is typed in).
+ * Windows are bounded: about a year of habit and study history, the last weeks of food, the current month of spending.
+ */
+export async function loadGoalSources(now: string): Promise<GoalSources> {
+  const supabase = await client()
+  const [financeGoals, categories, transactions, habits, habitLogs, waterLogs, subjects, studySessions, workoutSessions, exercises, setLogs, weights, mealItems, foods, diet, tasks, taskTags, boards, lists, tags] = await Promise.all([
+    rows<GoalSources["financeGoals"][number]>(supabase, "finance_goals", { order: ["created_at"] }),
+    rows<GoalSources["categories"][number]>(supabase, "finance_categories"),
+    rows<GoalSources["transactions"][number]>(supabase, "finance_transactions", { since: ["occurred_on", back(now, 62)] }),
+    rows<HabitRow>(supabase, "habits", { order: ["created_at"] }),
+    rows<HabitLogRow>(supabase, "habit_logs", { since: ["log_date", back(now, 400)] }),
+    rows<{ id: string; log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", back(now, 400)] }),
+    rows<GoalSources["subjects"][number]>(supabase, "subjects"),
+    rows<GoalSources["studySessions"][number]>(supabase, "study_sessions", { since: ["studied_on", back(now, 400)] }),
+    rows<GoalSources["workoutSessions"][number]>(supabase, "workout_sessions", { since: ["performed_on", back(now, 400)] }),
+    rows<GoalSources["exercises"][number]>(supabase, "exercises"),
+    rows<GoalSources["setLogs"][number]>(supabase, "set_logs"),
+    rows<GoalSources["weights"][number]>(supabase, "weight_logs", { since: ["log_date", back(now, 400)] }),
+    rows<{ log_date: string; food_id: string; servings: number }>(supabase, "meal_items", { since: ["log_date", back(now, 14)] }),
+    rows<{ id: string; kcal: number }>(supabase, "foods"),
+    rows<{ kcal: number }>(supabase, "diet_goals"),
+    rows<{ id: string; completed_at: string | null; board_id: string; list_id: string; archived?: boolean }>(supabase, "tasks"),
+    rows<{ task_id: string; tag_id: string }>(supabase, "task_tags"),
+    rows<GoalSources["boards"][number]>(supabase, "boards"),
+    rows<GoalSources["lists"][number]>(supabase, "board_lists"),
+    rows<GoalSources["tags"][number]>(supabase, "tags"),
+  ])
+  const kcalByDay: Record<string, number> = {}
+  for (const item of mealItems) {
+    const food = foods.find((f) => f.id === item.food_id)
+    if (food) kcalByDay[item.log_date] = (kcalByDay[item.log_date] ?? 0) + food.kcal * item.servings
+  }
+  const tagsOf = new Map<string, string[]>()
+  for (const link of taskTags) tagsOf.set(link.task_id, [...(tagsOf.get(link.task_id) ?? []), link.tag_id])
+  return {
+    ...EMPTY_SOURCES,
+    financeGoals,
+    categories,
+    transactions,
+    habits,
+    // A water habit reads the Dieta water, like everywhere else.
+    habitLogs: withWaterLogs(habits, habitLogs, waterLogs),
+    subjects,
+    studySessions,
+    workoutSessions,
+    exercises,
+    setLogs,
+    weights,
+    mealKcalByDay: kcalByDay,
+    dietGoalKcal: diet[0]?.kcal ?? 2000,
+    tasks: tasks.filter((t) => !t.archived).map((t) => ({ id: t.id, completed_at: t.completed_at, board_id: t.board_id, list_id: t.list_id, tagIds: tagsOf.get(t.id) ?? [] })),
+    boards,
+    lists,
+    tags,
   }
 }

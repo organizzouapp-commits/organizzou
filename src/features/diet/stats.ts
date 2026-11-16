@@ -1,4 +1,4 @@
-import type { FoodRow, MealItemRow, MealKind } from "./types"
+import type { FoodRow, MealItemRow } from "./types"
 
 export type Macros = { kcal: number; protein: number; carbs: number; fat: number }
 
@@ -26,7 +26,7 @@ export function sumMacros(list: Macros[]): Macros {
   }
 }
 
-export function mealTotals(items: MealItemRow[], foods: FoodRow[], meal: MealKind): Macros {
+export function mealTotals(items: (Omit<MealItemRow, "meal"> & { meal: string })[], foods: FoodRow[], meal: string): Macros {
   return sumMacros(
     items
       .filter((i) => i.meal === meal)

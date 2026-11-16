@@ -1,8 +1,9 @@
 "use client"
 
+import { LinkedGoalsStrip } from "@/components/goals/linked-strip"
 import { DayNavigator } from "@/components/organizzou/DayNavigator"
 import { dayNavLabel } from "@/lib/day-label"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { addMonths, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   isDone,
@@ -46,6 +48,10 @@ import {
 } from "@/features/habits/stats"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import type { HabitLogRow, HabitRow, HabitType } from "@/features/habits/types"
+import { localHabitMetaRepo, type HabitMetaMap } from "@/features/habits/meta"
+import { defaultStep, formatDecimal, isWaterHabit, looksLikeWater, parseDecimal, stepOf, toMl, unitKind } from "@/features/habits/steps"
+import { setWater, waterGoalMlOf, withWaterLogs, type WaterLog } from "@/features/habits/water"
+import { DEFAULT_DIET_GOAL, type DietGoalRow } from "@/features/diet/types"
 import { dayOf, newId } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
@@ -58,16 +64,21 @@ const TAB_ITEMS = [
   { id: "estatisticas", label: "Estatísticas" },
 ]
 
-function stepFor(habit: HabitRow) {
-  if (habit.unit === "L") return 0.5
-  if (habit.unit === "min") return 10
-  return 5
-}
-
-export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[] }) {
+export function RotinaScreen({ nowIso, initialHabits, initialLogs, initialWater, initialGoal }: { nowIso: string; initialHabits: HabitRow[]; initialLogs: HabitLogRow[]; initialWater: WaterLog[]; initialGoal: DietGoalRow | null }) {
   const today = dayOf(nowIso)
   const [habits, setHabits] = usePersistedRows<HabitRow>("habits", initialHabits)
-  const [logs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", initialLogs)
+  const [rawLogs, setLogs] = usePersistedRows<HabitLogRow>("habit_logs", initialLogs)
+  // The daily water has ONE source: the Dieta water log and the Dieta water goal. A goal habit in a water unit reads and writes them.
+  const [waterRows, setWaterRows] = usePersistedRows<WaterLog>("water_logs", initialWater)
+  const [, setGoalRows] = usePersistedRows<DietGoalRow & { id: string }>("diet_goals", () => (initialGoal ? [{ ...initialGoal, id: "goal" }] : []))
+  const logs = useMemo(() => withWaterLogs(habits, rawLogs, waterRows), [habits, rawLogs, waterRows])
+  const [habitMeta, setHabitMeta] = useState<HabitMetaMap>({})
+  useEffect(() => {
+    // localStorage only exists in the browser; read after mount so the server and the first client render match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHabitMeta(localHabitMetaRepo.load())
+  }, [])
+  const [exact, setExact] = useState<HabitRow | null>(null)
   const [creating, setCreating] = useState(false)
   const [toDelete, setToDelete] = useState<HabitRow | null>(null)
   // Histórico: the habit filter, the month shown, the calendar mode and the selected day (today by default).
@@ -84,6 +95,10 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   const groups = useGroups()
 
   function setQty(habit: HabitRow, qty: number, day = selected) {
+    if (isWaterHabit(habit)) {
+      setWaterRows((current) => setWater(current, day, toMl(qty, habit.unit), newId))
+      return
+    }
     setLogs((current) => {
       const existing = current.find((l) => l.habit_id === habit.id && l.log_date === day)
       if (qty <= 0) return current.filter((l) => l !== existing)
@@ -100,11 +115,34 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
     if (!done) toast.success("Hábito registrado.")
   }
 
+  /** "+" and "-" move today's amount by the habit's step (never a jump to done): the habit completes itself when the amount reaches the goal. */
   function stepGoal(habit: HabitRow, direction: 1 | -1, day = selected) {
     const current = logs.find((l) => l.habit_id === habit.id && l.log_date === day)?.qty ?? 0
-    const next = Math.max(0, Math.round((current + direction * stepFor(habit)) * 10) / 10)
+    const step = stepOf(habit, habitMeta[habit.id]?.step)
+    const next = Math.max(0, Math.round((current + direction * step) * 1000) / 1000)
     setQty(habit, next, day)
     if (next >= (habit.target_qty ?? 0) && current < (habit.target_qty ?? 0)) toast.success("Meta do dia batida.")
+  }
+
+  /** Saving a water habit makes its goal the water goal of Dieta and Hoje (one number, in ml). */
+  function syncWaterGoal(habit: HabitRow) {
+    if (!isWaterHabit(habit)) return
+    const ml = waterGoalMlOf(habit)
+    setGoalRows((rows) => [{ ...(rows[0] ?? { ...DEFAULT_DIET_GOAL, id: "goal" }), water_ml: ml }])
+  }
+
+  function saveHabit(habit: HabitRow, step: number | null, isNew: boolean) {
+    setHabits((current) => (isNew ? [...current, habit] : current.map((h) => (h.id === habit.id ? { ...habit, created_at: h.created_at, paused: h.paused } : h))))
+    setHabitMeta((current) => {
+      const next = { ...current }
+      if (step && habit.type === "goal") next[habit.id] = { step }
+      else delete next[habit.id]
+      localHabitMetaRepo.save(next)
+      return next
+    })
+    syncWaterGoal(habit)
+    if (isNew) toast.success("Hábito criado.")
+    else toast("Hábito atualizado.")
   }
 
   function togglePause(habit: HabitRow) {
@@ -125,6 +163,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   const actions: HojeActions = {
     onToggle: toggleFixed,
     onStep: stepGoal,
+    onExact: setExact,
     onPause: togglePause,
     onEdit: setEditing,
     onDelete: setToDelete,
@@ -162,6 +201,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
   return (
     <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="rotina" data-tab={tab}>
       <PageHeader />
+      <LinkedGoalsStrip group="habit" />
 
       {isMobile ? (
         <>
@@ -225,21 +265,17 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs }: { nowIso: s
 
       {tab === "estatisticas" ? <EstatisticasTab habits={habits} logs={logs} today={today} period={sPeriod} isMobile={isMobile} onEdit={setEditing} /> : null}
 
-      <NewHabitDialog
-        open={creating}
-        onOpenChange={setCreating}
-        onCreate={(habit) => {
-          setHabits((current) => [...current, habit])
-          toast.success("Hábito criado.")
-        }}
-      />
-      <NewHabitDialog
-        open={Boolean(editing)}
-        onOpenChange={(open) => !open && setEditing(null)}
-        habit={editing}
-        onCreate={(habit) => {
-          setHabits((current) => current.map((h) => (h.id === habit.id ? { ...habit, created_at: h.created_at, paused: h.paused } : h)))
-          toast("Hábito atualizado.")
+      <NewHabitDialog open={creating} onOpenChange={setCreating} habitMeta={habitMeta} onCreate={(habit, step) => saveHabit(habit, step, true)} />
+      <NewHabitDialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)} habit={editing} habitMeta={habitMeta} onCreate={(habit, step) => saveHabit(habit, step, false)} />
+      <ExactDialog
+        key={exact?.id ?? "none"}
+        habit={exact}
+        current={exact ? (logs.find((l) => l.habit_id === exact.id && l.log_date === selected)?.qty ?? 0) : 0}
+        onClose={() => setExact(null)}
+        onSave={(habit, qty) => {
+          const before = logs.find((l) => l.habit_id === habit.id && l.log_date === selected)?.qty ?? 0
+          setQty(habit, qty)
+          if (qty >= (habit.target_qty ?? 0) && before < (habit.target_qty ?? 0)) toast.success("Meta do dia batida.")
         }}
       />
       <ConfirmDialog
@@ -258,47 +294,89 @@ function NewHabitDialog({
   onOpenChange,
   onCreate,
   habit,
+  habitMeta,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Called with the new habit, or with the edited one (same id) when `habit` is given. */
-  onCreate: (habit: HabitRow) => void
+  /** Called with the new habit, or with the edited one (same id) when `habit` is given, and the step of its "+" (null = the unit default). */
+  onCreate: (habit: HabitRow, step: number | null) => void
   habit?: HabitRow | null
+  habitMeta: HabitMetaMap
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>{open ? <NewHabitForm habit={habit ?? null} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
+      <DialogContent>{open ? <NewHabitForm habit={habit ?? null} habitMeta={habitMeta} onCreate={onCreate} onClose={() => onOpenChange(false)} /> : null}</DialogContent>
     </Dialog>
   )
 }
 
-function NewHabitForm({ habit, onCreate, onClose }: { habit: HabitRow | null; onCreate: (habit: HabitRow) => void; onClose: () => void }) {
+/** The seven days in one row: equal width toggles (aria-pressed), Lima when selected, never wrapping (not even at 360px). */
+function WeekdayChips({ value, onChange }: { value: number[]; onChange: (next: number[]) => void }) {
+  return (
+    <div role="group" aria-label="Dias da semana" data-testid="weekday-chips" className="grid grid-cols-7 gap-1">
+      {WEEKDAY_NAMES.map((dayName, index) => {
+        const on = value.includes(index)
+        return (
+          <button
+            key={dayName}
+            type="button"
+            aria-pressed={on}
+            aria-label={dayName}
+            data-weekday={index}
+            onClick={() => onChange(on ? value.filter((d) => d !== index) : [...value, index].sort())}
+            className={cn(
+              "relative flex h-11 min-w-0 items-center justify-center rounded-full border text-[13px] leading-5 outline-none transition-[background-color,color,border-color,transform] duration-[250ms] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+              on ? "scale-100 border-transparent bg-highlight font-semibold text-highlight-foreground" : "scale-[0.97] border-border bg-muted text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {dayName.slice(0, 3)}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function NewHabitForm({ habit, habitMeta, onCreate, onClose }: { habit: HabitRow | null; habitMeta: HabitMetaMap; onCreate: (habit: HabitRow, step: number | null) => void; onClose: () => void }) {
   const [name, setName] = useState(habit?.name ?? "")
   const [type, setType] = useState<HabitType>(habit?.type ?? "fixed")
-  const [target, setTarget] = useState(habit?.target_qty ? String(habit.target_qty).replace(".", ",") : "10")
+  const [target, setTarget] = useState(habit?.target_qty ? formatDecimal(habit.target_qty) : "10")
   const [unit, setUnit] = useState(habit?.unit ?? "páginas")
-  const [weekdays, setWeekdays] = useState<string[]>((habit?.weekdays ?? [0, 1, 2, 3, 4, 5, 6]).map(String))
+  const [stepText, setStepText] = useState(habit && habitMeta[habit.id]?.step ? formatDecimal(habitMeta[habit.id].step as number) : "")
+  const [weekdays, setWeekdays] = useState<number[]>(habit?.weekdays ?? [0, 1, 2, 3, 4, 5, 6])
+  // "Vincular à água da Dieta": suggested when the name or unit looks like water. Linked means a water unit (L, ml or copos).
+  const [linkWater, setLinkWater] = useState(habit ? isWaterHabit(habit) : false)
+  const suggest = type === "goal" && looksLikeWater(name, unit) && !linkWater
+  const parsedTarget = parseDecimal(target)
+  const parsedStep = stepText.trim() === "" ? null : parseDecimal(stepText)
+  const stepInvalid = stepText.trim() !== "" && parsedStep === null
+  const waterKind = unitKind(unit) === "liter" || unitKind(unit) === "ml" || unitKind(unit) === "cup"
+  const effectiveUnit = linkWater && !waterKind ? "L" : unit.trim()
+  const valid = Boolean(name.trim()) && weekdays.length > 0 && (type === "fixed" || (parsedTarget !== null && !stepInvalid))
 
   return (
     <form
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!name.trim() || weekdays.length === 0) return
+        if (!valid) return
         const stamp = new Date().toISOString()
-        onCreate({
-          id: habit?.id ?? newId(),
-          user_id: habit?.user_id ?? "00000000-0000-4000-8000-000000000001",
-          name: name.trim(),
-          type,
-          target_qty: type === "goal" ? Number(target.replace(",", ".")) || 1 : null,
-          unit: type === "goal" ? unit.trim() || null : null,
-          weekdays: weekdays.map(Number),
-          deadline: habit?.deadline ?? null,
-          paused: habit?.paused ?? false,
-          created_at: habit?.created_at ?? stamp,
-          updated_at: stamp,
-        })
+        onCreate(
+          {
+            id: habit?.id ?? newId(),
+            user_id: habit?.user_id ?? "00000000-0000-4000-8000-000000000001",
+            name: name.trim(),
+            type,
+            target_qty: type === "goal" ? (parsedTarget ?? 1) : null,
+            unit: type === "goal" ? effectiveUnit || null : null,
+            weekdays,
+            deadline: habit?.deadline ?? null,
+            paused: habit?.paused ?? false,
+            created_at: habit?.created_at ?? stamp,
+            updated_at: stamp,
+          },
+          type === "goal" ? parsedStep : null
+        )
         onClose()
       }}
     >
@@ -318,35 +396,89 @@ function NewHabitForm({ habit, onCreate, onClose }: { habit: HabitRow | null; on
         </ToggleGroup>
       </div>
       {type === "goal" ? (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="habit-target">Meta por dia</Label>
-            <Input id="habit-target" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} />
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="habit-target">Meta por dia</Label>
+              <Input id="habit-target" inputMode="decimal" value={target} aria-invalid={parsedTarget === null} onChange={(e) => setTarget(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="habit-unit">Unidade</Label>
+              <Input id="habit-unit" value={linkWater && !waterKind ? "L" : unit} maxLength={12} onChange={(e) => setUnit(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="habit-step">Passo</Label>
+              <Input id="habit-step" inputMode="decimal" value={stepText} placeholder={formatDecimal(defaultStep(effectiveUnit))} aria-invalid={stepInvalid} onChange={(e) => setStepText(e.target.value)} />
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="habit-unit">Unidade</Label>
-            <Input id="habit-unit" value={unit} maxLength={12} onChange={(e) => setUnit(e.target.value)} />
-          </div>
-        </div>
+          <p className="-mt-3 text-[13px] leading-5 text-muted-foreground">O “+” soma um passo por toque. Aceita decimais com vírgula (3,5).</p>
+          {linkWater || suggest ? (
+            <label className="flex min-h-11 items-center gap-3 text-[14px] leading-5">
+              <Checkbox checked={linkWater} onCheckedChange={(on) => setLinkWater(on === true)} data-testid="link-water" />
+              <span>
+                Vincular à água da Dieta
+                <span className="block text-[13px] text-muted-foreground">A meta vira a meta de água e o “+” registra a água; Hoje e Dieta mostram os mesmos números.</span>
+              </span>
+            </label>
+          ) : null}
+        </>
       ) : null}
       <div className="flex flex-col gap-2">
         <Label>Dias da semana</Label>
-        <ToggleGroup type="multiple" variant="outline" value={weekdays} onValueChange={setWeekdays} className="flex-wrap justify-start">
-          {WEEKDAY_NAMES.map((dayName, index) => (
-            <ToggleGroupItem key={dayName} value={String(index)} aria-label={dayName}>
-              {dayName.slice(0, 3)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <WeekdayChips value={weekdays} onChange={setWeekdays} />
+        {weekdays.length === 0 ? <p className="text-[13px] leading-5 text-muted-foreground">Escolha pelo menos um dia.</p> : null}
       </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={!name.trim() || weekdays.length === 0}>
+        <Button type="submit" disabled={!valid}>
           {habit ? "Salvar" : "Criar hábito"}
         </Button>
       </DialogFooter>
     </form>
+  )
+}
+
+/** The exact amount of a goal habit for the day on show, typed with a decimal comma ("1,25"). */
+function ExactDialog({ habit, current, onClose, onSave }: { habit: HabitRow | null; current: number; onClose: () => void; onSave: (habit: HabitRow, qty: number) => void }) {
+  const [text, setText] = useState("")
+  const typed = text.trim()
+  const parsed = typed === "" ? null : typed === "0" ? 0 : parseDecimal(typed)
+  return (
+    <Dialog open={Boolean(habit)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        {habit ? (
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (parsed === null) return
+              onSave(habit, parsed)
+              onClose()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Quantidade do dia</DialogTitle>
+              <DialogDescription>
+                {habit.name}: meta de {formatDecimal(habit.target_qty ?? 0)} {habit.unit ?? ""}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="exact-qty">Quanto já fez ({habit.unit ?? "unidades"})</Label>
+              <Input id="exact-qty" autoFocus inputMode="decimal" defaultValue={formatDecimal(current)} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setText(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={typed !== "" && parsed === null}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   )
 }

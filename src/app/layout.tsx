@@ -1,7 +1,7 @@
 import { ServiceWorkerRegister } from "@/components/organizzou/service-worker-register"
 import Script from "next/script";
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Outfit } from "next/font/google";
 import { LoadingHandoff } from "@/components/organizzou/loading-handoff";
 import { SplashController } from "@/components/organizzou/splash/splash-controller";
@@ -30,6 +30,14 @@ const geistMono = Geist_Mono({
 
 const TITLE = { default: "Organizzou - Sua vida organizada", template: "Organizzou - %s" };
 const DESCRIPTION = "Sua vida organizada em um só lugar.";
+
+// The browser chrome follows the theme: Tinta in dark, Papel in light (the same colors as the app background).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0C0E07" },
+    { media: "(prefers-color-scheme: light)", color: "#F6F7F0" },
+  ],
+};
 
 export const metadata: Metadata = {
   // Every absolute URL (canonical, Open Graph, sitemap) comes from NEXT_PUBLIC_SITE_URL.

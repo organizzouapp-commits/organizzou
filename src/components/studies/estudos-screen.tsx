@@ -1,5 +1,6 @@
 "use client"
 
+import { LinkedGoalsStrip } from "@/components/goals/linked-strip"
 import { useEffect, useState } from "react"
 import { format, parseISO, startOfWeek } from "date-fns"
 import {
@@ -242,6 +243,7 @@ export function EstudosScreen({ nowIso, initial }: { nowIso: string; initial: St
   return (
     <div className="flex flex-col gap-5">
       <PageHeader />
+      <LinkedGoalsStrip group="study" />
 
       {isMobile ? (
         <section aria-label="Estudos" data-testid="estudos-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">

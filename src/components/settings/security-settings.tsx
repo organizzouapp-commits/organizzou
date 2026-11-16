@@ -4,7 +4,6 @@ import { CookieIcon, FingerprintIcon, type LucideIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
-import { ExportData } from "@/components/settings/export-data"
 import { PasskeySection } from "@/components/settings/passkey-row"
 import { SessionsList } from "@/components/settings/sessions-list"
 import { useTwoFactor } from "@/components/settings/two-factor-row"
@@ -27,7 +26,7 @@ function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; t
 }
 
 /**
- * Segurança e dados: sign-in security (two-step code, passkeys), the active sessions and your data on the left; privacy on the right
+ * Segurança e dados: sign-in security (two-step code, passkeys), the active sessions on the left; privacy on the right
  * (one column on phones, same order). Deleting the account is not here: it lives only in the admin area.
  */
 export function SecuritySettings() {
@@ -51,11 +50,7 @@ export function SecuritySettings() {
           <SessionsList />
         </BentoCard>
 
-        <BentoCard title="Seus dados">
-          <ExportData />
-        </BentoCard>
-      </div>
-
+</div>
       <div className="col-span-12 flex min-w-0 flex-col gap-4 @min-[900px]:col-span-5">
         <BentoCard title="Privacidade">
           <Row icon={CookieIcon} title="Preferências de cookies" description="Escolha se podemos usar cookies de análise e de marketing.">

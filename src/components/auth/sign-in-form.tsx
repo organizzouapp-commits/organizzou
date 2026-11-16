@@ -105,8 +105,10 @@ export function SignInForm({ next, linkError, oauthError }: { next: string; link
         <OrDivider />
       </div>
       <div className={R} style={rs(6)}>
-        <GoogleButton next={next} />
-        <PasskeyLogin next={next} />
+        <div className="flex flex-col gap-3">
+          <GoogleButton next={next} />
+          <PasskeyLogin next={next} />
+        </div>
       </div>
 
       <p className={cn("text-center text-(length:--auth-text) leading-6 text-muted-foreground", R)} style={rs(7)}>

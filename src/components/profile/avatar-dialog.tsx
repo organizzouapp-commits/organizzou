@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { ResponsiveSheet } from "@/components/tasks/responsive-sheet"
 import { Button } from "@/components/ui/button"
-import { AVATAR_SIZE, checkAvatarFile, cropRect, localAvatarRepo } from "@/features/settings/avatar"
+import { AVATAR_SIZE, checkAvatarFile, cropRect, focusAfterDrag, localAvatarRepo } from "@/features/settings/avatar"
 import { removeAvatar, saveAvatar } from "@/features/settings/avatar-actions"
 
 const PREVIEW = 224
@@ -20,6 +20,7 @@ export function AvatarDialog({ open, onOpenChange, hasPhoto }: { open: boolean; 
   const gallery = useRef<HTMLInputElement>(null)
   const camera = useRef<HTMLInputElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const drag = useRef<{ x: number; y: number; start: { x: number; y: number } } | null>(null)
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null)
   const [zoom, setZoom] = useState(1)
   const [focusX, setFocusX] = useState(0)
@@ -106,21 +107,32 @@ export function AvatarDialog({ open, onOpenChange, hasPhoto }: { open: boolean; 
 
         {bitmap ? (
           <div className="flex flex-col items-center gap-4">
-            <canvas ref={canvas} data-testid="avatar-preview" aria-label="Prévia da foto" role="img" style={{ width: PREVIEW, height: PREVIEW }} className="rounded-full border border-border" />
-            <div className="flex w-full flex-col gap-3">
-              {(
-                [
-                  ["Zoom", zoom, setZoom, 1, 4, 0.05],
-                  ["Mover na horizontal", focusX, setFocusX, -1, 1, 0.05],
-                  ["Mover na vertical", focusY, setFocusY, -1, 1, 0.05],
-                ] as const
-              ).map(([label, value, set, min, max, step]) => (
-                <label key={label} className="flex items-center gap-3 text-[13px] leading-5 text-muted-foreground">
-                  <span className="w-36 shrink-0">{label}</span>
-                  <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} className="h-11 w-full accent-[var(--primary)]" />
-                </label>
-              ))}
-            </div>
+            <canvas
+              ref={canvas}
+              data-testid="avatar-preview"
+              aria-label="Prévia da foto. Arraste para enquadrar."
+              role="img"
+              style={{ width: PREVIEW, height: PREVIEW }}
+              className="cursor-grab touch-none rounded-full border border-border active:cursor-grabbing"
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId)
+                drag.current = { x: event.clientX, y: event.clientY, start: { x: focusX, y: focusY } }
+              }}
+              onPointerMove={(event) => {
+                const start = drag.current
+                if (!start || !bitmap) return
+                const next = focusAfterDrag(bitmap.width, bitmap.height, zoom, start.start, event.clientX - start.x, event.clientY - start.y, PREVIEW)
+                setFocusX(next.x)
+                setFocusY(next.y)
+              }}
+              onPointerUp={() => (drag.current = null)}
+              onPointerCancel={() => (drag.current = null)}
+            />
+            <p className="text-[13px] leading-5 text-muted-foreground">Arraste a foto para enquadrar.</p>
+            <label className="flex w-full items-center gap-3 text-[13px] leading-5 text-muted-foreground">
+              <span className="w-12 shrink-0">Zoom</span>
+              <input type="range" min={1} max={4} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="Zoom" className="h-11 w-full accent-[var(--primary)]" />
+            </label>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

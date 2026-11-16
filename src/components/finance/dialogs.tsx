@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BanknoteIcon, CircleAlertIcon, CreditCardIcon, LandmarkIcon, PiggyBankIcon, PlusIcon, WalletIcon } from "lucide-react"
+import { BanknoteIcon, CircleAlertIcon, CreditCardIcon, LandmarkIcon, PiggyBankIcon, PlusIcon, Trash2Icon, WalletIcon } from "lucide-react"
 
 import { ManageablePicker } from "@/components/tasks/manageable-picker"
 import { PillTabs, dashedPillClass, pillClass } from "@/components/tasks/pill-tabs"
@@ -458,6 +458,7 @@ export function GoalDialog({ open, onOpenChange, row }: { open: boolean; onOpenC
 
 function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () => void }) {
   const f = useFinance()
+const contributions = row ? (f.goalHistory[row.id] ?? []).map((entry, index) => ({ entry, index })) : []
   const sets = useGoalSets()
   const [name, setName] = useState(row?.name ?? "")
   const [cents, setCents] = useState<number | null>(row?.target_cents ?? null)
@@ -518,6 +519,23 @@ function GoalForm({ row, onClose }: { row: FinancialGoalRow | null; onClose: () 
           <Input id="goal-deadline" type="date" value={deadline} min={startDate} aria-invalid={Boolean(errors.end) && (tried || Boolean(deadline))} onChange={(e) => setDeadline(e.target.value)} className={INPUT} />
         </Field>
       </div>
+      {row && contributions.some(({ entry }) => !entry.opening) ? (
+        <Field label="Aportes">
+          <ul className="flex flex-col" data-testid="goal-contributions">
+            {contributions.map(({ entry, index }) =>
+              entry.opening ? null : (
+                <li key={`${entry.day}-${index}`} className="flex min-h-11 items-center gap-3 border-b border-border last:border-b-0">
+                  <span className="tabular min-w-0 flex-1 text-[14px] leading-5 text-muted-foreground">{entry.day.split("-").reverse().join("/")}</span>
+                  <span className="tabular text-[14px] leading-5 font-medium">{formatBRL(entry.cents)}</span>
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Remover o aporte de ${formatBRL(entry.cents)}`} className="size-11 rounded-full" onClick={() => f.removeContribution(row, index)}>
+                    <Trash2Icon strokeWidth={1.75} />
+                  </Button>
+                </li>
+              )
+            )}
+          </ul>
+        </Field>
+      ) : null}
       <Footer
         onCancel={onClose}
         submit={row ? "Salvar" : "Criar meta"}

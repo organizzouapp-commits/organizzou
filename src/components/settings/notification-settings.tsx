@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
+import { InstallRow } from "@/components/organizzou/pwa-install"
 import { PushDevices } from "@/components/settings/push-devices"
 import { loadNotificationSettings, saveNotificationSettings } from "@/features/notifications/push-actions"
 import { Label } from "@/components/ui/label"
@@ -46,6 +47,7 @@ export function NotificationSettings() {
     <Bento className="@container gap-4">
       <BentoCard title="Notificações neste aparelho" className="order-0 col-span-12 @min-[900px]:order-3 @min-[900px]:col-span-4 @min-[900px]:col-start-9 @min-[900px]:row-start-2" bodyClassName="gap-4">
         <PushDevices />
+        <InstallRow />
       </BentoCard>
 
       <BentoCard title="Não perturbe" className="order-1 col-span-12 @min-[900px]:order-2 @min-[900px]:col-span-4 @min-[900px]:col-start-9 @min-[900px]:row-start-1" bodyClassName="gap-4">

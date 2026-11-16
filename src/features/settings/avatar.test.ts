@@ -45,3 +45,14 @@ describe("paths and data urls", () => {
     expect(isImageDataUrl("javascript:alert(1)")).toBe(false)
   })
 })
+
+describe("focusAfterDrag", () => {
+  it("moves the crop opposite to the drag and clamps", async () => {
+    const { focusAfterDrag } = await import("./avatar")
+    // 1000x500 picture, zoom 1: the crop is 500 wide with 250 of slack each side; preview 250px => 2 picture px per preview px.
+    expect(focusAfterDrag(1000, 500, 1, { x: 0, y: 0 }, 0, 0, 250)).toEqual({ x: 0, y: 0 })
+    expect(focusAfterDrag(1000, 500, 1, { x: 0, y: 0 }, 62.5, 0, 250).x).toBeCloseTo(-0.5)
+    expect(focusAfterDrag(1000, 500, 1, { x: 0, y: 0 }, -9999, 0, 250).x).toBe(1)
+    expect(focusAfterDrag(1000, 500, 1, { x: 0, y: 0 }, 0, 40, 250).y).toBe(0)
+  })
+})

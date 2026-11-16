@@ -9,6 +9,7 @@ import { AssistantProvider } from "@/components/assistant/assistant-context"
 import { AssistantSheet } from "@/components/assistant/assistant-sheet"
 import { QuickCapture } from "@/components/assistant/quick-capture"
 import { BottomNav, type BottomNavItem } from "@/components/organizzou/BottomNav"
+import { InstallBanner } from "@/components/organizzou/pwa-install"
 import { QuickActionsFab } from "./quick-actions-fab"
 import { useQuickActionItems } from "./use-quick-action-items"
 import { splashLog } from "@/components/organizzou/splash/splash-debug"
@@ -244,6 +245,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
 
           <ShellBottomBar items={bottomItems} activeId={activeId} onSelect={onSelect} />
           {withAssistant ? <ShellQuickActions /> : null}
+          {withAssistant ? <InstallBanner /> : null}
 
           {withAssistant ? (
             <>

@@ -1,4 +1,5 @@
 /** Small pt-BR formatters for the "Seu dia" timeline. Everything is in America/Sao_Paulo. */
+import { defaultStep, unitKind } from "@/features/habits/steps"
 export const TZ = "America/Sao_Paulo"
 
 export const clock = (value: string | number) => new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value))
@@ -33,16 +34,14 @@ export function dayTitle(ms: number) {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-/** Step of the "+" button for a quantity habit: a natural amount per unit, never a fraction of the target. */
+/** Step of the "+" button for a quantity habit: the default of its unit (L 0,25 · ml 250 · copos 1 · min 5 · else 1), never a jump to done. */
 export function stepFor(unit: string, target: number) {
-  if (unit === "L") return 0.25
-  if (unit === "min") return 10
-  if (unit === "páginas") return 5
-  return Math.max(1, Math.round(target / 4))
+  void target
+  return defaultStep(unit)
 }
 
 /** "250 ml" for a litre habit, otherwise the number and the unit. */
 export function stepLabel(unit: string, target: number) {
   const step = stepFor(unit, target)
-  return unit === "L" ? `${Math.round(step * 1000)} ml` : `${number(step)} ${unit}`.trim()
+  return unitKind(unit) === "liter" ? `${Math.round(step * 1000)} ml` : `${number(step)} ${unit}`.trim()
 }

@@ -20,15 +20,22 @@ async function me() {
  * The person's active sessions, this device first. Read with their own session (row level security shows only theirs). When the table is
  * not there yet, or this session has not checked in, the list holds just the current session, built from the request itself.
  */
-export async function listSessions(): Promise<{ sessions: SessionListItem[]; managed: boolean }> {
+export type SessionsStatus = "ok" | "missing" | "error"
+
+export async function listSessions(): Promise<{ sessions: SessionListItem[]; status: SessionsStatus }> {
   const { supabase, userId, sessionId } = await me()
-  if (!userId) return { sessions: [], managed: false }
+  if (!userId) return { sessions: [], status: "error" }
   const jar = await headers()
   const here: SessionListItem = { id: "current", label: sessionLabel(jar.get("user-agent") ?? ""), place: placeFromHeaders(jar.get("x-vercel-ip-city"), jar.get("x-vercel-ip-country")), createdAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(), current: true }
   const { data, error } = await supabase.from("user_sessions").select("id, auth_session_id, label, place, created_at, last_seen_at").eq("user_id", userId).is("revoked_at", null)
-  if (error) return { sessions: [here], managed: false }
+  if (error) {
+    // The table (migration 20261112000008) is not there yet, or the read failed: say which, and warn without any personal data.
+    const missing = error.code === "42P01" || error.code === "PGRST205" || /user_sessions/.test(error.message)
+    console.warn(`[sessions] user_sessions is not readable (${error.code ?? "no code"}). ${missing ? "Apply migration 20261112000008_user_sessions.sql." : ""}`)
+    return { sessions: [here], status: missing ? "missing" : "error" }
+  }
   const rows = ((data ?? []) as { id: string; auth_session_id: string; label: string; place: string | null; created_at: string; last_seen_at: string }[]).map((r) => ({ id: r.id, label: r.label, place: r.place, createdAt: r.created_at, lastSeenAt: r.last_seen_at, current: r.auth_session_id === sessionId }))
-  return { sessions: orderSessions(rows.some((r) => r.current) ? rows : [here, ...rows]), managed: true }
+  return { sessions: orderSessions(rows.some((r) => r.current) ? rows : [here, ...rows]), status: "ok" }
 }
 
 /** Ends one of the person's own sessions: the database function checks the ownership and removes the session for real. */

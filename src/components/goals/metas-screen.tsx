@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { CalendarClockIcon, ChevronDownIcon, FlagIcon, PlusIcon, TargetIcon, TrophyIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,9 +9,8 @@ import { BentoStat } from "@/components/finance/bento"
 import { FinanceDeck } from "@/components/finance/finance-deck"
 import { HatchedProgress, HeroCard } from "@/components/finance/parts"
 import { DoneGoalCard, GoalCard } from "@/components/goals/goal-card"
-import { GoalSheet, type GoalDraft } from "@/components/goals/goal-sheet"
+import { GoalSheet, type GoalDraft, type GoalSave } from "@/components/goals/goal-sheet"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
-import type { ModuleId } from "@/components/organizzou/modules"
 import { PageHeader } from "@/components/organizzou/PageHeader"
 import { usePrimaryAction } from "@/components/shell/primary-action"
 import { Button } from "@/components/ui/button"
@@ -20,25 +20,26 @@ import { splitColumns } from "@/lib/columns"
 import { averageProgress, cappedPercent, completedOn, formatDeadline, localGoalMetaRepo, milestoneTotals, nextDeadlineGoal, sortGoals, type GoalMetaMap } from "@/features/goals/overview"
 import { DEFAULT_VIEW, allCollapsed, isCollapsed, localGoalViewRepo, setAllCollapsed, toggleCollapsed, type GoalViewState } from "@/features/goals/view-state"
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
+import type { FinancialGoalRow } from "@/features/finance/types"
+import { computeLinked, isLinkedComplete, localLinkedGoalRepo, MONEY_UNIT, type GoalSources, type LinkProgress, type LinkedGoalMap, type LinkedGoalMeta } from "@/features/goals/linked"
+import { localReviewLogRepo } from "@/features/studies/review"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
 
 const USER = "00000000-0000-4000-8000-000000000001"
-const DEFAULT_LINKS: Record<string, { label: string; total: number; unit: string }> = {
-  tarefas: { label: "Tarefas concluídas", total: 10, unit: "tarefas" },
-  rotina: { label: "Dias com o hábito em dia", total: 30, unit: "dias" },
-  financas: { label: "Valor guardado", total: 1000, unit: "R$" },
-  treinos: { label: "Treinos feitos", total: 20, unit: "treinos" },
-  dieta: { label: "Dias dentro da meta", total: 30, unit: "dias" },
-  estudos: { label: "Horas de estudo", total: 50, unit: "h" },
-}
 
 const dim = (text: string) => <span className="text-[16px] leading-6 opacity-60">{text}</span>
 
 /** The goal row itself, without the nested links and milestones (those are their own tables). */
 const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_id, title: g.title, description: g.description, deadline: g.deadline, status: g.status, created_at: g.created_at, updated_at: g.updated_at })
 
-export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: GoalWithDetails[] }) {
+/** A live progress row as a link row of the goal card (money comes in cents, the card shows reais). */
+function asLinkRow(goalId: string, p: LinkProgress, index: number): GoalLinkRow {
+  const money = p.unit === MONEY_UNIT
+  return { id: `${goalId}-${index}`, goal_id: goalId, module: p.module, label: p.label, done: money ? p.done / 100 : p.done, total: money ? p.total / 100 : p.total, unit: p.unit, href: p.href, inverse: p.inverse, broken: p.broken }
+}
+
+export function MetasScreen({ nowIso, initial, sources }: { nowIso: string; initial: GoalWithDetails[]; sources: GoalSources }) {
   const today = dayOf(nowIso)
   const isMobile = useIsMobile()
   const [gridRef, gridWidth] = useElementWidth<HTMLDivElement>()
@@ -81,7 +82,88 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
       return next
     })
 
-  const blankDraft = (): GoalDraft => ({ title: "", description: "", deadline: "", modules: ["tarefas"] })
+  // Goals driven by the modules: the link of each goal (what it measures, target, dates) is kept on this device until the link columns exist
+  // (see linked.ts); the progress itself is never stored, it is computed from the module rows the page loaded.
+  const router = useRouter()
+  const [links, setLinks] = useState<LinkedGoalMap>({})
+  const [reviews, setReviews] = useState<{ reviewed_on: string }[]>([])
+  // Finanças goals are the same records: Metas reads them (and creates one when a goal is born here), it never copies them.
+  const [financeRows, setFinanceRows] = usePersistedRows<FinancialGoalRow>("finance_goals", () => sources.financeGoals as FinancialGoalRow[])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLinks(localLinkedGoalRepo.load())
+    setReviews(localReviewLogRepo.load())
+  }, [])
+  const updateLinks = (change: (current: LinkedGoalMap) => LinkedGoalMap) =>
+    setLinks((current) => {
+      const next = change(current)
+      localLinkedGoalRepo.save(next)
+      return next
+    })
+  const liveSources: GoalSources = { ...sources, financeGoals: financeRows, reviews }
+
+  /** The goals as shown: linked goals carry their live rows and finish by themselves at 100%; Finanças goals nobody linked appear as linked goals. */
+  const shown = useMemo<GoalWithDetails[]>(() => {
+    const decorate = (g: GoalWithDetails): GoalWithDetails => {
+      const meta = links[g.id]
+      if (!meta) return g
+      const rows = computeLinked(meta, liveSources, today)
+      return { ...g, links: rows.map((r, i) => asLinkRow(g.id, r, i)), status: g.status === "done" || isLinkedComplete(rows) ? "done" : "active", linked: { kind: meta.spec.kind, start: meta.startDate, end: meta.endDate, virtual: false } }
+    }
+    const taken = new Set(Object.values(links).flatMap((m) => (m.spec.kind === "finance_saving" ? [m.spec.goalId] : [])))
+    const virtual: GoalWithDetails[] = financeRows
+      .filter((g) => !taken.has(g.id))
+      .map((g) => {
+        const meta: LinkedGoalMeta = { spec: { kind: "finance_saving", goalId: g.id }, startDate: g.created_at.slice(0, 10), endDate: g.deadline }
+        const rows = computeLinked(meta, liveSources, today)
+        return { id: `fin-${g.id}`, user_id: g.user_id, title: g.name, description: null, deadline: g.deadline, status: isLinkedComplete(rows) ? "done" : "active", created_at: g.created_at, updated_at: g.updated_at, links: rows.map((r, i) => asLinkRow(`fin-${g.id}`, r, i)), milestones: [], linked: { kind: "finance_saving", start: meta.startDate, end: g.deadline, virtual: true } }
+      })
+    return [...goals.map(decorate), ...virtual]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals, links, financeRows, sources, reviews, today])
+
+  // A small celebration the first time a linked goal is seen complete (a toast; nothing moves, so reduced motion needs no special case).
+  useEffect(() => {
+    const finished = shown.filter((g) => g.linked && g.status === "done" && !(metas[g.id]?.completed_at))
+    if (finished.length === 0) return
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(localStorage.getItem("organizzou:metas-celebrated") ?? "[]") as string[]
+    } catch {
+      seen = []
+    }
+    const fresh = finished.filter((g) => !seen.includes(g.id))
+    if (fresh.length === 0) return
+    for (const g of fresh) toast.success(`Meta concluída: ${g.title}. Parabéns!`)
+    try {
+      localStorage.setItem("organizzou:metas-celebrated", JSON.stringify([...seen, ...fresh.map((g) => g.id)].slice(-200)))
+    } catch {
+      // Private mode: it may celebrate again next time.
+    }
+  }, [shown, metas])
+
+  const editDraftOf = (goal: GoalWithDetails): GoalDraft => ({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", startDate: links[goal.id]?.startDate ?? goal.created_at.slice(0, 10), link: links[goal.id]?.spec ?? null })
+
+  /** Virtual goals live in Finanças: editing or deleting them goes there, so there is only ever one record. */
+  function editGoal(goal: GoalWithDetails) {
+    if (goal.linked?.virtual) {
+      toast("Esta meta é de Finanças. Edite por lá.")
+      return router.push("/dashboard/financas")
+    }
+    setDraft(editDraftOf(goal))
+  }
+
+  function removeGoal(goal: GoalWithDetails) {
+    if (goal.linked?.virtual) {
+      toast("Esta meta é de Finanças. Exclua por lá.")
+      return router.push("/dashboard/financas")
+    }
+    setGoals((current) => current.filter((g) => g.id !== goal.id))
+    updateLinks((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== goal.id)))
+    toast("Meta excluída.")
+  }
+
+  const blankDraft = (): GoalDraft => ({ title: "", description: "", deadline: "", startDate: today, link: null })
   usePrimaryAction("Nova meta", () => setDraft(blankDraft()))
 
   function toggleMilestone(goalId: string, milestoneId: string) {
@@ -89,6 +171,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
   }
 
   function addMilestone(goalId: string, title: string) {
+    if (goalId.startsWith("fin-")) return toast("Metas de Finanças não têm marcos aqui.")
     setGoals((current) => current.map((g) => (g.id === goalId ? { ...g, milestones: [...g.milestones, { id: newId(), goal_id: goalId, title, done: false }] } : g)))
     toast.success("Marco adicionado.")
   }
@@ -100,31 +183,32 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
     toast.success(status === "done" ? "Meta concluída. Parabéns!" : "Meta reaberta.")
   }
 
-  function saveGoal(d: GoalDraft) {
-    if (d.id) {
-      setGoals((current) => current.map((g) => (g.id === d.id ? { ...g, title: d.title, description: d.description || null, deadline: d.deadline || null, updated_at: new Date().toISOString() } : g)))
+  function saveGoal(save: GoalSave) {
+    const { built } = save
+    const id = save.id ?? newId()
+    if (built?.newFinance) {
+      // A new savings goal born here is ONE Finanças record: the link points at it.
+      const stamp = new Date().toISOString()
+      setFinanceRows((current) => [...current, { id: (built.spec as { goalId: string }).goalId, user_id: USER, name: built.newFinance!.name, target_cents: built.newFinance!.targetCents, current_cents: 0, deadline: save.deadline || null, created_at: stamp, updated_at: stamp }])
+    }
+    updateLinks((current) => {
+      const next = { ...current }
+      if (built) next[id] = { spec: built.spec, startDate: save.startDate, endDate: save.deadline || null }
+      else delete next[id]
+      return next
+    })
+    if (save.id) {
+      setGoals((current) => current.map((g) => (g.id === save.id ? { ...g, title: save.title, description: save.description || null, deadline: save.deadline || null, updated_at: new Date().toISOString() } : g)))
       toast.success("Meta atualizada.")
       return
     }
-    const id = newId()
-    const created: GoalWithDetails = {
-      id,
-      user_id: USER,
-      title: d.title,
-      description: d.description || null,
-      deadline: d.deadline || null,
-      status: "active",
-      created_at: nowIso,
-      updated_at: nowIso,
-      links: d.modules.map((module) => ({ id: newId(), goal_id: id, module: module as ModuleId, done: 0, ...DEFAULT_LINKS[module] })),
-      milestones: [],
-    }
+    const created: GoalWithDetails = { id, user_id: USER, title: save.title, description: save.description || null, deadline: save.deadline || null, status: "active", created_at: nowIso, updated_at: nowIso, links: [], milestones: [] }
     setGoals((current) => [created, ...current])
     toast.success("Meta criada.")
   }
 
-  const active = sortGoals(goals.filter((g) => g.status === "active"))
-  const done = sortGoals(goals.filter((g) => g.status === "done"))
+  const active = sortGoals(shown.filter((g) => g.status === "active"))
+  const done = sortGoals(shown.filter((g) => g.status === "done"))
   const average = averageProgress(active)
   const next = nextDeadlineGoal(active, today)
   const marcos = milestoneTotals(active)
@@ -172,7 +256,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
               mobile={isMobile}
               collapsed={isCollapsed(view, goal.id)}
               onToggleCollapsed={() => updateView((current) => toggleCollapsed(current, goal.id))}
-              onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
+              onEdit={() => editGoal(goal)}
               onSetStatus={(status) => setStatus(goal, status)}
               onDelete={() => setToDelete(goal)}
               onToggleMilestone={(id) => toggleMilestone(goal.id, id)}
@@ -255,7 +339,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
                     goal={goal}
                     completedOn={formatDeadline(completedOn(goal, metas).day)}
                     mobile={isMobile}
-                    onEdit={() => setDraft({ id: goal.id, title: goal.title, description: goal.description ?? "", deadline: goal.deadline ?? "", modules: [] })}
+                    onEdit={() => editGoal(goal)}
                     onReopen={() => setStatus(goal, "active")}
                     onDelete={() => setToDelete(goal)}
                   />
@@ -266,7 +350,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
         </div>
       </section>
 
-      <GoalSheet draft={draft} today={today} onClose={() => setDraft(null)} onSave={saveGoal} />
+      <GoalSheet draft={draft} today={today} sources={liveSources} onClose={() => setDraft(null)} onSave={saveGoal} />
       <ConfirmDialog
         open={Boolean(toDelete)}
         onOpenChange={(open) => !open && setToDelete(null)}
@@ -275,9 +359,7 @@ export function MetasScreen({ nowIso, initial }: { nowIso: string; initial: Goal
         onConfirm={() => {
           const goal = toDelete
           setToDelete(null)
-          if (!goal) return
-          setGoals((current) => current.filter((g) => g.id !== goal.id))
-          toast("Meta excluída.")
+          if (goal) removeGoal(goal)
         }}
       />
     </div>

@@ -1,5 +1,9 @@
 /* Organizzou service worker: web push only. It caches nothing and never touches fetches, so API and auth responses always come from the network. */
-self.addEventListener("install", () => self.skipWaiting())
+// A new version waits until the person taps "Atualizar" in the app (the page sends SKIP_WAITING); the very first install activates at once.
+self.addEventListener("install", () => {})
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting()
+})
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()))
 
 self.addEventListener("push", (event) => {

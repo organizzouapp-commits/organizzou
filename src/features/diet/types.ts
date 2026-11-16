@@ -43,3 +43,6 @@ export type DietGoalRow = {
 }
 
 export type WeightLogRow = { id: string; user_id: string; log_date: string; weight_kg: number }
+
+/** The goals a person has before they set any (Dieta and Rotina both start the water goal from here). */
+export const DEFAULT_DIET_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
