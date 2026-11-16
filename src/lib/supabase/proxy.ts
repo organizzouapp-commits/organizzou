@@ -106,7 +106,8 @@ export async function updateSession(request: NextRequest, event?: NextFetchEvent
     if (!checked) {
       const place = placeFromHeaders(request.headers.get("x-vercel-ip-city"), request.headers.get("x-vercel-ip-country"))
       // An error (the migration is not applied yet) is ignored: the list then shows only the current session.
-      const { data: revoked } = await (supabase as unknown as SupabaseClient).rpc("register_session", { p_session: sessionId, p_label: sessionLabel(request.headers.get("user-agent") ?? ""), p_place: place })
+      const { data: revoked, error: registerError } = await (supabase as unknown as SupabaseClient).rpc("register_session", { p_session: sessionId, p_label: sessionLabel(request.headers.get("user-agent") ?? ""), p_place: place })
+      if (registerError) console.warn(`[sessions] register_session failed (${registerError.code ?? "no code"}); apply migration 20261112000008_user_sessions.sql if it is missing.`)
       if (revoked === true) {
         await supabase.auth.signOut()
         if (pathname.startsWith("/api/")) return NextResponse.json({ error: "session_revoked" }, { status: 401 })
