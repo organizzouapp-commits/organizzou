@@ -15,6 +15,7 @@
     "glass-bg": "node scripts/make-glass-bg.mjs",
     "check:case": "node scripts/check-import-case.mjs",
     "check:no-demo": "node scripts/check-no-demo-in-build.mjs",
+    "check:pwa": "node scripts/check-pwa.mjs",
     "admin:grant": "node --env-file=.env.local scripts/make-admin.ts grant",
     "admin:revoke": "node --env-file=.env.local scripts/make-admin.ts revoke",
     "users:backfill": "node --env-file=.env.local scripts/backfill-users.ts",
