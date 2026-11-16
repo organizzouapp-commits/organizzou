@@ -2,21 +2,28 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { browserSupportsWebAuthn, platformAuthenticatorIsAvailable, startRegistration } from "@simplewebauthn/browser"
-import { FingerprintIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, FingerprintIcon, PencilIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { FormMessage } from "@/components/organizzou/FormMessage"
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
+import { RowAction, SettingRow } from "@/components/settings/setting-row"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { listPasskeys, removePasskey, renamePasskey, type PasskeyRow } from "@/features/auth/passkey-actions"
 import { formatDistanceToNowStrict, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 type Support = "checking" | "ok" | "no-webauthn" | "no-platform"
 
-/** "Adicionar" a passkey (the phone's or computer's own biometrics), and the list of them with rename and remove (with a confirmation). */
-export function PasskeySection() {
+export const PASSKEY_DESCRIPTION = "Entrar com a biometria do celular ou do computador. Vale como a segunda etapa."
+
+/**
+ * The passkeys of the account. control is the Adicionar button for the Passkey row (right end of the row, full width under the text on a
+ * phone); list is the registered ones as rows of the same card (inline rename, remove with a confirmation).
+ */
+export function usePasskeys() {
   const [support, setSupport] = useState<Support>("checking")
   const [items, setItems] = useState<PasskeyRow[]>([])
   const [busy, setBusy] = useState(false)
@@ -58,23 +65,27 @@ export function PasskeySection() {
   }
 
   const disabled = support !== "ok"
-  return (
-    <div className="flex flex-col gap-3" data-testid="passkeys">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" disabled={disabled || busy} onClick={() => void add()} data-testid="passkey-add" className="h-11 rounded-full md:h-11">
-          <FingerprintIcon strokeWidth={1.75} /> {busy ? "Aguardando o aparelho…" : "Adicionar"}
-        </Button>
-        {support === "no-webauthn" ? <span className="text-[13px] leading-5 text-muted-foreground">Este navegador não suporta passkeys.</span> : null}
-        {support === "no-platform" ? <span className="text-[13px] leading-5 text-muted-foreground">Este aparelho não tem biometria ou PIN para criar uma passkey.</span> : null}
-      </div>
-      {error ? <FormMessage kind="error">{error}</FormMessage> : null}
+  const control = (
+    <Button type="button" variant="outline" disabled={disabled || busy} onClick={() => void add()} data-testid="passkey-add" className="h-11 rounded-full max-sm:w-full md:h-11">
+      <FingerprintIcon strokeWidth={1.75} /> {busy ? "Aguardando o aparelho…" : "Adicionar"}
+    </Button>
+  )
+  const description = support === "no-webauthn" ? "Este navegador não suporta passkeys." : support === "no-platform" ? "Este aparelho não tem biometria ou PIN para criar uma passkey." : PASSKEY_DESCRIPTION
+
+  const list = (
+    <>
+      {error ? (
+        <div className="border-b border-border py-3 md:pl-14">
+          <FormMessage kind="error">{error}</FormMessage>
+        </div>
+      ) : null}
       {items.length > 0 ? (
-        <ul aria-label="Suas passkeys" className="flex flex-col">
+        <ul aria-label="Suas passkeys" data-testid="passkeys" className="flex flex-col">
           {items.map((item) => (
-            <li key={item.id} data-passkey={item.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 border-t border-border py-2">
+            <li key={item.id} data-passkey={item.id} className="list-none">
               {renaming?.id === item.id ? (
                 <form
-                  className="flex min-w-0 flex-1 items-center gap-2"
+                  className="flex min-h-16 items-center gap-2 border-b border-border py-3 last:border-b-0 last:pb-3"
                   onSubmit={async (event) => {
                     event.preventDefault()
                     const result = await renamePasskey(item.id, renaming.label)
@@ -83,26 +94,34 @@ export function PasskeySection() {
                     await refresh()
                   }}
                 >
+                  <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40">
+                    <FingerprintIcon strokeWidth={1.75} className="size-[18px]" />
+                  </span>
                   <Input autoFocus value={renaming.label} maxLength={80} aria-label="Nome da passkey" onChange={(e) => setRenaming({ id: item.id, label: e.target.value })} onKeyDown={(e) => e.key === "Escape" && setRenaming(null)} className="h-11 min-w-0 flex-1 rounded-[12px]" />
-                  <Button type="submit" className="h-11 rounded-full px-4">
-                    Salvar
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="submit" variant="ghost" size="icon" aria-label="Salvar nome" className="size-11 shrink-0 rounded-full">
+                        <CheckIcon strokeWidth={1.75} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Salvar nome</TooltipContent>
+                  </Tooltip>
+                  <RowAction label="Cancelar" icon={XIcon} onClick={() => setRenaming(null)} />
                 </form>
               ) : (
-                <>
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[15px] leading-6 font-medium">{item.label}</span>
-                    <span className="tabular text-[12px] leading-4 text-muted-foreground">
+                <SettingRow
+                  interactive
+                  icon={FingerprintIcon}
+                  title={item.label}
+                  description={
+                    <span className="tabular">
                       Criada em {format(new Date(item.createdAt), "d 'de' MMM 'de' yyyy", { locale: ptBR })} · {item.lastUsedAt ? `usada ${formatDistanceToNowStrict(new Date(item.lastUsedAt), { locale: ptBR, addSuffix: true })}` : "nunca usada"}
                     </span>
-                  </div>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Renomear ${item.label}`} onClick={() => setRenaming({ id: item.id, label: item.label })} className="size-11 rounded-full">
-                    <PencilIcon strokeWidth={1.75} />
-                  </Button>
-                  <Button type="button" variant="ghost" size="icon" aria-label={`Remover ${item.label}`} onClick={() => setRemoving(item)} className="size-11 rounded-full">
-                    <Trash2Icon strokeWidth={1.75} />
-                  </Button>
-                </>
+                  }
+                >
+                  <RowAction label={`Renomear ${item.label}`} icon={PencilIcon} onClick={() => setRenaming({ id: item.id, label: item.label })} />
+                  <RowAction label={`Remover ${item.label}`} icon={Trash2Icon} onClick={() => setRemoving(item)} />
+                </SettingRow>
               )}
             </li>
           ))}
@@ -124,6 +143,7 @@ export function PasskeySection() {
           await refresh()
         }}
       />
-    </div>
+    </>
   )
+  return { control, description, list }
 }

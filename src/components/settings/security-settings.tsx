@@ -1,29 +1,17 @@
 "use client"
 
-import { CookieIcon, FingerprintIcon, type LucideIcon } from "lucide-react"
+import { CookieIcon, FingerprintIcon } from "lucide-react"
 
 import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { openCookiePreferences } from "@/components/organizzou/cookie-consent"
-import { PasskeySection } from "@/components/settings/passkey-row"
+import { usePasskeys } from "@/components/settings/passkey-row"
 import { SessionsList } from "@/components/settings/sessions-list"
+import { SettingRow } from "@/components/settings/setting-row"
 import { useTwoFactor } from "@/components/settings/two-factor-row"
 import { Button } from "@/components/ui/button"
 
-/** An icon circle, a title with its description, and the control on the right (stacked under the text on narrow cards). */
-function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; title: string; description: string; children?: React.ReactNode }) {
-  return (
-    <div className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-3 border-b border-border py-3 first:pt-0 last:border-b-0 last:pb-0">
-      <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border">
-        <Icon strokeWidth={1.75} className="size-[18px]" />
-      </span>
-      <div className="flex min-w-0 flex-1 basis-48 flex-col">
-        <span className="text-[15px] leading-6 font-medium">{title}</span>
-        <span className="text-[13px] leading-5 text-muted-foreground">{description}</span>
-      </div>
-      {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
-    </div>
-  )
-}
+/** One row of a card (see SettingRow): the controls sit at the right end, under the text on a phone. */
+const Row = SettingRow
 
 /**
  * Segurança e dados: sign-in security (two-step code, passkeys), the active sessions on the left; privacy on the right
@@ -31,6 +19,7 @@ function Row({ icon: Icon, title, description, children }: { icon: LucideIcon; t
  */
 export function SecuritySettings() {
   const twoFactor = useTwoFactor()
+  const passkeys = usePasskeys()
   return (
     <Bento className="@container gap-4">
       <div className="col-span-12 flex min-w-0 flex-col gap-4 @min-[900px]:col-span-7">
@@ -39,10 +28,10 @@ export function SecuritySettings() {
             <Row icon={twoFactor.icon} title="Verificação em duas etapas" description={twoFactor.description}>
               {twoFactor.control}
             </Row>
-            <Row icon={FingerprintIcon} title="Passkey" description="Entrar com a biometria do celular ou do computador. Vale como a segunda etapa." />
-            <div className="border-b border-border pb-3 md:pl-14">
-              <PasskeySection />
-            </div>
+            <Row icon={FingerprintIcon} title="Passkey" description={passkeys.description} fullWidthControlsOnMobile>
+              {passkeys.control}
+            </Row>
+            {passkeys.list}
           </div>
         </BentoCard>
 

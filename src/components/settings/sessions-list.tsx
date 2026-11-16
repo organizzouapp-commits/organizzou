@@ -7,6 +7,7 @@ import { LaptopIcon, LogOutIcon, SmartphoneIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/organizzou/ConfirmDialog"
+import { SettingRow } from "@/components/settings/setting-row"
 import { Button } from "@/components/ui/button"
 import { endOtherSessions, endSession, listSessions, type SessionsStatus } from "@/features/auth/sessions-actions"
 import { lastSeenText, type SessionListItem } from "@/features/auth/sessions"
@@ -35,25 +36,26 @@ export function SessionsList() {
         {state.sessions.map((session) => {
           const Icon = /iPhone|iPad|Android/.test(session.label) ? SmartphoneIcon : LaptopIcon
           return (
-            <li key={session.id} data-session={session.current ? "current" : session.id} className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border py-3 first:pt-0 last:border-b-0">
-              <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border">
-                <Icon strokeWidth={1.75} className="size-[18px]" />
-              </span>
-              <div className="flex min-w-0 flex-1 basis-44 flex-col">
-                <span className="flex flex-wrap items-center gap-2 text-[15px] leading-6 font-medium">
-                  {session.label}
-                  {session.current ? <span data-chip="current" className="tabular inline-flex h-6 items-center rounded-full bg-highlight px-2.5 text-[12px] leading-4 font-medium text-highlight-foreground">Este aparelho</span> : null}
-                </span>
-                <span className="text-[13px] leading-5 text-muted-foreground">
-                  {session.place ? `${session.place} · ` : ""}
-                  {session.current ? "ativa agora" : `ativa ${lastSeenText(session.lastSeenAt, now)}`} · desde {format(new Date(session.createdAt), "d 'de' MMM", { locale: ptBR })}
-                </span>
-              </div>
-              {session.current ? null : (
-                <Button type="button" variant="outline" onClick={() => setEnding(session)} className="h-11 rounded-full md:h-11">
-                  <LogOutIcon strokeWidth={1.75} /> Encerrar
-                </Button>
-              )}
+            <li key={session.id} data-session={session.current ? "current" : session.id} className="list-none">
+              <SettingRow
+                interactive
+                icon={Icon}
+                title={session.label}
+                badge={session.current ? <span data-chip="current" className="tabular inline-flex h-6 items-center rounded-full bg-highlight px-2.5 text-[12px] leading-4 font-medium text-highlight-foreground">Este aparelho</span> : null}
+                description={
+                  <>
+                    {session.place ? `${session.place} · ` : ""}
+                    {session.current ? "ativa agora" : `ativa ${lastSeenText(session.lastSeenAt, now)}`} · desde {format(new Date(session.createdAt), "d 'de' MMM", { locale: ptBR })}
+                  </>
+                }
+                fullWidthControlsOnMobile
+              >
+                {session.current ? null : (
+                  <Button type="button" variant="outline" onClick={() => setEnding(session)} className="h-11 rounded-full md:h-11">
+                    <LogOutIcon strokeWidth={1.75} /> Encerrar
+                  </Button>
+                )}
+              </SettingRow>
             </li>
           )
         })}
