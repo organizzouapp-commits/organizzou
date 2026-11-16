@@ -1,7 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
-import { CheckIcon, ChevronDownIcon, ClockIcon, DumbbellIcon, FootprintsIcon, HeartPulseIcon, ListChecksIcon, PlusIcon, TargetIcon, TimerIcon, WeightIcon, type LucideIcon } from "lucide-react"
+import { EllipsisIcon, PencilIcon, RepeatIcon, Trash2Icon, CheckIcon, ChevronDownIcon, ClockIcon, DumbbellIcon, FootprintsIcon, HeartPulseIcon, ListChecksIcon, PlusIcon, TargetIcon, TimerIcon, WeightIcon, type LucideIcon } from "lucide-react"
 
 import { BentoStat } from "@/components/finance/bento"
 import { AddPill, HatchedProgress, HeroCard } from "@/components/finance/parts"
@@ -195,7 +195,7 @@ export function exerciseIcon(name: string, group: string): LucideIcon {
   return DumbbellIcon
 }
 
-const SET_GRID = "grid grid-cols-[28px_minmax(0,1fr)_72px_64px_44px] items-center gap-x-2 md:grid-cols-[28px_minmax(0,1fr)_80px_72px_44px]"
+const SET_GRID = "grid grid-cols-[28px_minmax(0,1fr)_72px_64px_44px_36px] items-center gap-x-2 md:grid-cols-[28px_minmax(0,1fr)_80px_72px_44px_36px]"
 
 export function ExerciseCard({
   name,
@@ -211,6 +211,9 @@ export function ExerciseCard({
   onChange,
   onAddSet,
   onSwap,
+  onEdit,
+  onRemove,
+  onRemoveSet,
 }: {
   name: string
   icon: LucideIcon
@@ -226,12 +229,17 @@ export function ExerciseCard({
   onChange: (index: number, patch: Partial<SetDraft>) => void
   onAddSet: () => void
   onSwap: () => void
+  /** The "..." menu: edit the exercise (name, series, reps, rest), or take it out of the workout. */
+  onEdit: () => void
+  onRemove: () => void
+  /** Takes one set out of today's card (the plan keeps its own count). */
+  onRemoveSet: (index: number) => void
 }) {
   const done = drafts.filter((d) => d.done).length
   const complete = drafts.length > 0 && done === drafts.length
   return (
-    <section data-exercise={name} data-complete={complete} aria-label={name} className="min-w-0 rounded-[14px] border border-border bg-card">
-      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-[60px] w-full items-center gap-3 rounded-[14px] p-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+    <section data-exercise={name} data-complete={complete} aria-label={name} className="relative min-w-0 rounded-[14px] border border-border bg-card">
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-[60px] w-full items-center gap-3 pr-12 rounded-[14px] p-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
         <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border">
           <Icon strokeWidth={1.75} className="size-[18px]" />
         </span>
@@ -255,6 +263,24 @@ export function ExerciseCard({
         )}
         <ChevronDownIcon aria-hidden strokeWidth={1.75} className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-[400ms] motion-reduce:transition-none", open && "rotate-180")} />
       </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label={`Opções de ${name}`} data-testid="exercise-menu" className="absolute top-2 right-1 size-11 rounded-full">
+            <EllipsisIcon strokeWidth={1.75} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem className="min-h-11 gap-3 px-3" onSelect={onEdit}>
+            <PencilIcon strokeWidth={1.75} /> Editar exercício
+          </DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11 gap-3 px-3" onSelect={onSwap}>
+            <RepeatIcon strokeWidth={1.75} /> Substituir
+          </DropdownMenuItem>
+          <DropdownMenuItem variant="destructive" className="min-h-11 gap-3 px-3" onSelect={onRemove}>
+            <Trash2Icon strokeWidth={1.75} /> Remover exercício
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {open ? (
         <div className="flex flex-col gap-1 px-3 pb-3">
@@ -301,6 +327,9 @@ export function ExerciseCard({
                   <span className={cn("flex size-8 items-center justify-center rounded-full border-2 transition-colors duration-[400ms] motion-reduce:transition-none", draft.done ? "border-transparent bg-primary text-primary-foreground" : isNext ? "border-primary" : "border-foreground/30")}>
                     {draft.done ? <CheckIcon aria-hidden strokeWidth={2.5} className="size-4" /> : null}
                   </span>
+                </button>
+                <button type="button" aria-label={`Remover a série ${index + 1} de ${name}`} data-testid="remove-set" onClick={() => onRemoveSet(index)} className="relative flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none after:absolute after:-inset-1.5 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+                  <Trash2Icon aria-hidden strokeWidth={1.75} className="size-4" />
                 </button>
               </div>
             )
