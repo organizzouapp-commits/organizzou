@@ -6,6 +6,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 
 import { isTableName, TABLES } from "./registry"
+import { friendlySaveError } from "./save-errors"
 
 export type PersistResult = { ok: true } | { ok: false; error: string }
 
@@ -51,7 +52,7 @@ export async function persistRows(raw: z.input<typeof input>): Promise<PersistRe
       rows.map((row) => ({ ...row, user_id: userId })),
       { onConflict: config.pk }
     )
-    if (error) return { ok: false, error: error.code === "42501" ? "Sem permissão para salvar isso." : "Não foi possível salvar." }
+    if (error) return { ok: false, error: friendlySaveError(error) }
   }
   return { ok: true }
 }
