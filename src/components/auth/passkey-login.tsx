@@ -6,7 +6,7 @@ import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthenti
 import { FingerprintIcon } from "lucide-react"
 
 import { FormMessage } from "@/components/organizzou/FormMessage"
-import { Button } from "@/components/ui/button"
+import { OutlineAuthButton } from "@/components/auth/auth-parts"
 
 type Options = Parameters<typeof startAuthentication>[0]["optionsJSON"]
 
@@ -67,19 +67,18 @@ export function PasskeyLogin({ next, className, label = "Entrar com biometria ou
   if (supported === false) return null
   return (
     <div className="flex flex-col gap-2">
-      <Button
-        type="button"
-        variant="outline"
+      <OutlineAuthButton
+        icon={<FingerprintIcon strokeWidth={1.75} />}
         disabled={busy || supported === null}
         data-testid="passkey-login"
         onClick={() => {
           WebAuthnAbortService.cancelCeremony()
           void run(false)
         }}
-        className={className ?? "h-12 w-full rounded-full"}
+        className={className}
       >
-        <FingerprintIcon strokeWidth={1.75} /> {busy ? "Aguardando o aparelho…" : label}
-      </Button>
+        {busy ? "Aguardando o aparelho…" : label}
+      </OutlineAuthButton>
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}
     </div>
   )

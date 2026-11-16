@@ -29,6 +29,18 @@ export function GoogleMark({ className }: { className?: string }) {
   )
 }
 
+/** The one outline button of the auth screens ("Continuar com Google", "Entrar com biometria ou passkey"): same 48px height, radius, border and states. */
+export function OutlineAuthButton({ icon, className, children, ...props }: Omit<React.ComponentProps<typeof Button>, "variant" | "size"> & { icon: React.ReactNode }) {
+  return (
+    <Button type="button" variant="outline" size="xl" className={cn(authButtonClass, className)} {...props}>
+      <span aria-hidden className="flex size-5 shrink-0 items-center justify-center [&_svg]:size-5">
+        {icon}
+      </span>
+      {children}
+    </Button>
+  )
+}
+
 export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
   const [pending, startTransition] = useTransition()
   // Stays true after a successful call: the page is about to leave for Google.
@@ -37,13 +49,10 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="xl"
+      <OutlineAuthButton icon={busy ? <Loader2Icon className="animate-spin motion-reduce:animate-none" /> : <GoogleMark />}
         disabled={busy}
         aria-busy={busy}
-        className={authButtonClass}
+
         onClick={() =>
           startTransition(async () => {
             // The toast only shows for a real error; the happy path just navigates to Google.
@@ -65,8 +74,8 @@ export function GoogleButton({ next = "/dashboard" }: { next?: string }) {
           })
         }
       >
-        {busy ? <Loader2Icon aria-hidden className="size-5 animate-spin" /> : <GoogleMark />} {busy ? "Conectando…" : "Continuar com Google"}
-      </Button>
+        {busy ? "Conectando…" : "Continuar com Google"}
+      </OutlineAuthButton>
     </div>
   )
 }
