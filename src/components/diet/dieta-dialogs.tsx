@@ -17,9 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DecimalStepper, fieldClass, pillBase, pillOff, pillOn, StickyFooter } from "@/components/workouts/sheet-fields"
 import { EMPTY_FOOD_FORM, PORTION_UNITS, formFromFood, kcalHint, validateFood, type FoodErrors, type FoodForm, type FoodValues, type PortionUnitId } from "@/features/diet/custom-food"
 import { searchFoods } from "@/features/diet/foods"
-import { MEALS } from "@/features/diet/history"
 import { itemMacros } from "@/features/diet/stats"
-import { MEAL_LABELS, type FoodRow, type MealKind } from "@/features/diet/types"
+import type { MealDef } from "@/features/diet/meals"
+import type { FoodRow } from "@/features/diet/types"
 import { MAX_KG, MIN_KG, parseKg, validKg } from "@/features/diet/weight"
 import { shiftDay } from "@/features/habits/stats"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -38,6 +38,7 @@ type SheetStep = { kind: "search" } | { kind: "form"; food: FoodRow | null; name
  * A food the person created ("Meu alimento") can be edited or deleted from its "…" menu; deleting only hides it, past meals keep it.
  */
 export function FoodSheet({
+  meals,
   meal,
   foods,
   recents,
@@ -47,12 +48,14 @@ export function FoodSheet({
   onSaveFood,
   onDeleteFood,
 }: {
-  meal: MealKind | null
+  /** The person's own meals, in order; `meal` is the id of the one the food goes to. */
+  meals: MealDef[]
+  meal: string | null
   foods: FoodRow[]
   recents: FoodRow[]
   fiberOf: (id: string) => number | null
   onClose: () => void
-  onAdd: (meal: MealKind, foodId: string, servings: number) => void
+  onAdd: (meal: string, foodId: string, servings: number) => void
   /** Creates (the food has no row yet) or updates a food of the person; the fiber has no column yet. */
   onSaveFood: (food: FoodRow, fiber: number | null) => void
   onDeleteFood: (food: FoodRow) => void
@@ -68,7 +71,7 @@ export function FoodSheet({
   }
   const own = foods.filter((f) => f.user_id !== null)
   const title = chosen ? chosen.name : step.kind === "form" ? (step.food ? "Editar alimento" : "Novo alimento") : "Adicionar alimento"
-  const description = chosen ? `Porção: ${chosen.serving_label} · passo 2 de 2` : step.kind === "form" ? "Calorias e macros de uma porção" : meal ? `${MEAL_LABELS[meal]} · passo 1 de 2` : undefined
+  const description = chosen ? `Porção: ${chosen.serving_label} · passo 2 de 2` : step.kind === "form" ? "Calorias e macros de uma porção" : meal ? `${meals.find((m) => m.id === meal)?.name ?? "Refeição"} · passo 1 de 2` : undefined
   return (
     <>
       <ResponsiveSheet open={Boolean(meal)} onOpenChange={(open) => !open && close()} title={title} description={description}>
@@ -77,6 +80,7 @@ export function FoodSheet({
             <QuantityStep
               key={chosen.id}
               food={chosen}
+              meals={meals}
               initialMeal={meal}
               onBack={() => setChosen(null)}
               onAdd={(m, servings) => {
@@ -280,8 +284,8 @@ function FoodFormStep({ initial, others, editing, onBack, onSave }: { initial: F
   )
 }
 
-function QuantityStep({ food, initialMeal, onBack, onAdd }: { food: FoodRow; initialMeal: MealKind; onBack: () => void; onAdd: (meal: MealKind, servings: number) => void }) {
-  const [meal, setMeal] = useState<MealKind>(initialMeal)
+function QuantityStep({ food, meals, initialMeal, onBack, onAdd }: { food: FoodRow; meals: MealDef[]; initialMeal: string; onBack: () => void; onAdd: (meal: string, servings: number) => void }) {
+  const [meal, setMeal] = useState<string>(initialMeal)
   const [servings, setServings] = useState("1")
   const amount = Number(servings.replace(",", ".")) || 0
   const macros = itemMacros({ servings: amount }, food)
@@ -303,9 +307,9 @@ function QuantityStep({ food, initialMeal, onBack, onAdd }: { food: FoodRow; ini
       <div className="flex flex-col gap-2">
         <Label>Refeição</Label>
         <div role="group" aria-label="Refeição" className="flex flex-wrap gap-2">
-          {MEALS.map((m) => (
-            <button key={m} type="button" aria-pressed={meal === m} data-meal={m} onClick={() => setMeal(m)} className={cn(pillBase, meal === m ? pillOn : pillOff)}>
-              {MEAL_LABELS[m]}
+          {meals.map((m) => (
+            <button key={m.id} type="button" aria-pressed={meal === m.id} data-meal={m.id} onClick={() => setMeal(m.id)} className={cn(pillBase, meal === m.id ? pillOn : pillOff)}>
+              {m.name}
             </button>
           ))}
         </div>
