@@ -62,7 +62,12 @@ describe("row level security", () => {
   it("the save registry only lists columns that exist on the table", () => {
     for (const [table, config] of Object.entries(TABLES)) {
       const block = sql.match(new RegExp(`create table (?:if not exists )?public\\.${table}\\s*\\(([\\s\\S]*?)\\n\\);`))?.[1] ?? ""
-      for (const column of Object.keys(config.columns)) expect(block, `${table}.${column}`).toMatch(new RegExp(`^\\s*${column}\\s`, "m"))
+      for (const column of Object.keys(config.columns)) {
+        // Columns of a PREPARED migration (config.pending) are added with "alter table ... add column if not exists", not in the create table.
+        const added = new RegExp(`alter table public\\.${table}\\s[^;]*add column if not exists ${column}\\s`)
+        const ok = new RegExp(`^\\s*${column}\\s`, "m").test(block) || (config.pending.includes(column) && added.test(sql))
+        expect(ok, `${table}.${column}`).toBe(true)
+      }
     }
   })
 })
