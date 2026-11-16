@@ -38,11 +38,22 @@ export async function listSessions(): Promise<{ sessions: SessionListItem[]; sta
   return { sessions: orderSessions(rows.some((r) => r.current) ? rows : [here, ...rows]), status: "ok" }
 }
 
+type RpcError = { code?: string | null; message?: string | null } | null
+
+/** The functions refuse with "sessions_delete_not_permitted" (42501) when the database role cannot delete from auth.sessions. */
+export const isPermissionError = (error: RpcError) => Boolean(error && (/sessions_delete_not_permitted/.test(error.message ?? "") || error.code === "42501"))
+
+export const PERMISSION_MESSAGE = "O banco não permitiu encerrar sessões (falta permissão em auth.sessions). Nada foi alterado. Fale com o suporte ou revise a migração de sessões."
+
 /** Ends one of the person's own sessions: the database function checks the ownership and removes the session for real. */
 export async function endSession(id: string): Promise<{ ok: true } | Fail> {
   const { supabase, userId } = await me()
   if (!userId) return { ok: false, error: "Sua sessão expirou. Entre de novo." }
   const { data, error } = await supabase.rpc("revoke_session", { p_id: id })
+  if (isPermissionError(error)) {
+    console.warn("[sessions] revoke_session refused: the function owner cannot delete from auth.sessions (see migration 20261112000008)")
+    return { ok: false, error: PERMISSION_MESSAGE }
+  }
   return error || data !== true ? { ok: false, error: "Não consegui encerrar essa sessão agora." } : { ok: true }
 }
 
@@ -50,5 +61,9 @@ export async function endOtherSessions(): Promise<{ ok: true; ended: number } | 
   const { supabase, userId, sessionId } = await me()
   if (!userId || !sessionId) return { ok: false, error: "Sua sessão expirou. Entre de novo." }
   const { data, error } = await supabase.rpc("revoke_other_sessions", { p_current: sessionId })
+  if (isPermissionError(error)) {
+    console.warn("[sessions] revoke_other_sessions refused: the function owner cannot delete from auth.sessions (see migration 20261112000008)")
+    return { ok: false, error: PERMISSION_MESSAGE }
+  }
   return error ? { ok: false, error: "Não consegui encerrar as outras sessões agora." } : { ok: true, ended: Number(data ?? 0) }
 }

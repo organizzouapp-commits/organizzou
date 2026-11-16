@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 // A tiny in-memory stand-in for the database: user_sessions rows plus the three functions of the migration (register, revoke one, revoke others).
 type Row = { id: string; user_id: string; auth_session_id: string; label: string; place: string | null; created_at: string; last_seen_at: string; revoked_at: string | null }
-const state = { rows: [] as Row[], uid: "u1", session: "s-phone", tableMissing: false }
+const state = { rows: [] as Row[], uid: "u1", session: "s-phone", tableMissing: false, noDelete: false }
 
 function fakeClient() {
   return {
@@ -23,6 +23,7 @@ function fakeClient() {
         else state.rows.push({ id: `row-${state.rows.length + 1}`, user_id: state.uid, auth_session_id: args.p_session, label: args.p_label, place: args.p_place, created_at: "2026-11-16T12:00:00Z", last_seen_at: "2026-11-16T12:00:00Z", revoked_at: null })
         return { data: Boolean(found?.revoked_at), error: null }
       }
+      if (state.noDelete && name.startsWith("revoke_")) return { data: null, error: { code: "42501", message: "sessions_delete_not_permitted: the owner of this function cannot delete from auth.sessions" } }
       if (name === "revoke_session") {
         const row = state.rows.find((r) => r.id === args.p_id && r.user_id === state.uid)
         if (!row) return { data: false, error: null }
@@ -42,7 +43,7 @@ function fakeClient() {
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fakeClient() }))
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36" }) }))
 
-import { endOtherSessions, endSession, listSessions } from "./sessions-actions"
+import { endOtherSessions, endSession, listSessions, PERMISSION_MESSAGE } from "./sessions-actions"
 
 const register = (session: string, label: string) => fakeClient().rpc("register_session", { p_session: session, p_label: label, p_place: "" })
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   state.uid = "u1"
   state.session = "s-phone"
   state.tableMissing = false
+  state.noDelete = false
 })
 
 describe("sessions list", () => {
@@ -99,5 +101,17 @@ describe("sessions list", () => {
     expect(status).toBe("missing")
     expect(sessions).toHaveLength(1)
     expect(sessions[0].current).toBe(true)
+  })
+})
+
+describe("when the database role cannot delete from auth.sessions", () => {
+  it("ending one session or all the others says so in plain words and changes nothing", async () => {
+    await register("s-phone", "Chrome no Android")
+    await register("s-pc", "Chrome no Windows")
+    state.noDelete = true
+    const pc = state.rows.find((r) => r.auth_session_id === "s-pc")!
+    expect(await endSession(pc.id)).toEqual({ ok: false, error: PERMISSION_MESSAGE })
+    expect(await endOtherSessions()).toEqual({ ok: false, error: PERMISSION_MESSAGE })
+    expect(state.rows.every((r) => r.revoked_at === null)).toBe(true)
   })
 })
