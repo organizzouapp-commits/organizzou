@@ -44,3 +44,72 @@ export function defaultPasskeyName(device: string, firstName: string): string {
   const name = firstName.trim().split(/\s+/)[0]
   return (name ? `${base} de ${name}` : base || "Passkey").slice(0, 80)
 }
+
+// ---------------------------------------------------------------- sign-in failures
+// One reason code per place a passkey sign-in can fail. The code goes to the server log (never a challenge, key, token or credential id) and to
+// the browser (so the screen can say something precise); the browser never learns more than the code.
+
+export type PasskeyFailReason =
+  | "not_configured"
+  | "bad_config"
+  | "bad_request"
+  | "challenge_missing"
+  | "challenge_expired"
+  | "challenge_used"
+  | "challenge_mismatch"
+  | "credential_not_found"
+  | "user_handle_mismatch"
+  | "origin_mismatch"
+  | "rpid_mismatch"
+  | "challenge_wrong"
+  | "user_not_verified"
+  | "counter"
+  | "verify_failed"
+  | "user_not_found"
+  | "link_failed"
+  | "session_failed"
+
+const GENERIC = "Não consegui entrar com a passkey. Tente de novo ou use sua senha."
+
+/** What the login screen says for each reason (pt-BR). Unknown or missing reasons get the generic sentence. */
+export function passkeyFailMessage(reason: string | null | undefined): string {
+  switch (reason) {
+    case "challenge_missing":
+    case "challenge_expired":
+    case "challenge_used":
+    case "challenge_mismatch":
+    case "challenge_wrong":
+      return "A confirmação expirou. Tente de novo."
+    case "credential_not_found":
+    case "user_handle_mismatch":
+      return "Essa passkey não está cadastrada neste site. Entre com a senha e cadastre uma nova em Configurações."
+    case "origin_mismatch":
+    case "rpid_mismatch":
+      return "Essa passkey foi criada para outro endereço do site e não funciona aqui. Entre com a senha."
+    case "user_not_verified":
+      return "O aparelho não confirmou que é você (biometria ou PIN). Tente de novo."
+    case "counter":
+      return "Essa passkey foi recusada por segurança (parece uma cópia). Entre com a senha e cadastre uma nova."
+    case "link_failed":
+    case "session_failed":
+    case "user_not_found":
+      return "Confirmei a passkey, mas não consegui abrir sua sessão. Tente de novo ou use sua senha."
+    case "bad_config":
+      return "As passkeys estão com a configuração do site incorreta no servidor. Entre com a senha."
+    case "not_configured":
+      return "As passkeys ainda não estão disponíveis neste servidor."
+    default:
+      return GENERIC
+  }
+}
+
+export type ChallengeRow = { purpose: string; user_id: string | null; expires_at: string; consumed_at: string | null }
+
+/** Why a stored challenge cannot be used (or null when it can): the cookie points at no row, the wrong ceremony or person, a used one, an old one. */
+export function challengeProblem(row: ChallengeRow | null, purpose: string, userId: string | null, now: number): PasskeyFailReason | null {
+  if (!row) return "challenge_missing"
+  if (row.purpose !== purpose || row.user_id !== userId) return "challenge_mismatch"
+  if (row.consumed_at) return "challenge_used"
+  if (!(Date.parse(row.expires_at) > now)) return "challenge_expired"
+  return null
+}
