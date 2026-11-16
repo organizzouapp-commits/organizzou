@@ -233,7 +233,6 @@ export function GoalCard({ goal, grip, touch, featured = false, compact = false,
         <div className="flex shrink-0 items-center gap-1">
           {grip}
           <RowMenu
-            icon="arrow"
             title={goal.name}
             extra={[
               ...(featured ? [] : [{ label: "Destacar", icon: StarIcon, onSelect: () => f.featureGoal(goal, order) }]),
@@ -296,6 +295,7 @@ export function AchievedGoal({ goal }: { goal: FinancialGoalRow }) {
         <MoneyText cents={goal.current_cents} className="text-[13px] leading-5 text-muted-foreground" />
         <span className="text-[12px] leading-4 font-semibold text-palette-tinta-verso dark:text-brand">Meta alcançada</span>
       </div>
+      <RowMenu title={goal.name} onEdit={() => f.editGoal(goal)} onDelete={() => f.removeGoal(goal)} className="relative z-10 -mr-1 ml-auto self-start" />
     </section>
   )
 }

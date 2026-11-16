@@ -98,6 +98,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   const [txDialog, setTxDialog] = useState<{ row: TransactionRow | null } | null>(null)
   const [billDialog, setBillDialog] = useState<{ row: RecurringBillRow | null } | null>(null)
   const [reopening, setReopening] = useState<RecurringBillRow | null>(null)
+  const [goalToRemove, setGoalToRemove] = useState<FinancialGoalRow | null>(null)
   const [billMeta, setBillMeta] = useState<BillMetaMap>({})
   const [seriesAsk, setSeriesAsk] = useState<RecurringBillRow | null>(null)
   const [goalDialog, setGoalDialog] = useState<{ row: FinancialGoalRow | null } | null>(null)
@@ -352,10 +353,59 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     undoable(`${goal.name} agora é a meta em destaque.`, () => setGoalOrder(previous))
   }
 
+  /** Excluir meta: asks first (saying how many aportes go with it), then removes the goal with its aportes, dates and icon; Desfazer for 6 s. */
   function removeGoal(goal: FinancialGoalRow) {
+    const history = goalHistory[goal.id]
+    const meta = goalMeta[goal.id]
+    const icon = goalIcons[goal.id]
     setGoals((current) => current.filter((g) => g.id !== goal.id))
-    undoable("Meta excluída.", () => setGoals((current) => [...current, goal]))
+    setGoalHistory((current) => {
+      const next = Object.fromEntries(Object.entries(current).filter(([id]) => id !== goal.id))
+      localGoalHistoryRepo.save(next)
+      return next
+    })
+    setGoalMeta((current) => {
+      const next = Object.fromEntries(Object.entries(current).filter(([id]) => id !== goal.id))
+      localGoalMetaRepo.save(next)
+      return next
+    })
+    toast("Meta excluída.", {
+      duration: 6000,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          setGoals((current) => [...current, goal])
+          if (history) setGoalHistory((current) => ((localGoalHistoryRepo.save({ ...current, [goal.id]: history }), { ...current, [goal.id]: history })))
+          if (meta) setGoalMeta((current) => ((localGoalMetaRepo.save({ ...current, [goal.id]: meta }), { ...current, [goal.id]: meta })))
+          if (icon) setGoalIcons((current) => ((localGoalIconRepo.save({ ...current, [goal.id]: icon }), { ...current, [goal.id]: icon })))
+        },
+      },
+    })
   }
+
+  /** Removes one aporte of a goal: the amount leaves the goal's saved total. (The opening balance is edited with "Quanto já guardei".) */
+  function removeContribution(goal: FinancialGoalRow, index: number) {
+    const list = goalHistory[goal.id] ?? []
+    const entry = list[index]
+    if (!entry || entry.opening) return
+    setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, current_cents: Math.max(0, g.current_cents - entry.cents) } : g)))
+    setGoalHistory((current) => {
+      const next = { ...current, [goal.id]: list.filter((_, i) => i !== index) }
+      localGoalHistoryRepo.save(next)
+      return next
+    })
+    undoable("Aporte removido.", () => {
+      setGoals((current) => current.map((g) => (g.id === goal.id ? { ...g, current_cents: g.current_cents + entry.cents } : g)))
+      setGoalHistory((current) => {
+        const restored = [...(current[goal.id] ?? [])]
+        restored.splice(index, 0, entry)
+        const next = { ...current, [goal.id]: restored }
+        localGoalHistoryRepo.save(next)
+        return next
+      })
+    })
+  }
+
 
   // ------------------------------------------------- accounts and limits
   function changeLayout(update: (layout: AccountLayout) => AccountLayout) {
@@ -465,7 +515,8 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
     fundGoal: setFundGoal,
     saveGoalFunds,
     saveGoal,
-    removeGoal,
+    removeGoal: setGoalToRemove,
+    removeContribution,
     editGoal: (row) => setGoalDialog({ row }),
     setGoalOrder,
     featureGoal,
@@ -576,6 +627,17 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
       </div>
 
       <TransactionDialog open={Boolean(txDialog)} onOpenChange={(open) => !open && setTxDialog(null)} row={txDialog?.row ?? null} />
+      <ConfirmDialog
+        open={Boolean(goalToRemove)}
+        onOpenChange={(open) => !open && setGoalToRemove(null)}
+        title="Excluir esta meta?"
+        description={goalToRemove ? `“${goalToRemove.name}” será apagada junto com ${(goalHistory[goalToRemove.id] ?? []).length} ${(goalHistory[goalToRemove.id] ?? []).length === 1 ? "aporte registrado" : "aportes registrados"}. Você poderá desfazer por alguns segundos.` : ""}
+        onConfirm={() => {
+          const goal = goalToRemove
+          setGoalToRemove(null)
+          if (goal) removeGoal(goal)
+        }}
+      />
       <ConfirmDialog
         open={Boolean(reopening)}
         onOpenChange={(open) => !open && setReopening(null)}

@@ -76,7 +76,10 @@ export type Finance = {
   saveGoal: (row: FinancialGoalRow, icon: GoalIconKey, schedule?: { startDate: string; openingCents: number }) => void
   /** Start date and opening balance of each goal, by goal id. */
   goalMeta: GoalMetaMap
+  /** Asks to delete (a confirmation says how many aportes go too); Desfazer follows. */
   removeGoal: (goal: FinancialGoalRow) => void
+  /** Removes one aporte of the goal (not the opening balance) and takes it out of the saved total. */
+  removeContribution: (goal: FinancialGoalRow, index: number) => void
   editGoal: (goal: FinancialGoalRow) => void
   /** Saves the order of the goals in progress (the first becomes the featured one). */
   setGoalOrder: (ids: string[]) => void
