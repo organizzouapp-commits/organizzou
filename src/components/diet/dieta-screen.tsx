@@ -42,7 +42,7 @@ import { localFoodMetaRepo, type FoodMeta } from "@/features/diet/food-meta"
 import { localWeightNoteRepo } from "@/features/diet/weight-notes"
 import { sortWeights, type WeightPeriod, withTargetWeight } from "@/features/diet/weight"
 import { dayTotals } from "@/features/diet/stats"
-import { MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
+import { DEFAULT_DIET_GOAL, MEAL_LABELS, type DietGoalRow, type FoodRow, type MealItemRow, type MealKind, type WeightLogRow } from "@/features/diet/types"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { inTz } from "@/lib/dates"
 import { dayOf, SP_TIMEZONE, newId } from "@/lib/sp-time"
@@ -70,7 +70,7 @@ export type DietInitial = {
 }
 
 /** What a new person gets before choosing anything (the same numbers the sign-up provisioning stores). */
-const DEFAULT_GOAL: DietGoalRow = { user_id: "", kcal: 2000, protein_g: 120, carbs_g: 220, fat_g: 65, water_ml: 2500, target_weight_kg: null }
+const DEFAULT_GOAL: DietGoalRow = DEFAULT_DIET_GOAL
 
 export function DietaScreen({ nowIso, initial }: { nowIso: string; initial: DietInitial }) {
   // The foods: the shared catalog and the ones the person created (saved like every other table).

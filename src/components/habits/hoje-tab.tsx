@@ -81,7 +81,7 @@ export function HabitGlyph({ name, className }: { name: string; className?: stri
 const WEEKDAY_NAMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
 export const dayName = (day: string) => WEEKDAY_NAMES[parseISO(day).getDay()]
 const letterOf = (day: string) => format(parseISO(day), "EEEEE", { locale: ptBR }).toUpperCase()
-export const formatQty = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })
+export const formatQty = (value: number) => value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 const HATCH = "repeating-linear-gradient(135deg, color-mix(in oklab, var(--foreground) 30%, transparent) 0 1.5px, transparent 1.5px 5px)"
@@ -195,6 +195,8 @@ export function Stepper({ habit, qty, disabled, onStep }: { habit: HabitRow; qty
 export type HojeActions = {
   onToggle: (habit: HabitRow) => void
   onStep: (habit: HabitRow, direction: 1 | -1) => void
+  /** Opens the small dialog to type an exact amount for today (goal habits). */
+  onExact: (habit: HabitRow) => void
   onPause: (habit: HabitRow) => void
   onEdit: (habit: HabitRow) => void
   onDelete: (habit: HabitRow) => void
@@ -210,7 +212,7 @@ function HabitCard({ habit, logs, selected, actions }: { habit: HabitRow; logs: 
   const streak = habit.paused ? 0 : currentStreak(habit, logs, selected)
   const goal = habit.type === "goal"
   const disabled = habit.paused || !scheduled
-  const meta = habit.paused ? "Pausado" : !scheduled ? "Folga neste dia" : done ? `Feito às ${clockOf(log?.updated_at ?? new Date().toISOString())}` : goal ? `${formatQty(qty)} / ${formatQty(habit.target_qty ?? 0)} ${habit.unit ?? ""}`.trim() : "Pendente"
+  const meta = habit.paused ? "Pausado" : !scheduled ? "Folga neste dia" : done ? `Feito às ${clockOf(log?.updated_at ?? new Date().toISOString())}` : goal ? `${formatQty(qty)} de ${formatQty(habit.target_qty ?? 0)} ${habit.unit ?? ""}`.trim() : "Pendente"
   return (
     <li
       data-habit={habit.id}
@@ -222,7 +224,13 @@ function HabitCard({ habit, logs, selected, actions }: { habit: HabitRow; logs: 
       <div className="min-w-0">
         <p className="truncate text-[15px] leading-5 font-semibold">{habit.name}</p>
         <p className="tabular flex items-center gap-x-2 text-[13px] leading-5 text-muted-foreground">
-          <span className="truncate">{meta}</span>
+          {goal && !disabled ? (
+            <button type="button" data-testid="habit-exact" aria-label={`Digitar a quantidade de ${habit.name}`} onClick={() => actions.onExact(habit)} className="truncate rounded-md text-left outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+              {meta}
+            </button>
+          ) : (
+            <span className="truncate">{meta}</span>
+          )}
           {streak > 0 ? (
             <span className="inline-flex shrink-0 items-center gap-1">
               <FlameIcon aria-hidden strokeWidth={1.75} className="size-3.5" />
@@ -231,6 +239,7 @@ function HabitCard({ habit, logs, selected, actions }: { habit: HabitRow; logs: 
           ) : null}
         </p>
       </div>
+{goal ? (        <div role="progressbar" aria-label={`Progresso de ${habit.name}`} aria-valuemin={0} aria-valuemax={habit.target_qty ?? 1} aria-valuenow={Math.min(qty, habit.target_qty ?? 1)} className="col-span-3 -mt-1 h-1 overflow-hidden rounded-full bg-muted @min-[560px]:col-span-5">          <div className="h-full rounded-full bg-primary transition-[width] duration-[400ms] motion-reduce:transition-none" style={{ width: `${Math.min(100, ((qty / (habit.target_qty ?? 1)) * 100))}%` }} />        </div>      ) : null}
       <div className="col-start-2 col-end-4 row-start-2 flex items-center justify-between gap-2 @min-[560px]:contents">
         <WeekStrip habit={habit} logs={logs} selected={selected} className="col-start-2 @min-[560px]:col-start-4 @min-[560px]:row-start-1" />
         {goal ? (

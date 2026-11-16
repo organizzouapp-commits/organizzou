@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Rotina" }
 
 async function RotinaData({ nowIso }: { nowIso: string }) {
   const data = await loadHabits(nowIso)
-  return <RotinaScreen nowIso={nowIso} initialHabits={data.habits} initialLogs={data.logs} />
+  return <RotinaScreen nowIso={nowIso} initialHabits={data.habits} initialLogs={data.logs} initialWater={data.water} initialGoal={data.goal} />
 }
 
 export default function RotinaPage() {

@@ -1,5 +1,7 @@
 "use server"
 
+import { isWaterHabit, toMl } from "@/features/habits/steps"
+import { setWater } from "@/features/habits/water"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { z } from "zod"
@@ -55,6 +57,23 @@ export async function saveHabitQty(input: { habitId: string; qty: number }): Pro
   if (!parsed.success) return { ok: false, error: "Dados inválidos." }
   const { supabase, userId } = await signedIn()
   const day = todaySp()
+  // A water habit (a goal habit in L, ml or copos) keeps its quantity in the Dieta water log, the one source of the daily water.
+  const habit = await supabase.from("habits").select("type, unit").eq("id", parsed.data.habitId).maybeSingle()
+  const habitRow = habit.data as { type: "fixed" | "goal"; unit: string | null } | null
+  if (habitRow && isWaterHabit(habitRow)) {
+    const rows = await supabase.from("water_logs").select("id, ml").eq("log_date", day).order("created_at")
+    if (rows.error) return { ok: false, error: SAVE_ERROR }
+    const before = (rows.data ?? []) as { id: string; ml: number }[]
+    const next = setWater(before.map((r) => ({ id: r.id, log_date: day, ml: r.ml })), day, toMl(parsed.data.qty, habitRow.unit), () => crypto.randomUUID())
+    const keep = new Set(next.map((r) => r.id))
+    const removed = before.filter((r) => !keep.has(r.id)).map((r) => r.id)
+    const shortened = next.filter((r) => before.some((b) => b.id === r.id && b.ml !== r.ml))
+    const added = next.filter((r) => !before.some((b) => b.id === r.id))
+    if (removed.length > 0) await supabase.from("water_logs").delete().in("id", removed)
+    for (const r of shortened) await supabase.from("water_logs").update({ ml: r.ml }).eq("id", r.id)
+    if (added.length > 0) await supabase.from("water_logs").insert(added.map((r) => ({ user_id: userId, log_date: day, ml: r.ml })))
+    return { ok: true }
+  }
   if (parsed.data.qty <= 0) {
     const { error } = await supabase.from("habit_logs").delete().eq("habit_id", parsed.data.habitId).eq("log_date", day)
     return error ? { ok: false, error: SAVE_ERROR } : { ok: true }

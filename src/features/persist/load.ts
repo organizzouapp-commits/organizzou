@@ -1,3 +1,4 @@
+import { withWaterLogs } from "@/features/habits/water"
 import "server-only"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -49,11 +50,14 @@ const back = (now: string, days: number) => dayOf(now, -days)
 
 export async function loadHabits(now: string) {
   const supabase = await client()
-  const [habits, logs] = await Promise.all([
+  const [habits, logs, water, goal] = await Promise.all([
     rows<HabitRow>(supabase, "habits", { order: ["created_at"] }),
     rows<HabitLogRow>(supabase, "habit_logs", { since: ["log_date", back(now, 400)] }),
+    // The water habits read the Dieta water: its log and its goal.
+    rows<{ id: string; log_date: string; ml: number }>(supabase, "water_logs", { since: ["log_date", back(now, 400)] }),
+    rows<DietGoalRow>(supabase, "diet_goals"),
   ])
-  return { habits, logs }
+  return { habits, logs, water, goal: goal[0] ?? null }
 }
 
 export async function loadFinance(now: string) {
@@ -252,7 +256,8 @@ export async function loadTodaySource(now: string) {
   ])
   return {
     habits,
-    logs,
+    // A water habit reads the Dieta water (one source): its quantity of today comes from the water log.
+    logs: withWaterLogs(habits, logs, water.map((w, index) => ({ id: String(index), log_date: w.log_date, ml: w.ml }))),
     transactions,
     bills,
     categories,
