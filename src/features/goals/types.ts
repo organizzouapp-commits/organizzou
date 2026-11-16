@@ -11,6 +11,12 @@ export type GoalLinkRow = {
   total: number
   /** Shown after the numbers, e.g. "h", "tarefas". Money uses cents with unit "R$". */
   unit: string
+  /** Where the numbers come from (a deep link to the module); set for the live rows of a linked goal. */
+  href?: string
+  /** A spending limit: better the less is used (the bar shows how much of the limit is gone). */
+  inverse?: boolean
+  /** The thing it measured was deleted. */
+  broken?: boolean
 }
 
 export type GoalMilestoneRow = { id: string; goal_id: string; title: string; done: boolean }
@@ -26,4 +32,7 @@ export type LifeGoalRow = {
   updated_at: string
 }
 
-export type GoalWithDetails = LifeGoalRow & { links: GoalLinkRow[]; milestones: GoalMilestoneRow[] }
+/** Set for goals driven by a module: `virtual` goals are Finanças goals shown here by link (edited in Finanças); `start`/`end` are the goal dates. */
+export type GoalLinkInfo = { kind: string; start: string; end: string | null; virtual: boolean }
+
+export type GoalWithDetails = LifeGoalRow & { links: GoalLinkRow[]; milestones: GoalMilestoneRow[]; linked?: GoalLinkInfo }

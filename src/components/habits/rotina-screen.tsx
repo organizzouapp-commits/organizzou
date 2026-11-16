@@ -1,5 +1,6 @@
 "use client"
 
+import { LinkedGoalsStrip } from "@/components/goals/linked-strip"
 import { DayNavigator } from "@/components/organizzou/DayNavigator"
 import { dayNavLabel } from "@/lib/day-label"
 import { useEffect, useMemo, useState } from "react"
@@ -200,6 +201,7 @@ export function RotinaScreen({ nowIso, initialHabits, initialLogs, initialWater,
   return (
     <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="rotina" data-tab={tab}>
       <PageHeader />
+      <LinkedGoalsStrip group="habit" />
 
       {isMobile ? (
         <>

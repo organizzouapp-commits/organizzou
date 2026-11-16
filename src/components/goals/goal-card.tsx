@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { CheckIcon, ChevronDownIcon, PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon, TrophyIcon } from "lucide-react"
 
 import { HatchedProgress } from "@/components/finance/parts"
@@ -8,6 +9,7 @@ import { ActionMenu, type ActionItem } from "@/components/organizzou/action-menu
 import { modules } from "@/components/organizzou/modules"
 import { QuickAdd } from "@/components/organizzou/quick-add"
 import { cappedPercent, deadlineChips, linkText, milestoneChip } from "@/features/goals/overview"
+import { periodLabel } from "@/features/finance/goal-schedule"
 import { goalProgress } from "@/features/goals/progress"
 import type { GoalMilestoneRow, GoalWithDetails } from "@/features/goals/types"
 import { cn } from "@/lib/utils"
@@ -66,7 +68,7 @@ export type GoalCardProps = {
  */
 export function GoalCard({ goal, today, mobile, collapsed, onToggleCollapsed, onEdit, onSetStatus, onDelete, onToggleMilestone, onAddMilestone }: GoalCardProps) {
   const progress = goalProgress(goal.links, goal.milestones)
-  const chips = deadlineChips(goal.deadline, today, true)
+  const chips = goal.linked ? [...deadlineChips(goal.deadline, today, true).slice(0, 1), periodLabel(goal.linked.start, goal.linked.end)] : deadlineChips(goal.deadline, today, true)
   const doneMilestones = goal.milestones.filter((m) => m.done).length
   const inputId = `milestone-${goal.id}`
   const bodyId = `goal-body-${goal.id}`
@@ -125,7 +127,13 @@ export function GoalCard({ goal, today, mobile, collapsed, onToggleCollapsed, on
                         <Icon strokeWidth={1.75} className="size-4" />
                       </span>
                       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3">
-                        <span className="min-w-0 text-[14px] leading-5 font-medium break-words">{link.label}</span>
+                        {link.href ? (
+                          <Link href={link.href} data-link-href className="min-w-0 rounded-sm text-[14px] leading-5 font-medium break-words underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+                            {link.label}
+                          </Link>
+                        ) : (
+                          <span className="min-w-0 text-[14px] leading-5 font-medium break-words">{link.label}</span>
+                        )}
                         <span className="tabular shrink-0 text-[13px] leading-5 text-muted-foreground">{linkText(link)}</span>
                       </div>
                       <HatchedProgress value={cappedPercent(link.done, link.total)} label={`${link.label}: ${linkText(link)}`} className="h-2" />

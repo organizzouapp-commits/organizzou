@@ -1,5 +1,6 @@
 "use client"
 
+import { LinkedGoalsStrip } from "@/components/goals/linked-strip"
 import { useCallback, useEffect, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -561,6 +562,7 @@ function FinanceBody({ nowIso, initial, memory }: { nowIso: string; initial: Fin
   return (
     <FinanceProvider value={finance}>
       <div className={cn("flex min-w-0 flex-col gap-4", isMobile && "pb-24")} data-testid="financas" data-tab={tab}>
+        {tab === "metas" ? <LinkedGoalsStrip group="finance" /> : null}
         {isMobile ? (
           <>
             <section aria-label="Finanças" data-testid="financas-header-block" className="mt-3 flex flex-col gap-2 rounded-[20px] border border-border bg-card p-3">
