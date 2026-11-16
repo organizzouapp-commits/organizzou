@@ -5,9 +5,11 @@ import { z } from "zod"
 
 import { createClient } from "@/lib/supabase/server"
 
-import { isTableName, TABLES } from "./registry"
+import { isTableName, TABLES, withoutPending } from "./registry"
+import { friendlySaveError, isMissingColumn } from "./save-errors"
 
-export type PersistResult = { ok: true } | { ok: false; error: string }
+/** `degraded`: saved, but without the columns of a prepared migration that is not applied yet (the screen keeps those on this device). */
+export type PersistResult = { ok: true; degraded?: boolean } | { ok: false; error: string }
 
 const MAX_ROWS = 500
 
@@ -46,12 +48,20 @@ export async function persistRows(raw: z.input<typeof input>): Promise<PersistRe
     const { error } = await supabase.from(table).delete().in("id", deletes)
     if (error) return { ok: false, error: "Não foi possível apagar." }
   }
+  let degraded = false
   if (rows.length > 0) {
-    const { error } = await supabase.from(table).upsert(
-      rows.map((row) => ({ ...row, user_id: userId })),
-      { onConflict: config.pk }
-    )
-    if (error) return { ok: false, error: error.code === "42501" ? "Sem permissão para salvar isso." : "Não foi possível salvar." }
+    const send = (list: Record<string, unknown>[]) =>
+      supabase.from(table).upsert(
+        list.map((row) => ({ ...row, user_id: userId })),
+        { onConflict: config.pk }
+      )
+    let { error } = await send(rows)
+    // The migration that adds these columns is prepared but not applied: save the rest and let the screen keep the new fields on this device.
+    if (error && config.pending.length > 0 && isMissingColumn(error)) {
+      degraded = true
+      ;({ error } = await send(withoutPending(config, rows)))
+    }
+    if (error) return { ok: false, error: friendlySaveError(error) }
   }
-  return { ok: true }
+  return degraded ? { ok: true, degraded: true } : { ok: true }
 }

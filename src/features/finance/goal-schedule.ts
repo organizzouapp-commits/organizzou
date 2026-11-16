@@ -2,7 +2,7 @@
 // entry flagged as such: it counts in "Guardado nas metas", the progress and the projection, and it is never a lançamento (so it never
 // touches the month's income, expenses or cash flow). Kept in localStorage behind `GoalMetaRepo` until
 // supabase/migrations/20261112000004_goal_start_and_opening.sql is applied (prepared, NOT applied). Pure apart from that adapter.
-import { addMonths, differenceInCalendarDays, format, parseISO } from "date-fns"
+import { addDays, addMonths, differenceInCalendarDays, format, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 export type GoalMeta = {
@@ -13,8 +13,21 @@ export type GoalMeta = {
 }
 export type GoalMetaMap = Record<string, GoalMeta>
 
-/** The day the goal started: the saved start date, else the day it was created. */
-export const goalStart = (goal: { created_at: string }, meta?: GoalMeta) => meta?.startDate ?? goal.created_at.slice(0, 10)
+/**
+ * The day the goal started: the saved start date, else the day it was created. A legacy goal (made before start dates existed) whose
+ * deadline is on or before its creation day starts the day before the deadline, which is exactly what the migration's backfill does, so
+ * the form never opens with an "end must be after start" error the person did not cause and an old goal can always be edited.
+ */
+export function goalStart(goal: { created_at: string; deadline?: string | null }, meta?: GoalMeta): string {
+  if (meta?.startDate) return meta.startDate
+  const created = goal.created_at.slice(0, 10)
+  return goal.deadline && goal.deadline <= created ? shiftDays(goal.deadline, -1) : created
+}
+
+const shiftDays = (day: string, days: number) => format(addDays(parseISO(day), days), "yyyy-MM-dd")
+
+/** The pt-BR message for a database refusal of the dates (the constraint finance_goals_dates_check), instead of a raw error. */
+export const GOAL_DATES_MESSAGE = "O prazo final precisa ser depois da data de início."
 
 export type GoalDateCheck = { start: string | null; end: string | null }
 
@@ -23,7 +36,7 @@ export function validateGoalDates(start: string, end: string): GoalDateCheck {
   const ISO = /^\d{4}-\d{2}-\d{2}$/
   if (!ISO.test(start)) return { start: "Escolha a data de início.", end: null }
   if (end && !ISO.test(end)) return { start: null, end: "Escolha o prazo final." }
-  if (end && end <= start) return { start: null, end: "O prazo final precisa ser depois da data de início." }
+  if (end && end <= start) return { start: null, end: GOAL_DATES_MESSAGE }
   return { start: null, end: null }
 }
 

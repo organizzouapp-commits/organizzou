@@ -22,6 +22,7 @@ import { DEFAULT_VIEW, allCollapsed, isCollapsed, localGoalViewRepo, setAllColla
 import type { GoalLinkRow, GoalMilestoneRow, GoalWithDetails, LifeGoalRow } from "@/features/goals/types"
 import type { FinancialGoalRow } from "@/features/finance/types"
 import { computeLinked, isLinkedComplete, localLinkedGoalRepo, MONEY_UNIT, type GoalSources, type LinkProgress, type LinkedGoalMap, type LinkedGoalMeta } from "@/features/goals/linked"
+import { linkToColumns, mergeLinks } from "@/features/goals/link-columns"
 import { localReviewLogRepo } from "@/features/studies/review"
 import { usePersistedRows } from "@/features/persist/use-persisted-rows"
 import { dayOf, newId } from "@/lib/sp-time"
@@ -31,7 +32,7 @@ const USER = "00000000-0000-4000-8000-000000000001"
 const dim = (text: string) => <span className="text-[16px] leading-6 opacity-60">{text}</span>
 
 /** The goal row itself, without the nested links and milestones (those are their own tables). */
-const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_id, title: g.title, description: g.description, deadline: g.deadline, status: g.status, created_at: g.created_at, updated_at: g.updated_at })
+const plain = (g: GoalWithDetails): LifeGoalRow => ({ id: g.id, user_id: g.user_id, title: g.title, description: g.description, deadline: g.deadline, status: g.status, created_at: g.created_at, updated_at: g.updated_at, kind: g.kind, link_type: g.link_type, link_id: g.link_id, params: g.params, start_date: g.start_date, end_date: g.end_date })
 
 /** A live progress row as a link row of the goal card (money comes in cents, the card shows reais). */
 function asLinkRow(goalId: string, p: LinkProgress, index: number): GoalLinkRow {
@@ -85,21 +86,23 @@ export function MetasScreen({ nowIso, initial, sources }: { nowIso: string; init
   // Goals driven by the modules: the link of each goal (what it measures, target, dates) is kept on this device until the link columns exist
   // (see linked.ts); the progress itself is never stored, it is computed from the module rows the page loaded.
   const router = useRouter()
-  const [links, setLinks] = useState<LinkedGoalMap>({})
+  // The link of each goal: the database columns when the migration is applied, this device otherwise (see link-columns.ts).
+  const [localLinks, setLocalLinks] = useState<LinkedGoalMap>({})
   const [reviews, setReviews] = useState<{ reviewed_on: string }[]>([])
   // Finanças goals are the same records: Metas reads them (and creates one when a goal is born here), it never copies them.
   const [financeRows, setFinanceRows] = usePersistedRows<FinancialGoalRow>("finance_goals", () => sources.financeGoals as FinancialGoalRow[])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLinks(localLinkedGoalRepo.load())
+    setLocalLinks(localLinkedGoalRepo.load())
     setReviews(localReviewLogRepo.load())
   }, [])
   const updateLinks = (change: (current: LinkedGoalMap) => LinkedGoalMap) =>
-    setLinks((current) => {
+    setLocalLinks((current) => {
       const next = change(current)
       localLinkedGoalRepo.save(next)
       return next
     })
+  const links = useMemo(() => mergeLinks(goalRows, localLinks), [goalRows, localLinks])
   const liveSources: GoalSources = { ...sources, financeGoals: financeRows, reviews }
 
   /** The goals as shown: linked goals carry their live rows and finish by themselves at 100%; Finanças goals nobody linked appear as linked goals. */
@@ -191,6 +194,8 @@ export function MetasScreen({ nowIso, initial, sources }: { nowIso: string; init
       const stamp = new Date().toISOString()
       setFinanceRows((current) => [...current, { id: (built.spec as { goalId: string }).goalId, user_id: USER, name: built.newFinance!.name, target_cents: built.newFinance!.targetCents, current_cents: 0, deadline: save.deadline || null, created_at: stamp, updated_at: stamp }])
     }
+    // Saved in the goal's own columns (when the database has them) and on this device (always), so a goal never loses its link.
+    const columns = linkToColumns(built ? { spec: built.spec, startDate: save.startDate, endDate: save.deadline || null } : undefined)
     updateLinks((current) => {
       const next = { ...current }
       if (built) next[id] = { spec: built.spec, startDate: save.startDate, endDate: save.deadline || null }
@@ -198,11 +203,11 @@ export function MetasScreen({ nowIso, initial, sources }: { nowIso: string; init
       return next
     })
     if (save.id) {
-      setGoals((current) => current.map((g) => (g.id === save.id ? { ...g, title: save.title, description: save.description || null, deadline: save.deadline || null, updated_at: new Date().toISOString() } : g)))
+      setGoals((current) => current.map((g) => (g.id === save.id ? { ...g, ...columns, title: save.title, description: save.description || null, deadline: save.deadline || null, updated_at: new Date().toISOString() } : g)))
       toast.success("Meta atualizada.")
       return
     }
-    const created: GoalWithDetails = { id, user_id: USER, title: save.title, description: save.description || null, deadline: save.deadline || null, status: "active", created_at: nowIso, updated_at: nowIso, links: [], milestones: [] }
+    const created: GoalWithDetails = { id, user_id: USER, title: save.title, description: save.description || null, deadline: save.deadline || null, status: "active", created_at: nowIso, updated_at: nowIso, links: [], milestones: [], ...columns }
     setGoals((current) => [created, ...current])
     toast.success("Meta criada.")
   }

@@ -9,6 +9,15 @@
 --                         stops working (its short-lived access token is also refused by the proxy through register_session).
 --   revoke_other_sessions the same for every session but the current one.
 -- Ownership is checked inside each function against auth.uid(): nobody can end somebody else's session.
+--
+-- WARNING, READ BEFORE APPLYING: revoke_session and revoke_other_sessions DELETE ROWS FROM auth.sessions (Supabase's own schema). That is what
+-- really signs a device out (its refresh token stops working), and it needs DELETE permission on auth.sessions for the role that OWNS these
+-- functions (they are SECURITY DEFINER, so they run as their owner, normally "postgres" when applied with `supabase db push`).
+--   * It must be TESTED FIRST: locally with `supabase start`, or in a throwaway project, never on production first. Sign in on two browsers,
+--     end one from Configurações > Segurança > Sessões ativas and confirm it is sent to the login.
+--   * revoke_other_sessions ends EVERY other session of the person, including ones that never reached user_sessions.
+--   * If the permission is missing the functions do NOT silently do nothing: they raise "sessions_delete_not_permitted" (SQLSTATE 42501) and
+--     change nothing (the whole call is rolled back), and the app shows a friendly message. register_session does not need this permission.
 
 create table if not exists public.user_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -54,6 +63,9 @@ declare
   target uuid;
 begin
   if uid is null then return false; end if;
+  if not has_table_privilege(current_user, 'auth.sessions', 'DELETE') then
+    raise exception 'sessions_delete_not_permitted: the owner of this function cannot delete from auth.sessions' using errcode = '42501';
+  end if;
   select auth_session_id into target from public.user_sessions where id = p_id and user_id = uid;
   if target is null then return false; end if;
   update public.user_sessions set revoked_at = coalesce(revoked_at, now()) where id = p_id and user_id = uid;
@@ -71,6 +83,9 @@ declare
   ended integer;
 begin
   if uid is null then return 0; end if;
+  if not has_table_privilege(current_user, 'auth.sessions', 'DELETE') then
+    raise exception 'sessions_delete_not_permitted: the owner of this function cannot delete from auth.sessions' using errcode = '42501';
+  end if;
   update public.user_sessions set revoked_at = coalesce(revoked_at, now())
    where user_id = uid and auth_session_id is distinct from p_current and revoked_at is null;
   get diagnostics ended = row_count;

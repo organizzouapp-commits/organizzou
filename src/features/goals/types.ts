@@ -30,6 +30,13 @@ export type LifeGoalRow = {
   status: "active" | "done"
   created_at: string
   updated_at: string
+  /** Only after 20261116000002_goal_links.sql is applied (see link-columns.ts); before it the link is kept on this device. */
+  kind?: "free" | "linked"
+  link_type?: string | null
+  link_id?: string | null
+  params?: Record<string, unknown>
+  start_date?: string | null
+  end_date?: string | null
 }
 
 /** Set for goals driven by a module: `virtual` goals are Finanças goals shown here by link (edited in Finanças); `start`/`end` are the goal dates. */

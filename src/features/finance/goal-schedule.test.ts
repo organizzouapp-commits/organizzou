@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest"
 
 import { goalStart, monthlyNeeded, monthsToGo, parseGoalMeta, periodLabel, validateGoalDates, withOpening } from "./goal-schedule"
 
+describe("legacy goals", () => {
+  it("a goal whose deadline is not after its creation day starts the day before the deadline (never blocks editing)", () => {
+    const legacy = { created_at: "2026-11-10T12:00:00Z", deadline: "2026-11-05" }
+    expect(goalStart(legacy)).toBe("2026-11-04")
+    expect(validateGoalDates(goalStart(legacy), legacy.deadline)).toEqual({ start: null, end: null })
+    expect(goalStart({ created_at: "2026-11-10T12:00:00Z", deadline: "2026-11-10" })).toBe("2026-11-09")
+  })
+  it("normal goals and saved start dates are untouched", () => {
+    expect(goalStart({ created_at: "2026-03-01T12:00:00Z", deadline: "2027-01-01" })).toBe("2026-03-01")
+    expect(goalStart({ created_at: "2026-03-01T12:00:00Z", deadline: null })).toBe("2026-03-01")
+    expect(goalStart({ created_at: "2026-03-01T12:00:00Z", deadline: "2026-02-01" }, { startDate: "2026-01-10" })).toBe("2026-01-10")
+  })
+})
+
 describe("dates", () => {
   it("falls back to the creation day when there is no start", () => {
     expect(goalStart({ created_at: "2026-03-05T10:00:00Z" })).toBe("2026-03-05")

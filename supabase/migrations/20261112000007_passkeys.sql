@@ -25,8 +25,19 @@ drop policy if exists "passkey_credentials_select_own" on public.passkey_credent
 create policy "passkey_credentials_select_own" on public.passkey_credentials for select to authenticated
   using (user_id = (select auth.uid()));
 
+-- WHO MAY CHANGE WHAT (column-level privileges, not just a row policy):
+--   * A person may rename their own passkey: the ONLY column granted to the "authenticated" role is device_label.
+--   * credential_id, public_key, counter, transports, device_type, backed_up and last_used_at are written ONLY by server code that uses the
+--     service role (the secret key): src/app/api/passkey/[action]/route.ts inserts the row after verifying the registration and updates
+--     counter + last_used_at after verifying a sign-in. The browser can never touch them, even on its own row.
+-- Row level security still needs an UPDATE policy for the rename to find the row; the privilege below is what narrows it to one column.
+-- (Documented and checked by src/features/auth/passkey-privileges.test.ts.)
+revoke update on public.passkey_credentials from public, anon, authenticated;
+grant update (device_label) on public.passkey_credentials to authenticated;
+
 drop policy if exists "passkey_credentials_update_own" on public.passkey_credentials;
-create policy "passkey_credentials_update_own" on public.passkey_credentials for update to authenticated
+drop policy if exists "passkey_credentials_rename_own" on public.passkey_credentials;
+create policy "passkey_credentials_rename_own" on public.passkey_credentials for update to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 
 drop policy if exists "passkey_credentials_delete_own" on public.passkey_credentials;

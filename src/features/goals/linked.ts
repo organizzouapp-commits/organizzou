@@ -225,7 +225,7 @@ const num = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0
 const str = (v: unknown) => typeof v === "string" && v.length > 0
 const PERIODS = ["week", "month"]
 
-function parseSpec(raw: Record<string, unknown>): LinkSpec | null {
+export function parseSpec(raw: Record<string, unknown>): LinkSpec | null {
   switch (raw.kind) {
     case "finance_saving":
       return str(raw.goalId) ? { kind: "finance_saving", goalId: raw.goalId as string } : null
