@@ -5,6 +5,8 @@ import { headers } from "next/headers"
 
 import { createClient } from "@/lib/supabase/server"
 
+import { isPermissionError, PERMISSION_MESSAGE } from "./sessions-errors"
+
 import { orderSessions, placeFromHeaders, sessionLabel, type SessionListItem } from "./sessions"
 
 type Fail = { ok: false; error: string }
@@ -37,13 +39,6 @@ export async function listSessions(): Promise<{ sessions: SessionListItem[]; sta
   const rows = ((data ?? []) as { id: string; auth_session_id: string; label: string; place: string | null; created_at: string; last_seen_at: string }[]).map((r) => ({ id: r.id, label: r.label, place: r.place, createdAt: r.created_at, lastSeenAt: r.last_seen_at, current: r.auth_session_id === sessionId }))
   return { sessions: orderSessions(rows.some((r) => r.current) ? rows : [here, ...rows]), status: "ok" }
 }
-
-type RpcError = { code?: string | null; message?: string | null } | null
-
-/** The functions refuse with "sessions_delete_not_permitted" (42501) when the database role cannot delete from auth.sessions. */
-export const isPermissionError = (error: RpcError) => Boolean(error && (/sessions_delete_not_permitted/.test(error.message ?? "") || error.code === "42501"))
-
-export const PERMISSION_MESSAGE = "O banco não permitiu encerrar sessões (falta permissão em auth.sessions). Nada foi alterado. Fale com o suporte ou revise a migração de sessões."
 
 /** Ends one of the person's own sessions: the database function checks the ownership and removes the session for real. */
 export async function endSession(id: string): Promise<{ ok: true } | Fail> {

@@ -43,7 +43,8 @@ function fakeClient() {
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fakeClient() }))
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "user-agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36" }) }))
 
-import { endOtherSessions, endSession, listSessions, PERMISSION_MESSAGE } from "./sessions-actions"
+import { endOtherSessions, endSession, listSessions } from "./sessions-actions"
+import { PERMISSION_MESSAGE } from "./sessions-errors"
 
 const register = (session: string, label: string) => fakeClient().rpc("register_session", { p_session: session, p_label: label, p_place: "" })
 
