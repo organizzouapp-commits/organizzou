@@ -5,16 +5,22 @@ export const CHALLENGE_TTL_MS = 5 * 60 * 1000
 export const CHALLENGE_COOKIE = "org_wa_challenge"
 export const RP_NAME = "Organizzou"
 
+import { hostOf, PRODUCTION_SITE_URL } from "@/lib/site-url"
+
 export type WebauthnConfig = { rpID: string; origins: string[] }
 
 /**
- * The relying party id and the allowed origins. WEBAUTHN_RP_ID and WEBAUTHN_ORIGIN (comma separated for more than one) win; otherwise
- * production defaults to organizzou.vercel.app and development to localhost. A passkey only works on the id it was created for.
+ * The relying party id and the allowed origins. WEBAUTHN_RP_ID (one value) and WEBAUTHN_ORIGIN (comma separated, any number) win; otherwise
+ * production defaults to organizzou.com / https://organizzou.com and development to localhost.
+ *
+ * A passkey only works on the id it was created for. Passkeys registered while the id was organizzou.vercel.app do NOT work on organizzou.com:
+ * they must be registered again (Configurações > Segurança). The id stays a single value; the origins may list several sites that sit under
+ * it, e.g. WEBAUTHN_ORIGIN=https://organizzou.com,https://www.organizzou.com (add https://organizzou.vercel.app only while the old id is kept).
  */
 export function webauthnConfig(env: { WEBAUTHN_RP_ID?: string; WEBAUTHN_ORIGIN?: string; NODE_ENV?: string }): WebauthnConfig {
   const production = env.NODE_ENV === "production"
-  const rpID = env.WEBAUTHN_RP_ID?.trim() || (production ? "organizzou.vercel.app" : "localhost")
-  const fromEnv = (env.WEBAUTHN_ORIGIN ?? "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean)
+  const rpID = env.WEBAUTHN_RP_ID?.trim() || (production ? hostOf(PRODUCTION_SITE_URL) : "localhost")
+  const fromEnv = (env.WEBAUTHN_ORIGIN ?? "").split(",").map((o) => o.trim().replace(/\/+$/, "")).filter(Boolean)
   const origins = fromEnv.length > 0 ? fromEnv : production ? [`https://${rpID}`] : ["http://localhost:3000", "http://localhost:3100"]
   return { rpID, origins }
 }

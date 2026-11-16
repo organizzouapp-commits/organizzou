@@ -60,6 +60,18 @@ export function hasConsent(category: ConsentCategory): boolean {
   return readConsent()?.[category] === true
 }
 
+/**
+ * The Domain attribute for the consent cookie: only the configured one, and only when the current host is that domain or inside it.
+ * A leftover value for another domain (an old site) would make the browser drop the cookie, so it is ignored (host-only cookie).
+ */
+export function cookieDomainFor(host: string, configured: string | undefined): string | undefined {
+  const domain = configured?.trim().toLowerCase()
+  if (!domain) return undefined
+  const bare = domain.replace(/^\./, "")
+  const here = host.toLowerCase()
+  return here === bare || here.endsWith(`.${bare}`) ? domain : undefined
+}
+
 export function saveConsent(choice: ConsentChoice): Consent {
   const consent: Consent = {
     version: CONSENT_VERSION,
@@ -68,7 +80,7 @@ export function saveConsent(choice: ConsentChoice): Consent {
     marketing: choice.marketing,
     decidedAt: new Date().toISOString(),
   }
-  const domain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN
+  const domain = cookieDomainFor(window.location.hostname, process.env.NEXT_PUBLIC_COOKIE_DOMAIN)
   const parts = [
     `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(consent))}`,
     "Path=/",

@@ -6,8 +6,8 @@ import { challengeProblem, passkeyFailMessage, toBase64Url, userHandle } from ".
 import { classifyVerifyError, userIdFromHandle, verifyLoginAssertion } from "./passkey-verify"
 
 // Real assertions, signed locally with an ES256 key, exactly the bytes a platform authenticator would send.
-const RP_ID = "organizzou.vercel.app"
-const ORIGIN = "https://organizzou.vercel.app"
+const RP_ID = "organizzou.com"
+const ORIGIN = "https://organizzou.com"
 const USER_ID = "7b9f1c2e-1111-4222-8333-444455556666"
 const CHALLENGE = "Y2hhbGxlbmdlLWZvci10aGlzLXRlc3Q"
 
@@ -73,7 +73,16 @@ describe("passkey sign-in verification", () => {
 
   it("an origin with a trailing slash would be a broken server setting (the config reader strips it); it is reported as such", async () => {
     expect(await verify(assertion(), 0, { origins: [ORIGIN] })).toMatchObject({ ok: true })
-    expect(await verify(assertion(), 0, { origins: ["https://organizzou.vercel.app/"] })).toEqual({ ok: false, reason: "bad_config" })
+    expect(await verify(assertion(), 0, { origins: ["https://organizzou.com/"] })).toEqual({ ok: false, reason: "bad_config" })
+  })
+
+  it("the same id verifies on the apex, on www and on the old host while it is listed, and a passkey made for another id is refused", async () => {
+    const origins = ["https://organizzou.com", "https://www.organizzou.com", "https://organizzou.vercel.app"]
+    for (const origin of origins) expect(await verify(assertion({ origin }), 0, { origins })).toMatchObject({ ok: true })
+    // registered under the old id: its authenticator data carries the hash of organizzou.vercel.app, so it cannot sign in on organizzou.com
+    expect(await verify(assertion({ rpID: "organizzou.vercel.app" }), 0, { origins })).toEqual({ ok: false, reason: "rpid_mismatch" })
+    // an origin that is not listed is refused
+    expect(await verify(assertion({ origin: "https://organizzou.vercel.app" }), 0, { origins: ["https://organizzou.com"] })).toEqual({ ok: false, reason: "origin_mismatch" })
   })
 
   it("a signature made by another key is refused", async () => {

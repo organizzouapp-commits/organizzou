@@ -67,7 +67,7 @@ vi.mock("@/features/auth/passkey-verify", () => ({ verifyLoginAssertion: async (
 import { POST } from "@/app/api/passkey/[action]/route"
 
 const call = (body: unknown = { response: { id: "credential-id" } }, cookie: string | null = `org_wa_challenge=${CHALLENGE_ID}`) =>
-  POST(new NextRequest("https://organizzou.vercel.app/api/passkey/login-verify", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `ip-${Math.random()}`, ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }), { params: Promise.resolve({ action: "login-verify" }) })
+  POST(new NextRequest("https://organizzou.com/api/passkey/login-verify", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `ip-${Math.random()}`, ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }), { params: Promise.resolve({ action: "login-verify" }) })
 
 let warnings: string[] = []
 const realWarn = console.warn

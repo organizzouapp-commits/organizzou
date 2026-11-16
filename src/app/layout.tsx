@@ -12,7 +12,7 @@ import { CookieConsent } from "@/components/organizzou/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getSiteUrl } from "@/lib/supabase/env";
+import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 // Outfit (Google Fonts, OFL) is the UI font. Surgena lives only inside the logo artwork.

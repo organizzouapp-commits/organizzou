@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next"
 
-import { getSiteUrl } from "@/lib/supabase/env"
+import { getSiteUrl } from "@/lib/site-url"
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const site = getSiteUrl()

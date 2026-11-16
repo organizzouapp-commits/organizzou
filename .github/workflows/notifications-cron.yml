@@ -1,7 +1,7 @@
 # Runs the notification dispatcher every 5 minutes. Vercel Cron on the Hobby plan only allows one run per day (vercel.json keeps that daily
 # run as a safety net); this workflow is what makes the notifications arrive on time. On a Vercel plan that allows minute-level cron, set
 # "*/5 * * * *" in vercel.json and delete this file.
-# Repository secrets needed: APP_URL (e.g. https://organizzou.vercel.app, no trailing slash) and CRON_SECRET (the same value as on Vercel).
+# Repository secrets needed: APP_URL (e.g. https://organizzou.com, no trailing slash) and CRON_SECRET (the same value as on Vercel).
 name: notifications-cron
 on:
   schedule:

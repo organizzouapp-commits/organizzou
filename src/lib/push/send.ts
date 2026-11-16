@@ -3,6 +3,8 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import * as webpush from "web-push"
 
+import { SUPPORT_EMAIL } from "@/lib/support"
+
 // Sends web push. The VAPID private key is read here, on the server, and never leaves it: VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY (the public key is
 // also what the browser needs to subscribe; it is public by design) and VAPID_SUBJECT (mailto:...). Subscriptions the push service no longer
 // knows (404 / 410) are deleted.
@@ -13,14 +15,17 @@ type SubscriptionRow = { id: string; endpoint: string; p256dh: string; auth: str
 
 export const vapidPublicKey = () => process.env.VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
 
+/** The contact the push services can reach; defaults to the support address. */
+export const vapidSubject = () => process.env.VAPID_SUBJECT || `mailto:${SUPPORT_EMAIL}`
+
 export function pushConfigured(): boolean {
-  return Boolean(vapidPublicKey() && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT)
+  return Boolean(vapidPublicKey() && process.env.VAPID_PRIVATE_KEY)
 }
 
 let configured = false
 function configure() {
   if (configured) return
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT as string, vapidPublicKey(), process.env.VAPID_PRIVATE_KEY as string)
+  webpush.setVapidDetails(vapidSubject(), vapidPublicKey(), process.env.VAPID_PRIVATE_KEY as string)
   configured = true
 }
 
