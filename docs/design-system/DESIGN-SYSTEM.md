@@ -264,7 +264,7 @@ copiado para o site de marketing. Só depende dos componentes shadcn `Button`, `
 
 - **Aparece uma vez por navegador.** A escolha fica no cookie próprio `organizzou_consent` = `{version, necessary: true, analytics,
   marketing, decidedAt}`, 12 meses, `SameSite=Lax`, `Secure` em produção, `Domain` vindo de `NEXT_PUBLIC_COOKIE_DOMAIN` (vazio em
-  localhost; `.organizzou.com.br` no futuro, para app e site compartilharem a escolha). Aumentar `CONSENT_VERSION` mostra o aviso de novo.
+  localhost; `.organizzou.com` no futuro, para app e site compartilharem a escolha). Aumentar `CONSENT_VERSION` mostra o aviso de novo.
 - **Barra**: fixa no canto inferior ESQUERDO, a 24 px das bordas (16 px no celular, largura total menos as margens), máx. 440 px,
   raio 20 px, padding 28 px, fundo `popover`, borda 1 px a 10%, acima do cartão de acesso. De cima para baixo, alinhado à esquerda:
   título "Antes de continuar…" (20 px / 600), texto de 15 px em `muted` com o link **Política de privacidade.** (600, foreground,

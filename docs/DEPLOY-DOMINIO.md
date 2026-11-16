@@ -1,4 +1,4 @@
-# Checklist: colocar organizzouapp.com no ar
+# Checklist: colocar organizzou.com no ar
 
 Tudo que é URL absoluta (redirect do OAuth, links dos e-mails, Open Graph, canonical, sitemap, robots) vem de
 `NEXT_PUBLIC_SITE_URL`. Nenhum domínio ou `localhost` está fixo no código. Ao trocar o domínio, só as configurações
@@ -21,8 +21,8 @@ URLs antigas (`/entrar`, `/hoje`, `/tarefas`, `/em-breve`, `/termos`, `/privacid
 
 ## 1. Vercel
 
-1. Projeto → **Settings → Domains** → adicionar `organizzouapp.com` (apex) e `www.organizzouapp.com`.
-2. Marcar o apex como principal e configurar o `www` com **Redirect to organizzouapp.com** (308).
+1. Projeto → **Settings → Domains** → adicionar `organizzou.com` (apex) e `www.organizzou.com`.
+2. Marcar o apex como principal e configurar o `www` com **Redirect to organizzou.com** (308).
 3. No DNS do registrador, apontar o apex (registro `A` / `ALIAS`) e o `www` (`CNAME`) para os valores que a Vercel mostrar.
 4. Aguardar o certificado HTTPS ficar ativo.
 
@@ -30,8 +30,8 @@ URLs antigas (`/entrar`, `/hoje`, `/tarefas`, `/em-breve`, `/termos`, `/privacid
 
 | Variável | Valor em produção |
 |---|---|
-| `NEXT_PUBLIC_SITE_URL` | `https://organizzouapp.com` (sem barra no final) |
-| `NEXT_PUBLIC_COOKIE_DOMAIN` | `.organizzouapp.com` (o ponto inicial compartilha a escolha de cookies entre o site e o app) |
+| `NEXT_PUBLIC_SITE_URL` | `https://organizzou.com` (sem barra no final) |
+| `NEXT_PUBLIC_COOKIE_DOMAIN` | `.organizzou.com` (o ponto inicial compartilha a escolha de cookies entre o site e o app) |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | as do projeto Supabase |
 | `SUPABASE_SECRET_KEY` | chave secreta do Supabase (obrigatória para a lista de espera gravar e para as ações do admin). Lista completa em `docs/DEPLOY-VERCEL.md` |
 
@@ -39,9 +39,9 @@ Depois de alterar variáveis `NEXT_PUBLIC_*`, faça um novo deploy (elas entram 
 
 ## 3. Supabase → Authentication → URL Configuration
 
-- **Site URL:** `https://organizzouapp.com`
+- **Site URL:** `https://organizzou.com`
 - **Redirect URLs** (manter as de desenvolvimento):
-  - `https://organizzouapp.com/**`
+  - `https://organizzou.com/**`
   - `http://localhost:3000/**`
 - Os e-mails de confirmação e de recuperação usam essas URLs. A recuperação aponta para
   `/auth/callback?next=/recuperar-senha/nova-senha`.
@@ -49,22 +49,29 @@ Depois de alterar variáveis `NEXT_PUBLIC_*`, faça um novo deploy (elas entram 
 ## 4. Login com Google
 
 1. **Google Cloud Console → APIs e serviços → Credenciais → ID do cliente OAuth:**
-   - **Origens JavaScript autorizadas:** adicionar `https://organizzouapp.com`.
+   - **Origens JavaScript autorizadas:** adicionar `https://organizzou.com`.
    - **URI de redirecionamento autorizado:** continua sendo o callback do Supabase
      (`https://<project-ref>.supabase.co/auth/v1/callback`). Não mude.
-2. **Tela de consentimento OAuth:** domínio autorizado `organizzouapp.com`, links para
-   `https://organizzouapp.com/politicas#privacidade` e `https://organizzouapp.com/politicas#termos`.
+2. **Tela de consentimento OAuth:** domínio autorizado `organizzou.com`, links para
+   `https://organizzou.com/politicas#privacidade` e `https://organizzou.com/politicas#termos`.
 3. Tirar o app do modo **Testing**: Tela de consentimento → **Publicar app** (em teste só os usuários de teste conseguem entrar).
 4. Supabase → Authentication → Providers → Google: habilitado, com Client ID e Secret.
    No `supabase/config.toml` local: `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` / `_SECRET` no `.env.local`.
 
 ## 5. Conferir depois do deploy
 
-- [ ] `https://organizzouapp.com/` mostra a página "Em breve"; `www.` redireciona para o apex.
+- [ ] `https://organizzou.com/` mostra a página "Em breve"; `www.` redireciona para o apex.
 - [ ] `/login`, `/cadastro`, `/recuperar-senha` com as animações; logado, redirecionam para `/dashboard`.
 - [ ] Deslogado, `/dashboard/financas` → `/login?next=/dashboard/financas` → após entrar, abre `/dashboard/financas`.
 - [ ] Login com Google volta para `/dashboard`.
-- [ ] E-mail de recuperação chega com link `https://organizzouapp.com/auth/callback?...` e abre `/recuperar-senha/nova-senha`.
+- [ ] E-mail de recuperação chega com link `https://organizzou.com/auth/callback?...` e abre `/recuperar-senha/nova-senha`.
 - [ ] `/robots.txt` e `/sitemap.xml` mostram o domínio de produção.
-- [ ] Compartilhar `https://organizzouapp.com/` mostra o cartão (Open Graph) com o logo.
+- [ ] Compartilhar `https://organizzou.com/` mostra o cartão (Open Graph) com o logo.
 - [ ] Formulário da lista de espera grava em `waitlist` (Supabase → Table editor).
+
+## Passkeys, redirecionamento e cookies (domínio organizzou.com)
+- **Fonte única do endereço:** `src/lib/site-url.ts` (`getSiteUrl()`). Sem `NEXT_PUBLIC_SITE_URL`: produção `https://organizzou.com`, preview o próprio endereço, desenvolvimento `http://localhost:3000`.
+- **Passkeys:** `WEBAUTHN_RP_ID=organizzou.com` (um único valor) e `WEBAUTHN_ORIGIN=https://organizzou.com,https://www.organizzou.com` (lista separada por vírgula; acrescente `https://organizzou.vercel.app` só temporariamente). **Passkeys cadastradas em organizzou.vercel.app NÃO funcionam em organizzou.com e precisam ser cadastradas de novo** (Configurações > Segurança).
+- **Redirecionamento 308:** em produção (`VERCEL_ENV=production`), `www.organizzou.com` e `organizzou.vercel.app` vão para `https://organizzou.com` mantendo caminho e query (`src/proxy.ts`, regra em `src/lib/canonical-host.ts`). Previews, localhost e as rotas `/api/cron/*` e `/api/push*` nunca são redirecionados.
+- **Cookies:** os cookies de sessão do Supabase não fixam `Domain` (valem para o host atual). O cookie de consentimento só usa `NEXT_PUBLIC_COOKIE_DOMAIN` quando o host atual está dentro dele; um valor antigo é ignorado.
+- **GitHub Actions (cron):** o segredo `APP_URL` deve ser `https://organizzou.com`.

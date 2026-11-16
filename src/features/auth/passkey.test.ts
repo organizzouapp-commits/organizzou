@@ -5,7 +5,12 @@ import { challengeAlive, defaultPasskeyName, fromBase64Url, toBase64Url, userHan
 describe("webauthnConfig", () => {
   it("defaults to localhost in development and the Vercel host in production", () => {
     expect(webauthnConfig({ NODE_ENV: "development" })).toEqual({ rpID: "localhost", origins: ["http://localhost:3000", "http://localhost:3100"] })
-    expect(webauthnConfig({ NODE_ENV: "production" })).toEqual({ rpID: "organizzou.vercel.app", origins: ["https://organizzou.vercel.app"] })
+    expect(webauthnConfig({ NODE_ENV: "production" })).toEqual({ rpID: "organizzou.com", origins: ["https://organizzou.com"] })
+  })
+  it("one id, several origins: the apex, www and (temporarily) the old vercel.app host can all be verified", () => {
+    const config = webauthnConfig({ NODE_ENV: "production", WEBAUTHN_RP_ID: "organizzou.com", WEBAUTHN_ORIGIN: "https://organizzou.com, https://www.organizzou.com/ ,https://organizzou.vercel.app" })
+    expect(config.rpID).toBe("organizzou.com")
+    expect(config.origins).toEqual(["https://organizzou.com", "https://www.organizzou.com", "https://organizzou.vercel.app"])
   })
   it("takes the id and the origins from the environment", () => {
     expect(webauthnConfig({ NODE_ENV: "production", WEBAUTHN_RP_ID: "organizzouapp.com", WEBAUTHN_ORIGIN: "https://organizzouapp.com/, https://www.organizzouapp.com" })).toEqual({ rpID: "organizzouapp.com", origins: ["https://organizzouapp.com", "https://www.organizzouapp.com"] })

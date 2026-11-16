@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 
 import { STRONG_COOKIE } from "@/lib/auth/strong-auth"
 
-import { getSiteUrl } from "@/lib/supabase/env"
+import { getSiteUrl } from "@/lib/site-url"
 import { safeNextPath } from "@/lib/safe-next"
 import { createClient } from "@/lib/supabase/server"
 

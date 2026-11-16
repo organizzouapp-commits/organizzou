@@ -29,9 +29,9 @@ qualquer `NEXT_PUBLIC_*`, faça um novo deploy: elas entram no build.
 |---|---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | **Sim** | Pública | Supabase → Project Settings → API → Project URL | Nada funciona: login, cadastro, dashboard e lista de espera falham com "Supabase não configurado" |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` (ou o alias `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) | **Sim** (uma das duas) | Pública | Supabase → Project Settings → API Keys → Publishable key (`sb_publishable_…`) | Igual à de cima |
-| `NEXT_PUBLIC_SITE_URL` | **Sim** | Pública | O domínio final, ex.: `https://organizzouapp.com` (sem `/` no final) | Links dos e-mails, redirect do Google, Open Graph, sitemap e robots saem com o endereço errado. Sem ela na Vercel o app usa o endereço da própria Vercel (`VERCEL_PROJECT_PRODUCTION_URL`), o que evita `localhost`, mas não é o domínio certo |
+| `NEXT_PUBLIC_SITE_URL` | **Sim** | Pública | O domínio final, ex.: `https://organizzou.com` (sem `/` no final) | Links dos e-mails, redirect do Google, Open Graph, sitemap e robots saem com o endereço errado. Sem ela na Vercel o app usa o endereço da própria Vercel (`VERCEL_PROJECT_PRODUCTION_URL`), o que evita `localhost`, mas não é o domínio certo |
 | `SUPABASE_SECRET_KEY` | **Sim** | **Só servidor** | Supabase → Project Settings → API Keys → Secret key (`sb_secret_…`) | A lista de espera não grava; no admin, as ações que escrevem (plano, suspender, sessões, exportar CSV) ficam desativadas |
-| `NEXT_PUBLIC_COOKIE_DOMAIN` | Recomendada | Pública | `.organizzouapp.com` (com o ponto inicial) | A escolha de cookies não é compartilhada entre o site e o app (o banner reaparece) |
+| `NEXT_PUBLIC_COOKIE_DOMAIN` | Recomendada | Pública | `.organizzou.com` (com o ponto inicial) | A escolha de cookies não é compartilhada entre o site e o app (o banner reaparece) |
 | `ANTHROPIC_API_KEY` | Opcional | **Só servidor** | console.anthropic.com → API Keys | Só aparece como "Não configurada" na página Status do admin. O assistente atual é simulado e não usa a chave |
 | `SUPABASE_SERVICE_ROLE_KEY` | Não (nome antigo) | **Só servidor** | O mesmo valor de `SUPABASE_SECRET_KEY` | Ainda é aceita como alternativa; use `SUPABASE_SECRET_KEY` |
 | `GIT_COMMIT_SHA` | Opcional | Só servidor | A Vercel já fornece `VERCEL_GIT_COMMIT_SHA` sozinha | Só o commit na página Status do admin |
