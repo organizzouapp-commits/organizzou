@@ -21,13 +21,28 @@ export type TableConfig = {
   /** Primary key column: `id`, or `user_id` for the one-row-per-person tables. */
   pk: "id" | "user_id"
   columns: Shape
+  /**
+   * Columns that only exist after a PREPARED migration is applied. They are optional on input, and when the database says they are not
+   * there yet the save is retried without them (see persistRows), so the app keeps working, with its localStorage fallback, until then.
+   */
+  pending: string[]
   schema: z.ZodObject
 }
 
-function table(columns: Shape, pk: "id" | "user_id" = "id"): TableConfig {
-  const shape = pk === "id" ? { id: z.uuid(), ...columns } : columns
-  return { pk, columns, schema: z.object(shape) }
+function table(columns: Shape, pk: "id" | "user_id" = "id", pending: Shape = {}): TableConfig {
+  const all: Shape = { ...columns, ...pending }
+  const optional = Object.fromEntries(Object.entries(pending).map(([key, type]) => [key, type.optional()]))
+  const shape = pk === "id" ? { id: z.uuid(), ...columns, ...optional } : { ...columns, ...optional }
+  return { pk, columns: all, pending: Object.keys(pending), schema: z.object(shape) }
 }
+
+/** The rows without the columns of a migration that is not applied yet. */
+export function withoutPending<T extends Record<string, unknown>>(config: Pick<TableConfig, "pending">, rows: T[]): T[] {
+  if (config.pending.length === 0) return rows
+  return rows.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !config.pending.includes(key))) as T)
+}
+
+const month = z.string().regex(/^[0-9]{4}-[0-9]{2}$/)
 
 export const TABLES = {
   habits: table({
@@ -64,15 +79,33 @@ export const TABLES = {
     description: text(200),
     source: z.literal("manual"),
   }),
-  finance_bills: table({
-    name: name(80),
-    amount_cents: cents.min(1),
-    due_day: z.number().int().min(1).max(28),
-    category_id: z.uuid().nullable(),
-    active: z.boolean(),
-    last_paid_month: z.string().regex(/^\d{4}-\d{2}$/).nullable(),
-  }),
-  finance_goals: table({ name: name(80), target_cents: cents.min(1), current_cents: cents, deadline: day.nullable() }),
+  finance_bills: table(
+    {
+      name: name(80),
+      amount_cents: cents.min(1),
+      due_day: z.number().int().min(1).max(28),
+      category_id: z.uuid().nullable(),
+      active: z.boolean(),
+      last_paid_month: month.nullable(),
+    },
+    "id",
+    // 20261112000003_installment_bills.sql
+    {
+      installment_total: z.number().int().min(2).max(60).nullable(),
+      installment_first_month: month.nullable(),
+      installment_first_day: z.number().int().min(1).max(31).nullable(),
+      installment_paid: z.array(month).max(60),
+      installment_skipped: z.array(month).max(60),
+      installment_amounts: z.record(month, cents),
+      series_id: z.uuid().nullable(),
+    }
+  ),
+  finance_goals: table(
+    { name: name(80), target_cents: cents.min(1), current_cents: cents, deadline: day.nullable() },
+    "id",
+    // 20261112000004_goal_start_and_opening.sql
+    { start_date: day.nullable(), opening_cents: cents }
+  ),
   exercises: table({ name: name(120), muscle_group: text(60) }),
   workout_plans: table({ name: name(80), weekdays }),
   plan_exercises: table({
@@ -87,7 +120,14 @@ export const TABLES = {
   workout_sessions: table({ plan_id: z.uuid(), performed_on: day, duration_min: z.number().int().min(0).max(1440).nullable(), completed: z.boolean() }),
   set_logs: table({ session_id: z.uuid(), exercise_id: z.uuid(), set_index: z.number().int().min(0).max(100), reps: z.number().int().min(0).max(1000), load_kg: z.number().min(0).max(1000) }),
   foods: table({ name: name(120), serving_label: name(60), kcal: z.number().min(0).max(10000), protein_g: z.number().min(0).max(1000), carbs_g: z.number().min(0).max(1000), fat_g: z.number().min(0).max(1000) }),
-  meal_items: table({ log_date: day.optional(), meal: z.enum(["breakfast", "lunch", "snack", "dinner"]), food_id: z.uuid(), servings: z.number().positive().max(1000) }),
+  meal_items: table(
+    { log_date: day.optional(), meal: z.enum(["breakfast", "lunch", "snack", "dinner"]), food_id: z.uuid(), servings: z.number().positive().max(1000) },
+    "id",
+    // 20261116000001_user_meals.sql
+    { meal_key: text(60).nullable() }
+  ),
+  // 20261116000001_user_meals.sql: the whole table is new, so a save before the migration fails with a friendly message (the screen keeps its list on this device).
+  user_meals: table({ name: name(40), meal_time: z.string().regex(/^[0-9]{2}:[0-9]{2}(:[0-9]{2})?$/).nullable(), icon: text(20).nullable(), position: z.number().int().min(0).max(1000) }),
   diet_goals: table(
     { kcal: z.number().int().positive().max(20000), protein_g: z.number().int().min(0).max(2000), carbs_g: z.number().int().min(0).max(2000), fat_g: z.number().int().min(0).max(2000), water_ml: z.number().int().positive().max(20000), target_weight_kg: z.number().positive().max(700).nullable() },
     "user_id"
@@ -110,7 +150,12 @@ export const TABLES = {
   note_folders: table({ name: name(80) }),
   notes: table({ folder_id: z.uuid().nullable(), title: text(200), body: text(100000), pinned: z.boolean(), tags: z.array(z.string().max(40)).max(30) }),
   reminders: table({ title: name(200), remind_at: instant, channels: z.array(z.string().max(20)).max(2).transform((list) => list.filter((c) => c === "push")), status: z.enum(["pending", "done"]), note_id: z.uuid().nullable() }),
-  life_goals: table({ title: name(160), description: text(2000).nullable(), deadline: day.nullable(), status: z.enum(["active", "done"]) }),
+  life_goals: table(
+    { title: name(160), description: text(2000).nullable(), deadline: day.nullable(), status: z.enum(["active", "done"]) },
+    "id",
+    // 20261116000002_goal_links.sql: the link of a goal to module data (src/features/goals/link-columns.ts)
+    { kind: z.enum(["free", "linked"]), link_type: text(40).nullable(), link_id: z.uuid().nullable(), params: z.record(z.string(), z.unknown()), start_date: day.nullable(), end_date: day.nullable() }
+  ),
   life_goal_links: table({ goal_id: z.uuid(), module: name(40), label: name(120), done: z.number().min(0).max(1e12), total: z.number().positive().max(1e12), unit: text(20) }),
   life_goal_milestones: table({ goal_id: z.uuid(), title: name(160), done: z.boolean() }),
   journal_entries: table({ entry_date: day, mood: z.number().int().min(1).max(5), text: text(20000), sleep_hours: z.number().min(0).max(24).nullable() }),
