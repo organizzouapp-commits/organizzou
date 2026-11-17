@@ -1,12 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { BellIcon, BellOffIcon, SmartphoneIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { FormMessage } from "@/components/organizzou/FormMessage"
+import { PushDebugPanel, type DebugFacts } from "@/components/settings/push-debug"
 import { Button } from "@/components/ui/button"
-import { getPushPublicKey, listPushDevices, removePushDevice, savePushSubscription, sendTestPush, type PushDevice } from "@/features/notifications/push-actions"
+import { enableMessage, READY_TIMEOUT_MS, sameApplicationServerKey, subscribeErrorMessage, testToast, withTimeout } from "@/features/notifications/enable"
+import { getPushPublicKey, listPushDevices, pushDiagnostics, removePushDevice, savePushSubscription, sendTestPush, type PushDevice } from "@/features/notifications/push-actions"
 import { deviceLabel, pushSupport, urlBase64ToUint8Array, type PushSupport } from "@/features/notifications/push"
 
 type Status = { support: PushSupport; subscribedHere: boolean; endpoint: string | null }
@@ -30,20 +32,48 @@ async function readStatus(): Promise<Status> {
   return { support, subscribedHere: endpoint !== null && Notification.permission === "granted", endpoint }
 }
 
+type Saved = { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+
 /** "Notificações neste aparelho": ask permission only on a click, subscribe, list the devices, send a test. Needs the service worker (production). */
 export function PushDevices() {
   const [status, setStatus] = useState<Status | null>(null)
   const [devices, setDevices] = useState<PushDevice[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [debug, setDebug] = useState(false)
+  const [lastTest, setLastTest] = useState<string | null>(null)
+  const [lastEnable, setLastEnable] = useState<string | null>(null)
+  const resynced = useRef(false)
+
+  /** Saves the subscription this browser already has, when the server does not know it (the device looked "active" but never received anything). */
+  const resync = useCallback(async () => {
+    const registration = await navigator.serviceWorker.getRegistration()
+    const subscription = await registration?.pushManager.getSubscription()
+    if (!subscription) return false
+    const json = subscription.toJSON() as Saved
+    const saved = await savePushSubscription({ endpoint: json.endpoint ?? "", keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" }, userAgent: navigator.userAgent, label: deviceLabel(navigator.userAgent) })
+    return saved.ok
+  }, [])
 
   const refresh = useCallback(async () => {
-    setStatus(await readStatus())
+    const next = await readStatus()
+    setStatus(next)
     const list = await listPushDevices().catch(() => null)
-    if (list?.ok) setDevices(list.devices)
-  }, [])
+    if (list?.ok) {
+      setDevices(list.devices)
+      // The browser has a subscription that the server does not have: save it once, so "Ativas neste aparelho" is true on both sides.
+      if (next.subscribedHere && next.endpoint && !list.devices.some((d) => d.endpoint === next.endpoint) && !resynced.current) {
+        resynced.current = true
+        if (await resync().catch(() => false)) {
+          const again = await listPushDevices().catch(() => null)
+          if (again?.ok) setDevices(again.devices)
+        }
+      }
+    }
+  }, [resync])
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDebug(new URLSearchParams(window.location.search).get("debug") === "1")
     void refresh()
   }, [refresh])
 
@@ -51,24 +81,64 @@ export function PushDevices() {
     if (busy) return
     setBusy(true)
     setError(null)
+    const stop = (step: Parameters<typeof enableMessage>[0], message?: string) => {
+      setLastEnable(step)
+      setError(message ?? enableMessage(step))
+    }
     try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return stop("no_service_worker")
       const key = await getPushPublicKey()
-      if (!key) return setError("As notificações ainda não estão ligadas neste servidor. Avise o suporte.")
-      const permission = await Notification.requestPermission()
-      if (permission !== "granted") return void (await refresh())
-      const registration = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register("/sw.js", { scope: "/" }))
-      await navigator.serviceWorker.ready
-      const subscription = (await registration.pushManager.getSubscription()) ?? (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) }))
-      const json = subscription.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+      if (!key.ok) {
+        setLastEnable(`key_${key.problem}`)
+        return setError(key.error)
+      }
+      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission()
+      if (permission === "denied") {
+        await refresh()
+        return stop("permission_denied")
+      }
+      if (permission !== "granted") return stop("permission_dismissed")
+
+      let registration: ServiceWorkerRegistration
+      try {
+        registration = (await navigator.serviceWorker.getRegistration()) ?? (await navigator.serviceWorker.register("/sw.js", { scope: "/" }))
+        await withTimeout(navigator.serviceWorker.ready, READY_TIMEOUT_MS, "ReadyTimeout")
+      } catch (caught) {
+        return stop((caught as { name?: string })?.name === "ReadyTimeout" ? "worker_not_ready" : "worker_failed")
+      }
+
+      let wanted: Uint8Array<ArrayBuffer>
+      try {
+        wanted = urlBase64ToUint8Array(key.key)
+      } catch {
+        return stop("key_unavailable", "A chave de notificações do servidor está em formato inválido. Avise o suporte.")
+      }
+      let subscription = await registration.pushManager.getSubscription()
+      // A subscription made with another public key (the keys were changed) can never be sent to: replace it.
+      if (subscription && !sameApplicationServerKey(subscription.options.applicationServerKey, wanted)) {
+        await subscription.unsubscribe().catch(() => undefined)
+        subscription = null
+      }
+      if (!subscription) {
+        try {
+          subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wanted })
+        } catch (caught) {
+          const name = (caught as { name?: string })?.name
+          setLastEnable(`subscribe_${name ?? "error"}`)
+          return setError(subscribeErrorMessage(name))
+        }
+      }
+      const json = subscription.toJSON() as Saved
       const saved = await savePushSubscription({ endpoint: json.endpoint ?? "", keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" }, userAgent: navigator.userAgent, label: deviceLabel(navigator.userAgent) })
       if (!saved.ok) {
         await subscription.unsubscribe().catch(() => undefined)
-        return setError(saved.error)
+        return stop("save_failed", saved.error)
       }
+      setLastEnable("ok")
       toast.success("Notificações ativadas neste aparelho.")
       await refresh()
     } catch {
-      setError("Não consegui ativar as notificações agora. Tente de novo.")
+      stop("subscribe_failed")
     } finally {
       setBusy(false)
     }
@@ -101,11 +171,34 @@ export function PushDevices() {
   async function test() {
     if (busy) return
     setBusy(true)
-    const result = await sendTestPush().catch(() => ({ ok: false as const, error: "Não consegui enviar o teste agora." }))
+    const result = await sendTestPush({ endpoint: status?.endpoint ?? undefined }).catch(() => ({ ok: false as const, reason: "no_session" as const, error: "Não consegui enviar o teste agora." }))
     setBusy(false)
-    if (result.ok) toast.success("Teste enviado. Ele deve chegar em instantes.")
-    else toast.error(result.error)
+    setLastTest(result.ok ? `ok sent=${result.sent}/${result.devices}` : result.reason)
+    const toastInfo = testToast(result)
+    if (toastInfo.kind === "success") toast.success(toastInfo.text)
+    else toast.error(toastInfo.text)
+    // The browser had a subscription the server did not have: save it now, so the next test can reach this device.
+    if (!result.ok && result.reason === "device_not_saved") {
+      resynced.current = true
+      if (await resync().catch(() => false)) await refresh()
+    }
   }
+
+  const facts = useCallback(async (): Promise<DebugFacts> => {
+    const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined
+    const subscription = await registration?.pushManager.getSubscription()
+    const server = await pushDiagnostics({ endpoint: subscription?.endpoint }).catch(() => null)
+    return {
+      scope: registration?.scope ?? null,
+      active: registration?.active?.state ?? null,
+      waiting: registration?.waiting?.state ?? null,
+      installing: registration?.installing?.state ?? null,
+      controlled: "serviceWorker" in navigator ? Boolean(navigator.serviceWorker.controller) : false,
+      permission: "Notification" in window ? Notification.permission : "indisponível",
+      endpointHost: subscription ? new URL(subscription.endpoint).hostname : null,
+      server: server && server.ok ? { configured: server.configured, problem: server.problem, subjectValid: server.subjectValid, devices: server.devices, thisDeviceSaved: server.thisDeviceSaved } : null,
+    }
+  }, [])
 
   if (!status) return <div aria-hidden className="h-24 rounded-2xl border border-border" />
 
@@ -160,6 +253,8 @@ export function PushDevices() {
           ))}
         </ul>
       ) : null}
+
+      {debug ? <PushDebugPanel load={facts} lastTest={lastTest} lastEnable={lastEnable} /> : null}
     </div>
   )
 }
