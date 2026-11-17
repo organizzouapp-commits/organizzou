@@ -9,7 +9,7 @@ export const FAQ: FaqItem[] = [
   {
     id: "assistente-como",
     q: "Como falo com o assistente?",
-    a: ["O assistente virtual (Plano Pro) fica no menu lateral: toque em “Assistente virtual” para conversar. Em qualquer plano, use o Novo (captura rápida) para anotar uma tarefa, um gasto ou uma nota em uma frase. Também dá para ditar pelo microfone do navegador."],
+    a: ["O assistente virtual faz parte do Plano Pro e fica no menu lateral: toque em “Assistente virtual” para conversar. Dá para escrever ou ditar pelo microfone. Em qualquer plano, o Novo (captura rápida) anota uma tarefa, um gasto ou uma nota em uma frase, sem inteligência artificial."],
   },
   {
     id: "assistente-o-que",

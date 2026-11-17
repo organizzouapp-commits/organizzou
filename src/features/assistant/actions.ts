@@ -5,6 +5,7 @@ import { cookies } from "next/headers"
 import { z } from "zod"
 
 import { getUserPlan } from "@/lib/plan-server"
+import { canUseAssistant } from "@/lib/plans"
 import { getSession } from "@/lib/supabase/session"
 import { createModelClient, runCapture } from "@/server/assistant/engine"
 import { auditCreated, type Created, createFromItem, type Ctx, saveToInbox, undoSteps } from "@/server/assistant/execute"
@@ -76,7 +77,8 @@ export async function captureQuick(input: { text: string; items?: CaptureItem[] 
     let usedModel = false
     if (unsure.length > 0) {
       const unsureText = unsure.map((u) => u.source).join("\n")
-      const client = createModelClient()
+      // The model (Anthropic) is a Pro feature: for everyone else the rules reader and the Inbox note are all there is, and the API is never called.
+      const client = canUseAssistant(ctx.plan) ? createModelClient() : null
       if (client) {
         const quota = await checkQuota(ctx.supabase, ctx.userId, ctx.plan, ctx.now)
         if (quota.ok) {

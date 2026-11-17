@@ -23,7 +23,11 @@ type Billing = "monthly" | "yearly"
 const LIMIT_ROWS: LimitKey[] = ["taskBoards", "assistantMessagesPerDay"]
 const EMPTY_USAGE: PlanUsage = { taskBoards: null, assistantToday: null }
 
+/** The assistant is Pro only: Free has no messages ("—") and Pro says what is included, with voice. */
+const ASSISTANT_TEXT = { free: "—", pro: "Conversa, ações e voz · 200 por dia" }
+
 function limitText(limit: number | null, key: LimitKey) {
+  if (key === "assistantMessagesPerDay") return limit === 0 ? ASSISTANT_TEXT.free : ASSISTANT_TEXT.pro
   if (limit === null) return "Ilimitado"
   const label = LIMIT_LABELS[key]
   return `${limit} ${limit === 1 ? label.singular : label.plural}`
@@ -110,11 +114,11 @@ export function PlanoScreen({ email, name, usage = EMPTY_USAGE }: { email: strin
         <BentoStat
           label="Assistente hoje"
           icon={SparklesIcon}
-          chip="mensagens por dia"
-          footer={assistant.percent !== null ? <HatchedProgress value={assistant.percent} label={`Assistente hoje: ${assistant.value}`} /> : undefined}
+          chip={pro ? "mensagens por dia" : "só no Plano Pro"}
+          footer={pro && assistant.percent !== null ? <HatchedProgress value={assistant.percent} label={`Assistente hoje: ${assistant.value}`} /> : undefined}
           className="min-h-[168px]"
         >
-          {assistant.value}
+          {pro ? assistant.value : "—"}
         </BentoStat>
       </div>
 

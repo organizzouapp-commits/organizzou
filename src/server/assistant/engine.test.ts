@@ -178,14 +178,13 @@ describe("tools", () => {
 
 describe("daily limit and usage", () => {
   const today = [{ messages: 15 }]
-  it("Gratuito stops at 15, Pro keeps going until 200", async () => {
-    expect(await checkQuota(fakeDb({ assistant_usage: today }).supabase, "u", "free", NOW)).toMatchObject({ ok: false, reason: "limit", limit: 15 })
-    expect(await checkQuota(fakeDb({ assistant_usage: [{ messages: 14 }] }).supabase, "u", "free", NOW)).toMatchObject({ ok: true, remaining: 1 })
+  it("Gratuito has no messages at all (the assistant is Pro only), Pro keeps going until 200", async () => {
+    expect(await checkQuota(fakeDb().supabase, "u", "free", NOW)).toMatchObject({ ok: false, reason: "limit", limit: 0 })
     expect(await checkQuota(fakeDb({ assistant_usage: today }).supabase, "u", "pro", NOW)).toMatchObject({ ok: true, limit: 200 })
     expect(await checkQuota(fakeDb({ assistant_usage: [{ messages: 200 }] }).supabase, "u", "pro", NOW)).toMatchObject({ ok: false, reason: "limit" })
   })
   it("no usage row yet means zero used", async () => {
-    expect(await checkQuota(fakeDb().supabase, "u", "free", NOW)).toMatchObject({ ok: true, used: 0, limit: 15 })
+    expect(await checkQuota(fakeDb().supabase, "u", "pro", NOW)).toMatchObject({ ok: true, used: 0, limit: 200 })
   })
   it("when the usage table is not there yet the model is not allowed (an uncounted model is an unbounded bill)", async () => {
     expect(await checkQuota(fakeDb({}, { assistant_usage: { code: "PGRST205" } }).supabase, "u", "free", NOW)).toEqual({ ok: false, reason: "unavailable" })

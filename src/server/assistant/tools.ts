@@ -6,6 +6,7 @@ import { toDueIso } from "@/lib/dates"
 import { dayOf, SP_TIMEZONE } from "@/lib/sp-time"
 
 import { type Created, createFromItem, type Ctx } from "./execute"
+import { logToolError, readMonth, summaryForModel, upcomingBills } from "./finance"
 import type { CaptureItem, CaptureType } from "./parse"
 
 /**
@@ -260,40 +261,29 @@ export const TOOLS: Tool[] = [
   }),
   tool({
     name: "finance_summary",
-    description: "Resumo de Finanças de um mês (padrão: o atual): entradas, saídas e as maiores categorias de gasto. Somente leitura.",
-    schema: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }),
+    description: "Finanças de um mês (padrão: o atual): total gasto, entradas, saldo (entradas menos saídas) e gasto por categoria. Serve para quanto gastei este mês, quanto gastei em outubro, gastos por categoria e entrou mais do que saiu. Somente leitura. Os valores já vêm formatados em reais: repita-os como vieram.",
+    schema: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("Mês no formato AAAA-MM") }),
     run: async (ctx, i) => {
-      const month = i.month ?? dayOf(ctx.now, 0).slice(0, 7)
-      const [rows, categories] = await Promise.all([
-        ctx.supabase.from("finance_transactions").select("kind, amount_cents, category_id").gte("occurred_on", `${month}-01`).lte("occurred_on", `${month}-31`),
-        ctx.supabase.from("finance_categories").select("id, name"),
-      ])
-      if (rows.error) return { ok: false, message: "Não consegui ler as finanças." }
-      const names = new Map(((categories.data ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]))
-      let income = 0
-      let spent = 0
-      const byCategory = new Map<string, number>()
-      for (const r of (rows.data ?? []) as { kind: string; amount_cents: number; category_id: string | null }[]) {
-        if (r.kind === "in") income += r.amount_cents
-        else {
-          spent += r.amount_cents
-          const name = (r.category_id && names.get(r.category_id)) || "Sem categoria"
-          byCategory.set(name, (byCategory.get(name) ?? 0) + r.amount_cents)
-        }
+      const result = await readMonth(ctx.supabase, i.month ?? dayOf(ctx.now, 0).slice(0, 7))
+      if (!result.ok) {
+        logToolError("finance_summary", result.error)
+        return { ok: false, message: "Não consegui ler as finanças." }
       }
-      const top = [...byCategory].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([category, cents]) => ({ category, reais: cents / 100 }))
-      return { ok: true, message: `Resumo de ${month}.`, data: { month, income_reais: income / 100, spent_reais: spent / 100, balance_reais: (income - spent) / 100, top_categories: top } }
+      return { ok: true, message: `Resumo de ${result.summary.month}.`, data: summaryForModel(result.summary) }
     },
   }),
   tool({
     name: "list_bills",
-    description: "Lista as contas fixas ativas, com o dia de vencimento e se já foram pagas neste mês. Somente leitura.",
+    description: "Contas fixas ativas em ordem de vencimento: próximo vencimento, valor e situação (paga neste mês, vence hoje, atrasada ou a vencer). Serve para quais contas vencem em breve. Somente leitura.",
     schema: z.object({}),
     run: async (ctx) => {
       const { data, error } = await ctx.supabase.from("finance_bills").select("name, amount_cents, due_day, last_paid_month").eq("active", true).order("due_day")
-      if (error) return { ok: false, message: "Não consegui ler as contas." }
-      const month = dayOf(ctx.now, 0).slice(0, 7)
-      return { ok: true, message: `${(data ?? []).length} conta(s).`, data: ((data ?? []) as { name: string; amount_cents: number; due_day: number; last_paid_month: string | null }[]).map((b) => ({ name: b.name, reais: b.amount_cents / 100, due_day: b.due_day, paid_this_month: b.last_paid_month === month })) }
+      if (error) {
+        logToolError("list_bills", error)
+        return { ok: false, message: "Não consegui ler as contas." }
+      }
+      const bills = upcomingBills((data ?? []) as Parameters<typeof upcomingBills>[0], ctx.now)
+      return { ok: true, message: `${bills.length} conta(s).`, data: bills }
     },
   }),
   tool({

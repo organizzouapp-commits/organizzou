@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowUpIcon, SparklesIcon, Trash2Icon } from "lucide-react"
+import { ArrowUpIcon, CalendarCheckIcon, LockIcon, MessagesSquareIcon, MicIcon, WalletIcon, SparklesIcon, SquareIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { UpgradeHint } from "@/components/organizzou/UpgradeHint"
 import { usePlan } from "@/components/organizzou/plan-context"
+import { PLANS_HREF } from "@/components/shell/plan-cta"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { undoCapture } from "@/features/assistant/actions"
+import { useDictation } from "@/hooks/use-dictation"
 import { cn } from "@/lib/utils"
 
 type AssistantSheetProps = {
@@ -27,12 +28,51 @@ type Message = { id: string; role: "user" | "assistant"; text: string; actions?:
 type Status = { state: "loading" } | { state: "unavailable"; reason: "not_configured" | "pending_update" | "pro_only" } | { state: "ready"; used: number; limit: number }
 
 const UNAVAILABLE: Record<"not_configured" | "pending_update" | "pro_only", string> = {
-  pro_only: "O assistente virtual faz parte do Plano Pro. A captura rápida (botão Novo) continua disponível em todos os planos.",
-  not_configured: "O assistente com IA ainda não foi ligado neste ambiente. A captura rápida (botão Novo) continua salvando tarefas, gastos e notas.",
-  pending_update: "O assistente está esperando uma atualização do banco de dados para ligar. A captura rápida continua funcionando.",
+  pro_only: "O assistente faz parte do Pro.",
+  not_configured: "O assistente com IA ainda não foi ligado neste ambiente.",
+  pending_update: "O assistente está esperando uma atualização do banco de dados para ligar.",
 }
 
 const uid = () => crypto.randomUUID()
+
+const PRO_BENEFITS = [
+  { icon: CalendarCheckIcon, text: "Criar tarefas e eventos por texto ou voz" },
+  { icon: WalletIcon, text: "Consultar suas finanças e metas" },
+  { icon: MessagesSquareIcon, text: "Lançar gastos conversando" },
+]
+
+/** What a person on the Free plan sees: no request is made to the assistant at all. */
+function LockedAssistant({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5" data-testid="assistant-locked">
+      <span aria-hidden className="grid size-12 place-items-center rounded-full bg-highlight text-highlight-foreground">
+        <LockIcon strokeWidth={1.75} className="size-6" />
+      </span>
+      <div className="flex flex-col gap-2">
+        <h3 className="text-[20px] leading-7 font-semibold">O assistente faz parte do Pro</h3>
+        <p className="text-[15px] leading-6 text-muted-foreground">Converse com o Organizzou e deixe que ele faça o trabalho de registrar.</p>
+      </div>
+      <ul className="flex flex-col">
+        {PRO_BENEFITS.map(({ icon: Icon, text }) => (
+          <li key={text} className="flex min-h-12 items-center gap-3 border-b border-border py-2 text-[15px] leading-6 last:border-b-0">
+            <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
+            {text}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto flex flex-col gap-2">
+        <Button asChild size="lg" className="h-11 rounded-full">
+          <Link href={PLANS_HREF} onClick={onClose}>
+            Conhecer o Pro
+          </Link>
+        </Button>
+        <Button type="button" variant="ghost" size="lg" className="h-11 rounded-full" onClick={onClose}>
+          Agora não
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 /**
  * The assistant chat: a sheet with streamed replies, buttons for confirmations and ambiguity, "Desfazer" on what it created, and the
@@ -47,9 +87,14 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
   const end = useRef<HTMLDivElement>(null)
+  // Voice: the browser listens and the text lands in the box for review. Nothing is sent by itself and no audio leaves the device.
+  const dictation = useDictation({ value: draft, onChange: setDraft })
+
+  const locked = plan !== "pro"
 
   useEffect(() => {
-    if (!open) return
+    // Not Pro: nothing is requested. The server would answer 403 pro_only anyway.
+    if (!open || locked) return
     let alive = true
     fetch("/api/assistant/chat", { cache: "no-store" })
       .then((r) => r.json())
@@ -63,7 +108,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
     return () => {
       alive = false
     }
-  }, [open])
+  }, [open, locked])
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" })
@@ -123,6 +168,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
   function send(text: string) {
     const message = text.trim()
     if (!message || busy) return
+    if (dictation.listening) dictation.cancel()
     setMessages((list) => [...list, { id: uid(), role: "user", text: message }])
     setDraft("")
     void stream({ message })
@@ -138,7 +184,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
           <div className="flex min-w-0 flex-col">
             <SheetTitle className="text-[17px] leading-6">Assistente</SheetTitle>
             <SheetDescription className="text-[13px] leading-5">
-              {status.state === "ready" ? `${Math.min(status.used, status.limit)} de ${status.limit} mensagens hoje` : status.state === "loading" ? "Carregando…" : "Indisponível"}
+              {locked ? "Só no Plano Pro" : status.state === "ready" ? `${Math.min(status.used, status.limit)} de ${status.limit} mensagens hoje` : status.state === "loading" ? "Carregando…" : "Indisponível"}
             </SheetDescription>
           </div>
           {messages.length > 0 ? (
@@ -159,7 +205,9 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
           ) : null}
         </SheetHeader>
 
-        {status.state === "unavailable" ? (
+        {locked || (status.state === "unavailable" && status.reason === "pro_only") ? (
+          <LockedAssistant onClose={() => onOpenChange(false)} />
+        ) : status.state === "unavailable" ? (
           <div className="flex flex-col gap-3 p-4">
             <p className="text-[17px] leading-6 font-semibold">Assistente indisponível</p>
             <p className="text-[15px] leading-6 text-muted-foreground">{UNAVAILABLE[status.reason]}</p>
@@ -246,11 +294,21 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
 
             <div className="flex flex-col gap-2 border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               {limitReached ? (
-                plan === "pro" ? (
-                  <p className="text-[15px] leading-6 text-muted-foreground">Você usou as mensagens de hoje. Elas voltam amanhã.</p>
-                ) : (
-                  <UpgradeHint limit="assistantMessagesPerDay" used={status.used} />
-                )
+                <p className="text-[15px] leading-6 text-muted-foreground">Você usou as mensagens de hoje. Elas voltam amanhã.</p>
+              ) : null}
+              <div aria-live="polite" role="status" className={cn("flex items-center gap-2 text-[13px] leading-5 font-medium", !dictation.listening && "sr-only")}>
+                {dictation.listening ? (
+                  <>
+                    <span aria-hidden className="size-2.5 shrink-0 animate-pulse rounded-full bg-highlight" />
+                    <span>Ouvindo…</span>
+                    <span className="font-normal text-muted-foreground">Toque em parar para revisar o texto.</span>
+                  </>
+                ) : null}
+              </div>
+              {dictation.error ? (
+                <p role="alert" className="text-[13px] leading-5 text-muted-foreground">
+                  {dictation.error}
+                </p>
               ) : null}
               <form
                 className="flex items-end gap-2"
@@ -274,7 +332,21 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
                   className="max-h-40 min-h-11 resize-none rounded-2xl"
                   rows={1}
                 />
-                <Button type="submit" size="icon-lg" className="rounded-full" aria-label="Enviar" disabled={!draft.trim() || busy || status.state !== "ready" || limitReached}>
+                {dictation.listening ? (
+                  <>
+                    <Button type="button" size="icon-lg" variant="outline" className="size-11 rounded-full" aria-label="Cancelar o ditado e descartar o texto" onClick={dictation.cancel}>
+                      <XIcon strokeWidth={1.75} />
+                    </Button>
+                    <Button type="button" size="icon-lg" className="size-11 animate-pulse rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90" aria-label="Parar de ouvir" aria-pressed onClick={dictation.stop}>
+                      <SquareIcon strokeWidth={1.75} />
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" size="icon-lg" variant="outline" className="size-11 rounded-full" aria-label="Ditar por voz" aria-pressed={false} disabled={status.state !== "ready" || limitReached || busy} onClick={dictation.start}>
+                    <MicIcon strokeWidth={1.75} />
+                  </Button>
+                )}
+                <Button type="submit" size="icon-lg" className="size-11 rounded-full" aria-label="Enviar" disabled={!draft.trim() || busy || status.state !== "ready" || limitReached}>
                   <ArrowUpIcon strokeWidth={2} />
                 </Button>
               </form>
