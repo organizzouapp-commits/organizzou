@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowUpIcon, SparklesIcon, Trash2Icon } from "lucide-react"
+import { ArrowUpIcon, MicIcon, SparklesIcon, SquareIcon, Trash2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { UpgradeHint } from "@/components/organizzou/UpgradeHint"
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { undoCapture } from "@/features/assistant/actions"
+import { useDictation } from "@/hooks/use-dictation"
 import { cn } from "@/lib/utils"
 
 type AssistantSheetProps = {
@@ -47,6 +48,8 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
   const end = useRef<HTMLDivElement>(null)
+  // Voice: the browser listens and the text lands in the box for review. Nothing is sent by itself and no audio leaves the device.
+  const dictation = useDictation({ value: draft, onChange: setDraft })
 
   useEffect(() => {
     if (!open) return
@@ -123,6 +126,7 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
   function send(text: string) {
     const message = text.trim()
     if (!message || busy) return
+    if (dictation.listening) dictation.cancel()
     setMessages((list) => [...list, { id: uid(), role: "user", text: message }])
     setDraft("")
     void stream({ message })
@@ -252,6 +256,20 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
                   <UpgradeHint limit="assistantMessagesPerDay" used={status.used} />
                 )
               ) : null}
+              <div aria-live="polite" role="status" className={cn("flex items-center gap-2 text-[13px] leading-5 font-medium", !dictation.listening && "sr-only")}>
+                {dictation.listening ? (
+                  <>
+                    <span aria-hidden className="size-2.5 shrink-0 animate-pulse rounded-full bg-highlight" />
+                    <span>Ouvindo…</span>
+                    <span className="font-normal text-muted-foreground">Toque em parar para revisar o texto.</span>
+                  </>
+                ) : null}
+              </div>
+              {dictation.error ? (
+                <p role="alert" className="text-[13px] leading-5 text-muted-foreground">
+                  {dictation.error}
+                </p>
+              ) : null}
               <form
                 className="flex items-end gap-2"
                 onSubmit={(e) => {
@@ -274,7 +292,21 @@ export function AssistantSheet({ open, onOpenChange, isMobile }: AssistantSheetP
                   className="max-h-40 min-h-11 resize-none rounded-2xl"
                   rows={1}
                 />
-                <Button type="submit" size="icon-lg" className="rounded-full" aria-label="Enviar" disabled={!draft.trim() || busy || status.state !== "ready" || limitReached}>
+                {dictation.listening ? (
+                  <>
+                    <Button type="button" size="icon-lg" variant="outline" className="size-11 rounded-full" aria-label="Cancelar o ditado e descartar o texto" onClick={dictation.cancel}>
+                      <XIcon strokeWidth={1.75} />
+                    </Button>
+                    <Button type="button" size="icon-lg" className="size-11 animate-pulse rounded-full bg-highlight text-highlight-foreground hover:bg-highlight/90" aria-label="Parar de ouvir" aria-pressed onClick={dictation.stop}>
+                      <SquareIcon strokeWidth={1.75} />
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" size="icon-lg" variant="outline" className="size-11 rounded-full" aria-label="Ditar por voz" aria-pressed={false} disabled={status.state !== "ready" || limitReached || busy} onClick={dictation.start}>
+                    <MicIcon strokeWidth={1.75} />
+                  </Button>
+                )}
+                <Button type="submit" size="icon-lg" className="size-11 rounded-full" aria-label="Enviar" disabled={!draft.trim() || busy || status.state !== "ready" || limitReached}>
                   <ArrowUpIcon strokeWidth={2} />
                 </Button>
               </form>
