@@ -68,7 +68,15 @@ const transactions = [
 ]
 const tables = { finance_transactions: transactions, finance_categories: categories }
 
-afterEach(() => vi.restoreAllMocks())
+const realError = console.error
+const silenceErrors = () => {
+  const spy = vi.fn()
+  console.error = spy
+  return spy
+}
+afterEach(() => {
+  console.error = realError
+})
 
 describe("month bounds", () => {
   it("never builds a day that does not exist (the production bug: 2026-11-31)", () => {
@@ -105,7 +113,7 @@ describe("finance_summary", () => {
     expect(db.filters.filter((f) => f.table === "finance_transactions").map((f) => [f.op, f.value])).toEqual([["gte", "2026-11-01"], ["lt", "2026-12-01"]])
   })
   it("a database error is logged in a structured way (no content, no amounts) and the person gets the friendly message", async () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const spy = silenceErrors()
     const result = await run("2026-11", fakeDb(tables, "finance_transactions"))
     expect(result).toEqual({ ok: false, message: "Não consegui ler as finanças." })
     const logged = JSON.parse(String(spy.mock.calls[0][0]))
@@ -125,7 +133,7 @@ describe("pure helpers", () => {
     expect(summaryForModel(s)).toMatchObject({ income: "R$ 10,00", spent: "R$ 2,50", balance: "R$ 7,50", by_category: [{ category: "Café", spent: "R$ 2,50" }] })
   })
   it("masks digits in logged messages", () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const spy = silenceErrors()
     logToolError("x", { code: "22008", message: 'value "2026-11-31" and 1.234,56' })
     expect(String(spy.mock.calls[0][0])).not.toMatch(/2026|1\.234/)
   })
@@ -151,7 +159,7 @@ describe("list_bills: upcoming fixed bills", () => {
   it("the tool returns them and logs a failure without content", async () => {
     const ok = await toolByName("list_bills")!.run(ctxOf(fakeDb({ finance_bills: bills }).supabase), {})
     expect(ok.ok).toBe(true)
-    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const spy = silenceErrors()
     const bad = await toolByName("list_bills")!.run(ctxOf(fakeDb({}, "finance_bills").supabase), {})
     expect(bad).toEqual({ ok: false, message: "Não consegui ler as contas." })
     expect(JSON.parse(String(spy.mock.calls[0][0]))).toMatchObject({ tool: "list_bills", code: "42P01" })

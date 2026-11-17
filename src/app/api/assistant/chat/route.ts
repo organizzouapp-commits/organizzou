@@ -36,7 +36,7 @@ export async function GET() {
   if (!s) return json({ error: "unauthorized" }, 401)
   const plan = await getUserPlan(s.supabase, s.userId)
   // The virtual assistant is a Pro feature: the server refuses everyone else, whatever the client shows.
-  if (!canUseAssistant(plan)) return json({ available: false, reason: "pro_only", plan, history: [] }, 403)
+  if (!canUseAssistant(plan)) return json({ available: false, reason: "pro_only", code: "pro_only", plan, history: [] }, 403)
   const limit = PLANS[plan].limits.assistantMessagesPerDay ?? 200
   if (!assistantConfigured()) return json({ available: false, reason: "not_configured", limit, plan, history: [] })
   const quota = await checkQuota(s.supabase, s.userId, plan)
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   const parsed = body.safeParse(await request.json().catch(() => null))
   if (!parsed.success || (!parsed.data.message && !parsed.data.confirm)) return json({ error: "bad_request" }, 400)
   const plan = await getUserPlan(s.supabase, s.userId)
-  if (!canUseAssistant(plan)) return json({ error: "pro_only" }, 403)
+  if (!canUseAssistant(plan)) return json({ error: "pro_only", code: "pro_only" }, 403)
   const client = createModelClient()
   if (!client) return json({ error: "unavailable", reason: "not_configured" }, 503)
 

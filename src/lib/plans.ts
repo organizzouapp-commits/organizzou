@@ -30,12 +30,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     tagline: "O essencial para organizar o dia.",
     // TODO(owner): free stays at zero.
     price: { monthlyCents: 0, yearlyCents: 0 },
-    limits: { taskBoards: 3, assistantMessagesPerDay: 15 },
+    // The assistant is Pro only: no messages on Free (there is no free quick-capture mode through the model either).
+    limits: { taskBoards: 3, assistantMessagesPerDay: 0 },
     features: [
       "Tarefas, rotina, agenda e notas",
       "Finanças com lançamentos manuais",
       "Até 3 listas de tarefas",
-      "15 mensagens por dia com o assistente (só texto no app)",
     ],
   },
   pro: {
@@ -48,7 +48,7 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     features: [
       "Tudo do Plano Gratuito",
       "Listas de tarefas ilimitadas",
-      "Assistente com 200 mensagens por dia (e provedor de IA externo, se você ativar)",
+      "Assistente: conversa, ações e voz · 200 mensagens por dia",
       "Histórico e gráficos sem limite de tempo",
       "Mais hábitos, metas e orçamentos",
       "Anexos maiores nas notas e tarefas",
@@ -64,7 +64,7 @@ export type LimitKey = keyof PlanLimits
 
 export const LIMIT_LABELS: Record<LimitKey, { singular: string; plural: string; hint: string }> = {
   taskBoards: { singular: "lista de tarefas", plural: "listas de tarefas", hint: "Crie quantas listas precisar" },
-  assistantMessagesPerDay: { singular: "mensagem por dia", plural: "mensagens por dia", hint: "Converse com o assistente até 200 vezes por dia" },
+  assistantMessagesPerDay: { singular: "mensagem por dia", plural: "mensagens por dia", hint: "Conversa, ações e voz com o assistente, até 200 mensagens por dia" },
 }
 
 export function parsePlan(value: unknown): PlanId {

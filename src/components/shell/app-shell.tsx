@@ -20,7 +20,7 @@ import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
-import { isPro, type PlanId } from "@/lib/plans"
+import type { PlanId } from "@/lib/plans"
 import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
 import { AppSidebar, type ShellUser } from "./app-sidebar"
 import { FrameGlass } from "./frame-glass"
@@ -197,9 +197,8 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
     }
   }, [router, nav])
   const requestSignOut = useCallback(() => setSignOutOpen(true), [])
-  // The virtual assistant is a Pro feature: Free users who reach it (a link, the palette) land on the plans page instead.
-  const pro = isPro(plan)
-  const openAssistant = useCallback(() => (pro ? setAssistantOpen(true) : router.push(PLANS_HREF)), [pro, router])
+  // The virtual assistant is a Pro feature: the sheet opens for everyone, and for Free it is the locked panel (the server refuses them anyway).
+  const openAssistant = useCallback(() => setAssistantOpen(true), [])
   const assistantContext = useMemo(() => ({ openAssistant, openQuickCapture: () => setCaptureOpen(true), openSearch }), [openAssistant, openSearch])
 
   const withAssistant = nav.features.assistant
@@ -250,7 +249,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
           {withAssistant ? (
             <>
               <CommandPalette open={searchOpen} onOpenChange={onSearchOpenChange} initialQuery={searchQuery} onAskAssistant={openAssistant} nowIso={nowIso} />
-              {pro ? <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} /> : null}
+              <AssistantSheet open={assistantOpen} onOpenChange={setAssistantOpen} isMobile={isMobile} nowIso={nowIso} />
               <QuickCapture open={captureOpen} onOpenChange={setCaptureOpen} />
             </>
           ) : (
