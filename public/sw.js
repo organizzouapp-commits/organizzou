@@ -6,22 +6,47 @@ self.addEventListener("message", (event) => {
 })
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()))
 
+// Tells the open pages what happened to a push (for the Avisos debug panel): "received" when the event reached this worker, then "shown" or
+// "error" (with the error name only). No payload, no endpoint.
+function report(stage, detail) {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((windows) => windows.forEach((client) => client.postMessage({ type: "ORG_PUSH", stage, detail: detail || null, at: Date.now() })))
+    .catch(() => undefined)
+}
+
 self.addEventListener("push", (event) => {
   let data = {}
   try {
     data = event.data ? event.data.json() : {}
-  } catch {
+  } catch (error) {
     data = { title: "Organizzou", body: event.data ? event.data.text() : "" }
   }
   const title = typeof data.title === "string" && data.title ? data.title : "Organizzou"
+  const url = typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/dashboard"
+  const options = {
+    body: typeof data.body === "string" ? data.body : "",
+    icon: "/brand/pwa-192.png",
+    badge: "/brand/pwa-badge-96.png",
+    lang: "pt-BR",
+    // Noticeable: never silent, a short vibration pattern on phones, and the banner waits for a click when the push says so (the test and
+    // reminders with a due time).
+    vibrate: [100, 50, 100],
+    requireInteraction: data.sticky === true,
+    // A stable tag (the sender's, else one made from the destination) with renotify: a repeat replaces the old banner AND alerts again.
+    tag: typeof data.tag === "string" && data.tag ? data.tag : "org:" + url,
+    renotify: true,
+    data: { url },
+  }
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: typeof data.body === "string" ? data.body : "",
-      icon: "/brand/pwa-192.png",
-      badge: "/brand/pwa-badge-96.png",
-      tag: typeof data.tag === "string" ? data.tag : undefined,
-      data: { url: typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/dashboard" },
-    })
+    report("received")
+      .then(() => self.registration.showNotification(title, options))
+      .then(() => report("shown"))
+      .catch((error) => {
+        // Last resort: a plain notification, so a push is never swallowed by an option the platform refuses.
+        report("error", error && error.name ? error.name : "Error")
+        return self.registration.showNotification(title, { body: options.body, data: options.data })
+      })
   )
 })
 

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { dueNow, EMPTY_PLANNER_DATA, localDay, logKey, planNotifications, type PlannerData } from "@/features/notifications/planner"
 import { defaultPrefs, parseNotificationPrefs } from "@/features/settings/notification-prefs"
 import { createSecretClient, secretKeyConfigured } from "@/lib/admin/secret"
-import { pushConfigured, sendToUser } from "@/lib/push/send"
+import { sendToUser, vapidConfigProblem } from "@/lib/push/send"
 
 // The scheduled dispatcher (Vercel Cron, see vercel.json). It runs every few minutes, works out which notifications are due for each person who
 // has a device subscribed, and sends them. Every notification is first written to notification_log (a unique row per person + event + target
@@ -15,6 +15,9 @@ import { pushConfigured, sendToUser } from "@/lib/push/send"
 /** Longer than the job's interval, so a slow or skipped run does not lose a notification; the log prevents repeats. */
 const WINDOW_MS = 12 * 60 * 1000
 const MAX_USERS = 300
+
+/** Notifications about something at a set time stay on screen until clicked. */
+const STICKY_EVENTS = new Set<string>(["reminders", "agenda", "tasks", "workout"])
 
 function authorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
@@ -56,15 +59,20 @@ async function loadData(db: SupabaseClient, userId: string, now: Date, today: st
 
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  if (!secretKeyConfigured() || !pushConfigured()) return NextResponse.json({ ok: false, skipped: "push is not configured on this server" }, { status: 200 })
+  const problem = vapidConfigProblem()
+  if (!secretKeyConfigured() || problem) return NextResponse.json({ ok: false, skipped: "push is not configured on this server", problem: problem ?? "secret_key_missing" }, { status: 200 })
 
   const db = createSecretClient()
   const now = new Date()
   const { data: subscribed } = await db.from("push_subscriptions").select("user_id").limit(5000)
   const users = [...new Set(((subscribed ?? []) as { user_id: string }[]).map((s) => s.user_id))].slice(0, MAX_USERS)
 
+  // The summary the caller sees (and the log keeps): people with a device, notifications due, delivered, failed, skipped (already sent or errors).
+  let due = 0
   let sent = 0
+  let failed = 0
   let skipped = 0
+  const failures: Record<string, number> = {}
   for (const userId of users) {
     try {
       const [{ data: profile }, { data: prefRow }] = await Promise.all([
@@ -76,6 +84,7 @@ export async function GET(request: NextRequest) {
       const prefs = settings && Object.keys(settings).length > 0 ? parseNotificationPrefs(settings) : defaultPrefs()
       const today = localDay(now, timeZone)
       const planned = dueNow(planNotifications({ now, timeZone, prefs, data: await loadData(db, userId, now, today) }), now, WINDOW_MS)
+      due += planned.length
       for (const item of planned) {
         // Claim it first: only the run that inserts the row sends the notification.
         const claim = await db.from("notification_log").insert({ user_id: userId, ...logKey(item) })
@@ -83,13 +92,18 @@ export async function GET(request: NextRequest) {
           skipped += 1
           continue
         }
-        const result = await sendToUser(db, userId, { title: item.title, body: item.body, url: item.url, tag: item.tag })
+        const result = await sendToUser(db, userId, { title: item.title, body: item.body, url: item.url, tag: item.tag, sticky: STICKY_EVENTS.has(item.event) })
         sent += result.sent
+        failed += result.failed + result.removed
+        for (const [code, count] of Object.entries(result.failures)) failures[code] = (failures[code] ?? 0) + (count ?? 0)
+        // Nothing was delivered and the failure may be temporary: release the claim so the next run (inside the window) tries again.
+        if (result.sent === 0 && result.failed > 0) await db.from("notification_log").delete().eq("user_id", userId).match(logKey(item))
       }
     } catch {
       // One person's problem never stops the others; nothing about their data is logged.
       skipped += 1
     }
   }
-  return NextResponse.json({ ok: true, users: users.length, sent, skipped })
+  console.warn(`[push] cron users=${users.length} due=${due} sent=${sent} failed=${failed} skipped=${skipped}`)
+  return NextResponse.json({ ok: true, users: users.length, due, sent, failed, skipped, failures })
 }
