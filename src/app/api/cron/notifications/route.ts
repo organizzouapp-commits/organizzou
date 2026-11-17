@@ -1,23 +1,17 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
 import { timingSafeEqual } from "node:crypto"
 import { NextResponse, type NextRequest } from "next/server"
 
-import { dueNow, EMPTY_PLANNER_DATA, localDay, logKey, planNotifications, type PlannerData } from "@/features/notifications/planner"
-import { defaultPrefs, parseNotificationPrefs } from "@/features/settings/notification-prefs"
+import { dispatch } from "@/features/notifications/dispatch"
 import { createSecretClient, secretKeyConfigured } from "@/lib/admin/secret"
 import { sendToUser, vapidConfigProblem } from "@/lib/push/send"
 
-// The scheduled dispatcher (Vercel Cron, see vercel.json). It runs every few minutes, works out which notifications are due for each person who
-// has a device subscribed, and sends them. Every notification is first written to notification_log (a unique row per person + event + target
-// + moment), so a re-run, an overlap or a retry can never send the same one twice. It reads other people's rows with the secret key, only to
-// notify them, filtered by user_id; the call itself needs CRON_SECRET.
-
-/** Longer than the job's interval, so a slow or skipped run does not lose a notification; the log prevents repeats. */
-const WINDOW_MS = 12 * 60 * 1000
-const MAX_USERS = 300
-
-/** Notifications about something at a set time stay on screen until clicked. */
-const STICKY_EVENTS = new Set<string>(["reminders", "agenda", "tasks", "workout"])
+// The scheduled dispatcher (an external cron calls it every 5 minutes; Vercel Cron keeps a daily run as a safety net). The work lives in
+// src/features/notifications/dispatch.ts: it works out which notifications are due for each person who has a device subscribed and sends them,
+// claiming each one in notification_log first so a re-run, an overlap or a retry never sends the same one twice. It reads other people's rows with the
+// secret key, only to notify them, filtered by user_id; the call itself needs CRON_SECRET.
+//
+// GET ?dryRun=1 (same Bearer secret) sends NOTHING and returns what would be sent per kind, and why each candidate was skipped
+// (pref_off, quiet_hours, outside_window, already_sent, no_subscription), by kind and id only.
 
 function authorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
@@ -27,83 +21,14 @@ function authorized(request: NextRequest): boolean {
   return given.length === wanted.length && timingSafeEqual(given, wanted)
 }
 
-async function loadData(db: SupabaseClient, userId: string, now: Date, today: string): Promise<PlannerData> {
-  const from = new Date(now.getTime() - 36 * 3_600_000).toISOString()
-  const to = new Date(now.getTime() + 48 * 3_600_000).toISOString()
-  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay()
-  const [reminders, events, tasks, bills, habits, logs, cards] = await Promise.all([
-    db.from("reminders").select("id, title, remind_at, status").eq("user_id", userId).eq("status", "pending").gte("remind_at", from).lte("remind_at", to),
-    db.from("events").select("id, title, starts_at, all_day, rrule, reminder_offsets").eq("user_id", userId).gte("starts_at", from).lte("starts_at", to),
-    db.from("tasks").select("id, title, due_at, completed_at").eq("user_id", userId).is("completed_at", null).eq("archived", false).gte("due_at", from).lte("due_at", to),
-    db.from("finance_bills").select("id, name, amount_cents, due_day, last_paid_month, active").eq("user_id", userId).eq("active", true),
-    db.from("habits").select("id, weekdays, paused").eq("user_id", userId).eq("paused", false),
-    db.from("habit_logs").select("habit_id").eq("user_id", userId).eq("log_date", today),
-    db.from("flashcards").select("id", { count: "exact", head: true }).eq("user_id", userId).lte("due_on", today),
-  ])
-  const logged = new Set(((logs.data ?? []) as { habit_id: string }[]).map((l) => l.habit_id))
-  const pendingHabits = ((habits.data ?? []) as { id: string; weekdays: number[] }[]).filter((h) => (h.weekdays ?? []).includes(weekday) && !logged.has(h.id)).length
-  const taskRows = (tasks.data ?? []) as PlannerData["tasks"]
-  const eventRows = (events.data ?? []) as PlannerData["events"]
-  return {
-    ...EMPTY_PLANNER_DATA,
-    reminders: (reminders.data ?? []) as PlannerData["reminders"],
-    events: eventRows,
-    tasks: taskRows,
-    bills: (bills.data ?? []) as PlannerData["bills"],
-    pendingHabits,
-    dueCards: cards.count ?? 0,
-    todayTasks: taskRows.filter((t) => t.due_at && localDay(new Date(t.due_at), "America/Sao_Paulo") === today).length,
-    todayEvents: eventRows.filter((e) => localDay(new Date(e.starts_at), "America/Sao_Paulo") === today).length,
-  }
-}
-
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  const dryRun = request.nextUrl.searchParams.get("dryRun") === "1"
   const problem = vapidConfigProblem()
-  if (!secretKeyConfigured() || problem) return NextResponse.json({ ok: false, skipped: "push is not configured on this server", problem: problem ?? "secret_key_missing" }, { status: 200 })
+  if (!secretKeyConfigured()) return NextResponse.json({ ok: false, skipped: "the secret key is not configured on this server", problem: "secret_key_missing" }, { status: 200 })
+  if (problem && !dryRun) return NextResponse.json({ ok: false, skipped: "push is not configured on this server", problem }, { status: 200 })
 
-  const db = createSecretClient()
-  const now = new Date()
-  const { data: subscribed } = await db.from("push_subscriptions").select("user_id").limit(5000)
-  const users = [...new Set(((subscribed ?? []) as { user_id: string }[]).map((s) => s.user_id))].slice(0, MAX_USERS)
-
-  // The summary the caller sees (and the log keeps): people with a device, notifications due, delivered, failed, skipped (already sent or errors).
-  let due = 0
-  let sent = 0
-  let failed = 0
-  let skipped = 0
-  const failures: Record<string, number> = {}
-  for (const userId of users) {
-    try {
-      const [{ data: profile }, { data: prefRow }] = await Promise.all([
-        db.from("profiles").select("timezone").eq("id", userId).maybeSingle(),
-        db.from("notification_preferences").select("settings").eq("user_id", userId).maybeSingle(),
-      ])
-      const timeZone = (profile as { timezone?: string } | null)?.timezone || "America/Sao_Paulo"
-      const settings = (prefRow as { settings?: Record<string, unknown> } | null)?.settings
-      const prefs = settings && Object.keys(settings).length > 0 ? parseNotificationPrefs(settings) : defaultPrefs()
-      const today = localDay(now, timeZone)
-      const planned = dueNow(planNotifications({ now, timeZone, prefs, data: await loadData(db, userId, now, today) }), now, WINDOW_MS)
-      due += planned.length
-      for (const item of planned) {
-        // Claim it first: only the run that inserts the row sends the notification.
-        const claim = await db.from("notification_log").insert({ user_id: userId, ...logKey(item) })
-        if (claim.error) {
-          skipped += 1
-          continue
-        }
-        const result = await sendToUser(db, userId, { title: item.title, body: item.body, url: item.url, tag: item.tag, sticky: STICKY_EVENTS.has(item.event) })
-        sent += result.sent
-        failed += result.failed + result.removed
-        for (const [code, count] of Object.entries(result.failures)) failures[code] = (failures[code] ?? 0) + (count ?? 0)
-        // Nothing was delivered and the failure may be temporary: release the claim so the next run (inside the window) tries again.
-        if (result.sent === 0 && result.failed > 0) await db.from("notification_log").delete().eq("user_id", userId).match(logKey(item))
-      }
-    } catch {
-      // One person's problem never stops the others; nothing about their data is logged.
-      skipped += 1
-    }
-  }
-  console.warn(`[push] cron users=${users.length} due=${due} sent=${sent} failed=${failed} skipped=${skipped}`)
-  return NextResponse.json({ ok: true, users: users.length, due, sent, failed, skipped, failures })
+  const report = await dispatch({ db: createSecretClient(), now: new Date(), dryRun, send: sendToUser })
+  console.warn(`[push] cron dryRun=${dryRun} users=${report.users} due=${report.due} sent=${report.sent} failed=${report.failed} skipped=${report.skipped}`)
+  return NextResponse.json(dryRun && problem ? { ...report, pushProblem: problem } : report)
 }

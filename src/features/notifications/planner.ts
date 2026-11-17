@@ -3,6 +3,8 @@
 // sending the same one twice. Pure: dates are computed in the person's own time zone, quiet hours defer instead of dropping.
 import { TZDate } from "@date-fns/tz"
 
+import { expandEvent } from "@/features/calendar/recurrence"
+import type { EventRow } from "@/features/calendar/types"
 import type { EventKey, NotificationPrefs, QuietHours } from "@/features/settings/notification-prefs"
 
 export type PlannerEvent = EventKey | "reminders"
@@ -18,11 +20,17 @@ export type Planned = {
   body: string
   url: string
   tag: string
+  /** The person's choice for this kind is ON (a pending reminder is always on). Off ones only appear in the dry-run explanation. */
+  enabled: boolean
+  /** The moment was moved to the end of the quiet hours. */
+  deferred: boolean
+  /** A reminder created late still goes out until this moment (an event's start), even past the job's window. */
+  graceUntil?: Date
 }
 
 export type PlannerData = {
   reminders: { id: string; title: string; remind_at: string; status: string }[]
-  events: { id: string; title: string; starts_at: string; all_day: boolean; rrule: string | null; reminder_offsets: number[] }[]
+  events: { id: string; title: string; starts_at: string; ends_at?: string; all_day: boolean; rrule: string | null; reminder_offsets: number[] }[]
   tasks: { id: string; title: string; due_at: string | null; completed_at: string | null }[]
   bills: { id: string; name: string; amount_cents: number; due_day: number; last_paid_month: string | null; active: boolean }[]
   pendingHabits: number
@@ -81,13 +89,25 @@ const weekday = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay()
 const clampDay = (month: string, day: number) => Math.min(day, new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate())
 
 /** Every notification that could go out around `now` for one person, with its moment already moved out of the quiet hours. */
-export function planNotifications({ now, timeZone, prefs, data }: { now: Date; timeZone: string; prefs: NotificationPrefs; data: PlannerData }): Planned[] {
+export function planNotifications(input: { now: Date; timeZone: string; prefs: NotificationPrefs; data: PlannerData }): Planned[] {
+  return collect(input, false)
+}
+
+/** The same, but also the kinds the person switched OFF (flagged `enabled: false`), to explain in the dry run why nothing was sent. */
+export function explainCandidates(input: { now: Date; timeZone: string; prefs: NotificationPrefs; data: PlannerData }): Planned[] {
+  return collect(input, true)
+}
+
+function collect({ now, timeZone, prefs, data }: { now: Date; timeZone: string; prefs: NotificationPrefs; data: PlannerData }, includeOff: boolean): Planned[] {
   const today = localDay(now, timeZone)
   const month = today.slice(0, 7)
   const out: Planned[] = []
-  const on = (event: EventKey) => prefs.events[event]?.app === true
-  const add = (event: PlannerEvent, targetId: string, at: Date, title: string, body: string, url: string) => {
-    out.push({ event, targetId, bucket: at.toISOString(), at: deferQuiet(at, prefs.quiet, timeZone), title, body, url, tag: `${event}:${targetId}` })
+  const enabled = (event: EventKey) => prefs.events[event]?.app === true
+  // A switched-off kind is skipped, unless the dry run asks to see it.
+  const on = (event: EventKey) => includeOff || enabled(event)
+  const add = (event: PlannerEvent, targetId: string, at: Date, title: string, body: string, url: string, graceUntil?: Date) => {
+    const moved = deferQuiet(at, prefs.quiet, timeZone)
+    out.push({ event, targetId, bucket: at.toISOString(), at: moved, deferred: moved.getTime() !== at.getTime(), enabled: event === "reminders" ? true : enabled(event), title, body, url, tag: `${event}:${targetId}`, graceUntil })
   }
 
   // Reminders were created on purpose, with push as their channel: they always go out (still deferred out of the quiet hours).
@@ -104,13 +124,19 @@ export function planNotifications({ now, timeZone, prefs, data }: { now: Date; t
   }
 
   if (on("agenda")) {
+    // Occurrences around now: a single event is itself; a repeating one is expanded (its first start can be months ago).
+    const from = new Date(now.getTime() - 36 * 60 * MIN)
+    const to = new Date(now.getTime() + 48 * 60 * MIN)
     for (const e of data.events) {
-      // Repeating events are not expanded here yet: only single events remind.
-      if (e.rrule) continue
-      const start = new Date(e.starts_at)
-      for (const offset of e.reminder_offsets) {
-        const at = e.all_day ? atLocal(addDays(localDay(start, timeZone), offset >= 1440 ? -Math.floor(offset / 1440) : 0), "08:00", timeZone) : new Date(start.getTime() - offset * MIN)
-        add("agenda", `${e.id}:${offset}`, at, e.title, offset === 0 ? "Começa agora" : offset < 60 ? `Começa em ${offset} min` : `Começa em ${Math.round(offset / 60)} h`, "/dashboard/agenda")
+      const starts = e.rrule ? expandEvent({ ...e, ends_at: e.ends_at ?? e.starts_at } as unknown as EventRow, from, to, timeZone).map((item) => item.start) : [new Date(e.starts_at)]
+      for (const start of starts) {
+        for (const offset of e.reminder_offsets) {
+          const day = localDay(start, timeZone)
+          const at = e.all_day ? atLocal(addDays(day, offset >= 1440 ? -Math.floor(offset / 1440) : 0), "08:00", timeZone) : new Date(start.getTime() - offset * MIN)
+          // A reminder created after its moment still goes out, once, until the event starts (an all-day event: until the end of its day).
+          const grace = e.all_day ? atLocal(day, "23:59", timeZone) : start
+          add("agenda", `${e.id}:${offset}`, at, e.title, offset === 0 ? "Começa agora" : offset < 60 ? `Começa em ${offset} min` : `Começa em ${Math.round(offset / 60)} h`, "/dashboard/agenda", grace)
+        }
       }
     }
   }
@@ -136,9 +162,24 @@ export function planNotifications({ now, timeZone, prefs, data }: { now: Date; t
   return out
 }
 
-/** What goes out in this run: planned for the last `windowMs` (the job's interval plus a margin). Earlier moments were this job's earlier runs. */
+export type Phase = "due" | "pref_off" | "quiet_hours" | "future" | "expired"
+
+/**
+ * Where a planned notification stands in this run: due now, switched off by the person, waiting for the end of the quiet hours, still in the
+ * future, or too old. "Due" means its moment has come and either it is within `windowMs` of it (the job's interval plus a margin) or it has a
+ * grace period that has not ended (an event reminder created late still fires, once, until the event starts).
+ */
+export function phaseOf(p: Planned, now: Date, windowMs: number): Phase {
+  if (!p.enabled) return "pref_off"
+  const t = now.getTime()
+  if (p.at.getTime() > t) return p.deferred ? "quiet_hours" : "future"
+  const limit = Math.max(p.at.getTime() + windowMs, p.graceUntil?.getTime() ?? 0)
+  return t < limit ? "due" : "expired"
+}
+
+/** What goes out in this run. Earlier moments were this job's earlier runs; the notification_log keeps any of them from going out twice. */
 export function dueNow(planned: Planned[], now: Date, windowMs: number): Planned[] {
-  return planned.filter((p) => p.at.getTime() <= now.getTime() && now.getTime() - p.at.getTime() < windowMs)
+  return planned.filter((p) => phaseOf(p, now, windowMs) === "due")
 }
 
 /** The idempotency key stored in notification_log. */
