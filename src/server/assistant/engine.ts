@@ -3,6 +3,7 @@ import "server-only"
 import Anthropic from "@anthropic-ai/sdk"
 
 import { auditCreated, type Created, type Ctx } from "./execute"
+import { logToolError } from "./finance"
 import { MAX_OUTPUT_TOKENS, MAX_TOOL_STEPS } from "./usage"
 import { type Tool, TOOLS, toolByName, toolDefinitions } from "./tools"
 
@@ -87,7 +88,9 @@ async function runTool(ctx: Ctx, tool: Tool, rawInput: unknown) {
   if (!parsed.success) return { ok: false as const, message: `Dados inválidos para ${tool.name}: ${parsed.error.issues.map((i) => i.path.join(".") + " " + i.message).join("; ")}` }
   try {
     return await tool.run(ctx, parsed.data)
-  } catch {
+  } catch (error) {
+    // Observable in the logs (tool and error code only), friendly for the person.
+    logToolError(tool.name, error)
     return { ok: false as const, message: "Algo deu errado ao executar a ferramenta." }
   }
 }
