@@ -58,6 +58,8 @@ const ALLOWED_RELATIONS = new Set([
   "public.user_activity_hourly",
   "public.audit_log",
   "public.assistant_usage",
+  // admin_settings: the admin budget (a number), read only by admin.assistant_budget().
+  "public.admin_settings",
   "public.boards",
   "public.tasks",
   "public.tags",

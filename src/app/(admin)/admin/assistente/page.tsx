@@ -1,11 +1,16 @@
-import { CoinsIcon, MessagesSquareIcon, SparklesIcon } from "lucide-react"
+import { CoinsIcon, SparklesIcon } from "lucide-react"
 
 import { DailyBarsChart } from "@/components/admin/charts"
-import { ComingSoon, DataUnavailable, Intro, SegmentedLinks, TableCard } from "@/components/admin/parts"
+import { AssistantBudgetBanner } from "@/components/admin/assistant-budget-banner"
+import { AssistantCostSection } from "@/components/admin/assistant-cost"
+import { DataUnavailable, Intro, SegmentedLinks, TableCard } from "@/components/admin/parts"
 import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageGrid, PageShell, StatRow } from "@/components/organizzou/layout"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { assistantTokens, assistantUsage } from "@/lib/admin/data"
+import { periodFromSlug, slugOfPeriod } from "@/lib/admin/assistant-cost"
+import { loadBudget } from "@/lib/admin/assistant-budget"
+import { assistantCostByUser, assistantTokens, assistantUsage } from "@/lib/admin/data"
+import { dayOf } from "@/lib/sp-time"
 import { fmtInt, fmtPct } from "@/lib/admin/format"
 
 const RANGES = ["7", "30", "90"] as const
@@ -14,10 +19,21 @@ const RANGES = ["7", "30", "90"] as const
  * Reads only actor, action, confirmed_at, user and date from audit_log: never the payload. The assistant is still a prototype, so
  * "nothing yet" is the true answer and the page says why instead of showing made-up volume.
  */
-export default async function AssistantPage({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
-  const { periodo } = await searchParams
+export default async function AssistantPage({ searchParams }: { searchParams: Promise<{ periodo?: string; custo?: string; q?: string }> }) {
+  const { periodo, custo, q } = await searchParams
   const range = RANGES.find((r) => r === periodo) ?? "30"
-  const [usage, tokens] = await Promise.all([assistantUsage(Number(range)), assistantTokens(Number(range))])
+  const period = periodFromSlug(custo)
+  const search = (q ?? "").slice(0, 80)
+  const [usage, tokens, cost, budget] = await Promise.all([assistantUsage(Number(range)), assistantTokens(Number(range)), assistantCostByUser(), loadBudget()])
+  // The links keep the other filters: the audit period, the cost period and the search.
+  const hrefFor = (changes: { custo?: string; q?: string }) => {
+    const params = new URLSearchParams()
+    if (periodo) params.set("periodo", range)
+    params.set("custo", changes.custo ?? slugOfPeriod(period))
+    const query = changes.q ?? search
+    if (query) params.set("q", query)
+    return `?${params.toString()}`
+  }
 
   if (!usage.ok) return <DataUnavailable error={usage.error} />
   const u = usage.data
@@ -37,6 +53,14 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
         />
       }
     >
+      <AssistantBudgetBanner />
+
+      {cost.ok ? (
+        <AssistantCostSection rows={cost.data} period={period} search={search} budget={budget} today={dayOf(new Date(), 0)} hrefFor={hrefFor} />
+      ) : (
+        <Intro icon={CoinsIcon}>O custo por conta aparece aqui quando a migração 20261117000001_admin_assistant_cost.sql for aplicada no banco.</Intro>
+      )}
+
       {u.total === 0 ? (
         <Intro icon={SparklesIcon}>Nenhuma ação do assistente registrada no período. Só ações reais gravadas em auditoria aparecem aqui.</Intro>
       ) : null}
@@ -95,7 +119,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       </PageGrid>
 
       <PageGrid>
-        <PageGrid.Item span="half">
+        <PageGrid.Item span="full">
           <TableCard className="h-full">
             <div className="flex flex-col gap-1 p-6 pb-3">
               <h2 className="text-[17px] leading-6 font-semibold">Quem mais usa</h2>
@@ -122,24 +146,6 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
               <p className="px-6 pb-6 text-[15px] text-muted-foreground">Ninguém usou o assistente no período.</p>
             )}
           </TableCard>
-        </PageGrid.Item>
-        <PageGrid.Item span="half">
-          <div className="flex h-full flex-col gap-5">
-            <ComingSoon
-              icon={MessagesSquareIcon}
-              title="Mensagens por dia"
-              description="Hoje só as ações executadas são registradas, não as mensagens."
-              needs="uma tabela assistant_messages com (usuário, dia, canal) e SEM o texto da mensagem"
-              className="flex-1"
-            />
-            <ComingSoon
-              icon={CoinsIcon}
-              title="Custo estimado em tokens"
-              description="O uso de tokens ainda não é registrado."
-              needs="gravar tokens de entrada e saída por chamada (e o modelo usado) quando o assistente real for ligado"
-              className="flex-1"
-            />
-          </div>
         </PageGrid.Item>
       </PageGrid>
     </PageShell>

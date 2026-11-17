@@ -3,6 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { notFound } from "next/navigation"
 
+import { parseCostRows, type CostRow } from "./assistant-cost"
 import { requireAdmin } from "./guard"
 
 /**
@@ -182,6 +183,15 @@ export type AssistantTokens = { messages: number; input_tokens: number; output_t
 export const assistantTokens = (rangeDays = 30) => rpc<AssistantTokens>("assistant_tokens", { range_days: rangeDays })
 
 export const assistantUsage = (rangeDays = 30) => rpc<AssistantUsage>("assistant_usage", { range_days: rangeDays })
+
+/** Per account: messages and tokens today / 7 days / month / total (counters only, never text). Not ok until 20261117000001 is applied. */
+export async function assistantCostByUser(): Promise<Res<CostRow[]>> {
+  const result = await rpc<unknown>("assistant_cost_by_user")
+  return result.ok ? { ok: true, data: parseCostRows(result.data) } : result
+}
+
+/** The monthly budget (US$) the admin saved, or null. Not ok until 20261117000001 is applied. */
+export const assistantBudgetSetting = () => rpc<number | null>("assistant_budget")
 
 export type IntegrationNumbers = { total_users: number; google_users: number; email_users: number; phones_informed: number; waitlist: number }
 

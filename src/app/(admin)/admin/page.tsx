@@ -2,6 +2,7 @@ import Link from "next/link"
 import { CircleCheckIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
 
 import { ActiveUsersChart, PlanChart, SignupsChart } from "@/components/admin/charts"
+import { AssistantBudgetBanner } from "@/components/admin/assistant-budget-banner"
 import { AdminKpi, DataUnavailable, SegmentedLinks } from "@/components/admin/parts"
 import { BentoCard } from "@/components/organizzou/Bento"
 import { PageShell, SplitLayout, StatRow } from "@/components/organizzou/layout"
@@ -58,6 +59,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
 
   return (
     <PageShell>
+      <AssistantBudgetBanner />
       <SplitLayout
         aside={
           <>
