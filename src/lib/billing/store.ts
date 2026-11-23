@@ -25,8 +25,11 @@ export interface BillingStore {
   listInvoices(userId: string, limit?: number): Promise<InvoiceRow[]>
   getProfilePlan(userId: string): Promise<{ plan: string | null; planUntil: string | null }>
   setProfilePlan(userId: string, plan: { plan: "free" | "pro"; planUntil: string | null }): Promise<void>
-  /** True when the event is new (and now recorded); false when this event id was already received. */
-  recordEvent(event: { id: string; event: string; paymentId: string | null; payload: Record<string, unknown> }): Promise<boolean>
+  /**
+   * "new": first time (now recorded). "duplicate": already received and processed. "retry": received before but never finished
+   * (the processing failed), so it must be processed again.
+   */
+  recordEvent(event: { id: string; event: string; paymentId: string | null; payload: Record<string, unknown> }): Promise<"new" | "duplicate" | "retry">
   markEventProcessed(id: string): Promise<void>
 }
 
@@ -128,10 +131,12 @@ export function supabaseBillingStore(db: SupabaseClient): BillingStore {
     },
     async recordEvent(event) {
       const { error } = await db.from("billing_events").insert({ asaas_event_id: event.id, event: event.event, asaas_payment_id: event.paymentId, payload: event.payload })
-      if (!error) return true
-      // 23505 = unique violation: this event id was already received.
-      if ((error as { code?: string }).code === "23505") return false
-      throw new StoreError("billing store")
+      if (!error) return "new"
+      // 23505 = unique violation: this event id was already received. Processed or not?
+      if ((error as { code?: string }).code !== "23505") throw new StoreError("billing store")
+      const { data, error: readError } = await db.from("billing_events").select("processed_at").eq("asaas_event_id", event.id).maybeSingle()
+      must(readError)
+      return (data as { processed_at: string | null } | null)?.processed_at ? "duplicate" : "retry"
     },
     async markEventProcessed(id) {
       const { error } = await db.from("billing_events").update({ processed_at: new Date().toISOString() }).eq("asaas_event_id", id)

@@ -36,9 +36,10 @@ export function memoryBillingStore() {
     getProfilePlan: async (userId) => profiles.get(userId) ?? { plan: null, planUntil: null },
     setProfilePlan: async (userId, { plan, planUntil }) => void profiles.set(userId, { plan, planUntil }),
     recordEvent: async (e) => {
-      if (events.has(e.id)) return false
+      const seen = events.get(e.id)
+      if (seen) return seen.processed ? "duplicate" : "retry"
       events.set(e.id, { processed: false, event: e.event })
-      return true
+      return "new"
     },
     markEventProcessed: async (id) => void (events.get(id)!.processed = true),
   }
