@@ -47,6 +47,27 @@ The rules live in one file, `src/lib/plans.ts` (limits, features, `getEntitlemen
 
 **When a checkout fails after the subscription exists** (for example the launch price cannot be applied), the subscription is deleted at Asaas with three attempts and a short backoff ("not found" counts as deleted). If it still cannot be deleted it is **not swallowed**: an `asaas_orphan` error is logged (operation, status and the Asaas id only), the id is recorded in `billing_events` (event `ORPHAN_SUBSCRIPTION`, open while `processed_at` is empty; no migration) and the person is told to contact support instead of that nothing was charged. The next checkout of that person first cleans the orphan, so a retry never creates a duplicate. In **Admin > Assinaturas**, "Pendentes de limpeza" lists them with a "Tentar apagar de novo" button (audit-logged).
 
+### Subscription states
+
+| State | Meaning | Pro? |
+|---|---|---|
+| `pending` | A checkout was started and the first payment is not confirmed yet. | no |
+| `active` | Paid and running. With `cancel_at_period_end` it will not renew: Pro runs until `plan_until`. | yes |
+| `overdue` | A renewal was not paid. Pro continues for the 3-day grace (`grace_until`). | for 3 days |
+| `canceled` | A checkout that was never paid and was dropped or replaced. | no |
+| `ended` | The recurrence is over and nothing paid is left to run (canceled at Asaas with a lapsed or free plan, an admin back to Free, a refund). | no |
+
+What moves a row: the webhook (`SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED`, `SUBSCRIPTION_UPDATED` to INACTIVE or EXPIRED, `PAYMENT_*`), the plan screen (cancel, switch period), the checkout (it asks Asaas before it says "você já tem uma assinatura ativa" and heals a row that Asaas no longer has) and the admin (**Alterar plano** to Gratuito cancels the subscription at Asaas first). A Pro granted by hand has no subscription row: the admin table shows it as **Pro manual**.
+
+The launch price is decided only by paid invoices: an account that never paid (whatever happened to its subscription rows) gets it, one that paid once does not. Admin > Assinaturas shows who already used it.
+
+### Reset a test account for repeated sandbox tests
+
+1. In the Asaas sandbox panel, cancel the subscription (or leave it: the next step cancels it for you).
+2. In **Admin > Usuários**, open the account and use **Alterar plano** to Gratuito. This deletes the subscription at Asaas (a subscription already gone counts as done), marks our row `ended` and sets the plan to Free, all in the audit log. If Asaas cannot be reached nothing is changed and the message says so.
+3. The account can check out again. If a checkout still says it already has a subscription, it asks Asaas, finds it deleted and heals itself.
+4. The launch price is only for accounts with no paid invoice. After a test payment that account pays the full price next time. To get the launch price again with the same account, use a new account (do not edit billing tables by hand).
+
 ### Configure Asaas (sandbox first)
 
 1. Create a sandbox account at https://sandbox.asaas.com and an API key (Integrações > Chave de API).
