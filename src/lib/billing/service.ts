@@ -17,7 +17,45 @@ import type { BillingStore } from "./store"
  */
 
 export type BillingUser = { id: string; email: string; name: string }
-export type Deps = { asaas: AsaasClient; store: BillingStore; now: Date; today: string; siteUrl: string; returnPath: string }
+export type Deps = { asaas: AsaasClient; store: BillingStore; now: Date; today: string; siteUrl: string; returnPath: string; /** Waits between delete attempts (injected so tests do not wait). */ sleep?: (ms: number) => Promise<void> }
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+/** Short exponential backoff between the three attempts to delete a subscription. */
+export const RETRY_DELAYS_MS = [300, 1200] as const
+
+/** What the person reads when a subscription could not be removed: something may still be charged, so they must not try again alone. */
+export const ORPHAN_MESSAGE = "Não consegui concluir o pagamento e uma assinatura ficou pendente de limpeza. Não tente de novo: avise o suporte do Organizzou para ela ser encerrada."
+
+/**
+ * Deletes an Asaas subscription with up to three attempts and a short backoff. "Not found" counts as success (it is already gone).
+ * Returns the last HTTP status when every attempt failed (0 = network or timeout).
+ */
+export async function deleteSubscriptionReliably(asaas: Pick<AsaasClient, "deleteSubscription">, id: string, sleep: (ms: number) => Promise<void> = defaultSleep): Promise<{ ok: true } | { ok: false; status: number }> {
+  let status = 0
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      await asaas.deleteSubscription(id)
+      return { ok: true }
+    } catch (error) {
+      if (error instanceof AsaasError && error.status === 404) return { ok: true }
+      status = error instanceof AsaasError ? error.status : 0
+      if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt])
+    }
+  }
+  return { ok: false, status }
+}
+
+/**
+ * Removes a subscription after a failed checkout. If it cannot be removed it is NOT swallowed: an error event (operation, status and the Asaas
+ * subscription id only) is logged and the subscription is recorded as an open orphan, so it can be cleaned from the admin.
+ */
+export async function cleanUpSubscription(deps: Pick<Deps, "asaas" | "store" | "sleep">, userId: string, subscriptionId: string): Promise<boolean> {
+  const result = await deleteSubscriptionReliably(deps.asaas, subscriptionId, deps.sleep)
+  if (result.ok) return true
+  console.error(JSON.stringify({ event: "asaas_orphan", op: "deleteSubscription", status: result.status, subscription: subscriptionId }))
+  await deps.store.recordOrphan(subscriptionId, userId).catch(() => undefined)
+  return false
+}
 
 export type Fail = { ok: false; error: string; status: number }
 const fail = (error: string, status = 400): Fail => ({ ok: false, error, status })
@@ -37,9 +75,14 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
   try {
     const previous = await store.latestSubscription(user.id)
     if (previous && previous.status === "active" && !previous.cancelAtPeriodEnd) return fail("Você já tem uma assinatura ativa.", 409)
-    // An abandoned checkout is replaced, so retrying never leaves two charges waiting.
+    // Retries are idempotent: a subscription an earlier failed attempt left behind (an open orphan) is cleaned first, and so is an abandoned
+    // pending checkout. If one cannot be removed, no second subscription is created on top of it.
+    for (const orphan of await store.openOrphans(user.id)) {
+      if (!(await deleteSubscriptionReliably(asaas, orphan.asaasSubscriptionId, deps.sleep)).ok) return fail(ORPHAN_MESSAGE, 409)
+      await store.resolveOrphan(orphan.asaasSubscriptionId)
+    }
     if (previous && previous.status === "pending" && previous.asaasSubscriptionId) {
-      await asaas.deleteSubscription(previous.asaasSubscriptionId).catch(() => undefined)
+      if (!(await cleanUpSubscription(deps, user.id, previous.asaasSubscriptionId))) return fail(ORPHAN_MESSAGE, 409)
       await store.patchSubscription(previous.id, { status: "canceled" })
     }
 
@@ -62,14 +105,13 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
 
     // From here on a failure must not leave a live subscription behind (it would charge the regular price at the next due date).
     let storedId: string | null = null
-    const undo = async () => {
-      await asaas.deleteSubscription(subscription.id).catch(() => undefined)
-      if (storedId) await store.patchSubscription(storedId, { status: "canceled" }).catch(() => undefined)
+    const undo = async (): Promise<boolean> => {
+      const cleaned = await cleanUpSubscription(deps, user.id, subscription.id)
+      if (cleaned && storedId) await store.patchSubscription(storedId, { status: "canceled" }).catch(() => undefined)
+      return cleaned
     }
-    const abort = async (message: string): Promise<Fail> => {
-      await undo()
-      return fail(message, 502)
-    }
+    // The friendly "nothing was charged" message only when the subscription is really gone; otherwise the person is told to call support.
+    const abort = async (message: string): Promise<Fail> => ((await undo()) ? fail(message, 502) : fail(ORPHAN_MESSAGE, 502))
     try {
 
     const first = earliest((await asaas.listSubscriptionPayments(subscription.id)).data ?? [])
@@ -108,7 +150,7 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
     if (!url) return abort("Não consegui abrir a página de pagamento. Nada foi cobrado. Tente de novo.")
     return { ok: true, kind: "redirect", paymentId: payment.id, url, amountCents: q.firstChargeCents }
     } catch (error) {
-      await undo()
+      if (!(await undo())) return fail(ORPHAN_MESSAGE, 502)
       throw error
     }
   } catch (error) {

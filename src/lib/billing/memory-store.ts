@@ -1,6 +1,6 @@
 import type { SubscriptionRow } from "@/features/billing/types"
 
-import type { BillingStore, InvoiceRecord } from "./store"
+import type { BillingStore, InvoiceRecord, OrphanRecord } from "./store"
 
 /** An in-memory BillingStore, for tests only. */
 export function memoryBillingStore() {
@@ -9,6 +9,7 @@ export function memoryBillingStore() {
   const invoices: InvoiceRecord[] = []
   const profiles = new Map<string, { plan: string | null; planUntil: string | null }>()
   const events = new Map<string, { processed: boolean; event: string }>()
+  const orphans: (OrphanRecord & { open: boolean })[] = []
   let seq = 0
 
   const store: BillingStore = {
@@ -42,6 +43,14 @@ export function memoryBillingStore() {
       return "new"
     },
     markEventProcessed: async (id) => void (events.get(id)!.processed = true),
+    recordOrphan: async (asaasSubscriptionId, userId) => {
+      if (!orphans.some((o) => o.asaasSubscriptionId === asaasSubscriptionId)) orphans.push({ asaasSubscriptionId, userId, createdAt: new Date().toISOString(), open: true })
+    },
+    openOrphans: async (userId) => orphans.filter((o) => o.open && (!userId || o.userId === userId)),
+    resolveOrphan: async (asaasSubscriptionId) => {
+      const o = orphans.find((x) => x.asaasSubscriptionId === asaasSubscriptionId)
+      if (o) o.open = false
+    },
   }
-  return { store, customers, subscriptions, invoices, profiles, events }
+  return { store, customers, subscriptions, invoices, profiles, events, orphans }
 }

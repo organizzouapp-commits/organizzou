@@ -6,6 +6,8 @@ import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageGrid, PageShell, StatRow } from "@/components/organizzou/layout"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { OrphanRetryButton } from "@/components/admin/orphan-retry-button"
+import { openOrphanSubscriptions } from "@/lib/admin/billing-orphans"
 import { activeCourtesies, billingByUser, type BillingRow, planDistribution } from "@/lib/admin/data"
 import { fmtDate, fmtInt } from "@/lib/admin/format"
 import { formatBRL } from "@/lib/money"
@@ -59,7 +61,7 @@ function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
  * last invoice. Granting or revoking Pro by hand is in each person's panel (Alterar plano), audit-logged. Nothing here estimates revenue.
  */
 export default async function BillingPage() {
-  const [plans, courtesies, subscriptions] = await Promise.all([planDistribution(), activeCourtesies(), billingByUser()])
+  const [plans, courtesies, subscriptions, orphans] = await Promise.all([planDistribution(), activeCourtesies(), billingByUser(), openOrphanSubscriptions()])
 
   const count = { free: 0, pro: 0, courtesy: 0 }
   if (plans.ok) {
@@ -100,6 +102,52 @@ export default async function BillingPage() {
             )}
           </TableCard>
         </PageGrid.Item>
+        {orphans.ok && orphans.data.length === 0 ? null : (
+          <PageGrid.Item span="full">
+            <TableCard>
+              <div className="flex flex-col gap-1 p-6 pb-3">
+                <h2 className="text-[17px] leading-6 font-semibold">Pendentes de limpeza</h2>
+                <p className="text-[13px] leading-5 text-muted-foreground">Assinaturas que um pagamento que falhou não conseguiu apagar no Asaas. Podem cobrar o valor normal no vencimento: apague e confira no painel do Asaas.</p>
+              </div>
+              {orphans.ok ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Assinatura no Asaas</TableHead>
+                      <TableHead>Pessoa</TableHead>
+                      <TableHead>Desde</TableHead>
+                      <TableHead className="pr-6 text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orphans.data.map((o) => (
+                      <TableRow key={o.asaasSubscriptionId}>
+                        <TableCell className="pl-6 font-mono text-[13px]">{o.asaasSubscriptionId}</TableCell>
+                        <TableCell>
+                          {o.userId ? (
+                            <Link href={`/admin/usuarios?usuario=${o.userId}`} className="rounded-md outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+                              abrir pessoa
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="tabular">{fmtDate(o.createdAt)}</TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <OrphanRetryButton subscription={o.asaasSubscriptionId} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="px-6 pb-6">
+                  <DataUnavailable error={orphans.error} title="Não carregou" />
+                </div>
+              )}
+            </TableCard>
+          </PageGrid.Item>
+        )}
         <PageGrid.Item span="half">
           <BentoCard title="Pessoas por plano" className="h-full">
             {plans.ok ? (

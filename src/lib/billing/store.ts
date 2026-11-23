@@ -31,7 +31,17 @@ export interface BillingStore {
    */
   recordEvent(event: { id: string; event: string; paymentId: string | null; payload: Record<string, unknown> }): Promise<"new" | "duplicate" | "retry">
   markEventProcessed(id: string): Promise<void>
+  /**
+   * A subscription we could not delete at Asaas after a failed checkout: kept in billing_events (event ORPHAN_SUBSCRIPTION, processed_at
+   * empty while it is open) so it can be cleaned later. No migration needed. Only the Asaas id and our internal user id are stored.
+   */
+  recordOrphan(asaasSubscriptionId: string, userId: string): Promise<void>
+  openOrphans(userId?: string): Promise<OrphanRecord[]>
+  resolveOrphan(asaasSubscriptionId: string): Promise<void>
 }
+
+export type OrphanRecord = { asaasSubscriptionId: string; userId: string | null; createdAt: string }
+export const ORPHAN_EVENT = "ORPHAN_SUBSCRIPTION"
 
 class StoreError extends Error {}
 const must = (error: { message?: string } | null) => {
@@ -140,6 +150,24 @@ export function supabaseBillingStore(db: SupabaseClient): BillingStore {
     },
     async markEventProcessed(id) {
       const { error } = await db.from("billing_events").update({ processed_at: new Date().toISOString() }).eq("asaas_event_id", id)
+      must(error)
+    },
+    async recordOrphan(asaasSubscriptionId, userId) {
+      const { error } = await db.from("billing_events").insert({ asaas_event_id: `orphan:${asaasSubscriptionId}`, event: ORPHAN_EVENT, payload: { subscription: asaasSubscriptionId, user_id: userId } })
+      // 23505: already recorded.
+      if (error && (error as { code?: string }).code !== "23505") throw new StoreError("billing store")
+    },
+    async openOrphans(userId) {
+      let query = db.from("billing_events").select("payload, created_at").eq("event", ORPHAN_EVENT).is("processed_at", null)
+      if (userId) query = query.eq("payload->>user_id", userId)
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(50)
+      must(error)
+      return ((data as { payload: { subscription?: string; user_id?: string | null }; created_at: string }[] | null) ?? [])
+        .filter((row) => typeof row.payload?.subscription === "string")
+        .map((row) => ({ asaasSubscriptionId: row.payload.subscription as string, userId: row.payload.user_id ?? null, createdAt: row.created_at }))
+    },
+    async resolveOrphan(asaasSubscriptionId) {
+      const { error } = await db.from("billing_events").update({ processed_at: new Date().toISOString() }).eq("asaas_event_id", `orphan:${asaasSubscriptionId}`)
       must(error)
     },
   }
