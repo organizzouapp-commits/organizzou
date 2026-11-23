@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-import { AsaasError, type AsaasClient, type AsaasPayment } from "./asaas"
+import { AsaasError, type AsaasClient, type AsaasPayment, type AsaasSubscription } from "./asaas"
 import { memoryBillingStore } from "./memory-store"
-import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, ORPHAN_MESSAGE, startCheckout, type BillingUser, type Deps } from "./service"
+import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, ORPHAN_MESSAGE, startCheckout, subscriptionAtAsaas, UNREACHABLE_MESSAGE, type BillingUser, type Deps } from "./service"
 
 const USER: BillingUser = { id: "u1", email: "ana@exemplo.com", name: "Ana" }
 const NOW = new Date("2026-11-20T15:00:00Z")
@@ -17,6 +17,7 @@ function fakeAsaas(over: Partial<Record<keyof AsaasClient, unknown>> = {}) {
   const first: AsaasPayment = { id: "pay_1", status: "PENDING", value: 24.9, dueDate: "2026-11-20", invoiceUrl: "https://asaas.test/i/pay_1", bankSlipUrl: "https://asaas.test/b/pay_1", billingType: "CREDIT_CARD" }
   const client = {
     createCustomer: log("createCustomer", { id: "cus_1" }),
+    getSubscription: log("getSubscription", { id: "sub_old", status: "ACTIVE", value: 24.9, nextDueDate: "2026-12-20", cycle: "MONTHLY", billingType: "PIX", customer: "cus_1" }),
     createSubscription: log("createSubscription", { id: "sub_1", status: "ACTIVE", value: 24.9, nextDueDate: "2026-11-20", cycle: "MONTHLY", billingType: "CREDIT_CARD", customer: "cus_1" }),
     updateSubscription: log("updateSubscription", {}),
     deleteSubscription: log("deleteSubscription", { deleted: true, id: "sub_1" }),
@@ -298,5 +299,59 @@ describe("cleanup after a failed checkout", () => {
     expect(sleeps).toEqual([300, 1200])
     expect(await deleteSubscriptionReliably({ deleteSubscription: async () => Promise.reject(new AsaasError("x", 0)) } as never, "sub_x", sleep)).toEqual({ ok: false, status: 0 })
     expect(await deleteSubscriptionReliably({ deleteSubscription: async () => ({ deleted: true, id: "sub_x" }) } as never, "sub_x", sleep)).toEqual({ ok: true })
+  })
+})
+
+describe("the 'already active' guard asks Asaas before it refuses", () => {
+  const remote = (over: Record<string, unknown>) => ({ id: "sub_old", status: "ACTIVE", value: 24.9, nextDueDate: "2026-12-20", cycle: "MONTHLY", billingType: "PIX", customer: "cus_1", ...over }) as AsaasSubscription
+  async function withActiveRow(over: Partial<Record<keyof AsaasClient, unknown>>) {
+    const t = setup(over)
+    const row = await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_old", planPeriod: "monthly", method: "pix", status: "active" })
+    return { ...t, row }
+  }
+
+  it("active in our database and active at Asaas: refused, nothing created", async () => {
+    const t = await withActiveRow({ getSubscription: async () => remote({}) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false, status: 409, error: "Você já tem uma assinatura ativa." })
+    expect(t.calls.some((c) => c.op === "createSubscription")).toBe(false)
+    expect(t.subscriptions[0].status).toBe("active")
+  })
+  it("active in our database but deleted at Asaas: the row is healed to ended and the new checkout goes on", async () => {
+    for (const body of [remote({ deleted: true }), remote({ status: "INACTIVE" }), remote({ status: "EXPIRED" })]) {
+      const t = await withActiveRow({ getSubscription: async () => body })
+      const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+      expect(result).toMatchObject({ ok: true, kind: "pix" })
+      expect(t.subscriptions.find((s) => s.id === t.row.id)).toMatchObject({ status: "ended", cancelAtPeriodEnd: true })
+    }
+  })
+  it("not found at Asaas counts as gone", async () => {
+    const t = await withActiveRow({ getSubscription: async () => Promise.reject(new AsaasError("x", 404)) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+    expect(t.subscriptions.find((s) => s.id === t.row.id)?.status).toBe("ended")
+  })
+  it("Asaas unreachable: the guard stays, with a friendly retry message, and nothing is created or changed", async () => {
+    for (const failure of [new AsaasError("x", 500), new AsaasError("x", 0), new Error("boom")]) {
+      console.error = vi.fn()
+      const t = await withActiveRow({ getSubscription: async () => Promise.reject(failure) })
+      expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toEqual({ ok: false, status: 503, error: UNREACHABLE_MESSAGE })
+      expect(t.calls.some((c) => c.op === "createSubscription" || c.op === "createCustomer")).toBe(false)
+      expect(t.subscriptions[0].status).toBe("active")
+    }
+  })
+  it("an overdue subscription is checked the same way, and a row without an Asaas id counts as gone", async () => {
+    const overdue = await withActiveRow({ getSubscription: async () => remote({ deleted: true }) })
+    await overdue.store.patchSubscription(overdue.row.id, { status: "overdue" })
+    expect(await startCheckout(overdue.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+
+    const noId = setup()
+    await noId.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "", planPeriod: "monthly", method: "pix", status: "active" })
+    expect(await subscriptionAtAsaas({ getSubscription: async () => remote({}) }, null)).toBe("gone")
+    expect(await subscriptionAtAsaas({ getSubscription: async () => remote({}) }, "sub_old")).toBe("live")
+  })
+  it("a subscription already flagged to end at the period end does not block a new one", async () => {
+    const t = await withActiveRow({ getSubscription: async () => remote({}) })
+    await t.store.patchSubscription(t.row.id, { cancelAtPeriodEnd: true })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+    expect(t.calls.some((c) => c.op === "getSubscription")).toBe(false)
   })
 })
