@@ -1,5 +1,6 @@
 "use client"
 
+import { NavLock } from "@/components/plan/locked-module"
 import { memo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -53,6 +54,7 @@ function NavRow({ item, pathname, counts }: { item: NavItem; pathname: string; c
     <Link href={item.href} aria-current={active ? "page" : undefined} className={cn(rowBase, ease, focus, active ? rowActive : rowIdle)}>
       <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
       <span className="truncate">{item.label}</span>
+      <NavLock href={item.href} />
       <CountBadge value={counts[item.id]} active={active} />
     </Link>
   )
@@ -152,6 +154,7 @@ function RailGroup({ group, pathname, counts, footer, align = "start" }: { group
             <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex h-11 items-center gap-3 rounded-full px-3 text-[15px]", ease, focus, active ? rowActive : "hover:bg-accent")}>
               <item.icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
               <span className="truncate">{item.label}</span>
+              <NavLock href={item.href} />
               <CountBadge value={counts[item.id]} active={active} />
             </Link>
           )
