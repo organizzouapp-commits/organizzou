@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("server-only", () => ({}))
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
 
@@ -40,5 +42,20 @@ describe("admin: subscriptions pending cleanup", () => {
   it("the page lists them with a retry button, and the record holds only the Asaas id and our user id", () => {
     expect(read("src/app/(admin)/admin/assinaturas/page.tsx")).toContain("Pendentes de limpeza")
     expect(read("src/lib/billing/store.ts")).toContain("payload: { subscription: asaasSubscriptionId, user_id: userId }")
+  })
+})
+
+describe("admin: Pro manual is told apart from a paid subscription", () => {
+  it("only Pro accounts with no live subscription are manual", async () => {
+    const { splitManual } = await import("./billing-extra")
+    const pros = [{ id: "a" }, { id: "b" }, { id: "c" }]
+    expect(splitManual(pros, ["b"])).toEqual([{ id: "a" }, { id: "c" }])
+    expect(splitManual(pros, [])).toEqual(pros)
+    expect(splitManual([], ["x"])).toEqual([])
+  })
+  it("the page shows the Pro manual badge, and the reader checks the admin before the secret key", () => {
+    expect(read("src/app/(admin)/admin/assinaturas/page.tsx")).toContain("Pro manual")
+    const reader = read("src/lib/admin/billing-extra.ts")
+    expect(reader.indexOf("await requireAdmin()")).toBeLessThan(reader.indexOf("createSecretClient()"))
   })
 })

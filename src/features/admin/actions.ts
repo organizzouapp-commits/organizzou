@@ -8,6 +8,9 @@ import { listUsers, waitlistList, type UserFilters, type UserRow } from "@/lib/a
 import { toCsv, fmtDate, fmtDateTime } from "@/lib/admin/format"
 import { requireAdminForAction } from "@/lib/admin/guard"
 import { createSecretClient, SECRET_KEY_HINT, secretKeyConfigured } from "@/lib/admin/secret"
+import { asaasFromEnv } from "@/lib/billing/asaas"
+import { endSubscriptionForRevoke } from "@/lib/billing/revoke"
+import { supabaseBillingStore } from "@/lib/billing/store"
 
 export type AdminActionResult = { ok: true; message: string } | { ok: false; error: string }
 
@@ -83,13 +86,27 @@ export async function changePlan(input: z.input<typeof planInput>): Promise<Admi
   const target = await targetOf(ctx.secret, id)
   if (!target) return fail("Usuário não encontrado.")
 
+  // Back to Free ends the paid subscription FIRST (Asaas, then our row), or changes nothing and says why. Granting Pro by hand never creates
+  // a subscription: a manual Pro has no row in `subscriptions`, which is how the admin table tells it apart ("Pro manual").
+  let subscriptionEnded: string | null = null
+  if (plan === "free") {
+    const revoked = await endSubscriptionForRevoke({ asaas: asaasFromEnv(), store: supabaseBillingStore(ctx.secret) }, id)
+    if (!revoked.ok) return planFail(revoked.error)
+    if (revoked.ended) {
+      subscriptionEnded = revoked.subscriptionId ?? "sem id"
+      await logAdminAction(ctx.secret, { adminId: ctx.admin.adminId, adminEmail: ctx.admin.email, action: "billing.subscription_end", targetUserId: id, targetEmail: target.email, payload: { subscription: revoked.subscriptionId, via: "revoke_pro" } })
+    }
+  }
+  // From here on, if something fails, the admin is told that the subscription is already ended.
+  const stop = (reason: string) => planFail(subscriptionEnded ? `A assinatura já foi cancelada no Asaas e marcada como encerrada, mas o plano continua como estava. ${reason}` : reason)
+
   const values = { plan, plan_until: until ? until.toISOString() : null }
   const updated = await ctx.secret.from("profiles").update(values).eq("id", id).select("id")
-  if (updated.error) return planFail(`O banco recusou a mudança (${updated.error.message}). A migration do painel admin já foi aplicada?`)
+  if (updated.error) return stop(`O banco recusou a mudança (${updated.error.message}). A migration do painel admin já foi aplicada?`)
   if (!updated.data || updated.data.length === 0) {
     // No profile row for this account: create it (the secret key may insert), then the plan is part of that row.
     const created = await ctx.secret.from("profiles").insert({ id, display_name: profileName(target), ...values }).select("id")
-    if (created.error || !created.data?.length) return planFail(`Essa conta não tem perfil e não foi possível criar um (${created.error?.message ?? "nenhuma linha gravada"}).`)
+    if (created.error || !created.data?.length) return stop(`Essa conta não tem perfil e não foi possível criar um (${created.error?.message ?? "nenhuma linha gravada"}).`)
   }
 
   // Read it back: success is what the database now says, not what the write call returned.
@@ -97,7 +114,7 @@ export async function changePlan(input: z.input<typeof planInput>): Promise<Admi
   const row = check.data as { plan: string | null; plan_until: string | null } | null
   const sameEnd = (row?.plan_until ? new Date(row.plan_until).getTime() : null) === (until ? until.getTime() : null)
   if (check.error || !row || row.plan !== plan || !sameEnd) {
-    return planFail(check.error ? `Não deu para confirmar a gravação (${check.error.message}).` : "O banco não guardou a mudança. Nada foi registrado na auditoria.")
+    return stop(check.error ? `Não deu para confirmar a gravação (${check.error.message}).` : "O banco não guardou a mudança. Nada foi registrado na auditoria.")
   }
 
   const history = await ctx.secret.from("plan_history").insert({
@@ -114,8 +131,8 @@ export async function changePlan(input: z.input<typeof planInput>): Promise<Admi
 
   return finish(
     ctx,
-    { action: "plan.change", targetUserId: id, targetEmail: target.email, payload: { plan, until: until?.toISOString() ?? null } },
-    plan === "pro" ? (until ? "Pro de cortesia ativado." : "Plano Pro ativado.") : "Plano alterado para Gratuito."
+    { action: "plan.change", targetUserId: id, targetEmail: target.email, payload: { plan, until: until?.toISOString() ?? null, subscription_ended: subscriptionEnded !== null } },
+    plan === "pro" ? (until ? "Pro de cortesia ativado." : "Plano Pro ativado.") : subscriptionEnded ? "Plano alterado para Gratuito e a assinatura foi cancelada no Asaas." : "Plano alterado para Gratuito."
   )
 }
 
