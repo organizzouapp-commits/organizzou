@@ -30,7 +30,7 @@ export type Quote = {
 export function quote(period: PlanPeriod, method: PayMethod, today: string, firstTime = true): Quote {
   const { monthlyCents, yearlyCents, firstMonthCents } = PLANS.pro.price
   if (period === "annual") {
-    return { period, method, firstChargeCents: yearlyCents, regularCents: yearlyCents, promo: false, cycle: "YEARLY", nextChargeOn: format(addYears(parseISO(today), 1), "yyyy-MM-dd"), description: "Organizzou Pro · plano anual" }
+    return { period, method, firstChargeCents: yearlyCents, regularCents: yearlyCents, promo: false, cycle: "YEARLY", nextChargeOn: format(addYears(parseISO(today), 1), "yyyy-MM-dd"), description: "Organizzou Pro - plano anual" }
   }
   const promo = firstTime && firstMonthCents < monthlyCents
   return {
@@ -41,7 +41,7 @@ export function quote(period: PlanPeriod, method: PayMethod, today: string, firs
     promo,
     cycle: "MONTHLY",
     nextChargeOn: format(addMonths(parseISO(today), 1), "yyyy-MM-dd"),
-    description: "Organizzou Pro · plano mensal",
+    description: "Organizzou Pro - plano mensal",
   }
 }
 

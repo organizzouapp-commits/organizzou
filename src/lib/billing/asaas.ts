@@ -29,6 +29,8 @@ export type AsaasSubscription = { id: string; status: string; value: number; nex
 export type AsaasPixQrCode = { encodedImage: string; payload: string; expirationDate: string }
 
 /** A failure with a message that is safe to show. */
+import type { CustomerBody, SubscriptionBody } from "./payloads"
+
 export class AsaasError extends Error {
   constructor(
     readonly userMessage: string,
@@ -44,14 +46,43 @@ const GENERIC = "O serviço de pagamento recusou o pedido. Confira os dados e te
 const BY_CODE: Record<string, string> = {
   invalid_cpfCnpj: "CPF ou CNPJ inválido. Confira os números e tente de novo.",
   invalid_customer: "Não consegui validar seus dados de cobrança. Confira o CPF ou CNPJ e o e-mail.",
-  invalid_email: "O e-mail da conta não foi aceito pelo serviço de pagamento.",
+  invalid_email: "E-mail inválido. Confira o e-mail da sua conta.",
   invalid_value: "O valor da cobrança não foi aceito. Tente de novo em instantes.",
   invalid_dueDate: "A data da cobrança não foi aceita. Tente de novo em instantes.",
 }
 
+/**
+ * An Asaas validation message made safe to log: no e-mail, no CPF/CNPJ (formatted or as bare digits), no long token-like string,
+ * single spaces, at most 200 characters. Asaas's own messages ("O campo X é inválido") hold no personal data, this is the belt to those braces.
+ */
+export function sanitizeDescription(text: unknown): string {
+  return String(text ?? "")
+    .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "[email]")
+    .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, "[documento]")
+    .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, "[documento]")
+    .replace(/\b\d{14}\b|\b\d{11}\b/g, "[documento]")
+    .replace(/[A-Za-z0-9_$-]{24,}/g, "[token]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200)
+}
+
+/** A more specific message when Asaas's own description says what is wrong with the person's data. Null when it says nothing we can act on. */
+export function specificMessage(descriptions: string[]): string | null {
+  const text = descriptions.join(" ").toLowerCase()
+  if (/cpf|cnpj/.test(text)) return "CPF ou CNPJ inválido. Confira os números e tente de novo."
+  if (/e-?mail/.test(text)) return "E-mail inválido. Confira o e-mail da sua conta."
+  if (/\bnome\b|\bname\b/.test(text)) return "O nome da conta está incompleto. Complete seu nome no perfil e tente de novo."
+  return null
+}
+
 /** The friendly message for a failed response. Pure. */
-export function messageFor(status: number, codes: string[]): string {
+export function messageFor(status: number, codes: string[], descriptions: string[] = []): string {
   for (const code of codes) if (BY_CODE[code]) return BY_CODE[code]
+  if (status >= 400 && status < 500) {
+    const specific = specificMessage(descriptions)
+    if (specific) return specific
+  }
   if (status === 401 || status === 403) return "O pagamento ainda não está configurado neste ambiente. Tente mais tarde."
   if (status === 404) return "Não encontrei essa cobrança. Atualize a página e tente de novo."
   if (status === 429) return "Muitas tentativas seguidas. Espere um minuto e tente de novo."
@@ -95,19 +126,24 @@ export function createAsaasClient({ apiKey, baseUrl, timeoutMs = 12_000, fetchIm
     } finally {
       clearTimeout(timer)
     }
-    const json = (await response.json().catch(() => null)) as (T & { errors?: { code?: string }[] }) | null
+    const json = (await response.json().catch(() => null)) as (T & { errors?: { code?: string; description?: string }[] }) | null
     if (!response.ok) {
-      const codes = (json?.errors ?? []).map((e) => String(e.code ?? "")).filter(Boolean)
-      console.error(JSON.stringify({ event: "asaas_error", op, status: response.status, codes }))
-      throw new AsaasError(messageFor(response.status, codes), response.status, codes)
+      const errors = json?.errors ?? []
+      const codes = errors.map((e) => String(e.code ?? "")).filter(Boolean)
+      // For a 4xx the validation messages say WHICH field Asaas did not accept; they are cleaned before they reach the log.
+      const descriptions = response.status >= 400 && response.status < 500 ? errors.map((e) => sanitizeDescription(e.description)).filter(Boolean) : []
+      console.error(JSON.stringify({ event: "asaas_error", op, status: response.status, codes, ...(descriptions.length > 0 && { descriptions }) }))
+      // The message is chosen from Asaas's own text (kept in memory only, never logged); the log gets the cleaned copy.
+      const raw = errors.map((e) => String(e.description ?? ""))
+      throw new AsaasError(messageFor(response.status, codes, raw), response.status, codes)
     }
     return json as T
   }
 
   return {
-    createCustomer: (input: { name: string; cpfCnpj: string; email: string; externalReference: string }) => call<{ id: string }>("createCustomer", "POST", "/customers", { ...input, notificationDisabled: false }),
+    createCustomer: (input: CustomerBody) => call<{ id: string }>("createCustomer", "POST", "/customers", input),
 
-    createSubscription: (input: { customer: string; billingType: AsaasBillingType; value: number; nextDueDate: string; cycle: AsaasCycle; description: string; externalReference: string; callback?: { successUrl: string; autoRedirect: boolean } }) =>
+    createSubscription: (input: SubscriptionBody) =>
       call<AsaasSubscription>("createSubscription", "POST", "/subscriptions", input),
 
     /** Changes value or cycle (a plan change). `updatePendingPayments: false` keeps the charges already generated as they are. */

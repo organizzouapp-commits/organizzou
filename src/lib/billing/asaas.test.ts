@@ -64,3 +64,24 @@ describe("the client", () => {
     expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe("https://x.test/v3/subscriptions/sub%2F..%2F1")
   })
 })
+
+describe("logging a 4xx", () => {
+  it("logs the cleaned validation descriptions (which field was refused), and nothing personal", async () => {
+    const log = vi.fn()
+    console.error = log
+    const fetchImpl = vi.fn(async () => reply(400, { errors: [{ code: "invalid_object", description: "O campo callback.successUrl é inválido para ana@exemplo.com 529.982.247-25" }] }))
+    const client = createAsaasClient({ apiKey: "KEY-123", baseUrl: "https://x.test/v3", fetchImpl: fetchImpl as never })
+    const error = await client.getPayment("pay_1").catch((e) => e)
+    expect(error.userMessage).toMatch(/recusou o pedido/)
+    const logged = JSON.parse(String(log.mock.calls[0][0]))
+    expect(logged).toMatchObject({ event: "asaas_error", op: "getPayment", status: 400, codes: ["invalid_object"], descriptions: ["O campo callback.successUrl é inválido para [email] [documento]"] })
+    expect(JSON.stringify(logged)).not.toMatch(/ana@exemplo|529\.982|KEY-123/)
+  })
+  it("a 5xx logs no descriptions", async () => {
+    const log = vi.fn()
+    console.error = log
+    const client = createAsaasClient({ apiKey: "k", baseUrl: "https://x.test/v3", fetchImpl: (async () => reply(500, { errors: [{ code: "x", description: "interno" }] })) as never })
+    await client.getPayment("pay_1").catch(() => undefined)
+    expect(JSON.parse(String(log.mock.calls[0][0]))).not.toHaveProperty("descriptions")
+  })
+})
