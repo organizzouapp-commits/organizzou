@@ -25,3 +25,20 @@ describe("admin billing", () => {
     expect(actions).toMatch(/requireAdminForAction|requireAdmin/)
   })
 })
+
+describe("admin: subscriptions pending cleanup", () => {
+  it("the orphans are read and cleaned only after the admin checks, and only recorded ones can be deleted", () => {
+    const reader = read("src/lib/admin/billing-orphans.ts")
+    expect(reader.indexOf("await requireAdmin()")).toBeGreaterThan(-1)
+    expect(reader.indexOf("await requireAdmin()")).toBeLessThan(reader.indexOf("createSecretClient()"))
+    const action = read("src/features/admin/billing-actions.ts")
+    expect(action.indexOf("requireAdminForAction()")).toBeLessThan(action.indexOf("createSecretClient()"))
+    expect(action).toContain("openOrphans()")
+    expect(action).toContain("não está na lista de pendentes")
+    expect(action).toContain('action: "billing.orphan_cleanup"')
+  })
+  it("the page lists them with a retry button, and the record holds only the Asaas id and our user id", () => {
+    expect(read("src/app/(admin)/admin/assinaturas/page.tsx")).toContain("Pendentes de limpeza")
+    expect(read("src/lib/billing/store.ts")).toContain("payload: { subscription: asaasSubscriptionId, user_id: userId }")
+  })
+})

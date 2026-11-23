@@ -13,11 +13,11 @@ describe("billing repository", () => {
   })
   it("maps rows", async () => {
     const repo = supabaseBillingRepository(
-      fakeDb({ data: [{ id: "s1", user_id: "u", plan_period: "annual", method: "pix", status: "active", cancel_at_period_end: true, created_at: "2026-11-01T00:00:00Z" }], error: null }, { data: [{ id: "i1", asaas_payment_id: "pay_1", amount_cents: 490, status: "RECEIVED" }], error: null })
+      fakeDb({ data: [{ id: "s1", user_id: "u", plan_period: "annual", method: "pix", status: "active", cancel_at_period_end: true, created_at: "2026-11-01T00:00:00Z" }], error: null }, { data: [{ id: "i1", asaas_payment_id: "pay_1", amount_cents: 500, status: "RECEIVED" }], error: null })
     )
     const s = await repo.load()
     expect(s.subscription).toMatchObject({ planPeriod: "annual", method: "pix", status: "active", cancelAtPeriodEnd: true })
-    expect(s.invoices[0]).toMatchObject({ amountCents: 490, status: "RECEIVED" })
+    expect(s.invoices[0]).toMatchObject({ amountCents: 500, status: "RECEIVED" })
   })
   it("falls back to the local repository, and absence there is Free too", async () => {
     const empty = { load: async () => ({ subscription: null, invoices: [] }) }

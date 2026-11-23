@@ -54,7 +54,7 @@ describe("limits and features", () => {
   it("the assistant is Pro only, and the prices are the launch ones", () => {
     expect(canUseAssistant("free")).toBe(false)
     expect(canUse("pro", "assistant")).toBe(true)
-    expect(PLANS.pro.price).toEqual({ monthlyCents: 2490, yearlyCents: 25000, firstMonthCents: 490 })
+    expect(PLANS.pro.price).toEqual({ monthlyCents: 2490, yearlyCents: 25000, firstMonthCents: 500 })
     // 12 x 24,90 = 298,80 ; the annual saves 48,80
     expect(PLANS.pro.price.monthlyCents * 12 - PLANS.pro.price.yearlyCents).toBe(4880)
   })

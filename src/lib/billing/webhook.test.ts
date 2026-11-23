@@ -23,13 +23,13 @@ const NOW = new Date("2026-11-20T15:00:00Z")
 const payment = (event: string, over: Record<string, unknown> = {}, id = "evt_1"): WebhookPayload => ({
   id,
   event,
-  payment: { id: "pay_1", status: "RECEIVED", value: 4.9, dueDate: "2026-11-20", billingType: "PIX", subscription: "sub_1", invoiceUrl: "https://asaas.test/i/pay_1", paymentDate: "2026-11-20", ...over },
+  payment: { id: "pay_1", status: "RECEIVED", value: 5, dueDate: "2026-11-20", billingType: "PIX", subscription: "sub_1", invoiceUrl: "https://asaas.test/i/pay_1", paymentDate: "2026-11-20", ...over },
 })
 
 async function world(period: "monthly" | "annual" = "monthly", status: "pending" | "active" = "pending") {
   const m = memoryBillingStore()
   const sub = await m.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_1", planPeriod: period, method: "pix", status })
-  await m.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: "sub_1", asaasPaymentId: "pay_1", amountCents: 490, status: "PENDING", method: "pix", dueDate: "2026-11-20", paidAt: null, invoiceUrl: null, description: null })
+  await m.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: "sub_1", asaasPaymentId: "pay_1", amountCents: 500, status: "PENDING", method: "pix", dueDate: "2026-11-20", paidAt: null, invoiceUrl: null, description: null })
   return { ...m, sub }
 }
 
@@ -49,7 +49,7 @@ describe("payment confirmed or received", () => {
     const w = await world()
     expect(await handleWebhook(w.store, payment("PAYMENT_RECEIVED"), NOW)).toEqual({ handled: "ok" })
     expect(w.profiles.get("u1")).toEqual({ plan: "pro", planUntil: "2026-12-20T23:59:59-03:00" })
-    expect(w.invoices[0]).toMatchObject({ status: "RECEIVED", amountCents: 490, paidAt: "2026-11-20T12:00:00Z" })
+    expect(w.invoices[0]).toMatchObject({ status: "RECEIVED", amountCents: 500, paidAt: "2026-11-20T12:00:00Z" })
     expect(w.subscriptions[0]).toMatchObject({ status: "active", currentPeriodEnd: "2026-12-20", graceUntil: null })
   })
   it("CONFIRMED (card) activates the same way", async () => {
@@ -160,7 +160,7 @@ describe("overdue, refund and subscription end", () => {
 })
 
 describe("syncPayment (the Pix dialog asks while the webhook is late)", () => {
-  const asaas = (status: string) => ({ getPayment: vi.fn(async () => ({ id: "pay_1", status, value: 4.9, dueDate: "2026-11-20", billingType: "PIX", subscription: "sub_1" })) }) as unknown as Pick<AsaasClient, "getPayment">
+  const asaas = (status: string) => ({ getPayment: vi.fn(async () => ({ id: "pay_1", status, value: 5, dueDate: "2026-11-20", billingType: "PIX", subscription: "sub_1" })) }) as unknown as Pick<AsaasClient, "getPayment">
   it("applies a paid payment once, with the same handler", async () => {
     const w = await world()
     const client = asaas("RECEIVED")

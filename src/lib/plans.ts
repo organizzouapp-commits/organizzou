@@ -6,6 +6,13 @@
 
 export type PlanId = "free" | "pro"
 
+/**
+ * The launch price of the FIRST month of the monthly plan, in cents. The ONE place it is written: the server (checkout, "Cobrado hoje"), the
+ * plan screen, the checkout, the locked screens and the docs all read it. Asaas refuses charges below R$ 5,00 (see MIN_CHARGE_CENTS in
+ * src/lib/billing/pricing.ts), so this can never go lower than that.
+ */
+export const LAUNCH_PRICE_CENTS = 500
+
 /** `null` = unlimited. */
 export type PlanLimits = {
   /** Task boards ("quadros"). */
@@ -40,7 +47,7 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     id: "pro",
     name: "Plano Pro",
     tagline: "Tudo liberado, o assistente à vontade.",
-    price: { monthlyCents: 2490, yearlyCents: 25000, firstMonthCents: 490 },
+    price: { monthlyCents: 2490, yearlyCents: 25000, firstMonthCents: LAUNCH_PRICE_CENTS },
     limits: { boards: null, lists: null, assistantMessagesPerDay: 200 },
     features: [
       "Tudo do Plano Gratuito",

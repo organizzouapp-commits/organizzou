@@ -4,9 +4,9 @@ import { isValidCnpj, isValidCpf, isValidCpfCnpj, maskCpfCnpj, onlyDigits } from
 import { annualSavingCents, fromAsaasValue, periodEnd, quote, toAsaasValue } from "./pricing"
 
 describe("quote", () => {
-  it("monthly: R$ 4,90 today, then R$ 24,90 a month, next charge in a month", () => {
+  it("monthly: R$ 5,00 today, then R$ 24,90 a month, next charge in a month", () => {
     const q = quote("monthly", "card", "2026-11-20")
-    expect(q).toMatchObject({ firstChargeCents: 490, regularCents: 2490, promo: true, cycle: "MONTHLY", nextChargeOn: "2026-12-20" })
+    expect(q).toMatchObject({ firstChargeCents: 500, regularCents: 2490, promo: true, cycle: "MONTHLY", nextChargeOn: "2026-12-20" })
   })
   it("the launch price is for the first month ever, not for a come-back", () => {
     expect(quote("monthly", "pix", "2026-11-20", false)).toMatchObject({ firstChargeCents: 2490, promo: false })
@@ -23,7 +23,7 @@ describe("quote", () => {
   })
   it("converts between cents and the decimals Asaas uses", () => {
     expect(toAsaasValue(2490)).toBe(24.9)
-    expect(toAsaasValue(490)).toBe(4.9)
+    expect(toAsaasValue(500)).toBe(5)
     expect(fromAsaasValue(24.9)).toBe(2490)
     expect(fromAsaasValue(250)).toBe(25000)
   })
@@ -48,5 +48,27 @@ describe("CPF and CNPJ", () => {
     expect(maskCpfCnpj("11222333000181")).toBe("11.222.333/0001-81")
     expect(maskCpfCnpj("abc")).toBe("")
     expect(onlyDigits("529.982.247-25")).toBe("52998224725")
+  })
+})
+
+describe("the minimum charge guard (Asaas refuses anything below R$ 5,00)", () => {
+  it("the launch price, the regular price and the annual price all satisfy it", async () => {
+    const { LAUNCH_PRICE_CENTS, PLANS } = await import("@/lib/plans")
+    const { MIN_CHARGE_CENTS } = await import("./pricing")
+    expect(MIN_CHARGE_CENTS).toBe(500)
+    expect(LAUNCH_PRICE_CENTS).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+    expect(PLANS.pro.price.firstMonthCents).toBe(LAUNCH_PRICE_CENTS)
+    expect(PLANS.pro.price.monthlyCents).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+    expect(PLANS.pro.price.yearlyCents).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+  })
+  it("every quote we can build passes, and a value below the minimum is refused with a clear error", async () => {
+    const { assertChargeable, assertQuoteChargeable, BelowMinimumChargeError } = await import("./pricing")
+    for (const period of ["monthly", "annual"] as const) for (const firstTime of [true, false]) expect(() => assertQuoteChargeable(quote(period, "pix", "2026-11-20", firstTime))).not.toThrow()
+    expect(assertChargeable(500)).toBe(500)
+    expect(() => assertChargeable(490)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(0)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(500.5)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(Number.NaN)).toThrow(BelowMinimumChargeError)
+    expect(() => assertQuoteChargeable({ firstChargeCents: 490, regularCents: 2490 })).toThrow(/below the minimum/)
   })
 })

@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}))
 
 import { AsaasError, type AsaasClient, type AsaasPayment } from "./asaas"
 import { memoryBillingStore } from "./memory-store"
-import { cancelSubscription, changePlan, getStatus, startCheckout, type BillingUser, type Deps } from "./service"
+import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, ORPHAN_MESSAGE, startCheckout, type BillingUser, type Deps } from "./service"
 
 const USER: BillingUser = { id: "u1", email: "ana@exemplo.com", name: "Ana" }
 const NOW = new Date("2026-11-20T15:00:00Z")
@@ -38,23 +38,23 @@ function setup(over: Partial<Record<keyof AsaasClient, unknown>> = {}) {
 }
 
 describe("checkout", () => {
-  it("monthly with card: the subscription is R$ 24,90, the FIRST charge is edited to R$ 4,90, and the person is sent to the hosted page", async () => {
+  it("monthly with card: the subscription is R$ 24,90, the FIRST charge is edited to R$ 5,00, and the person is sent to the hosted page", async () => {
     const t = setup()
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
-    expect(result).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/i/pay_1", amountCents: 490 })
+    expect(result).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/i/pay_1", amountCents: 500 })
     const sub = t.calls.find((c) => c.op === "createSubscription")!.args[0] as Record<string, unknown>
     expect(sub).toMatchObject({ customer: "cus_1", billingType: "CREDIT_CARD", value: 24.9, cycle: "MONTHLY", nextDueDate: "2026-11-20", externalReference: "u1" })
     // no callback and no empty field: Asaas answers invalid_object to a body it cannot read
     expect(sub).not.toHaveProperty("callback")
-    expect(t.calls.find((c) => c.op === "updatePayment")!.args).toEqual(["pay_1", expect.objectContaining({ value: 4.9, dueDate: "2026-11-20", billingType: "CREDIT_CARD" })])
-    // stored as pending, with the first invoice at R$ 4,90 and the CPF kept only in our store
+    expect(t.calls.find((c) => c.op === "updatePayment")!.args).toEqual(["pay_1", expect.objectContaining({ value: 5, dueDate: "2026-11-20", billingType: "CREDIT_CARD" })])
+    // stored as pending, with the first invoice at R$ 5,00 and the CPF kept only in our store
     expect(t.subscriptions[0]).toMatchObject({ status: "pending", planPeriod: "monthly", method: "card" })
-    expect(t.invoices[0]).toMatchObject({ amountCents: 490, asaasPaymentId: "pay_1" })
+    expect(t.invoices[0]).toMatchObject({ amountCents: 500, asaasPaymentId: "pay_1" })
     expect(t.customers.get("u1")).toEqual({ asaasCustomerId: "cus_1", cpfCnpj: "52998224725" })
   })
   it("Pix answers with the QR code and the copy-and-paste text, and boleto with the slip page", async () => {
     const pix = setup()
-    expect(await startCheckout(pix.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "pix", qrImage: "BASE64", payload: "000201...", expiresAt: "2026-11-21 23:59:59", amountCents: 490 })
+    expect(await startCheckout(pix.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "pix", qrImage: "BASE64", payload: "000201...", expiresAt: "2026-11-21 23:59:59", amountCents: 500 })
     const slip = setup()
     expect(await startCheckout(slip.deps, USER, { period: "monthly", method: "boleto", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/b/pay_1" })
   })
@@ -67,12 +67,12 @@ describe("checkout", () => {
   })
   it("someone who already paid once gets no launch price", async () => {
     const t = setup()
-    await t.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: null, asaasPaymentId: "old", amountCents: 490, status: "RECEIVED", method: "card", dueDate: "2026-01-01", paidAt: "2026-01-01T00:00:00Z", invoiceUrl: null, description: null })
+    await t.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: null, asaasPaymentId: "old", amountCents: 500, status: "RECEIVED", method: "card", dueDate: "2026-01-01", paidAt: "2026-01-01T00:00:00Z", invoiceUrl: null, description: null })
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
     expect(result).toMatchObject({ ok: true, amountCents: 2490 })
     expect(t.calls.some((c) => c.op === "updatePayment")).toBe(false)
   })
-  it("if the R$ 4,90 edit fails the subscription is deleted and nothing is charged", async () => {
+  it("if the R$ 5,00 edit fails the subscription is deleted and nothing is charged", async () => {
     const t = setup({ updatePayment: async () => Promise.reject(new AsaasError("x", 400)) })
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Nada foi cobrado") })
@@ -185,5 +185,118 @@ describe("a failure after the subscription exists leaves nothing behind", () => 
     t.deps.today = "2026-11-23"
     await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
     expect((t.calls.find((c) => c.op === "createSubscription")!.args[0] as { nextDueDate: string }).nextDueDate).toBe("2026-11-23")
+  })
+})
+
+describe("the minimum charge guard in the checkout", () => {
+  it("a value below R$ 5,00 never reaches Asaas: not even the customer is created", async () => {
+    const { PLANS } = await import("@/lib/plans")
+    const original = PLANS.pro.price.firstMonthCents
+    PLANS.pro.price.firstMonthCents = 490
+    const log = vi.fn()
+    console.error = log
+    try {
+      const t = setup()
+      const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+      expect(result).toMatchObject({ ok: false, status: 500, error: expect.stringContaining("Nada foi cobrado") })
+      expect(t.calls).toHaveLength(0)
+      expect(JSON.parse(String(log.mock.calls[0][0]))).toEqual({ event: "billing_below_minimum", op: "checkout", cents: 490 })
+    } finally {
+      PLANS.pro.price.firstMonthCents = original
+    }
+  })
+  it("with the launch price at exactly R$ 5,00 the first charge is edited to 5 and the body has no discount field", async () => {
+    const t = setup()
+    await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    const [, body] = t.calls.find((c) => c.op === "updatePayment")!.args as [string, Record<string, unknown>]
+    expect(body).toEqual({ billingType: "PIX", value: 5, dueDate: "2026-11-20", description: "Organizzou Pro - plano mensal (1o mes)" })
+    expect(body).not.toHaveProperty("discount")
+  })
+})
+
+describe("cleanup after a failed checkout", () => {
+  const failLaunchEdit = { updatePayment: async () => Promise.reject(new AsaasError("x", 400, ["invalid_object"])) }
+  const http500 = () => new AsaasError("Erro", 500, ["unknown.error"])
+
+  it("a delete that fails with 500 twice and then works is retried with a short backoff, and the person is told nothing was charged", async () => {
+    let attempts = 0
+    const t = setup({ ...failLaunchEdit, deleteSubscription: async () => (++attempts < 3 ? Promise.reject(http500()) : { deleted: true, id: "sub_1" }) })
+    const sleep = vi.fn(async (_ms: number) => undefined)
+    t.deps.sleep = sleep
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: false, error: "Não consegui aplicar o preço de lançamento. Nada foi cobrado. Tente de novo." })
+    expect(attempts).toBe(3)
+    expect(sleep.mock.calls.map((c) => c[0])).toEqual([300, 1200])
+    expect(t.orphans).toHaveLength(0)
+  })
+  it("a subscription that is already gone (404) counts as cleaned", async () => {
+    const t = setup({ ...failLaunchEdit, deleteSubscription: async () => Promise.reject(new AsaasError("x", 404)) })
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Nada foi cobrado") })
+    expect(t.orphans).toHaveLength(0)
+  })
+  it("when every attempt fails the orphan is recorded and logged (operation, status, Asaas id only) and the person is sent to support", async () => {
+    const log = vi.fn()
+    console.error = log
+    const t = setup({ ...failLaunchEdit, deleteSubscription: async () => Promise.reject(http500()) })
+    t.deps.sleep = async () => undefined
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: false, status: 502, error: ORPHAN_MESSAGE })
+    expect(result.ok === false && result.error).not.toContain("Nada foi cobrado")
+    expect(t.orphans).toEqual([expect.objectContaining({ asaasSubscriptionId: "sub_1", userId: "u1", open: true })])
+    const logged = JSON.parse(String(log.mock.calls.at(-1)![0]))
+    expect(logged).toEqual({ event: "asaas_orphan", op: "deleteSubscription", status: 500, subscription: "sub_1" })
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/ana@exemplo|529\.982|52998224725/)
+    // it failed before a row was stored: the orphan record is the only trace, and no invoice was created
+    expect(t.subscriptions).toHaveLength(0)
+    expect(t.invoices).toHaveLength(0)
+  })
+  it("a failure after the subscription exists (the QR code) also records the orphan when the delete keeps failing", async () => {
+    console.error = vi.fn()
+    const t = setup({ getPixQrCode: async () => Promise.reject(new AsaasError("x", 500)), deleteSubscription: async () => Promise.reject(http500()) })
+    t.deps.sleep = async () => undefined
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false, error: ORPHAN_MESSAGE })
+    expect(t.orphans).toHaveLength(1)
+    // here a row was stored, and it stays pending (not canceled) while the cleanup is outstanding
+    expect(t.subscriptions[0].status).toBe("pending")
+  })
+  it("a retry first cleans the open orphan, then creates exactly one new subscription", async () => {
+    const t = setup()
+    await t.store.recordOrphan("sub_old", "u1")
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: true, kind: "pix" })
+    const ops = t.calls.map((c) => [c.op, c.args[0]])
+    expect(ops.findIndex((o) => o[0] === "deleteSubscription" && o[1] === "sub_old")).toBeLessThan(ops.findIndex((o) => o[0] === "createSubscription"))
+    expect(t.calls.filter((c) => c.op === "createSubscription")).toHaveLength(1)
+    expect(t.orphans.find((o) => o.asaasSubscriptionId === "sub_old")?.open).toBe(false)
+  })
+  it("if the open orphan still cannot be deleted, no duplicate subscription is created", async () => {
+    const t = setup({ deleteSubscription: async () => Promise.reject(http500()) })
+    t.deps.sleep = async () => undefined
+    await t.store.recordOrphan("sub_old", "u1")
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false, status: 409, error: ORPHAN_MESSAGE })
+    expect(t.calls.some((c) => c.op === "createSubscription" || c.op === "createCustomer")).toBe(false)
+  })
+  it("an abandoned pending checkout is removed before the new one, and kept (with an orphan record) if it cannot be removed", async () => {
+    const ok = setup()
+    await ok.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_pending", planPeriod: "monthly", method: "pix", status: "pending" })
+    expect(await startCheckout(ok.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+    expect(ok.calls.find((c) => c.op === "deleteSubscription")!.args[0]).toBe("sub_pending")
+
+    console.error = vi.fn()
+    const bad = setup({ deleteSubscription: async () => Promise.reject(http500()) })
+    bad.deps.sleep = async () => undefined
+    await bad.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_pending", planPeriod: "monthly", method: "pix", status: "pending" })
+    expect(await startCheckout(bad.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false, status: 409 })
+    expect(bad.orphans.map((o) => o.asaasSubscriptionId)).toEqual(["sub_pending"])
+    expect(bad.calls.some((c) => c.op === "createSubscription")).toBe(false)
+  })
+  it("the helper itself: retries, not found, and the final status", async () => {
+    const sleeps: number[] = []
+    const sleep = async (ms: number) => void sleeps.push(ms)
+    expect(await deleteSubscriptionReliably({ deleteSubscription: async () => Promise.reject(http500()) } as never, "sub_x", sleep)).toEqual({ ok: false, status: 500 })
+    expect(sleeps).toEqual([300, 1200])
+    expect(await deleteSubscriptionReliably({ deleteSubscription: async () => Promise.reject(new AsaasError("x", 0)) } as never, "sub_x", sleep)).toEqual({ ok: false, status: 0 })
+    expect(await deleteSubscriptionReliably({ deleteSubscription: async () => ({ deleted: true, id: "sub_x" }) } as never, "sub_x", sleep)).toEqual({ ok: true })
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { annualPerMonthCents, bannerFor, checkoutIssue, dateBR, daysUntil, INITIAL_DRAFT, parseAsaasInstant, pixCountdown, priceLine, savingText, summaryOf } from "./plan-model"
+import { launchPriceText, annualPerMonthCents, bannerFor, checkoutIssue, dateBR, daysUntil, INITIAL_DRAFT, parseAsaasInstant, pixCountdown, priceLine, savingText, summaryOf } from "./plan-model"
 
 const NOW = new Date("2026-11-20T15:00:00Z")
 const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000).toISOString()
@@ -14,12 +14,13 @@ describe("checkout draft", () => {
     expect(checkoutIssue({ period: "monthly", method: "card", cpfCnpj: "11.222.333/0001-81" })).toBeNull()
   })
   it("the summary: charged today and the next charge", () => {
-    expect(summaryOf({ period: "monthly", method: "card", cpfCnpj: "" }, "2026-11-20")).toEqual({ todayCents: 490, nextCents: 2490, nextOn: "2026-12-20", promo: true, period: "monthly" })
+    expect(summaryOf({ period: "monthly", method: "card", cpfCnpj: "" }, "2026-11-20")).toEqual({ todayCents: 500, nextCents: 2490, nextOn: "2026-12-20", promo: true, period: "monthly" })
     expect(summaryOf({ period: "monthly", method: "pix", cpfCnpj: "" }, "2026-11-20", false)).toMatchObject({ todayCents: 2490, promo: false })
     expect(summaryOf({ period: "annual", method: "boleto", cpfCnpj: "" }, "2026-11-20")).toMatchObject({ todayCents: 25000, nextCents: 25000, nextOn: "2027-11-20" })
   })
   it("the prices as the design says them", () => {
-    expect(priceLine("monthly")).toBe("R$ 4,90 no 1º mês, depois R$ 24,90/mês")
+    expect(priceLine("monthly")).toBe("R$ 5,00 no 1º mês, depois R$ 24,90/mês")
+    expect(launchPriceText()).toBe("R$ 5,00")
     expect(priceLine("annual")).toBe("R$ 250,00/ano")
     expect(annualPerMonthCents()).toBe(2083)
     expect(savingText()).toBe("Economize R$ 48,80 por ano")

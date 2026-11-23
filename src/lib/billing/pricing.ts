@@ -51,6 +51,31 @@ export function periodEnd(dueDate: string, period: PlanPeriod): string {
   return format(period === "annual" ? addYears(start, 1) : addMonths(start, 1), "yyyy-MM-dd")
 }
 
+/** Asaas refuses any charge below R$ 5,00 ("o valor da cobrança não pode ser menor que R$ 5,00"). */
+export const MIN_CHARGE_CENTS = 500
+
+export const BELOW_MINIMUM_MESSAGE = "Esse valor de cobrança não é aceito pelo serviço de pagamento. Nada foi cobrado. Avise o suporte do Organizzou."
+
+/** Thrown when a charge we are about to create or edit is below what Asaas accepts. It is raised BEFORE Asaas is called. */
+export class BelowMinimumChargeError extends Error {
+  constructor(readonly cents: number) {
+    super(`charge of ${cents} cents is below the minimum of ${MIN_CHARGE_CENTS}`)
+    this.name = "BelowMinimumChargeError"
+  }
+}
+
+/** Throws unless the value is a whole number of cents of at least MIN_CHARGE_CENTS. */
+export function assertChargeable(cents: number): number {
+  if (!Number.isInteger(cents) || cents < MIN_CHARGE_CENTS) throw new BelowMinimumChargeError(cents)
+  return cents
+}
+
+/** Every value a checkout will put in front of Asaas: the first charge, the regular value of the subscription. Throws if any is too low. */
+export function assertQuoteChargeable(q: Pick<Quote, "firstChargeCents" | "regularCents">) {
+  assertChargeable(q.firstChargeCents)
+  assertChargeable(q.regularCents)
+}
+
 /** Cents to the decimal number Asaas expects (24.9). */
 export const toAsaasValue = (cents: number) => Math.round(cents) / 100
 /** The decimal number Asaas sends (24.9) to integer cents. */

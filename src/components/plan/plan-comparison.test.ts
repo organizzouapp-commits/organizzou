@@ -33,7 +33,7 @@ describe("the comparison table", () => {
 describe("the plan screen copy", () => {
   const screen = readFileSync(join(process.cwd(), "src/components/plan/plano-screen.tsx"), "utf8")
   it("has the launch offer, the three plans, the best-value badge, the guarantees and the Pro cards", () => {
-    for (const text of ["Pro por R$ 4,90 no 1º mês", "Experimentar por R$ 4,90", "Pro Mensal", "Pro Anual", "Melhor valor", "Pagamento seguro pelo Asaas", "Cancelar assinatura", "Mudar para o anual", "Faturas", "Forma de pagamento"]) expect(screen).toContain(text)
+    for (const text of ["Pro por {launchPriceText()} no 1º mês", "Experimentar por {launchPriceText()}", "Pro Mensal", "Pro Anual", "Melhor valor", "Pagamento seguro pelo Asaas", "Cancelar assinatura", "Mudar para o anual", "Faturas", "Forma de pagamento"]) expect(screen).toContain(text)
   })
   it("never talks to the payment provider from the browser: only our own routes", () => {
     const files = ["plano-screen.tsx", "checkout-dialog.tsx", "plan-dialogs.tsx", "use-billing.ts"].map((f) => readFileSync(join(process.cwd(), "src/components/plan", f), "utf8")).join("\n")

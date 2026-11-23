@@ -78,7 +78,7 @@ describe("helpers", () => {
     expect(plainText("x".repeat(300), 100)).toHaveLength(100)
   })
   it("the first-charge edit sends the three fields Asaas asks for, in plain text", () => {
-    expect(buildPaymentUpdate({ method: "pix", cents: 490, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })).toEqual({ billingType: "PIX", value: 4.9, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })
+    expect(buildPaymentUpdate({ method: "pix", cents: 500, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })).toEqual({ billingType: "PIX", value: 5, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })
   })
 })
 
@@ -99,5 +99,13 @@ describe("what is logged and what the person reads", () => {
     expect(messageFor(400, ["invalid_object"], ["O campo X é inválido"])).toMatch(/recusou o pedido/)
     expect(messageFor(400, ["invalid_object"], ["O CPF/CNPJ informado é inválido."])).toMatch(/^CPF ou CNPJ inválido/)
     expect(messageFor(500, [], ["cpf"])).toMatch(/instável/) // a server error never blames the person's data
+  })
+})
+
+describe("the builders refuse a value below the minimum", () => {
+  it("neither the subscription nor the first-charge edit can carry less than R$ 5,00", () => {
+    expect(() => buildPaymentUpdate({ method: "pix", cents: 490, dueDate: "2026-11-23", description: "x" })).toThrow(/below the minimum/)
+    expect(() => buildSubscriptionBody({ customerId: "cus_1", method: "pix", quote: { ...quote("monthly", "pix", today), regularCents: 490 }, today, userId: USER })).toThrow(/below the minimum/)
+    expect(buildPaymentUpdate({ method: "pix", cents: 500, dueDate: "2026-11-23", description: "x" }).value).toBe(5)
   })
 })
