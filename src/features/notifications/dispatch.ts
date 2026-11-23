@@ -3,6 +3,7 @@
 // flow is tested with a fake database and no web push.
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { getUserEntitlements } from "@/lib/plan-server"
 import { explainCandidates, EMPTY_PLANNER_DATA, localDay, logKey, phaseOf, type Planned, type PlannerData } from "@/features/notifications/planner"
 import { defaultPrefs, parseNotificationPrefs } from "@/features/settings/notification-prefs"
 import type { PushPayload, PushResult } from "@/lib/push/send"
@@ -17,7 +18,7 @@ export const STICKY_EVENTS = new Set<string>(["reminders", "agenda", "tasks", "w
 /** Kinds listed in Avisos that the server has nothing to read for: there is no time source (no workout time, no meal times), so they never go out. */
 export const NO_SOURCE_KINDS = ["workout", "meals"] as const
 
-export type Reason = "pref_off" | "quiet_hours" | "outside_window" | "already_sent" | "no_subscription"
+export type Reason = "pref_off" | "quiet_hours" | "outside_window" | "already_sent" | "no_subscription" | "plan_locked"
 export type Verdict = "send" | Reason
 
 export const keyOf = (p: Pick<Planned, "event" | "targetId" | "bucket">) => `${p.event}|${p.targetId}|${p.bucket}`
@@ -34,7 +35,7 @@ export function verdictOf(p: Planned, now: Date, sentKeys: Set<string>, hasSubsc
 }
 
 export type KindSummary = { candidates: number; send: number; sent: number; failed: number } & Record<Reason, number>
-const blank = (): KindSummary => ({ candidates: 0, send: 0, sent: 0, failed: 0, pref_off: 0, quiet_hours: 0, outside_window: 0, already_sent: 0, no_subscription: 0 })
+const blank = (): KindSummary => ({ candidates: 0, send: 0, sent: 0, failed: 0, pref_off: 0, quiet_hours: 0, outside_window: 0, already_sent: 0, no_subscription: 0, plan_locked: 0 })
 
 export type DispatchReport = {
   ok: true
@@ -136,11 +137,17 @@ export async function dispatch({ db, now, dryRun, send }: { db: SupabaseClient; 
       const candidates = explainCandidates({ now, timeZone, prefs, data: await loadPlannerData(db, userId, now, today) })
       const sentKeys = await loadSentKeys(db, userId, now)
       const hasSubscription = withSubscription.has(userId)
+      // Free keeps the reminders of tasks and its own reminders; every other kind of notice is Pro (nothing is deleted, it just is not sent).
+      const allNotifications = (await getUserEntitlements(db, userId)).canUse("allNotifications")
 
       for (const item of candidates) {
         const verdict = verdictOf(item, now, sentKeys, hasSubscription)
         const summary = kind(item.event)
         summary.candidates += 1
+        if (!allNotifications && item.event !== "tasks" && item.event !== "reminders") {
+          summary.plan_locked += 1
+          continue
+        }
         if (verdict !== "send") {
           summary[verdict] += 1
           // Candidates that merely are not due (far away, or long past) would drown the list: only the ones that matter now are listed.

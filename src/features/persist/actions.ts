@@ -3,13 +3,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { z } from "zod"
 
+import { isAdminClaims } from "@/lib/admin/claims"
+import { getUserEntitlements } from "@/lib/plan-server"
 import { createClient } from "@/lib/supabase/server"
 
+import { featureForWrite, planBlockMessage } from "./gate"
 import { isTableName, TABLES, withoutPending } from "./registry"
 import { friendlySaveError, isMissingColumn } from "./save-errors"
 
 /** `degraded`: saved, but without the columns of a prepared migration that is not applied yet (the screen keeps those on this device). */
-export type PersistResult = { ok: true; degraded?: boolean } | { ok: false; error: string }
+export type PersistResult = { ok: true; degraded?: boolean } | { ok: false; error: string; /** "plan": the plan does not include this (the screen shows the Pro offer). */ code?: "plan" }
 
 const MAX_ROWS = 500
 
@@ -43,6 +46,15 @@ export async function persistRows(raw: z.input<typeof input>): Promise<PersistRe
   const { data } = await supabase.auth.getClaims()
   const userId = data?.claims?.sub
   if (!userId) return { ok: false, error: "Sua sessão expirou. Entre de novo." }
+
+  // The plan decides what may be CREATED or CHANGED. Deleting is always allowed, and nothing is ever removed because a plan lapsed.
+  if (rows.length > 0) {
+    const feature = featureForWrite(table, rows)
+    if (feature) {
+      const entitlements = await getUserEntitlements(supabase, userId, isAdminClaims(data?.claims))
+      if (!entitlements.canUse(feature)) return { ok: false, error: planBlockMessage(feature), code: "plan" }
+    }
+  }
 
   if (deletes.length > 0) {
     const { error } = await supabase.from(table).delete().in("id", deletes)

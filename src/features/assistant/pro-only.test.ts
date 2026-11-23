@@ -76,7 +76,7 @@ describe("server and screen", () => {
     expect(sheet).not.toMatch(/Captura rápida/i)
   })
   it("the comparison table says — for Free and the Pro assistant row, and no audio badge", () => {
-    const screen = read("src/components/plan/plano-screen.tsx")
+    const screen = read("src/components/plan/plan-comparison.tsx")
     expect(screen).toContain('free: "—"')
     expect(screen).toContain("Conversa, ações e voz · 200 por dia")
     expect(screen).not.toMatch(/udio[^\n]*Em breve|Captura/)

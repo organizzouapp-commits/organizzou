@@ -1,5 +1,6 @@
 "use client"
 
+import { NavLock } from "@/components/plan/locked-module"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LogOutIcon } from "lucide-react"
@@ -52,6 +53,7 @@ export function OthersDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
                   >
                     <item.icon aria-hidden strokeWidth={1.75} className="size-5" />
                     {item.label}
+                    <NavLock href={item.href} />
                   </Link>
                 )
               })}

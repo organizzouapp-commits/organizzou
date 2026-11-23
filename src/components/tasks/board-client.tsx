@@ -1,5 +1,6 @@
 "use client"
 
+import { usePlanLimitDialog } from "@/components/plan/limit-dialog"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRightIcon, CalendarIcon, CheckIcon, SearchXIcon, Trash2Icon, XIcon } from "lucide-react"
@@ -69,6 +70,7 @@ const never = () => false
 
 export function BoardClient({ initial, api, initialView, nowIso, basePath = "/dashboard/tarefas" }: BoardClientProps) {
   const router = useRouter()
+  const planLimit = usePlanLimitDialog()
   const isMobile = useIsMobile()
   const [now] = useState(() => new Date(nowIso))
   const [boardName, setBoardName] = useState(initial.board.name)
@@ -703,7 +705,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   async function addList(name: string) {
     const result = await api.createList({ boardId, name })
     if (!result.ok) {
-      toast.error(result.error)
+      if (result.code === "plan") planLimit.show("lists")
+      else toast.error(result.error)
       return
     }
     setLists((current) => [...current, result.data])
@@ -796,7 +799,8 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
   async function newBoard(name: string) {
     const result = await api.createBoard({ name })
     if (!result.ok) {
-      toast.error(result.error)
+      if (result.code === "plan") planLimit.show("boards")
+      else toast.error(result.error)
       return
     }
     router.push(`${basePath}/${result.data.id}`)
@@ -1205,6 +1209,7 @@ export function BoardClient({ initial, api, initialView, nowIso, basePath = "/da
         </DialogContent>
       </Dialog>
       <DeleteListDialog list={listToDelete} taskCount={listTaskCount} others={lists.filter((l) => l.id !== listToDelete?.id)} onCancel={() => setListToDelete(null)} onConfirm={(destination) => void confirmDeleteList(destination)} />
+      {planLimit.dialog}
     </div>
     </CompactLabelsProvider>
     </LabelColorsProvider>

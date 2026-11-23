@@ -20,6 +20,7 @@ import { useTextEntryFocused } from "@/hooks/use-text-entry-focused"
 import { cn } from "@/lib/utils"
 
 import { PlanProvider } from "@/components/organizzou/plan-context"
+import { ModuleLock } from "@/components/plan/locked-module"
 import type { PlanId } from "@/lib/plans"
 import { AdminCommandPalette } from "@/components/admin/admin-command-palette"
 import { AppSidebar, type ShellUser } from "./app-sidebar"
@@ -237,7 +238,7 @@ export function AppShell({ nav: navId, isAdmin = false, user, theme, plan, nowIs
             <div data-app-scroll className="no-scrollbar flex-1 overscroll-contain md:min-h-0 md:overflow-y-auto md:rounded-[24px]">
               <div className="@container w-full px-4 pt-0 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] md:px-0 md:pt-0 md:pb-24">
                 {topLayout || isMobile ? <PageHeading user={user} nowIso={nowIso} /> : null}
-                {children}
+                <ModuleLock>{children}</ModuleLock>
               </div>
             </div>
           </SidebarInset>

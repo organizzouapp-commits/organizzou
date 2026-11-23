@@ -11,15 +11,18 @@ import { dayOf } from "./sp-time"
  */
 export async function loadPlanUsage(supabase: unknown, now: Date = new Date()): Promise<PlanUsage> {
   const db = supabase as SupabaseClient
-  const [boards, usage] = await Promise.all([
-    db.from("boards").select("id", { count: "exact", head: true }).then(
+  const count = (table: string) =>
+    db.from(table).select("id", { count: "exact", head: true }).then(
       (r) => (r.error ? null : (r.count ?? 0)),
       () => null
-    ),
+    )
+  const [boards, lists, usage] = await Promise.all([
+    count("boards"),
+    count("board_lists"),
     db.from("assistant_usage").select("messages").eq("day", dayOf(now, 0)).maybeSingle().then(
       (r) => (r.error ? null : ((r.data as { messages: number } | null)?.messages ?? 0)),
       () => null
     ),
   ])
-  return { taskBoards: boards, assistantToday: usage }
+  return { boards, lists, assistantToday: usage }
 }

@@ -46,7 +46,7 @@ export type TaskDetail = {
 
 export type ActionResult<T = undefined> =
   | (T extends undefined ? { ok: true } : { ok: true; data: T })
-  | { ok: false; error: string }
+  | { ok: false; error: string; /** "plan": the plan limit was reached (the screen shows the Pro offer). */ code?: "plan" }
 
 export function asPriority(value: string): Priority {
   return (PRIORITIES as readonly string[]).includes(value) ? (value as Priority) : "none"

@@ -5,14 +5,14 @@ import { PLANS } from "./plans"
 
 describe("usageView", () => {
   it("says Ilimitadas for an unlimited limit and has no bar", () => {
-    expect(usageView("pro", "taskBoards", 12)).toEqual({ value: "Ilimitadas", percent: null, limit: null })
-    expect(usageView("pro", "taskBoards", null, "Ilimitado").value).toBe("Ilimitado")
+    expect(usageView("pro", "lists", 12)).toEqual({ value: "Ilimitadas", percent: null, limit: null })
+    expect(usageView("pro", "boards", null, "Ilimitado").value).toBe("Ilimitado")
   })
 
   it("shows use against the limit with a percentage", () => {
-    const limit = PLANS.free.limits.taskBoards as number
-    expect(usageView("free", "taskBoards", 1)).toEqual({ value: `1 / ${limit}`, percent: Math.round((1 / limit) * 100), limit })
-    expect(usageView("free", "taskBoards", limit).percent).toBe(100)
+    const limit = PLANS.free.limits.lists as number
+    expect(usageView("free", "lists", 1)).toEqual({ value: `1 / ${limit}`, percent: Math.round((1 / limit) * 100), limit })
+    expect(usageView("free", "lists", limit).percent).toBe(100)
   })
 
   it("caps the bar at 100% when use is above the limit", () => {

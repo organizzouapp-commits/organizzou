@@ -2,8 +2,10 @@
 import { PLANS, type LimitKey, type PlanId } from "./plans"
 
 export type PlanUsage = {
-  /** Task lists the person has, or null when it could not be read. */
-  taskBoards: number | null
+  /** Task boards the person has, or null when it could not be read. */
+  boards: number | null
+  /** Task lists (all boards), or null when it could not be read. */
+  lists: number | null
   /** Assistant messages sent today, or null when there is no counter to read. */
   assistantToday: number | null
 }

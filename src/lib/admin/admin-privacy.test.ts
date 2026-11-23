@@ -58,6 +58,8 @@ const ALLOWED_RELATIONS = new Set([
   "public.user_activity_hourly",
   "public.audit_log",
   "public.assistant_usage",
+  "public.subscriptions",
+  "public.billing_invoices",
   "public.boards",
   "public.tasks",
   "public.tags",
@@ -70,7 +72,7 @@ const ALLOWED_RELATIONS = new Set([
 describe("admin SQL functions", () => {
   it("finds the functions (the parser is not silently matching nothing)", () => {
     const names = functions.map((f) => f.name)
-    for (const expected of ["admin.overview_stats", "admin.list_users", "admin.user_detail", "admin.cohort_retention", "admin.revoke_user_sessions", "admin.waitlist_list", "admin.assistant_usage"]) {
+    for (const expected of ["admin.overview_stats", "admin.list_users", "admin.user_detail", "admin.cohort_retention", "admin.revoke_user_sessions", "admin.waitlist_list", "admin.assistant_usage", "admin.billing_by_user"]) {
       expect(names, expected).toContain(expected)
     }
     expect(functions.length).toBeGreaterThanOrEqual(18)

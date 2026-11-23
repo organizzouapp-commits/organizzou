@@ -29,10 +29,10 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 
 | Funcionalidade | Status | Onde está no código |
 |---|---|---|
-| Pagamentos / assinatura | **Não construído (planejado).** Nenhum provedor integrado e nenhum dado de cartão é guardado | — |
-| Definição dos planos Gratuito e Pro, limites e preços (placeholders `TODO(owner)`) | Real (apenas configuração) | `src/lib/plans.ts` |
+| Pagamentos / assinatura (Asaas: cartão, Pix e boleto) | **Construído, aguardando configuração.** Liga com `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e as migrations `20261118000001` e `20261118000003`; sem elas todos são Gratuito. Nenhum dado de cartão passa pelo nosso servidor (a página do Asaas recebe o cartão). Passo a passo no README | `src/lib/billing/`, `src/app/api/billing/`, `src/app/api/webhooks/asaas/` |
+| Definição dos planos Gratuito e Pro, limites, preços e permissões (`getEntitlements`, `canUse`, carência de 3 dias) | Real | `src/lib/plans.ts` |
 | Plano do usuário | Real quando a migration `20260105000001_profiles_plan.sql` for aplicada; até lá, todos são `free` | `src/lib/plan-server.ts`, `src/components/organizzou/plan-context.tsx` |
-| Página "Plano Pro" e pontos de entrada "Fazer upgrade" | Real (interface); o botão leva para a lista de espera | `src/app/(app)/dashboard/plano/`, `src/components/plan/` |
+| Tela Plano e cobrança, checkout, módulos bloqueados e diálogo de limite | Real | `src/components/plan/` |
 
 ## Assistente e mensageria
 
@@ -71,7 +71,8 @@ Regra do produto: a interface nunca afirma que algo aconteceu se não aconteceu.
 | Painel `/admin` (visão geral, usuários, atividade, assinaturas, lista de espera, planos, módulos, assistente, integrações, status, auditoria) | Real quando as migrations `20260201000001..3` forem aplicadas e o schema `admin` exposto; antes disso, cada página avisa que não carregou | `src/app/(admin)/admin/`, `supabase/migrations/20260201*`, `docs/ADMIN.md` |
 | Ações do admin (plano, suspender, sessões, e-mail de confirmação) com auditoria | Real; exige `SUPABASE_SECRET_KEY` no servidor | `src/features/admin/actions.ts` |
 | Suporte (caixa de relatos) | Não construído (não existe a tabela de relatos) | `src/app/(admin)/admin/suporte/` |
-| MRR, churn, faturas e falhas de pagamento | Não construído (sem provedor); interface tipada pronta | `src/lib/admin/billing.ts` |
+| Assinaturas (plano, período, forma, última fatura) | Real quando a migration `20261118000003` for aplicada | `src/app/(admin)/admin/assinaturas/` |
+| MRR e churn | Não construído (não há estimativa de receita) | — |
 
 ## Regra de segurança
 

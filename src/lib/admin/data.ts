@@ -58,6 +58,22 @@ export const planDistribution = () => rpc<PlanSlice[]>("plan_distribution")
 export const recentSignups = (lim = 5) => rpc<RecentSignup[]>("recent_signups", { lim })
 export const activeCourtesies = () => rpc<Courtesy[]>("active_courtesies")
 
+export type BillingRow = {
+  user_id: string
+  email: string
+  name: string | null
+  plan: "free" | "pro"
+  plan_until: string | null
+  period: "monthly" | "annual"
+  method: "card" | "pix" | "boleto"
+  status: "pending" | "active" | "overdue" | "canceled" | "ended"
+  cancel_at_period_end: boolean
+  since: string
+  last_invoice: { status: string; amount_cents: number; due_date: string | null } | null
+}
+/** One row per account with a subscription (supabase/migrations/20261118000003_admin_billing.sql). */
+export const billingByUser = () => rpc<BillingRow[]>("billing_by_user")
+
 // ---------------------------------------------------------------------------------------------------------------------
 
 export type UserStatus = "active" | "suspended" | "pending"

@@ -1,201 +1,269 @@
 "use client"
 
-import { useState } from "react"
-import { BadgeDollarSignIcon, CheckIcon, ListChecksIcon, SparklesIcon } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ClockIcon, ExternalLinkIcon, LockKeyholeIcon, ShieldCheckIcon, SparklesIcon, TriangleAlertIcon, WalletCardsIcon } from "lucide-react"
+import { toast } from "sonner"
 
-import { Bento, BentoCard } from "@/components/organizzou/Bento"
 import { BentoStat } from "@/components/finance/bento"
 import { HatchedProgress, HeroCard } from "@/components/finance/parts"
 import { usePlan } from "@/components/organizzou/plan-context"
-import { SoonBadge } from "@/components/organizzou/SoonBadge"
-import { ProWaitlistDialog } from "@/components/plan/pro-waitlist-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useRestoreFocus } from "@/hooks/use-restore-focus"
+import type { InvoiceRow } from "@/features/billing/types"
+import type { PlanPeriod } from "@/lib/billing/pricing"
 import { formatBRL } from "@/lib/money"
-import { hasYearlyPrice, usageView, yearlySavingCents, type PlanUsage } from "@/lib/plan-usage"
-import { LIMIT_LABELS, PLANS, type LimitKey, type PlanId } from "@/lib/plans"
+import type { PlanUsage } from "@/lib/plan-usage"
+import { usageView } from "@/lib/plan-usage"
 import { cn } from "@/lib/utils"
 
-type Billing = "monthly" | "yearly"
+import { CheckoutDialog } from "./checkout-dialog"
+import { CancelDialog, ProActivatedDialog } from "./plan-dialogs"
+import { PlanComparison } from "./plan-comparison"
+import { annualPerMonthCents, type Banner, bannerFor, dateBR, METHOD_LABEL, priceLine, savingText } from "./plan-model"
+import { useBilling } from "./use-billing"
 
-const LIMIT_ROWS: LimitKey[] = ["taskBoards", "assistantMessagesPerDay"]
-const EMPTY_USAGE: PlanUsage = { taskBoards: null, assistantToday: null }
+const EMPTY_USAGE: PlanUsage = { boards: null, lists: null, assistantToday: null }
+const card = "flex min-w-0 flex-col gap-4 rounded-[24px] border-2 bg-card p-5 md:p-6"
+const INVOICE_LABEL: Record<string, string> = { RECEIVED: "Paga", CONFIRMED: "Paga", RECEIVED_IN_CASH: "Paga", PENDING: "Pendente", OVERDUE: "Atrasada", REFUNDED: "Reembolsada" }
 
-/** The assistant is Pro only: Free has no messages ("—") and Pro says what is included, with voice. */
-const ASSISTANT_TEXT = { free: "—", pro: "Conversa, ações e voz · 200 por dia" }
-
-function limitText(limit: number | null, key: LimitKey) {
-  if (key === "assistantMessagesPerDay") return limit === 0 ? ASSISTANT_TEXT.free : ASSISTANT_TEXT.pro
-  if (limit === null) return "Ilimitado"
-  const label = LIMIT_LABELS[key]
-  return `${limit} ${limit === 1 ? label.singular : label.plural}`
-}
-
-function Price({ plan, billing }: { plan: PlanId; billing: Billing }) {
-  const def = PLANS[plan]
-  const cents = billing === "monthly" ? def.price.monthlyCents : def.price.yearlyCents
-  if (cents === 0) return <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">R$ 0</span>
+function BannerView({ banner }: { banner: Banner }) {
+  const Icon = banner.kind === "pending" ? ClockIcon : TriangleAlertIcon
   return (
-    <span className="flex items-baseline gap-1">
-      <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{formatBRL(cents)}</span>
-      <span className="text-[15px] text-muted-foreground">{billing === "monthly" ? "/mês" : "/ano"}</span>
-    </span>
+    <div role={banner.kind === "failed" ? "alert" : "status"} data-testid={`plan-banner-${banner.kind}`} className="flex items-start gap-3 rounded-[20px] border-2 border-foreground p-4 text-[14px] leading-5">
+      <Icon aria-hidden strokeWidth={1.75} className="mt-0.5 size-5 shrink-0" />
+      <p className="min-w-0">
+        <strong className="font-semibold">{banner.title}.</strong> {banner.text}
+      </p>
+    </div>
   )
 }
 
-/** One plan: name, price, features, and (for Pro) what the footer can do. The person's own plan has a 2 px border and the "Seu plano" chip. */
-function PlanCard({ id, billing, current, className, footer }: { id: PlanId; billing: Billing; current: boolean; className?: string; footer?: React.ReactNode }) {
-  const def = PLANS[id]
+function Invoices({ invoices }: { invoices: InvoiceRow[] }) {
+  if (invoices.length === 0) return <p className="text-[15px] leading-6 text-muted-foreground">Quando houver uma cobrança, ela aparece aqui.</p>
   return (
-    <section aria-label={def.name} data-plan-card={id} data-current={current} className={cn("flex min-w-0 flex-col gap-5 rounded-[24px] border-2 bg-card p-6", current ? "border-primary" : "border-border", className)}>
-      <header className="flex min-h-9 items-center justify-between gap-3">
-        <h3 className="text-[17px] leading-6 font-semibold">{def.name}</h3>
-        {current ? <Badge variant="secondary">Seu plano</Badge> : null}
-      </header>
-      <p className="text-[15px] leading-6 text-muted-foreground">{def.tagline}</p>
-      <Price plan={id} billing={billing} />
-      <ul className="flex flex-col">
-        {def.features.map((feature) => (
-          <li key={feature} className="flex min-h-11 items-center gap-3 border-b border-border py-2 text-[15px] leading-6 last:border-b-0">
-            <CheckIcon aria-hidden strokeWidth={1.75} className={cn("size-[18px] shrink-0", id === "free" && "text-muted-foreground")} />
-            {feature}
-          </li>
-        ))}
-      </ul>
-      {footer}
-    </section>
+    <ul className="flex flex-col" aria-label="Faturas">
+      {invoices.map((invoice) => (
+        <li key={invoice.id} className="flex min-h-14 items-center justify-between gap-3 border-b border-border py-2 last:border-b-0">
+          <div className="flex min-w-0 flex-col">
+            <span className="tabular text-[15px] leading-6">{invoice.dueDate ? dateBR(invoice.dueDate) : "—"}</span>
+            <span className="truncate text-[13px] leading-5 text-muted-foreground">{invoice.description ?? "Organizzou Pro"}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="tabular text-[15px] leading-6 font-medium">{formatBRL(invoice.amountCents)}</span>
+            <Badge variant="secondary">{INVOICE_LABEL[invoice.status] ?? invoice.status}</Badge>
+            {invoice.invoiceUrl ? (
+              <a href={invoice.invoiceUrl} target="_blank" rel="noopener noreferrer" aria-label="Abrir a fatura" className="grid size-11 place-items-center rounded-full outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50">
+                <ExternalLinkIcon aria-hidden strokeWidth={1.75} className="size-4" />
+              </a>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 
 /**
- * Plano e cobrança: your plan and what you use of it, the two plans side by side, and the limits table. There is no payment yet, so nothing here
- * charges or shows invoices: "Gerenciar assinatura" is disabled and the only action is the waiting list.
+ * Plano e cobrança. Free: the launch offer, what you use of the free plan, the three plans, the comparison. Pro: the current plan and next
+ * charge, the invoices, the payment method, the annual offer and the cancel card. The state comes from /api/billing/status; anything it cannot
+ * say reads as the Free plan.
  */
-export function PlanoScreen({ email, name, usage = EMPTY_USAGE }: { email: string; name: string; usage?: PlanUsage }) {
-  const { plan, pro, definition } = usePlan()
-  const [billing, setBilling] = useState<Billing>("monthly")
-  const [open, setOpen] = useState(false)
-  useRestoreFocus(open)
-  const free = PLANS.free
-  const proDef = PLANS.pro
-  const saving = yearlySavingCents("pro")
-  const yearly = hasYearlyPrice("pro")
-  const boards = usageView(plan, "taskBoards", usage.taskBoards)
-  const assistant = usageView(plan, "assistantMessagesPerDay", usage.assistantToday)
-  // With no yearly price the period control is hidden and monthly prices show.
-  const period: Billing = yearly ? billing : "monthly"
+export function PlanoScreen({ usage = EMPTY_USAGE }: { email?: string; name?: string; usage?: PlanUsage }) {
+  const { pro } = usePlan()
+  const router = useRouter()
+  const params = useSearchParams()
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [period, setPeriod] = useState<PlanPeriod>("monthly")
+  const [success, setSuccess] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [changing, setChanging] = useState(false)
+  const [now] = useState(() => new Date())
+  const celebrated = useRef(false)
+
+  const activated = useCallback(() => {
+    if (celebrated.current) return
+    celebrated.current = true
+    setCheckoutOpen(false)
+    setSuccess(true)
+    router.refresh()
+  }, [router])
+  const billing = useBilling(activated)
+  const { status } = billing
+
+  // Coming back from the Asaas page (its success address carries ?pagamento=retorno): "pagamento pendente" shows right away, before the first answer of the server.
+  const returned = params.get("pagamento") === "retorno"
+
+  const sub = status?.subscription ?? null
+  const isPro = pro || status?.plan === "pro"
+  const banner: Banner | null = status ? bannerFor(status, now) : returned ? { kind: "pending", title: "Pagamento pendente", text: "Estamos esperando a confirmação. Assim que o pagamento cair, o Pro é liberado sozinho." } : null
+  const firstTime = !status?.lastInvoice
+  const open = (p: PlanPeriod) => {
+    setPeriod(p)
+    setCheckoutOpen(true)
+  }
+
+  async function switchToAnnual() {
+    setChanging(true)
+    try {
+      const response = await fetch("/api/billing/change-plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period: "annual" }) })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) return void toast.error(data.error ?? "Não consegui trocar de plano agora.")
+      toast.success(data.effectiveOn ? `Plano anual a partir de ${dateBR(data.effectiveOn)}.` : "Plano anual ativado.")
+      await billing.refresh()
+    } catch {
+      toast.error("Sem conexão. Confira a internet e tente de novo.")
+    } finally {
+      setChanging(false)
+    }
+  }
+
+  const boards = usageView("free", "boards", usage.boards)
+  const lists = usageView("free", "lists", usage.lists)
+  const assistantToday = usage.assistantToday ?? 0
 
   return (
     <div className="@container flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-4">
-        <HeroCard
-          className="col-span-2"
-          density="dense"
-          label="Seu plano atual"
-          value={definition.name}
-          support="Obrigado por apoiar o Organizzou. Sem cobrança por enquanto."
-          actions={
-            <Button type="button" disabled className="mt-auto h-11 self-start rounded-full border-transparent bg-highlight-foreground/10 text-highlight-foreground md:h-11">
-              Gerenciar assinatura
-            </Button>
-          }
-        />
-        <BentoStat
-          label="Listas de tarefas"
-          icon={ListChecksIcon}
-          chip={boards.limit === null ? "sem limite" : "no Plano Gratuito"}
-          footer={boards.percent !== null ? <HatchedProgress value={boards.percent} label={`Listas de tarefas: ${boards.value}`} /> : undefined}
-          className="min-h-[168px]"
-        >
-          {boards.value}
-        </BentoStat>
-        <BentoStat
-          label="Assistente hoje"
-          icon={SparklesIcon}
-          chip={pro ? "mensagens por dia" : "só no Plano Pro"}
-          footer={pro && assistant.percent !== null ? <HatchedProgress value={assistant.percent} label={`Assistente hoje: ${assistant.value}`} /> : undefined}
-          className="min-h-[168px]"
-        >
-          {pro ? assistant.value : "—"}
-        </BentoStat>
-      </div>
+      {banner ? <BannerView banner={banner} /> : null}
+      {billing.unavailable && !isPro ? (
+        <p role="status" className="rounded-[20px] border border-border p-4 text-[14px] leading-5 text-muted-foreground">
+          O pagamento ainda não está disponível neste ambiente. Assim que for ligado, o botão de assinar funciona aqui.
+        </p>
+      ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-col">
-          <h2 className="text-[17px] leading-6 font-semibold">Compare os planos</h2>
-          <p className="text-[13px] leading-5 text-muted-foreground">{pro ? "Você está no Plano Pro. Obrigado por apoiar o Organizzou." : "Os valores abaixo são estimativas e ainda podem mudar antes do lançamento."}</p>
-        </div>
-        {yearly ? (
-          <Tabs value={billing} onValueChange={(v) => setBilling(v as Billing)}>
-            <TabsList aria-label="Periodicidade" className="max-md:h-11">
-              <TabsTrigger value="monthly">Mensal</TabsTrigger>
-              <TabsTrigger value="yearly">
-                Anual
-                {saving > 0 ? <Badge variant="secondary" className="ml-2">{`economize ${formatBRL(saving)} no anual`}</Badge> : null}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 @min-[900px]:grid-cols-2">
-        <PlanCard id="free" billing={period} current={plan === "free"} />
-        <PlanCard
-          id="pro"
-          billing={period}
-          current={pro}
-          className="@max-[899px]:-order-1 @max-[899px]:data-[current=false]:order-none"
-          footer={
-            <div className="mt-auto flex flex-col gap-2">
-              {pro ? (
-                <Button type="button" disabled className="h-11 self-start rounded-full md:h-11">
-                  Gerenciar assinatura
-                </Button>
-              ) : (
-                <Button type="button" className="h-11 self-start rounded-full md:h-11" onClick={() => setOpen(true)}>
-                  <BadgeDollarSignIcon strokeWidth={1.75} /> Fazer upgrade
-                </Button>
-              )}
-              <p className="text-[13px] leading-5 text-muted-foreground">Em breve: pagamento, troca de período e cancelamento por aqui.</p>
-            </div>
-          }
-        />
-      </div>
-
-      <Bento className="gap-4">
-        <BentoCard className="col-span-12" title="Comparativo de limites">
-          <div role="table" aria-label="Comparativo de limites" className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] text-[15px] leading-6">
-            <span role="columnheader" className="pb-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              Recurso
-            </span>
-            <span role="columnheader" className="pb-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              Gratuito
-            </span>
-            <span role="columnheader" className="pb-2 text-[11px] leading-4 font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              Pro
-            </span>
-            {LIMIT_ROWS.map((key) => (
-              <div key={key} role="row" className="col-span-3 grid min-h-12 grid-cols-subgrid items-center border-t border-border py-3">
-                <span role="cell">{LIMIT_LABELS[key].plural[0].toUpperCase() + LIMIT_LABELS[key].plural.slice(1)}</span>
-                <span role="cell" className="tabular">
-                  {limitText(free.limits[key], key)}
-                </span>
-                <span role="cell" className="tabular">
-                  {limitText(proDef.limits[key], key)}
-                </span>
-              </div>
-            ))}
+      {isPro ? (
+        <>
+          <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-4">
+            <HeroCard
+              className="col-span-2"
+              density="dense"
+              label="Seu plano atual"
+              value={sub ? (sub.period === "annual" ? "Pro Anual" : "Pro Mensal") : "Plano Pro"}
+              support={sub?.cancelAtPeriodEnd ? `Termina em ${dateBR(status?.planUntil?.slice(0, 10))}` : sub?.nextChargeOn ? `Próxima cobrança: ${formatBRL(sub.nextChargeCents)} em ${dateBR(sub.nextChargeOn.slice(0, 10))}` : status?.planUntil ? `Pro até ${dateBR(status.planUntil.slice(0, 10))}` : "Pro ativo, sem cobrança"}
+            />
+            <BentoStat label="Assistente hoje" icon={SparklesIcon} chip="de 200 mensagens" footer={<HatchedProgress value={Math.min(100, Math.round((assistantToday / 200) * 100))} label={`Assistente hoje: ${assistantToday} de 200`} />} className="col-span-2 min-h-[168px]">
+              {assistantToday} / 200
+            </BentoStat>
           </div>
-        </BentoCard>
 
-        <BentoCard className="col-span-12" title="Cobrança" actions={<SoonBadge />}>
-          <p className="max-w-[72ch] text-[15px] leading-6 text-muted-foreground">O pagamento ainda não está disponível. Não há cobrança nem histórico de faturas por enquanto; ao abrir, tudo aparece aqui.</p>
-        </BentoCard>
-      </Bento>
+          <div className="grid grid-cols-1 gap-4 @min-[900px]:grid-cols-2">
+            <section aria-label="Faturas" className={cn(card, "border-border")}>
+              <h3 className="text-[17px] leading-6 font-semibold">Faturas</h3>
+              <Invoices invoices={billing.invoices} />
+            </section>
+            <div className="flex flex-col gap-4">
+              {sub ? (
+                <section aria-label="Forma de pagamento" className={cn(card, "border-border")}>
+                  <h3 className="flex items-center gap-2 text-[17px] leading-6 font-semibold">
+                    <WalletCardsIcon aria-hidden strokeWidth={1.75} className="size-5" /> Forma de pagamento
+                  </h3>
+                  <p className="text-[15px] leading-6">{METHOD_LABEL[sub.method]}</p>
+                  <p className="text-[13px] leading-5 text-muted-foreground">{sub.method === "card" ? "Renova sozinho todo período." : "Uma nova cobrança chega por e-mail a cada período, e o link fica nas faturas."}</p>
+                </section>
+              ) : null}
+              {sub && sub.period === "monthly" && !sub.cancelAtPeriodEnd && sub.status === "active" ? (
+                <section aria-label="Plano anual" className={cn(card, "border-primary")}>
+                  <h3 className="text-[17px] leading-6 font-semibold">{savingText()}</h3>
+                  <p className="text-[15px] leading-6 text-muted-foreground">No plano anual são {formatBRL(annualPerMonthCents())} por mês. A troca vale a partir da próxima cobrança.</p>
+                  <Button type="button" size="lg" disabled={changing} className="h-12 self-start rounded-full" onClick={switchToAnnual}>
+                    {changing ? "Trocando…" : "Mudar para o anual"}
+                  </Button>
+                </section>
+              ) : null}
+              {sub && sub.status !== "canceled" && sub.status !== "ended" && !sub.cancelAtPeriodEnd ? (
+                <section aria-label="Cancelar" className={cn(card, "border-border")}>
+                  <h3 className="text-[17px] leading-6 font-semibold">Cancelar assinatura</h3>
+                  <p className="text-[15px] leading-6 text-muted-foreground">Seu Pro continua até o fim do período pago e nada é apagado.</p>
+                  <Button type="button" size="lg" variant="outline" className="h-12 self-start rounded-full" onClick={() => setCancelOpen(true)}>
+                    Cancelar assinatura
+                  </Button>
+                </section>
+              ) : null}
+              {sub?.cancelAtPeriodEnd ? (
+                <section aria-label="Assinar de novo" className={cn(card, "border-border")}>
+                  <h3 className="text-[17px] leading-6 font-semibold">Quer continuar?</h3>
+                  <p className="text-[15px] leading-6 text-muted-foreground">Assine de novo a qualquer momento. Seus dados estão guardados.</p>
+                  <Button type="button" size="lg" className="h-12 self-start rounded-full" onClick={() => open(sub.period)}>
+                    Assinar de novo
+                  </Button>
+                </section>
+              ) : null}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <section aria-label="Oferta de lançamento" className="flex flex-col gap-4 rounded-[24px] bg-highlight p-5 text-highlight-foreground md:p-6">
+            <Badge className="self-start bg-highlight-foreground/10 text-highlight-foreground">Oferta de lançamento</Badge>
+            <h2 className="text-[28px] leading-8 font-semibold tracking-[-0.02em]">Pro por R$ 4,90 no 1º mês</h2>
+            <p className="text-[15px] leading-6">Depois R$ 24,90 por mês, ou R$ 250,00 por ano. Cancele quando quiser.</p>
+            <Button type="button" size="lg" disabled={billing.unavailable} className="h-12 self-start rounded-full bg-highlight-foreground text-highlight hover:bg-highlight-foreground/90" onClick={() => open("monthly")}>
+              Experimentar por R$ 4,90
+            </Button>
+          </section>
 
-      <ProWaitlistDialog open={open} onOpenChange={setOpen} email={email} name={name} />
+          <section aria-label="Seu uso" className="grid grid-cols-2 gap-4">
+            <BentoStat label="Quadros" icon={LockKeyholeIcon} chip="no Plano Gratuito" footer={boards.percent !== null ? <HatchedProgress value={boards.percent} label={`Quadros: ${boards.value}`} /> : undefined} className="min-h-[168px]">
+              {usage.boards === null ? String(boards.limit ?? "") : `${usage.boards} de ${boards.limit}`}
+            </BentoStat>
+            <BentoStat label="Listas" icon={LockKeyholeIcon} chip="no Plano Gratuito" footer={lists.percent !== null ? <HatchedProgress value={lists.percent} label={`Listas: ${lists.value}`} /> : undefined} className="min-h-[168px]">
+              {usage.lists === null ? String(lists.limit ?? "") : `${usage.lists} de ${lists.limit}`}
+            </BentoStat>
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 @min-[900px]:grid-cols-3">
+            <section aria-label="Plano Gratuito" data-plan-card="free" data-current="true" className={cn(card, "border-primary")}>
+              <header className="flex items-center justify-between gap-3">
+                <h3 className="text-[17px] leading-6 font-semibold">Gratuito</h3>
+                <Badge variant="secondary">Seu plano</Badge>
+              </header>
+              <p className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">R$ 0</p>
+              <p className="text-[15px] leading-6 text-muted-foreground">Tarefas, finanças manuais e lembretes no celular.</p>
+            </section>
+            <section aria-label="Pro Mensal" data-plan-card="pro-monthly" data-current="false" className={cn(card, "border-border")}>
+              <h3 className="text-[17px] leading-6 font-semibold">Pro Mensal</h3>
+              <p className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">R$ 4,90</p>
+              <p className="text-[15px] leading-6 text-muted-foreground">{priceLine("monthly")}</p>
+              <Button type="button" size="lg" disabled={billing.unavailable} className="mt-auto h-12 rounded-full" onClick={() => open("monthly")}>
+                Escolher o mensal
+              </Button>
+            </section>
+            <section aria-label="Pro Anual" data-plan-card="pro-annual" data-current="false" className={cn(card, "border-primary")}>
+              <header className="flex items-center justify-between gap-3">
+                <h3 className="text-[17px] leading-6 font-semibold">Pro Anual</h3>
+                <Badge className="bg-highlight text-highlight-foreground">Melhor valor</Badge>
+              </header>
+              <p className="flex items-baseline gap-1">
+                <span className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">R$ 250,00</span>
+                <span className="text-[15px] text-muted-foreground">/ano</span>
+              </p>
+              <p className="text-[15px] leading-6 text-muted-foreground">
+                {formatBRL(annualPerMonthCents())} por mês. {savingText()}.
+              </p>
+              <Button type="button" size="lg" disabled={billing.unavailable} className="mt-auto h-12 rounded-full" onClick={() => open("annual")}>
+                Escolher o anual
+              </Button>
+            </section>
+          </div>
+
+          <ul aria-label="Garantias" className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] leading-5 text-muted-foreground">
+            {["Pagamento seguro pelo Asaas", "Cartão, Pix ou boleto", "Cancele quando quiser", "Seus dados nunca são apagados"].map((text) => (
+              <li key={text} className="flex items-center gap-2">
+                <ShieldCheckIcon aria-hidden strokeWidth={1.75} className="size-4" /> {text}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <section aria-label="Comparativo de planos" className={cn(card, "border-border")}>
+        <h3 className="text-[17px] leading-6 font-semibold">Compare os planos</h3>
+        <PlanComparison />
+      </section>
+
+      <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} initialPeriod={period} firstTime={firstTime} onActivated={activated} />
+      <ProActivatedDialog open={success} onOpenChange={setSuccess} />
+      <CancelDialog open={cancelOpen} onOpenChange={setCancelOpen} endsOn={status?.planUntil ?? null} onCanceled={() => void billing.refresh()} />
     </div>
   )
 }

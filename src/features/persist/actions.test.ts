@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 // A stand-in for the database: records every upsert, and can behave like a database without the columns of a prepared migration.
+const plan = vi.hoisted(() => ({ pro: true }))
 const db = { applied: true, upserts: [] as Record<string, unknown>[][], failWith: null as null | { code: string; message: string } }
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -19,6 +20,8 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }))
 
+vi.mock("@/lib/plan-server", () => ({ getUserEntitlements: async () => ({ canUse: () => plan.pro }) }))
+
 import { persistRows } from "./actions"
 
 const ID = "7b9f1c2e-1111-4222-8333-444455556666"
@@ -26,6 +29,7 @@ const goal = { id: ID, title: "Correr", description: null, deadline: null, statu
 const linked = { ...goal, kind: "linked" as const, link_type: "workout_count", link_id: null, params: { kind: "workout_count", period: "week", count: 3 }, start_date: "2026-11-02", end_date: null }
 
 beforeEach(() => {
+  plan.pro = true
   db.applied = true
   db.upserts = []
   db.failWith = null
@@ -67,6 +71,22 @@ describe("persistRows and prepared migrations", () => {
     db.failWith = { code: "XX000", message: "internal detail" }
     expect(await persistRows({ table: "life_goals", upserts: [linked], deletes: [] })).toEqual({ ok: false, error: "Não foi possível salvar." })
     expect(db.upserts).toHaveLength(1)
+  })
+
+  it("a Free account cannot create or change data in a Pro module or a Pro finance table, whatever the browser sends", async () => {
+    plan.pro = false
+    const result = await persistRows({ table: "life_goals", upserts: [goal], deletes: [] })
+    expect(result).toMatchObject({ ok: false, code: "plan", error: expect.stringContaining("faz parte do Pro") })
+    const finance = { id: ID, name: "Viagem", target_cents: 100000, current_cents: 0, deadline: "2027-01-01", start_date: "2026-11-01", opening_cents: 0 }
+    expect(await persistRows({ table: "finance_goals", upserts: [finance], deletes: [] })).toMatchObject({ ok: false, code: "plan" })
+    expect(db.upserts).toHaveLength(0)
+  })
+
+  it("Free can still delete (nothing is ever taken away) and write what the plan includes", async () => {
+    plan.pro = false
+    expect(await persistRows({ table: "life_goals", upserts: [], deletes: [ID] })).toEqual({ ok: true })
+    const entry = { account_id: ID, category_id: null, kind: "out" as const, amount_cents: 4500, occurred_on: "2026-11-20", method: null, description: "Mercado", source: "manual" as const, id: ID }
+    expect(await persistRows({ table: "finance_transactions", upserts: [entry], deletes: [] })).toEqual({ ok: true })
   })
 
   it("rejects unknown values for the new columns", async () => {
