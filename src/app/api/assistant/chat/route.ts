@@ -4,6 +4,7 @@ import { z } from "zod"
 
 import { getUserPlan } from "@/lib/plan-server"
 import { canUseAssistant, PLANS } from "@/lib/plans"
+import { isAdminClaims } from "@/lib/admin/claims"
 import { createClient } from "@/lib/supabase/server"
 import { bypassAuth } from "@/lib/supabase/proxy"
 import { type ChatEvent, createModelClient, runChat, runConfirmed } from "@/server/assistant/engine"
@@ -25,7 +26,7 @@ async function session() {
   const supabase = (await createClient()) as unknown as SupabaseClient
   const { data } = await supabase.auth.getClaims()
   const userId = data?.claims?.sub
-  return userId ? { supabase, userId } : null
+  return userId ? { supabase, userId, isAdmin: isAdminClaims(data?.claims) } : null
 }
 
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "no-store" } })
@@ -34,7 +35,7 @@ const sse = (stream: ReadableStream) => new Response(stream, { headers: { "Conte
 export async function GET() {
   const s = await session()
   if (!s) return json({ error: "unauthorized" }, 401)
-  const plan = await getUserPlan(s.supabase, s.userId)
+  const plan = await getUserPlan(s.supabase, s.userId, s.isAdmin)
   // The virtual assistant is a Pro feature: the server refuses everyone else, whatever the client shows.
   if (!canUseAssistant(plan)) return json({ available: false, reason: "pro_only", code: "pro_only", plan, history: [] }, 403)
   const limit = PLANS[plan].limits.assistantMessagesPerDay ?? 200
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   if (!s) return json({ error: "unauthorized" }, 401)
   const parsed = body.safeParse(await request.json().catch(() => null))
   if (!parsed.success || (!parsed.data.message && !parsed.data.confirm)) return json({ error: "bad_request" }, 400)
-  const plan = await getUserPlan(s.supabase, s.userId)
+  const plan = await getUserPlan(s.supabase, s.userId, s.isAdmin)
   if (!canUseAssistant(plan)) return json({ error: "pro_only", code: "pro_only" }, 403)
   const client = createModelClient()
   if (!client) return json({ error: "unavailable", reason: "not_configured" }, 503)

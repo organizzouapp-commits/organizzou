@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils"
 
 type Billing = "monthly" | "yearly"
 
-const LIMIT_ROWS: LimitKey[] = ["taskBoards", "assistantMessagesPerDay"]
-const EMPTY_USAGE: PlanUsage = { taskBoards: null, assistantToday: null }
+const LIMIT_ROWS: LimitKey[] = ["boards", "lists", "assistantMessagesPerDay"]
+const EMPTY_USAGE: PlanUsage = { boards: null, lists: null, assistantToday: null }
 
 /** The assistant is Pro only: Free has no messages ("—") and Pro says what is included, with voice. */
 const ASSISTANT_TEXT = { free: "—", pro: "Conversa, ações e voz · 200 por dia" }
@@ -82,7 +82,7 @@ export function PlanoScreen({ email, name, usage = EMPTY_USAGE }: { email: strin
   const proDef = PLANS.pro
   const saving = yearlySavingCents("pro")
   const yearly = hasYearlyPrice("pro")
-  const boards = usageView(plan, "taskBoards", usage.taskBoards)
+  const boards = usageView(plan, "lists", usage.lists)
   const assistant = usageView(plan, "assistantMessagesPerDay", usage.assistantToday)
   // With no yearly price the period control is hidden and monthly prices show.
   const period: Billing = yearly ? billing : "monthly"

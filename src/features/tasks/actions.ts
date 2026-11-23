@@ -1,8 +1,12 @@
 "use server"
 
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import type { z } from "zod"
 
+import { isAdminClaims } from "@/lib/admin/claims"
+import { getUserEntitlements } from "@/lib/plan-server"
+import { LIMIT_LABELS, type LimitKey } from "@/lib/plans"
 import { createClient } from "@/lib/supabase/server"
 import type { Database } from "@/lib/supabase/types"
 
@@ -47,7 +51,24 @@ async function session() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
   const userId = data?.claims?.sub
-  return userId ? { supabase, userId } : null
+  return userId ? { supabase, userId, isAdmin: isAdminClaims(data?.claims) } : null
+}
+
+/**
+ * The plan's limit on boards and lists. Only CREATING is blocked: a person who already has more than the limit (a lapsed Pro) keeps and
+ * edits everything they have. Null when there is room, else the refusal.
+ */
+async function overLimit(s: { supabase: Awaited<ReturnType<typeof createClient>>; userId: string; isAdmin: boolean }, key: Extract<LimitKey, "boards" | "lists">, table: "boards" | "board_lists") {
+  const ent = await getUserEntitlements(s.supabase as never, s.userId, s.isAdmin)
+  const max = ent.limit(key)
+  if (max === null) return null
+  const query = (s.supabase as unknown as SupabaseClient).from(table).select("id", { count: "exact", head: true })
+  const { count, error } = await (table === "boards" ? query.eq("archived", false) : query)
+  // When the count cannot be read the creation is refused: an uncounted limit is no limit.
+  if (error) return { ok: false as const, error: SAVE_ERROR }
+  if ((count ?? 0) < max) return null
+  const label = LIMIT_LABELS[key]
+  return { ok: false as const, code: "plan" as const, error: `Você usou ${max === 1 ? "seu" : "suas"} ${max} ${max === 1 ? label.singular : label.plural}. Conheça o Pro para criar mais.` }
 }
 
 function invalid(error: z.ZodError): { ok: false; error: string } {
@@ -65,6 +86,8 @@ export async function createBoard(input: z.input<typeof createBoardSchema>): Pro
   if (!parsed.success) return invalid(parsed.error)
   const s = await session()
   if (!s) return { ok: false, error: SESSION_ERROR }
+  const blocked = await overLimit(s, "boards", "boards")
+  if (blocked) return blocked
 
   const { data: last } = await s.supabase.from("boards").select("position").order("position", { ascending: false }).limit(1)
   const { data: board, error } = await s.supabase
@@ -123,6 +146,8 @@ export async function createList(input: z.input<typeof createListSchema>): Promi
   if (!parsed.success) return invalid(parsed.error)
   const s = await session()
   if (!s) return { ok: false, error: SESSION_ERROR }
+  const blocked = await overLimit(s, "lists", "board_lists")
+  if (blocked) return blocked
 
   const { data: last } = await s.supabase
     .from("board_lists")

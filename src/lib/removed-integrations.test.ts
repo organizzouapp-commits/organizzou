@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest"
  */
 const SRC = join(__dirname, "..")
 const FORBIDDEN = /whatsapp|open[ _-]?finance/i
-const ALLOWED = new Set<string>([join("lib", "removed-integrations.test.ts")])
+// The plan comparison shows WhatsApp as an "Em breve" badge only (owner decision, 2026-11-23): no integration, no code that talks to it.
+const ALLOWED = new Set<string>([join("lib", "removed-integrations.test.ts"), join("components", "plan", "plan-comparison.tsx")])
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

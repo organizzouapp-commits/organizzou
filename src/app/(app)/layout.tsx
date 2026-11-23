@@ -29,7 +29,7 @@ async function loadShell(children: React.ReactNode) {
   const loose = supabase as unknown as SupabaseClient
   const [profileResult, plan, openTasks, notifications, probe, avatarUrl] = await Promise.all([
     timed("profiles", supabase.from("profiles").select("display_name, theme").eq("id", userId).maybeSingle()),
-    timed("plan", getUserPlan(supabase, userId)),
+    timed("plan", getUserPlan(supabase, userId, isAdmin)),
     timed("open tasks (boards, then tasks)", bypassAuth ? 0 : openTaskCount(supabase)),
     timed("notifications", getNotifications(loose)),
     // One cheap probe: are the module tables there yet? (The database update can land after the app update.)

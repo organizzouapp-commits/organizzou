@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+const plan = vi.hoisted(() => ({ all: true }))
+vi.mock("@/lib/plan-server", () => ({ getUserEntitlements: async () => ({ canUse: () => plan.all }) }))
 
 import { dispatch, verdictOf, WINDOW_MS } from "./dispatch"
 import { atLocal, explainCandidates, EMPTY_PLANNER_DATA } from "./planner"
@@ -88,6 +91,19 @@ describe("event reminders, from the events table, in the right 5-minute run", ()
     // The second event is picked by its own run (10:03 for 10:13).
     expect((await run(tables, at("10:05"), send)).sent).toBe(1)
     expect(sent).toEqual(["agenda:e1:10", "agenda:e2:10"])
+  })
+
+  it("Free keeps task and own reminders only: an agenda notice is not sent and is reported as plan_locked (nothing is deleted)", async () => {
+    plan.all = false
+    try {
+      const sent: string[] = []
+      const send = async (_db: SupabaseClient, _user: string, payload: { tag?: string }) => (sent.push(payload.tag ?? ""), ok())
+      const result = await run(world(), at("09:30"), send)
+      expect(sent).toEqual([])
+      expect(result.kinds.agenda.plan_locked).toBe(2) // both events of the fixture
+    } finally {
+      plan.all = true
+    }
   })
 
   it("converts from the person's zone: the same events are not due at 09:30 UTC (06:30 in São Paulo)", async () => {

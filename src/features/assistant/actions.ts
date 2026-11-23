@@ -41,10 +41,10 @@ const itemSchema = z.object({
 const inputSchema = z.object({ text: z.string().trim().min(1).max(2000), items: z.array(itemSchema).max(12).optional() })
 
 async function context(): Promise<Ctx & { plan: Awaited<ReturnType<typeof getUserPlan>> }> {
-  const { supabase, userId } = await getSession()
+  const { supabase, userId, isAdmin } = await getSession()
   const client = supabase as unknown as SupabaseClient
   const preferred = (await cookies()).get("tasks_last_board")?.value ?? null
-  return { supabase: client, userId, now: new Date(), preferredBoardId: preferred && /^[0-9a-f-]{36}$/i.test(preferred) ? preferred : null, plan: await getUserPlan(client, userId) }
+  return { supabase: client, userId, now: new Date(), preferredBoardId: preferred && /^[0-9a-f-]{36}$/i.test(preferred) ? preferred : null, plan: await getUserPlan(client, userId, isAdmin) }
 }
 
 const entryOf = (created: Created, extra: Partial<CaptureEntry> = {}): CaptureEntry => ({ label: created.label, href: created.href, undo: created.undo, type: created.type, ...extra })
