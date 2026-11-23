@@ -1,7 +1,9 @@
-import type { AsaasBillingType, AsaasClient, AsaasPayment } from "./asaas"
+import type { AsaasClient, AsaasPayment } from "./asaas"
 import { AsaasError } from "./asaas"
 import { isValidCpfCnpj, onlyDigits } from "./cpf"
+import { buildCustomerBody, buildPaymentUpdate, buildSubscriptionBody } from "./payloads"
 import { annualSavingCents, fromAsaasValue, type PayMethod, type PlanPeriod, quote, toAsaasValue } from "./pricing"
+import { dayOf } from "@/lib/sp-time"
 import type { BillingStore } from "./store"
 
 /**
@@ -20,7 +22,6 @@ export type Deps = { asaas: AsaasClient; store: BillingStore; now: Date; today: 
 export type Fail = { ok: false; error: string; status: number }
 const fail = (error: string, status = 400): Fail => ({ ok: false, error, status })
 
-const BILLING_TYPE: Record<PayMethod, AsaasBillingType> = { card: "CREDIT_CARD", pix: "PIX", boleto: "BOLETO" }
 const METHOD_OF: Record<string, PayMethod> = { CREDIT_CARD: "card", PIX: "pix", BOLETO: "boleto" }
 export const methodOf = (billingType: string | undefined): PayMethod | null => (billingType ? (METHOD_OF[billingType] ?? null) : null)
 
@@ -45,30 +46,29 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
     const cpfCnpj = onlyDigits(input.cpfCnpj)
     let customer = await store.getCustomer(user.id)
     if (!customer) {
-      const created = await asaas.createCustomer({ name: user.name || user.email, cpfCnpj, email: user.email, externalReference: user.id })
+      const created = await asaas.createCustomer(buildCustomerBody({ name: user.name, cpfCnpj, email: user.email, userId: user.id }))
       await store.saveCustomer(user.id, created.id, cpfCnpj)
       customer = { asaasCustomerId: created.id, cpfCnpj }
     }
 
     const firstTime = !(await store.hasPaidInvoice(user.id))
     const q = quote(input.period, input.method, today, firstTime)
-    const billingType = BILLING_TYPE[input.method]
 
-    const subscription = await asaas.createSubscription({
-      customer: customer.asaasCustomerId,
-      billingType,
-      value: toAsaasValue(q.regularCents),
-      nextDueDate: today,
-      cycle: q.cycle,
-      description: q.description,
-      externalReference: user.id,
-      callback: { successUrl: `${deps.siteUrl}${deps.returnPath}`, autoRedirect: true },
-    })
+    // The first charge is due today in Sao Paulo (Asaas counts days in Brasilia time), never before it.
+    const dueToday = today > dayOf(deps.now, 0) ? today : dayOf(deps.now, 0)
+    const subscription = await asaas.createSubscription(buildSubscriptionBody({ customerId: customer.asaasCustomerId, method: input.method, quote: q, today: dueToday, userId: user.id }))
 
-    const abort = async (message: string): Promise<Fail> => {
+    // From here on a failure must not leave a live subscription behind (it would charge the regular price at the next due date).
+    let storedId: string | null = null
+    const undo = async () => {
       await asaas.deleteSubscription(subscription.id).catch(() => undefined)
+      if (storedId) await store.patchSubscription(storedId, { status: "canceled" }).catch(() => undefined)
+    }
+    const abort = async (message: string): Promise<Fail> => {
+      await undo()
       return fail(message, 502)
     }
+    try {
 
     const first = earliest((await asaas.listSubscriptionPayments(subscription.id)).data ?? [])
     if (!first) return abort("Não consegui criar a primeira cobrança. Nada foi cobrado. Tente de novo.")
@@ -76,14 +76,14 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
     let payment: AsaasPayment = first
     if (q.promo) {
       try {
-        payment = { ...first, ...(await asaas.updatePayment(first.id, { billingType, value: toAsaasValue(q.firstChargeCents), dueDate: first.dueDate, description: `${q.description} · 1º mês` })) }
+        payment = { ...first, ...(await asaas.updatePayment(first.id, buildPaymentUpdate({ method: input.method, cents: q.firstChargeCents, dueDate: first.dueDate, description: `${q.description} (1o mes)` }))) }
       } catch {
         return abort("Não consegui aplicar o preço de lançamento. Nada foi cobrado. Tente de novo.")
       }
     }
 
     const row = await store.insertSubscription({ userId: user.id, asaasSubscriptionId: subscription.id, planPeriod: input.period, method: input.method, status: "pending" })
-    void row
+    storedId = row.id
     await store.upsertInvoice({
       userId: user.id,
       asaasSubscriptionId: subscription.id,
@@ -105,6 +105,10 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
     const url = input.method === "boleto" ? (payment.bankSlipUrl ?? payment.invoiceUrl) : payment.invoiceUrl
     if (!url) return abort("Não consegui abrir a página de pagamento. Nada foi cobrado. Tente de novo.")
     return { ok: true, kind: "redirect", paymentId: payment.id, url, amountCents: q.firstChargeCents }
+    } catch (error) {
+      await undo()
+      throw error
+    }
   } catch (error) {
     return error instanceof AsaasError ? fail(error.userMessage, error.status === 0 || error.status >= 500 ? 502 : 400) : fail("Não consegui iniciar o pagamento agora. Tente de novo em instantes.", 500)
   }

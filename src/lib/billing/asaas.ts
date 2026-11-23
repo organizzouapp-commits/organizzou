@@ -29,6 +29,8 @@ export type AsaasSubscription = { id: string; status: string; value: number; nex
 export type AsaasPixQrCode = { encodedImage: string; payload: string; expirationDate: string }
 
 /** A failure with a message that is safe to show. */
+import type { CustomerBody, SubscriptionBody } from "./payloads"
+
 export class AsaasError extends Error {
   constructor(
     readonly userMessage: string,
@@ -139,9 +141,9 @@ export function createAsaasClient({ apiKey, baseUrl, timeoutMs = 12_000, fetchIm
   }
 
   return {
-    createCustomer: (input: { name: string; cpfCnpj: string; email: string; externalReference: string }) => call<{ id: string }>("createCustomer", "POST", "/customers", { ...input, notificationDisabled: false }),
+    createCustomer: (input: CustomerBody) => call<{ id: string }>("createCustomer", "POST", "/customers", input),
 
-    createSubscription: (input: { customer: string; billingType: AsaasBillingType; value: number; nextDueDate: string; cycle: AsaasCycle; description: string; externalReference: string; callback?: { successUrl: string; autoRedirect: boolean } }) =>
+    createSubscription: (input: SubscriptionBody) =>
       call<AsaasSubscription>("createSubscription", "POST", "/subscriptions", input),
 
     /** Changes value or cycle (a plan change). `updatePendingPayments: false` keeps the charges already generated as they are. */

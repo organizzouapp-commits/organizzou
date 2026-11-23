@@ -44,7 +44,8 @@ describe("checkout", () => {
     expect(result).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/i/pay_1", amountCents: 490 })
     const sub = t.calls.find((c) => c.op === "createSubscription")!.args[0] as Record<string, unknown>
     expect(sub).toMatchObject({ customer: "cus_1", billingType: "CREDIT_CARD", value: 24.9, cycle: "MONTHLY", nextDueDate: "2026-11-20", externalReference: "u1" })
-    expect((sub.callback as { successUrl: string }).successUrl).toBe("https://organizzou.com/dashboard/configuracoes?aba=plano&pagamento=retorno")
+    // no callback and no empty field: Asaas answers invalid_object to a body it cannot read
+    expect(sub).not.toHaveProperty("callback")
     expect(t.calls.find((c) => c.op === "updatePayment")!.args).toEqual(["pay_1", expect.objectContaining({ value: 4.9, dueDate: "2026-11-20", billingType: "CREDIT_CARD" })])
     // stored as pending, with the first invoice at R$ 4,90 and the CPF kept only in our store
     expect(t.subscriptions[0]).toMatchObject({ status: "pending", planPeriod: "monthly", method: "card" })
@@ -142,5 +143,47 @@ describe("status, cancel and change", () => {
     const t = await active()
     await cancelSubscription(t.deps, "u1")
     expect(await changePlan(t.deps, "u1", "annual")).toMatchObject({ ok: false, status: 409 })
+  })
+})
+
+describe("a failure after the subscription exists leaves nothing behind", () => {
+  it("the first-month edit only runs after the subscription was created, and not at all if creating it failed", async () => {
+    const ok = setup()
+    await startCheckout(ok.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    const ops = ok.calls.map((c) => c.op)
+    expect(ops.indexOf("createSubscription")).toBeGreaterThan(-1)
+    expect(ops.indexOf("updatePayment")).toBeGreaterThan(ops.indexOf("listSubscriptionPayments"))
+    expect(ops.indexOf("listSubscriptionPayments")).toBeGreaterThan(ops.indexOf("createSubscription"))
+
+    const bad = setup({ createSubscription: async () => Promise.reject(new AsaasError("x", 400, ["invalid_object"])) })
+    const result = await startCheckout(bad.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: false, status: 400 })
+    expect(bad.calls.some((c) => c.op === "updatePayment" || c.op === "listSubscriptionPayments" || c.op === "deleteSubscription")).toBe(false)
+    expect(bad.subscriptions).toHaveLength(0)
+    expect(bad.invoices).toHaveLength(0)
+  })
+  it("if listing the first charge throws, the subscription is deleted (no orphan that would bill R$ 24,90 later)", async () => {
+    const t = setup({ listSubscriptionPayments: async () => Promise.reject(new AsaasError("x", 502)) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })).toMatchObject({ ok: false })
+    expect(t.calls.find((c) => c.op === "deleteSubscription")!.args[0]).toBe("sub_1")
+  })
+  it("if the Pix QR code cannot be read, the subscription is deleted and the stored row is canceled", async () => {
+    const t = setup({ getPixQrCode: async () => Promise.reject(new AsaasError("x", 500)) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false })
+    expect(t.calls.some((c) => c.op === "deleteSubscription")).toBe(true)
+    expect(t.subscriptions[0].status).toBe("canceled")
+  })
+  it("only a customer can remain after a failure, never a charge, and it is reused on the next try", async () => {
+    const t = setup({ createSubscription: async () => Promise.reject(new AsaasError("x", 400, ["invalid_object"])) })
+    await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(t.customers.get("u1")).toBeDefined()
+    expect(t.calls.filter((c) => c.op === "createCustomer")).toHaveLength(1)
+  })
+  it("the first charge is due today in Sao Paulo", async () => {
+    const t = setup()
+    t.deps.now = new Date("2026-11-24T01:00:00Z") // 23/11 22:00 in Sao Paulo
+    t.deps.today = "2026-11-23"
+    await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect((t.calls.find((c) => c.op === "createSubscription")!.args[0] as { nextDueDate: string }).nextDueDate).toBe("2026-11-23")
   })
 })
