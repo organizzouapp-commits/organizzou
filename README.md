@@ -43,6 +43,10 @@ The rules live in one file, `src/lib/plans.ts` (limits, features, `getEntitlemen
 
 **The R$ 5,00 first month** (`LAUNCH_PRICE_CENTS` in `src/lib/plans.ts`; Asaas refuses charges below R$ 5,00). Asaas has one `value` per subscription and, in the pages of its documentation read for this work, no way to make only the first charge cheaper. So the subscription is created at the regular value and the first pending charge it generates is edited to the launch price (`PUT /v3/payments/{id}`, allowed while a charge is pending). If that edit fails the subscription is deleted again and nothing is charged. The launch price is for someone's first paid month ever.
 
+**Minimum charge.** Asaas refuses any charge below R$ 5,00, so `MIN_CHARGE_CENTS = 500` is checked for the first charge and the subscription value before Asaas is called; a lower value fails fast with a clear message and nothing is sent.
+
+**When a checkout fails after the subscription exists** (for example the launch price cannot be applied), the subscription is deleted at Asaas with three attempts and a short backoff ("not found" counts as deleted). If it still cannot be deleted it is **not swallowed**: an `asaas_orphan` error is logged (operation, status and the Asaas id only), the id is recorded in `billing_events` (event `ORPHAN_SUBSCRIPTION`, open while `processed_at` is empty; no migration) and the person is told to contact support instead of that nothing was charged. The next checkout of that person first cleans the orphan, so a retry never creates a duplicate. In **Admin > Assinaturas**, "Pendentes de limpeza" lists them with a "Tentar apagar de novo" button (audit-logged).
+
 ### Configure Asaas (sandbox first)
 
 1. Create a sandbox account at https://sandbox.asaas.com and an API key (Integrações > Chave de API).
