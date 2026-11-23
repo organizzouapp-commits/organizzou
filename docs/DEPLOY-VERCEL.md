@@ -14,8 +14,7 @@ variáveis de ambiente que o app lê. Nenhum valor real aparece neste arquivo.
 | **Node.js Version** | **24.x** (Settings → General → Node.js Version). O `package.json` também fixa `"engines": { "node": "24.x" }` |
 
 Segurança sempre ativa (em `next.config.ts`): `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
-`Referrer-Policy: strict-origin-when-cross-origin` e uma `Permissions-Policy` que desliga câmera, microfone, localização,
-pagamento e USB no navegador. O HSTS é aplicado pela própria Vercel. Não há `vercel.json` e **não há cron jobs**: nada a
+`Referrer-Policy: strict-origin-when-cross-origin` e uma `Permissions-Policy` que desliga câmera, localização, pagamento e USB no navegador e só libera o microfone para a nossa própria origem (`microphone=(self)`, usado no ditado por voz do assistente). O HSTS é aplicado pela própria Vercel. Não há `vercel.json` e **não há cron jobs**: nada a
 ajustar para o plano Hobby.
 
 ## Variáveis de ambiente

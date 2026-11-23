@@ -7,8 +7,8 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // The app does not use the camera, microphone, location, payments or USB in the browser. Turn one on here when a feature needs it.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
+  // The app uses the microphone only for voice dictation in the assistant, and only on our own origin (self). Camera, location, payments and USB stay off: turn one on here when a feature needs it.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()" },
 ];
 
 const nextConfig: NextConfig = {
