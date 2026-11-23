@@ -217,3 +217,81 @@ describe("the route and the proxy", () => {
     expect(config).toContain("camera=()")
   })
 })
+
+describe("a subscription that ended at Asaas (the panel, an admin, or Asaas itself)", () => {
+  const ended = (event: string, status?: string, id = "evt_end"): WebhookPayload => ({ id, event, subscription: { id: "sub_1", ...(status ? { status } : {}) } })
+
+  it("a paid subscription deleted while the plan is still ahead keeps running until plan_until, flagged to end", async () => {
+    const w = await world("monthly", "active")
+    await w.store.setProfilePlan("u1", { plan: "pro", planUntil: "2026-12-20T23:59:59-03:00" })
+    await handleWebhook(w.store, ended("SUBSCRIPTION_DELETED"), NOW)
+    expect(w.subscriptions[0]).toMatchObject({ status: "active", cancelAtPeriodEnd: true })
+    expect(w.profiles.get("u1")).toEqual({ plan: "pro", planUntil: "2026-12-20T23:59:59-03:00" })
+  })
+  it("when the person is already Free (an admin reverted the plan) the row becomes ended, so checkout is open again", async () => {
+    const w = await world("monthly", "active")
+    await w.store.setProfilePlan("u1", { plan: "free", planUntil: null })
+    await handleWebhook(w.store, ended("SUBSCRIPTION_DELETED"), NOW)
+    expect(w.subscriptions[0]).toMatchObject({ status: "ended", cancelAtPeriodEnd: true, graceUntil: null })
+  })
+  it("a lapsed plan_until, or an overdue row, also ends", async () => {
+    const lapsed = await world("monthly", "active")
+    await lapsed.store.setProfilePlan("u1", { plan: "pro", planUntil: "2026-11-01T23:59:59-03:00" })
+    await handleWebhook(lapsed.store, ended("SUBSCRIPTION_INACTIVATED"), NOW)
+    expect(lapsed.subscriptions[0].status).toBe("ended")
+
+    const overdue = await world("monthly", "active")
+    await overdue.store.patchSubscription(overdue.sub.id, { status: "overdue", graceUntil: "2026-11-23T00:00:00Z" })
+    await handleWebhook(overdue.store, ended("SUBSCRIPTION_DELETED"), NOW)
+    expect(overdue.subscriptions[0]).toMatchObject({ status: "ended", graceUntil: null })
+  })
+  it("a never-paid checkout is canceled", async () => {
+    const w = await world()
+    await handleWebhook(w.store, ended("SUBSCRIPTION_DELETED"), NOW)
+    expect(w.subscriptions[0]).toMatchObject({ status: "canceled", cancelAtPeriodEnd: true })
+  })
+  it("SUBSCRIPTION_UPDATED to INACTIVE or EXPIRED ends it, to ACTIVE changes nothing", async () => {
+    for (const status of ["INACTIVE", "EXPIRED"]) {
+      const w = await world("monthly", "active")
+      await handleWebhook(w.store, ended("SUBSCRIPTION_UPDATED", status), NOW)
+      expect(w.subscriptions[0].status).toBe("ended")
+    }
+    const still = await world("monthly", "active")
+    expect(await handleWebhook(still.store, ended("SUBSCRIPTION_UPDATED", "ACTIVE"), NOW)).toEqual({ handled: "ignored" })
+    expect(still.subscriptions[0]).toMatchObject({ status: "active", cancelAtPeriodEnd: false })
+  })
+  it("is idempotent: the same event again (same id, or another id for the same fact) leaves the same row", async () => {
+    const w = await world("monthly", "active")
+    await w.store.setProfilePlan("u1", { plan: "free", planUntil: null })
+    await handleWebhook(w.store, ended("SUBSCRIPTION_DELETED", undefined, "evt_a"), NOW)
+    const first = { ...w.subscriptions[0] }
+    expect(await handleWebhook(w.store, ended("SUBSCRIPTION_DELETED", undefined, "evt_a"), NOW)).toEqual({ handled: "duplicate" })
+    expect(await handleWebhook(w.store, ended("SUBSCRIPTION_INACTIVATED", undefined, "evt_b"), NOW)).toEqual({ handled: "ok" })
+    expect(w.subscriptions[0]).toEqual(first)
+  })
+})
+
+describe("what is logged when an event is ignored", () => {
+  it("the event type and the reason only: an unknown subscription, an unknown payment owner, an unsupported event", async () => {
+    const log = vi.fn()
+    console.info = log
+    const w = await world()
+    await handleWebhook(w.store, { id: "evt_1", event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_unknown" } }, NOW)
+    await handleWebhook(w.store, { id: "evt_2", event: "PAYMENT_RECEIVED", payment: { id: "pay_x", subscription: "sub_unknown", value: 5 } }, NOW)
+    await handleWebhook(w.store, { id: "evt_3", event: "PAYMENT_BANK_SLIP_VIEWED", payment: { id: "pay_1", subscription: "sub_1" } }, NOW)
+    const lines = log.mock.calls.map((c) => JSON.parse(String(c[0])))
+    expect(lines).toEqual([
+      { event: "asaas_webhook_ignored", type: "SUBSCRIPTION_DELETED", reason: "unknown_subscription" },
+      { event: "asaas_webhook_ignored", type: "PAYMENT_RECEIVED", reason: "unknown_payment_owner" },
+      { event: "asaas_webhook_ignored", type: "PAYMENT_BANK_SLIP_VIEWED", reason: "unsupported_event" },
+    ])
+    expect(JSON.stringify(lines)).not.toMatch(/sub_|pay_|u1/)
+  })
+  it("nothing is logged for an event that was handled", async () => {
+    const log = vi.fn()
+    console.info = log
+    const w = await world()
+    await handleWebhook(w.store, payment("PAYMENT_RECEIVED"), NOW)
+    expect(log).not.toHaveBeenCalled()
+  })
+})
