@@ -2,7 +2,7 @@ import type { AsaasClient, AsaasPayment } from "./asaas"
 import { AsaasError } from "./asaas"
 import { isValidCpfCnpj, onlyDigits } from "./cpf"
 import { buildCustomerBody, buildPaymentUpdate, buildSubscriptionBody } from "./payloads"
-import { annualSavingCents, fromAsaasValue, type PayMethod, type PlanPeriod, quote, toAsaasValue } from "./pricing"
+import { annualSavingCents, assertQuoteChargeable, BELOW_MINIMUM_MESSAGE, BelowMinimumChargeError, fromAsaasValue, type PayMethod, type PlanPeriod, quote, toAsaasValue } from "./pricing"
 import { dayOf } from "@/lib/sp-time"
 import type { BillingStore } from "./store"
 
@@ -43,6 +43,11 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
       await store.patchSubscription(previous.id, { status: "canceled" })
     }
 
+    const firstTime = !(await store.hasPaidInvoice(user.id))
+    const q = quote(input.period, input.method, today, firstTime)
+    // Fail fast: a value Asaas would refuse never leaves this server.
+    assertQuoteChargeable(q)
+
     const cpfCnpj = onlyDigits(input.cpfCnpj)
     let customer = await store.getCustomer(user.id)
     if (!customer) {
@@ -50,9 +55,6 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
       await store.saveCustomer(user.id, created.id, cpfCnpj)
       customer = { asaasCustomerId: created.id, cpfCnpj }
     }
-
-    const firstTime = !(await store.hasPaidInvoice(user.id))
-    const q = quote(input.period, input.method, today, firstTime)
 
     // The first charge is due today in Sao Paulo (Asaas counts days in Brasilia time), never before it.
     const dueToday = today > dayOf(deps.now, 0) ? today : dayOf(deps.now, 0)
@@ -110,6 +112,10 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
       throw error
     }
   } catch (error) {
+    if (error instanceof BelowMinimumChargeError) {
+      console.error(JSON.stringify({ event: "billing_below_minimum", op: "checkout", cents: error.cents }))
+      return fail(BELOW_MINIMUM_MESSAGE, 500)
+    }
     return error instanceof AsaasError ? fail(error.userMessage, error.status === 0 || error.status >= 500 ? 502 : 400) : fail("Não consegui iniciar o pagamento agora. Tente de novo em instantes.", 500)
   }
 }
@@ -190,6 +196,11 @@ export async function changePlan(deps: Pick<Deps, "asaas" | "store" | "today">, 
   if (sub.cancelAtPeriodEnd) return fail("Sua assinatura está cancelada. Assine de novo para escolher outro plano.", 409)
   if (sub.planPeriod === period) return fail("Esse já é o seu plano.", 409)
   const q = quote(period, sub.method, deps.today, false)
+  try {
+    assertQuoteChargeable(q)
+  } catch {
+    return fail(BELOW_MINIMUM_MESSAGE, 500)
+  }
   const profile = await deps.store.getProfilePlan(userId)
   const startsOn = (sub.currentPeriodEnd ?? profile.planUntil)?.slice(0, 10) ?? q.nextChargeOn
   try {

@@ -187,3 +187,29 @@ describe("a failure after the subscription exists leaves nothing behind", () => 
     expect((t.calls.find((c) => c.op === "createSubscription")!.args[0] as { nextDueDate: string }).nextDueDate).toBe("2026-11-23")
   })
 })
+
+describe("the minimum charge guard in the checkout", () => {
+  it("a value below R$ 5,00 never reaches Asaas: not even the customer is created", async () => {
+    const { PLANS } = await import("@/lib/plans")
+    const original = PLANS.pro.price.firstMonthCents
+    PLANS.pro.price.firstMonthCents = 490
+    const log = vi.fn()
+    console.error = log
+    try {
+      const t = setup()
+      const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+      expect(result).toMatchObject({ ok: false, status: 500, error: expect.stringContaining("Nada foi cobrado") })
+      expect(t.calls).toHaveLength(0)
+      expect(JSON.parse(String(log.mock.calls[0][0]))).toEqual({ event: "billing_below_minimum", op: "checkout", cents: 490 })
+    } finally {
+      PLANS.pro.price.firstMonthCents = original
+    }
+  })
+  it("with the launch price at exactly R$ 5,00 the first charge is edited to 5 and the body has no discount field", async () => {
+    const t = setup()
+    await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    const [, body] = t.calls.find((c) => c.op === "updatePayment")!.args as [string, Record<string, unknown>]
+    expect(body).toEqual({ billingType: "PIX", value: 5, dueDate: "2026-11-20", description: "Organizzou Pro - plano mensal (1o mes)" })
+    expect(body).not.toHaveProperty("discount")
+  })
+})

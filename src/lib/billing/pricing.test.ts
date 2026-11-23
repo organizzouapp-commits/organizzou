@@ -50,3 +50,25 @@ describe("CPF and CNPJ", () => {
     expect(onlyDigits("529.982.247-25")).toBe("52998224725")
   })
 })
+
+describe("the minimum charge guard (Asaas refuses anything below R$ 5,00)", () => {
+  it("the launch price, the regular price and the annual price all satisfy it", async () => {
+    const { LAUNCH_PRICE_CENTS, PLANS } = await import("@/lib/plans")
+    const { MIN_CHARGE_CENTS } = await import("./pricing")
+    expect(MIN_CHARGE_CENTS).toBe(500)
+    expect(LAUNCH_PRICE_CENTS).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+    expect(PLANS.pro.price.firstMonthCents).toBe(LAUNCH_PRICE_CENTS)
+    expect(PLANS.pro.price.monthlyCents).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+    expect(PLANS.pro.price.yearlyCents).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS)
+  })
+  it("every quote we can build passes, and a value below the minimum is refused with a clear error", async () => {
+    const { assertChargeable, assertQuoteChargeable, BelowMinimumChargeError } = await import("./pricing")
+    for (const period of ["monthly", "annual"] as const) for (const firstTime of [true, false]) expect(() => assertQuoteChargeable(quote(period, "pix", "2026-11-20", firstTime))).not.toThrow()
+    expect(assertChargeable(500)).toBe(500)
+    expect(() => assertChargeable(490)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(0)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(500.5)).toThrow(BelowMinimumChargeError)
+    expect(() => assertChargeable(Number.NaN)).toThrow(BelowMinimumChargeError)
+    expect(() => assertQuoteChargeable({ firstChargeCents: 490, regularCents: 2490 })).toThrow(/below the minimum/)
+  })
+})

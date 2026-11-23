@@ -1,6 +1,6 @@
 import { onlyDigits } from "./cpf"
 import type { PayMethod, Quote } from "./pricing"
-import { toAsaasValue } from "./pricing"
+import { assertChargeable, toAsaasValue } from "./pricing"
 
 /**
  * The exact bodies sent to Asaas, built in one place and tested. Rules: only fields Asaas documents for the call, numbers as numbers,
@@ -51,7 +51,7 @@ export function buildSubscriptionBody(input: { customerId: string; method: PayMe
   return {
     customer: input.customerId,
     billingType: BILLING_TYPE[input.method],
-    value: toAsaasValue(input.quote.regularCents),
+    value: toAsaasValue(assertChargeable(input.quote.regularCents)),
     nextDueDate: input.today,
     cycle: input.quote.cycle,
     description: plainText(input.quote.description, 100),
@@ -61,5 +61,5 @@ export function buildSubscriptionBody(input: { customerId: string; method: PayMe
 
 /** The edit of the first charge: Asaas asks for billingType, value and dueDate together. */
 export function buildPaymentUpdate(input: { method: PayMethod; cents: number; dueDate: string; description: string }) {
-  return { billingType: BILLING_TYPE[input.method], value: toAsaasValue(input.cents), dueDate: input.dueDate, description: plainText(input.description, 100) }
+  return { billingType: BILLING_TYPE[input.method], value: toAsaasValue(assertChargeable(input.cents)), dueDate: input.dueDate, description: plainText(input.description, 100) }
 }

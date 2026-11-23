@@ -101,3 +101,11 @@ describe("what is logged and what the person reads", () => {
     expect(messageFor(500, [], ["cpf"])).toMatch(/instável/) // a server error never blames the person's data
   })
 })
+
+describe("the builders refuse a value below the minimum", () => {
+  it("neither the subscription nor the first-charge edit can carry less than R$ 5,00", () => {
+    expect(() => buildPaymentUpdate({ method: "pix", cents: 490, dueDate: "2026-11-23", description: "x" })).toThrow(/below the minimum/)
+    expect(() => buildSubscriptionBody({ customerId: "cus_1", method: "pix", quote: { ...quote("monthly", "pix", today), regularCents: 490 }, today, userId: USER })).toThrow(/below the minimum/)
+    expect(buildPaymentUpdate({ method: "pix", cents: 500, dueDate: "2026-11-23", description: "x" }).value).toBe(5)
+  })
+})
