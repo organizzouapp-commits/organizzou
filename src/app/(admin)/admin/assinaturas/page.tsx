@@ -1,23 +1,65 @@
 import Link from "next/link"
-import { BanknoteXIcon, ReceiptTextIcon, TrendingDownIcon, TrendingUpIcon } from "lucide-react"
 
-import { ComingSoon, DataUnavailable, TableCard } from "@/components/admin/parts"
+import { DataUnavailable, TableCard } from "@/components/admin/parts"
 import { PlanChart } from "@/components/admin/charts"
 import { BentoCard, KpiCard } from "@/components/organizzou/Bento"
 import { PageGrid, PageShell, StatRow } from "@/components/organizzou/layout"
+import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { billingProvider } from "@/lib/admin/billing"
-import { activeCourtesies, planDistribution } from "@/lib/admin/data"
+import { activeCourtesies, billingByUser, type BillingRow, planDistribution } from "@/lib/admin/data"
 import { fmtDate, fmtInt } from "@/lib/admin/format"
+import { formatBRL } from "@/lib/money"
+
+const PERIOD = { monthly: "Mensal", annual: "Anual" } as const
+const METHOD = { card: "Cartão", pix: "Pix", boleto: "Boleto" } as const
+const STATUS = { pending: "Pendente", active: "Ativa", overdue: "Em atraso", canceled: "Cancelada", ended: "Encerrada" } as const
+const INVOICE = { RECEIVED: "Paga", CONFIRMED: "Paga", RECEIVED_IN_CASH: "Paga", PENDING: "Pendente", OVERDUE: "Atrasada", REFUNDED: "Reembolsada" } as Record<string, string>
+
+function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="pl-6">Pessoa</TableHead>
+          <TableHead>Plano</TableHead>
+          <TableHead>Período</TableHead>
+          <TableHead>Forma</TableHead>
+          <TableHead>Assinatura</TableHead>
+          <TableHead>Última fatura</TableHead>
+          <TableHead className="pr-6 text-right">Pro até</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.user_id}>
+            <TableCell className="pl-6">
+              <Link href={`/admin/usuarios?usuario=${row.user_id}`} className="rounded-md outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+                {row.name ? `${row.name} · ` : ""}
+                {row.email}
+              </Link>
+            </TableCell>
+            <TableCell>{row.plan === "pro" ? "Pro" : "Gratuito"}</TableCell>
+            <TableCell>{PERIOD[row.period]}</TableCell>
+            <TableCell>{METHOD[row.method]}</TableCell>
+            <TableCell>
+              <Badge variant="secondary">{STATUS[row.status]}</Badge>
+              {row.cancel_at_period_end ? <span className="ml-2 text-[13px] text-muted-foreground">cancela no fim</span> : null}
+            </TableCell>
+            <TableCell>{row.last_invoice ? `${INVOICE[row.last_invoice.status] ?? row.last_invoice.status} · ${formatBRL(row.last_invoice.amount_cents)}` : "—"}</TableCell>
+            <TableCell className="tabular pr-6 text-right">{fmtDate(row.plan_until)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
 
 /**
- * Payments are not built. This page shows only what exists in the database today (people per plan, active courtesies) and marks
- * everything that needs a payment provider as "Em breve". It never estimates MRR or churn.
+ * People per plan, active courtesies and, now that payments exist, every account with a subscription: plan, period, method, status and the
+ * last invoice. Granting or revoking Pro by hand is in each person's panel (Alterar plano), audit-logged. Nothing here estimates revenue.
  */
 export default async function BillingPage() {
-  const [plans, courtesies] = await Promise.all([planDistribution(), activeCourtesies()])
-  // A real provider would replace the placeholders below. Typed in src/lib/admin/billing.ts.
-  const provider = billingProvider
+  const [plans, courtesies, subscriptions] = await Promise.all([planDistribution(), activeCourtesies(), billingByUser()])
 
   const count = { free: 0, pro: 0, courtesy: 0 }
   if (plans.ok) {
@@ -27,6 +69,9 @@ export default async function BillingPage() {
       else count.pro += row.users
     }
   }
+  const subs = subscriptions.ok ? subscriptions.data : []
+  const active = subs.filter((s) => s.status === "active").length
+  const overdue = subs.filter((s) => s.status === "overdue").length
 
   return (
     <PageShell>
@@ -34,10 +79,27 @@ export default async function BillingPage() {
       <StatRow min={200}>
         <KpiCard label="Plano Gratuito" value={fmtInt(count.free)} support="pessoas" />
         <KpiCard label="Plano Pro" value={fmtInt(count.pro + count.courtesy)} support="pessoas, incluindo cortesias" tone="highlight" />
+        <KpiCard label="Assinaturas ativas" value={subscriptions.ok ? fmtInt(active) : "—"} support={subscriptions.ok ? "com cobrança" : "aguardando a migration"} />
+        <KpiCard label="Em atraso" value={subscriptions.ok ? fmtInt(overdue) : "—"} support="cobrança que não passou" />
         <KpiCard label="Cortesias ativas" value={fmtInt(count.courtesy)} support="Pro com data de fim" />
       </StatRow>
 
       <PageGrid>
+        <PageGrid.Item span="full">
+          <TableCard>
+            <div className="flex flex-col gap-1 p-6 pb-3">
+              <h2 className="text-[17px] leading-6 font-semibold">Assinaturas</h2>
+              <p className="text-[13px] leading-5 text-muted-foreground">Para dar ou tirar o Pro à mão, abra a pessoa e use Alterar plano (fica na auditoria). Tirar o Pro de quem tem assinatura ativa não cancela a cobrança: cancele também no Asaas.</p>
+            </div>
+            {subscriptions.ok && subs.length > 0 ? (
+              <SubscriptionsTable rows={subs} />
+            ) : subscriptions.ok ? (
+              <p className="px-6 pb-6 text-[15px] text-muted-foreground">Ninguém assinou ainda.</p>
+            ) : (
+              <p className="px-6 pb-6 text-[15px] text-muted-foreground">A lista de assinaturas aparece quando a migration 20261118000003_admin_billing.sql for aplicada no banco.</p>
+            )}
+          </TableCard>
+        </PageGrid.Item>
         <PageGrid.Item span="half">
           <BentoCard title="Pessoas por plano" className="h-full">
             {plans.ok ? (
@@ -51,7 +113,6 @@ export default async function BillingPage() {
             ) : (
               <DataUnavailable error={plans.error} />
             )}
-            <p className="mt-4 text-[13px] leading-5 text-muted-foreground">Hoje todo Pro é concedido por um admin: ainda não existe cobrança.</p>
           </BentoCard>
         </PageGrid.Item>
         <PageGrid.Item span="half">
@@ -89,25 +150,6 @@ export default async function BillingPage() {
             )}
           </TableCard>
         </PageGrid.Item>
-      </PageGrid>
-
-      <PageGrid>
-        {provider ? null : (
-          <>
-            <PageGrid.Item span="half">
-              <ComingSoon icon={TrendingUpIcon} title="Receita recorrente (MRR)" description="Quanto entra por mês com as assinaturas ativas." needs="um provedor de pagamento ligado em src/lib/admin/billing.ts" />
-            </PageGrid.Item>
-            <PageGrid.Item span="half">
-              <ComingSoon icon={TrendingDownIcon} title="Cancelamentos (churn)" description="Quantas pessoas deixam de pagar a cada mês." needs="um provedor de pagamento e o histórico de assinaturas" />
-            </PageGrid.Item>
-            <PageGrid.Item span="half">
-              <ComingSoon icon={ReceiptTextIcon} title="Faturas" description="Cobranças emitidas, pagas e em aberto." needs="um provedor de pagamento" />
-            </PageGrid.Item>
-            <PageGrid.Item span="half">
-              <ComingSoon icon={BanknoteXIcon} title="Falhas de pagamento" description="Cartões recusados e cobranças que precisam de atenção." needs="um provedor de pagamento" />
-            </PageGrid.Item>
-          </>
-        )}
       </PageGrid>
     </PageShell>
   )
