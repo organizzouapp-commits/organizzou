@@ -1,0 +1,60 @@
+import { addMonths, addYears, format, parseISO } from "date-fns"
+
+import { PLANS } from "@/lib/plans"
+
+/**
+ * What a checkout charges and when. Pure, so the screen and the server show and charge the same numbers (prices come from src/lib/plans.ts).
+ * Monthly: the first month is the launch price (only for someone who never had a paid plan), then the regular price every month.
+ * Annual: one flat price a year.
+ */
+
+export type PlanPeriod = "monthly" | "annual"
+export type PayMethod = "card" | "pix" | "boleto"
+
+export type Quote = {
+  period: PlanPeriod
+  method: PayMethod
+  /** "Cobrado hoje". */
+  firstChargeCents: number
+  /** The value of every charge after the first. */
+  regularCents: number
+  /** True when the first charge is cheaper than the regular one. */
+  promo: boolean
+  cycle: "MONTHLY" | "YEARLY"
+  /** "Próxima cobrança": the day it happens, counted from today. */
+  nextChargeOn: string
+  description: string
+}
+
+/** `firstTime`: the person never paid for a plan before (the launch price is for the first month ever, not for every come-back). */
+export function quote(period: PlanPeriod, method: PayMethod, today: string, firstTime = true): Quote {
+  const { monthlyCents, yearlyCents, firstMonthCents } = PLANS.pro.price
+  if (period === "annual") {
+    return { period, method, firstChargeCents: yearlyCents, regularCents: yearlyCents, promo: false, cycle: "YEARLY", nextChargeOn: format(addYears(parseISO(today), 1), "yyyy-MM-dd"), description: "Organizzou Pro · plano anual" }
+  }
+  const promo = firstTime && firstMonthCents < monthlyCents
+  return {
+    period,
+    method,
+    firstChargeCents: promo ? firstMonthCents : monthlyCents,
+    regularCents: monthlyCents,
+    promo,
+    cycle: "MONTHLY",
+    nextChargeOn: format(addMonths(parseISO(today), 1), "yyyy-MM-dd"),
+    description: "Organizzou Pro · plano mensal",
+  }
+}
+
+/** The end of the period a payment due on `dueDate` pays for. */
+export function periodEnd(dueDate: string, period: PlanPeriod): string {
+  const start = parseISO(dueDate)
+  return format(period === "annual" ? addYears(start, 1) : addMonths(start, 1), "yyyy-MM-dd")
+}
+
+/** Cents to the decimal number Asaas expects (24.9). */
+export const toAsaasValue = (cents: number) => Math.round(cents) / 100
+/** The decimal number Asaas sends (24.9) to integer cents. */
+export const fromAsaasValue = (value: number) => Math.round(value * 100)
+
+/** "Economize R$ 48,80 por ano": 12 monthly payments minus the annual price. */
+export const annualSavingCents = () => PLANS.pro.price.monthlyCents * 12 - PLANS.pro.price.yearlyCents
