@@ -59,3 +59,18 @@ describe("admin: Pro manual is told apart from a paid subscription", () => {
     expect(reader.indexOf("await requireAdmin()")).toBeLessThan(reader.indexOf("createSecretClient()"))
   })
 })
+
+describe("admin: who used the launch price", () => {
+  it("the reader checks the admin first and counts only paid invoices of at most the launch price", () => {
+    const reader = read("src/lib/admin/billing-extra.ts")
+    const fn = reader.slice(reader.indexOf("export async function launchPriceUsers"))
+    expect(fn.indexOf("await requireAdmin()")).toBeLessThan(fn.indexOf("createSecretClient()"))
+    expect(fn).toContain('.lte("amount_cents", LAUNCH_PRICE_CENTS)')
+    expect(fn).toContain("PAID_STATUSES")
+    expect(fn).toContain('.select("user_id")') // ids only: no document, no link, no text
+  })
+  it("the table has the column", () => {
+    const page = read("src/app/(admin)/admin/assinaturas/page.tsx")
+    for (const text of ["Preço de lançamento", "Já usou", "Não usou"]) expect(page).toContain(text)
+  })
+})

@@ -1,5 +1,8 @@
 import "server-only"
 
+import { LAUNCH_PRICE_CENTS } from "@/lib/plans"
+import { PAID_STATUSES } from "@/lib/billing/store"
+
 import { createSecretClient, SECRET_KEY_HINT, secretKeyConfigured } from "./secret"
 import { requireAdmin } from "./guard"
 
@@ -12,6 +15,25 @@ export type ManualPro = { userId: string; email: string; planUntil: string | nul
 export type Extra<T> = { ok: true; data: T } | { ok: false; error: string }
 
 const LIVE = ["pending", "active", "overdue"]
+/** Which of these accounts paid the launch price (a paid invoice of at most that amount). Ids only in, ids only out. */
+export async function launchPriceUsers(userIds: string[]): Promise<Extra<Set<string>>> {
+  await requireAdmin()
+  if (userIds.length === 0) return { ok: true, data: new Set() }
+  if (!secretKeyConfigured()) return { ok: false, error: SECRET_KEY_HINT }
+  try {
+    const { data, error } = await createSecretClient()
+      .from("billing_invoices")
+      .select("user_id")
+      .in("user_id", userIds)
+      .lte("amount_cents", LAUNCH_PRICE_CENTS)
+      .or(`status.in.(${PAID_STATUSES.join(",")}),paid_at.not.is.null`)
+    if (error) return { ok: false, error: "Não consegui ler as faturas." }
+    return { ok: true, data: new Set(((data as { user_id: string }[] | null) ?? []).map((r) => r.user_id)) }
+  } catch {
+    return { ok: false, error: "Não consegui ler as faturas." }
+  }
+}
+
 
 /** Pro accounts that have no live subscription: granted by an admin (a courtesy or an open-ended Pro). Pure, so it is tested. */
 export function splitManual<T extends { id: string }>(pros: T[], liveSubscriptionUserIds: Iterable<string>): T[] {

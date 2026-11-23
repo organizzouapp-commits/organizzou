@@ -78,6 +78,13 @@ export async function subscriptionAtAsaas(asaas: Pick<AsaasClient, "getSubscript
   }
 }
 
+/**
+ * The launch price is for someone who NEVER paid. It is decided by PAID INVOICES only (billing_invoices), never by subscription rows: an account
+ * whose subscription was canceled and ended, or abandoned unpaid checkouts, still gets it; one that paid once (even if refunded later) does not,
+ * however many times it subscribes again.
+ */
+export const isLaunchEligible = async (store: Pick<BillingStore, "hasPaidInvoice">, userId: string): Promise<boolean> => !(await store.hasPaidInvoice(userId))
+
 export const UNREACHABLE_MESSAGE = "Não consegui confirmar sua assinatura agora. Tente de novo em instantes."
 
 export type CheckoutResult =
@@ -110,7 +117,7 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
       await store.patchSubscription(previous.id, { status: "canceled" })
     }
 
-    const firstTime = !(await store.hasPaidInvoice(user.id))
+    const firstTime = await isLaunchEligible(store, user.id)
     const q = quote(input.period, input.method, today, firstTime)
     // Fail fast: a value Asaas would refuse never leaves this server.
     assertQuoteChargeable(q)

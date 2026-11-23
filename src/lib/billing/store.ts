@@ -8,6 +8,9 @@ import type { InvoiceRow, PayMethod, PlanPeriod, SubscriptionRow, SubscriptionSt
  * store and run against Supabase (service role: only the server writes billing rows) in production.
  */
 
+/** The statuses of an invoice that was PAID (Asaas names). */
+export const PAID_STATUSES = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"] as const
+
 export type NewSubscription = { userId: string; asaasSubscriptionId: string; planPeriod: PlanPeriod; method: PayMethod; status: SubscriptionStatus }
 export type SubscriptionPatch = Partial<{ planPeriod: PlanPeriod; method: PayMethod; status: SubscriptionStatus; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; graceUntil: string | null }>
 export type InvoiceRecord = InvoiceRow & { userId: string; asaasSubscriptionId: string | null }
@@ -19,6 +22,7 @@ export interface BillingStore {
   subscriptionByAsaasId(asaasSubscriptionId: string): Promise<SubscriptionRow | null>
   insertSubscription(input: NewSubscription): Promise<SubscriptionRow>
   patchSubscription(id: string, patch: SubscriptionPatch): Promise<void>
+  /** The person paid at least one invoice (a paid status, or a payment date: a refunded invoice was still paid once). Subscription rows play no part. */
   hasPaidInvoice(userId: string): Promise<boolean>
   upsertInvoice(invoice: Omit<InvoiceRecord, "id">): Promise<void>
   invoiceByAsaasPaymentId(asaasPaymentId: string): Promise<InvoiceRecord | null>
@@ -96,7 +100,7 @@ export function supabaseBillingStore(db: SupabaseClient): BillingStore {
       must(error)
     },
     async hasPaidInvoice(userId) {
-      const { count, error } = await db.from("billing_invoices").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"])
+      const { count, error } = await db.from("billing_invoices").select("id", { count: "exact", head: true }).eq("user_id", userId).or(`status.in.(${PAID_STATUSES.join(",")}),paid_at.not.is.null`)
       must(error)
       return (count ?? 0) > 0
     },

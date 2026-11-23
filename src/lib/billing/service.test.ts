@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}))
 
 import { AsaasError, type AsaasClient, type AsaasPayment, type AsaasSubscription } from "./asaas"
 import { memoryBillingStore } from "./memory-store"
-import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, ORPHAN_MESSAGE, startCheckout, subscriptionAtAsaas, UNREACHABLE_MESSAGE, type BillingUser, type Deps } from "./service"
+import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, isLaunchEligible, ORPHAN_MESSAGE, startCheckout, subscriptionAtAsaas, UNREACHABLE_MESSAGE, type BillingUser, type Deps } from "./service"
 
 const USER: BillingUser = { id: "u1", email: "ana@exemplo.com", name: "Ana" }
 const NOW = new Date("2026-11-20T15:00:00Z")
@@ -353,5 +353,43 @@ describe("the 'already active' guard asks Asaas before it refuses", () => {
     await t.store.patchSubscription(t.row.id, { cancelAtPeriodEnd: true })
     expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
     expect(t.calls.some((c) => c.op === "getSubscription")).toBe(false)
+  })
+})
+
+describe("the launch price depends on paid invoices, not on subscription rows", () => {
+  const paid = (over: Partial<Parameters<ReturnType<typeof memoryBillingStore>["store"]["upsertInvoice"]>[0]> = {}) => ({ userId: "u1", asaasSubscriptionId: "sub_old", asaasPaymentId: "pay_old", amountCents: 500, status: "RECEIVED", method: "pix", dueDate: "2026-10-01", paidAt: "2026-10-01T12:00:00Z", invoiceUrl: null, description: null, ...over })
+
+  it("a new account is eligible", async () => {
+    expect(await isLaunchEligible(memoryBillingStore().store, "u1")).toBe(true)
+  })
+  it("canceled or ended subscriptions with NO paid invoice (abandoned checkouts, a deleted test subscription) still get the launch price", async () => {
+    const t = setup()
+    for (const status of ["canceled", "ended", "pending"] as const) await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: `sub_${status}`, planPeriod: "monthly", method: "pix", status })
+    await t.store.upsertInvoice(paid({ status: "PENDING", paidAt: null, asaasPaymentId: "pay_unpaid" }))
+    await t.store.upsertInvoice(paid({ status: "OVERDUE", paidAt: null, asaasPaymentId: "pay_overdue" }))
+    expect(await isLaunchEligible(t.store, "u1")).toBe(true)
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: true, amountCents: 500 })
+  })
+  it("a cancelled-then-reactivated account is treated the same every time: after one paid invoice, full price", async () => {
+    const t = setup()
+    await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_old", planPeriod: "monthly", method: "pix", status: "ended" })
+    await t.store.upsertInvoice(paid())
+    expect(await isLaunchEligible(t.store, "u1")).toBe(false)
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: true, amountCents: 2490 })
+    expect(t.calls.some((c) => c.op === "updatePayment")).toBe(false)
+  })
+  it("a paid status or a payment date both count, and a refunded invoice was still paid once", async () => {
+    for (const over of [{ status: "CONFIRMED", paidAt: null }, { status: "RECEIVED_IN_CASH", paidAt: null }, { status: "REFUNDED", paidAt: "2026-10-01T12:00:00Z" }]) {
+      const t = setup()
+      await t.store.upsertInvoice(paid(over))
+      expect(await isLaunchEligible(t.store, "u1")).toBe(false)
+    }
+  })
+  it("someone else's paid invoice changes nothing", async () => {
+    const t = setup()
+    await t.store.upsertInvoice(paid({ userId: "u2" }))
+    expect(await isLaunchEligible(t.store, "u1")).toBe(true)
   })
 })
