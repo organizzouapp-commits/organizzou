@@ -13,6 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { maskCpfCnpj } from "@/lib/billing/cpf"
 import type { PayMethod, PlanPeriod } from "@/lib/billing/pricing"
 import { formatBRL } from "@/lib/money"
+import { PLANS } from "@/lib/plans"
 import { dayOf } from "@/lib/sp-time"
 import { cn } from "@/lib/utils"
 
@@ -102,7 +103,7 @@ function CheckoutBody({ initialPeriod, firstTime, onClose, onActivated }: { init
           <button key={period} type="button" aria-pressed={draft.period === period} onClick={() => setDraft({ ...draft, period })} className={cn(choice, draft.period === period ? "border-primary bg-accent" : "border-border")}>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="text-[15px] leading-6 font-semibold">{period === "monthly" ? "Mensal" : "Anual"}</span>
-              <span className="text-[13px] leading-5 text-muted-foreground">{period === "monthly" && !firstTime ? "R$ 24,90/mês" : priceLine(period)}</span>
+              <span className="text-[13px] leading-5 text-muted-foreground">{period === "monthly" && !firstTime ? `${formatBRL(PLANS.pro.price.monthlyCents)}/mês` : priceLine(period)}</span>
               {period === "annual" ? (
                 <span className="text-[13px] leading-5 text-muted-foreground">
                   {formatBRL(annualPerMonthCents())}/mês · {savingText()}

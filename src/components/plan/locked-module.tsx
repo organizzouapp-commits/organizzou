@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { canUse } from "@/lib/plans"
 import { MODULE_BENEFITS, moduleForPath } from "@/lib/plan-routes"
 
+import { launchPriceText } from "./plan-model"
+
 /** The screen of a module the plan does not include. Nothing is deleted: what is stored stays, and comes back with Pro. */
 export function LockedModule({ name, feature }: { name: string; feature: string }) {
   const benefits = MODULE_BENEFITS[feature] ?? []
@@ -32,7 +34,7 @@ export function LockedModule({ name, feature }: { name: string; feature: string 
       </ul>
       <div className="flex flex-col gap-2">
         <Button asChild size="lg" className="h-12 rounded-full">
-          <Link href={PLANS_HREF}>Experimentar por R$ 4,90</Link>
+          <Link href={PLANS_HREF}>Experimentar por {launchPriceText()}</Link>
         </Button>
         <Button asChild size="lg" variant="ghost" className="h-12 rounded-full">
           <Link href={PLANS_HREF}>Ver todos os planos</Link>

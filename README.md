@@ -22,7 +22,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Plans and billing (Asaas)
 
-Organizzou has two plans: **Gratuito** and **Pro**. Pro is R$ 4,90 in the first month and then R$ 24,90 a month, or R$ 250,00 a year (R$ 20,83 a month, R$ 48,80 less than twelve monthly payments). Payments go through [Asaas](https://www.asaas.com) with card, Pix or boleto.
+Organizzou has two plans: **Gratuito** and **Pro**. Pro is R$ 5,00 in the first month and then R$ 24,90 a month, or R$ 250,00 a year (R$ 20,83 a month, R$ 48,80 less than twelve monthly payments). Payments go through [Asaas](https://www.asaas.com) with card, Pix or boleto.
 
 | | Gratuito | Pro |
 |---|---|---|
@@ -41,7 +41,7 @@ The rules live in one file, `src/lib/plans.ts` (limits, features, `getEntitlemen
 3. Asaas calls `POST /api/webhooks/asaas`. `PAYMENT_CONFIRMED` / `PAYMENT_RECEIVED` turn Pro on until the end of the paid period (`profiles.plan`, `profiles.plan_until`); `PAYMENT_OVERDUE` opens a 3-day grace; `PAYMENT_REFUNDED` ends Pro; `SUBSCRIPTION_DELETED` / `SUBSCRIPTION_INACTIVATED` end the recurrence and Pro runs until `plan_until`. Every event id is stored once in `billing_events`, so a repeated delivery changes nothing and a failed one is retried.
 4. Cancel (`POST /api/billing/cancel`) ends the recurrence at the end of the paid period. Monthly and annual can be switched (`POST /api/billing/change-plan`) from the next charge on.
 
-**The R$ 4,90 first month.** Asaas has one `value` per subscription and, in the pages of its documentation read for this work, no way to make only the first charge cheaper. So the subscription is created at the regular value and the first pending charge it generates is edited to R$ 4,90 (`PUT /v3/payments/{id}`, allowed while a charge is pending). If that edit fails the subscription is deleted again and nothing is charged. The launch price is for someone's first paid month ever.
+**The R$ 5,00 first month** (`LAUNCH_PRICE_CENTS` in `src/lib/plans.ts`; Asaas refuses charges below R$ 5,00). Asaas has one `value` per subscription and, in the pages of its documentation read for this work, no way to make only the first charge cheaper. So the subscription is created at the regular value and the first pending charge it generates is edited to the launch price (`PUT /v3/payments/{id}`, allowed while a charge is pending). If that edit fails the subscription is deleted again and nothing is charged. The launch price is for someone's first paid month ever.
 
 ### Configure Asaas (sandbox first)
 

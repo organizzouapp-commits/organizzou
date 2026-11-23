@@ -38,23 +38,23 @@ function setup(over: Partial<Record<keyof AsaasClient, unknown>> = {}) {
 }
 
 describe("checkout", () => {
-  it("monthly with card: the subscription is R$ 24,90, the FIRST charge is edited to R$ 4,90, and the person is sent to the hosted page", async () => {
+  it("monthly with card: the subscription is R$ 24,90, the FIRST charge is edited to R$ 5,00, and the person is sent to the hosted page", async () => {
     const t = setup()
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
-    expect(result).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/i/pay_1", amountCents: 490 })
+    expect(result).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/i/pay_1", amountCents: 500 })
     const sub = t.calls.find((c) => c.op === "createSubscription")!.args[0] as Record<string, unknown>
     expect(sub).toMatchObject({ customer: "cus_1", billingType: "CREDIT_CARD", value: 24.9, cycle: "MONTHLY", nextDueDate: "2026-11-20", externalReference: "u1" })
     // no callback and no empty field: Asaas answers invalid_object to a body it cannot read
     expect(sub).not.toHaveProperty("callback")
-    expect(t.calls.find((c) => c.op === "updatePayment")!.args).toEqual(["pay_1", expect.objectContaining({ value: 4.9, dueDate: "2026-11-20", billingType: "CREDIT_CARD" })])
-    // stored as pending, with the first invoice at R$ 4,90 and the CPF kept only in our store
+    expect(t.calls.find((c) => c.op === "updatePayment")!.args).toEqual(["pay_1", expect.objectContaining({ value: 5, dueDate: "2026-11-20", billingType: "CREDIT_CARD" })])
+    // stored as pending, with the first invoice at R$ 5,00 and the CPF kept only in our store
     expect(t.subscriptions[0]).toMatchObject({ status: "pending", planPeriod: "monthly", method: "card" })
-    expect(t.invoices[0]).toMatchObject({ amountCents: 490, asaasPaymentId: "pay_1" })
+    expect(t.invoices[0]).toMatchObject({ amountCents: 500, asaasPaymentId: "pay_1" })
     expect(t.customers.get("u1")).toEqual({ asaasCustomerId: "cus_1", cpfCnpj: "52998224725" })
   })
   it("Pix answers with the QR code and the copy-and-paste text, and boleto with the slip page", async () => {
     const pix = setup()
-    expect(await startCheckout(pix.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "pix", qrImage: "BASE64", payload: "000201...", expiresAt: "2026-11-21 23:59:59", amountCents: 490 })
+    expect(await startCheckout(pix.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "pix", qrImage: "BASE64", payload: "000201...", expiresAt: "2026-11-21 23:59:59", amountCents: 500 })
     const slip = setup()
     expect(await startCheckout(slip.deps, USER, { period: "monthly", method: "boleto", cpfCnpj: CPF })).toMatchObject({ ok: true, kind: "redirect", url: "https://asaas.test/b/pay_1" })
   })
@@ -67,12 +67,12 @@ describe("checkout", () => {
   })
   it("someone who already paid once gets no launch price", async () => {
     const t = setup()
-    await t.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: null, asaasPaymentId: "old", amountCents: 490, status: "RECEIVED", method: "card", dueDate: "2026-01-01", paidAt: "2026-01-01T00:00:00Z", invoiceUrl: null, description: null })
+    await t.store.upsertInvoice({ userId: "u1", asaasSubscriptionId: null, asaasPaymentId: "old", amountCents: 500, status: "RECEIVED", method: "card", dueDate: "2026-01-01", paidAt: "2026-01-01T00:00:00Z", invoiceUrl: null, description: null })
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
     expect(result).toMatchObject({ ok: true, amountCents: 2490 })
     expect(t.calls.some((c) => c.op === "updatePayment")).toBe(false)
   })
-  it("if the R$ 4,90 edit fails the subscription is deleted and nothing is charged", async () => {
+  it("if the R$ 5,00 edit fails the subscription is deleted and nothing is charged", async () => {
     const t = setup({ updatePayment: async () => Promise.reject(new AsaasError("x", 400)) })
     const result = await startCheckout(t.deps, USER, { period: "monthly", method: "card", cpfCnpj: CPF })
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Nada foi cobrado") })

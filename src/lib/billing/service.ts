@@ -10,9 +10,9 @@ import type { BillingStore } from "./store"
  * The billing operations, with their dependencies passed in (the Asaas client, the store, the clock), so each one is tested without a
  * network or a database. The routes under /api/billing are thin wrappers: session, rate limit, then one of these.
  *
- * FIRST MONTH AT R$ 4,90: Asaas has one `value` per subscription and, in the pages of its documentation read for this work, no way to make
+ * FIRST MONTH AT THE LAUNCH PRICE (LAUNCH_PRICE_CENTS): Asaas has one `value` per subscription and, in the pages of its documentation read for this work, no way to make
  * only the first charge cheaper. So the subscription is created at the regular value (R$ 24,90, or R$ 250,00 a year), and the FIRST
- * pending charge it generates is edited to R$ 4,90 (PUT /payments/{id}, allowed while a charge is pending). If that edit fails the
+ * pending charge it generates is edited to the launch price (PUT /payments/{id}, allowed while a charge is pending). If that edit fails the
  * subscription is deleted again and nothing is charged: the person is never billed the regular price by accident.
  */
 

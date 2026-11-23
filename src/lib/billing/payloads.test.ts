@@ -78,7 +78,7 @@ describe("helpers", () => {
     expect(plainText("x".repeat(300), 100)).toHaveLength(100)
   })
   it("the first-charge edit sends the three fields Asaas asks for, in plain text", () => {
-    expect(buildPaymentUpdate({ method: "pix", cents: 490, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })).toEqual({ billingType: "PIX", value: 4.9, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })
+    expect(buildPaymentUpdate({ method: "pix", cents: 500, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })).toEqual({ billingType: "PIX", value: 5, dueDate: "2026-11-23", description: "Organizzou Pro - plano mensal (1o mes)" })
   })
 })
 

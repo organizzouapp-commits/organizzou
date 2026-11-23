@@ -4,9 +4,9 @@ import { isValidCnpj, isValidCpf, isValidCpfCnpj, maskCpfCnpj, onlyDigits } from
 import { annualSavingCents, fromAsaasValue, periodEnd, quote, toAsaasValue } from "./pricing"
 
 describe("quote", () => {
-  it("monthly: R$ 4,90 today, then R$ 24,90 a month, next charge in a month", () => {
+  it("monthly: R$ 5,00 today, then R$ 24,90 a month, next charge in a month", () => {
     const q = quote("monthly", "card", "2026-11-20")
-    expect(q).toMatchObject({ firstChargeCents: 490, regularCents: 2490, promo: true, cycle: "MONTHLY", nextChargeOn: "2026-12-20" })
+    expect(q).toMatchObject({ firstChargeCents: 500, regularCents: 2490, promo: true, cycle: "MONTHLY", nextChargeOn: "2026-12-20" })
   })
   it("the launch price is for the first month ever, not for a come-back", () => {
     expect(quote("monthly", "pix", "2026-11-20", false)).toMatchObject({ firstChargeCents: 2490, promo: false })
@@ -23,7 +23,7 @@ describe("quote", () => {
   })
   it("converts between cents and the decimals Asaas uses", () => {
     expect(toAsaasValue(2490)).toBe(24.9)
-    expect(toAsaasValue(490)).toBe(4.9)
+    expect(toAsaasValue(500)).toBe(5)
     expect(fromAsaasValue(24.9)).toBe(2490)
     expect(fromAsaasValue(250)).toBe(25000)
   })

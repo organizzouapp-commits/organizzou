@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { PLANS } from "@/lib/plans"
 
 import { ResponsiveModal } from "./plan-dialogs"
+import { launchPriceText } from "./plan-model"
 
 export type LimitKind = "lists" | "boards"
 
@@ -28,7 +29,7 @@ export function usePlanLimitDialog() {
         <p className="text-[15px] leading-6 text-muted-foreground">Seus quadros e listas continuam como estão, e você pode usar e editar todos. Para criar mais, conheça o Pro.</p>
         <div className="flex flex-col gap-2">
           <Button asChild size="lg" className="h-12 rounded-full">
-            <Link href={PLANS_HREF}>Experimentar por R$ 4,90</Link>
+            <Link href={PLANS_HREF}>Experimentar por {launchPriceText()}</Link>
           </Button>
           <Button type="button" size="lg" variant="ghost" className="h-12 rounded-full" onClick={() => setKind(null)}>
             Agora não

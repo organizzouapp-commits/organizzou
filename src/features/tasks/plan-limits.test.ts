@@ -73,7 +73,7 @@ describe("the screens", () => {
   const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
   it("the locked module screen and the limit dialog say what the design says and link to the plan tab", () => {
     const locked = read("src/components/plan/locked-module.tsx")
-    for (const text of ["faz parte do Pro", "Experimentar por R$ 4,90", "Ver todos os planos", "continuam guardados"]) expect(locked).toContain(text)
+    for (const text of ["faz parte do Pro", "Experimentar por", "launchPriceText", "Ver todos os planos", "continuam guardados"]) expect(locked).toContain(text)
     expect(locked).toContain("PLANS_HREF")
     const limit = read("src/components/plan/limit-dialog.tsx")
     expect(limit).toContain("Você usou suas")

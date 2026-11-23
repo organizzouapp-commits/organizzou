@@ -15,12 +15,13 @@ import type { PlanPeriod } from "@/lib/billing/pricing"
 import { formatBRL } from "@/lib/money"
 import type { PlanUsage } from "@/lib/plan-usage"
 import { usageView } from "@/lib/plan-usage"
+import { PLANS } from "@/lib/plans"
 import { cn } from "@/lib/utils"
 
 import { CheckoutDialog } from "./checkout-dialog"
 import { CancelDialog, ProActivatedDialog } from "./plan-dialogs"
 import { PlanComparison } from "./plan-comparison"
-import { annualPerMonthCents, type Banner, bannerFor, dateBR, METHOD_LABEL, priceLine, savingText } from "./plan-model"
+import { annualPerMonthCents, type Banner, bannerFor, dateBR, launchPriceText, METHOD_LABEL, priceLine, savingText } from "./plan-model"
 import { useBilling } from "./use-billing"
 
 const EMPTY_USAGE: PlanUsage = { boards: null, lists: null, assistantToday: null }
@@ -195,10 +196,12 @@ export function PlanoScreen({ usage = EMPTY_USAGE }: { email?: string; name?: st
         <>
           <section aria-label="Oferta de lançamento" className="flex flex-col gap-4 rounded-[24px] bg-highlight p-5 text-highlight-foreground md:p-6">
             <Badge className="self-start bg-highlight-foreground/10 text-highlight-foreground">Oferta de lançamento</Badge>
-            <h2 className="text-[28px] leading-8 font-semibold tracking-[-0.02em]">Pro por R$ 4,90 no 1º mês</h2>
-            <p className="text-[15px] leading-6">Depois R$ 24,90 por mês, ou R$ 250,00 por ano. Cancele quando quiser.</p>
+            <h2 className="text-[28px] leading-8 font-semibold tracking-[-0.02em]">Pro por {launchPriceText()} no 1º mês</h2>
+            <p className="text-[15px] leading-6">
+              Depois {formatBRL(PLANS.pro.price.monthlyCents)} por mês, ou {formatBRL(PLANS.pro.price.yearlyCents)} por ano. Cancele quando quiser.
+            </p>
             <Button type="button" size="lg" disabled={billing.unavailable} className="h-12 self-start rounded-full bg-highlight-foreground text-highlight hover:bg-highlight-foreground/90" onClick={() => open("monthly")}>
-              Experimentar por R$ 4,90
+              Experimentar por {launchPriceText()}
             </Button>
           </section>
 
@@ -222,7 +225,7 @@ export function PlanoScreen({ usage = EMPTY_USAGE }: { email?: string; name?: st
             </section>
             <section aria-label="Pro Mensal" data-plan-card="pro-monthly" data-current="false" className={cn(card, "border-border")}>
               <h3 className="text-[17px] leading-6 font-semibold">Pro Mensal</h3>
-              <p className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">R$ 4,90</p>
+              <p className="tabular text-[34px] leading-10 font-semibold tracking-[-0.02em]">{launchPriceText()}</p>
               <p className="text-[15px] leading-6 text-muted-foreground">{priceLine("monthly")}</p>
               <Button type="button" size="lg" disabled={billing.unavailable} className="mt-auto h-12 rounded-full" onClick={() => open("monthly")}>
                 Escolher o mensal

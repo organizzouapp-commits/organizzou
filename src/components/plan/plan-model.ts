@@ -2,7 +2,7 @@ import { isValidCpfCnpj } from "@/lib/billing/cpf"
 import { annualSavingCents, type PayMethod, type PlanPeriod, quote } from "@/lib/billing/pricing"
 import type { BillingStatus } from "@/lib/billing/service"
 import { formatBRL } from "@/lib/money"
-import { PLANS } from "@/lib/plans"
+import { LAUNCH_PRICE_CENTS, PLANS } from "@/lib/plans"
 
 /** The plan screen as pure functions: what the checkout asks and shows, which banner to show, how long a Pix has left. Tested without a browser. */
 
@@ -22,7 +22,10 @@ export function summaryOf(draft: CheckoutDraft, today: string, firstTime = true)
   return { todayCents: q.firstChargeCents, nextCents: q.regularCents, nextOn: q.nextChargeOn, promo: q.promo, period: draft.period }
 }
 
-/** "R$ 4,90 no 1º mês, depois R$ 24,90/mês" and the annual line. */
+/** The launch price as text ("R$ 5,00"), from the one constant. */
+export const launchPriceText = () => formatBRL(LAUNCH_PRICE_CENTS)
+
+/** "<launch price> no 1º mês, depois R$ 24,90/mês" and the annual line. */
 export function priceLine(period: PlanPeriod): string {
   const { monthlyCents, yearlyCents, firstMonthCents } = PLANS.pro.price
   return period === "annual" ? `${formatBRL(yearlyCents)}/ano` : `${formatBRL(firstMonthCents)} no 1º mês, depois ${formatBRL(monthlyCents)}/mês`
