@@ -25,7 +25,7 @@ export type AsaasPayment = {
   description?: string | null
   externalReference?: string | null
 }
-export type AsaasSubscription = { id: string; status: string; value: number; nextDueDate: string; cycle: AsaasCycle; billingType: AsaasBillingType; customer: string }
+export type AsaasSubscription = { id: string; status: string; value: number; nextDueDate: string; cycle: AsaasCycle; billingType: AsaasBillingType; customer: string; deleted?: boolean }
 export type AsaasPixQrCode = { encodedImage: string; payload: string; expirationDate: string }
 
 /** A failure with a message that is safe to show. */
@@ -145,6 +145,9 @@ export function createAsaasClient({ apiKey, baseUrl, timeoutMs = 12_000, fetchIm
 
     createSubscription: (input: SubscriptionBody) =>
       call<AsaasSubscription>("createSubscription", "POST", "/subscriptions", input),
+
+    /** One subscription as Asaas has it now (status ACTIVE | INACTIVE | EXPIRED, and `deleted`). A 404 means it is gone. */
+    getSubscription: (id: string) => call<AsaasSubscription>("getSubscription", "GET", `/subscriptions/${encodeURIComponent(id)}`),
 
     /** Changes value or cycle (a plan change). `updatePendingPayments: false` keeps the charges already generated as they are. */
     updateSubscription: (id: string, input: { value?: number; cycle?: AsaasCycle; nextDueDate?: string; description?: string; updatePendingPayments?: boolean }) => call<AsaasSubscription>("updateSubscription", "PUT", `/subscriptions/${encodeURIComponent(id)}`, input),

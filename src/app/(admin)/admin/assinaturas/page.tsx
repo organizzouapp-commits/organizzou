@@ -7,6 +7,7 @@ import { PageGrid, PageShell, StatRow } from "@/components/organizzou/layout"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { OrphanRetryButton } from "@/components/admin/orphan-retry-button"
+import { launchPriceUsers, manualProAccounts, type ManualPro } from "@/lib/admin/billing-extra"
 import { openOrphanSubscriptions } from "@/lib/admin/billing-orphans"
 import { activeCourtesies, billingByUser, type BillingRow, planDistribution } from "@/lib/admin/data"
 import { fmtDate, fmtInt } from "@/lib/admin/format"
@@ -17,7 +18,7 @@ const METHOD = { card: "Cartão", pix: "Pix", boleto: "Boleto" } as const
 const STATUS = { pending: "Pendente", active: "Ativa", overdue: "Em atraso", canceled: "Cancelada", ended: "Encerrada" } as const
 const INVOICE = { RECEIVED: "Paga", CONFIRMED: "Paga", RECEIVED_IN_CASH: "Paga", PENDING: "Pendente", OVERDUE: "Atrasada", REFUNDED: "Reembolsada" } as Record<string, string>
 
-function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
+function SubscriptionsTable({ rows, manual, launch }: { rows: BillingRow[]; manual: ManualPro[]; launch: Set<string> | null }) {
   return (
     <Table>
       <TableHeader>
@@ -28,6 +29,7 @@ function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
           <TableHead>Forma</TableHead>
           <TableHead>Assinatura</TableHead>
           <TableHead>Última fatura</TableHead>
+          <TableHead>Preço de lançamento</TableHead>
           <TableHead className="pr-6 text-right">Pro até</TableHead>
         </TableRow>
       </TableHeader>
@@ -48,7 +50,27 @@ function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
               {row.cancel_at_period_end ? <span className="ml-2 text-[13px] text-muted-foreground">cancela no fim</span> : null}
             </TableCell>
             <TableCell>{row.last_invoice ? `${INVOICE[row.last_invoice.status] ?? row.last_invoice.status} · ${formatBRL(row.last_invoice.amount_cents)}` : "—"}</TableCell>
+            <TableCell>{launch === null ? "—" : launch.has(row.user_id) ? "Já usou" : "Não usou"}</TableCell>
             <TableCell className="tabular pr-6 text-right">{fmtDate(row.plan_until)}</TableCell>
+          </TableRow>
+        ))}
+        {manual.map((m) => (
+          <TableRow key={m.userId}>
+            <TableCell className="pl-6">
+              <Link href={`/admin/usuarios?usuario=${m.userId}`} className="rounded-md outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+                {m.email}
+              </Link>
+            </TableCell>
+            <TableCell>Pro</TableCell>
+            <TableCell>—</TableCell>
+            <TableCell>—</TableCell>
+            <TableCell>
+              <Badge>Pro manual</Badge>
+              <span className="ml-2 text-[13px] text-muted-foreground">{m.planUntil ? "cortesia com data de fim" : "sem cobrança"}</span>
+            </TableCell>
+            <TableCell>—</TableCell>
+            <TableCell>—</TableCell>
+            <TableCell className="tabular pr-6 text-right">{m.planUntil ? fmtDate(m.planUntil) : "sem fim"}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -61,7 +83,10 @@ function SubscriptionsTable({ rows }: { rows: BillingRow[] }) {
  * last invoice. Granting or revoking Pro by hand is in each person's panel (Alterar plano), audit-logged. Nothing here estimates revenue.
  */
 export default async function BillingPage() {
-  const [plans, courtesies, subscriptions, orphans] = await Promise.all([planDistribution(), activeCourtesies(), billingByUser(), openOrphanSubscriptions()])
+  const [plans, courtesies, subscriptions, orphans, manualPro] = await Promise.all([planDistribution(), activeCourtesies(), billingByUser(), openOrphanSubscriptions(), manualProAccounts()])
+  const manual = manualPro.ok ? manualPro.data : []
+  const launched = await launchPriceUsers(subscriptions.ok ? subscriptions.data.map((s) => s.user_id) : [])
+  const launch = launched.ok ? launched.data : null
 
   const count = { free: 0, pro: 0, courtesy: 0 }
   if (plans.ok) {
@@ -93,8 +118,8 @@ export default async function BillingPage() {
               <h2 className="text-[17px] leading-6 font-semibold">Assinaturas</h2>
               <p className="text-[13px] leading-5 text-muted-foreground">Para dar ou tirar o Pro à mão, abra a pessoa e use Alterar plano (fica na auditoria). Tirar o Pro de quem tem assinatura ativa não cancela a cobrança: cancele também no Asaas.</p>
             </div>
-            {subscriptions.ok && subs.length > 0 ? (
-              <SubscriptionsTable rows={subs} />
+            {subscriptions.ok && subs.length + manual.length > 0 ? (
+              <SubscriptionsTable rows={subs} manual={manual} launch={launch} />
             ) : subscriptions.ok ? (
               <p className="px-6 pb-6 text-[15px] text-muted-foreground">Ninguém assinou ainda.</p>
             ) : (

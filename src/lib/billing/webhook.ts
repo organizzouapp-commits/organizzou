@@ -5,6 +5,7 @@ import { GRACE_DAYS } from "@/lib/plans"
 import { fromAsaasValue, periodEnd } from "./pricing"
 import type { AsaasClient } from "./asaas"
 import { methodOf } from "./service"
+import type { SubscriptionRow } from "@/features/billing/types"
 import type { BillingStore } from "./store"
 
 /**
@@ -52,26 +53,49 @@ export async function handleWebhook(store: BillingStore, payload: WebhookPayload
 
   const result = await process(store, payload, now)
   await store.markEventProcessed(payload.id)
+  if (typeof result === "object") {
+    // Quiet but visible: the event type and the reason only (no ids, no names, no amounts).
+    console.info(JSON.stringify({ event: "asaas_webhook_ignored", type: payload.event, reason: result.ignored }))
+    return { handled: "ignored" }
+  }
   return { handled: result }
 }
 
-async function process(store: BillingStore, p: WebhookPayload, now: Date): Promise<"ok" | "ignored"> {
+type Outcome = "ok" | { ignored: "unsupported_event" | "unknown_subscription" | "unknown_payment_owner" | "malformed_payment" }
+
+/** Subscription statuses Asaas uses for one that no longer bills. */
+const ENDED_STATUSES = new Set(["INACTIVE", "EXPIRED"])
+
+/**
+ * The recurrence is over (deleted or inactivated at Asaas). What the person already paid for stays: while `profiles.plan_until` is still ahead
+ * Pro runs until then, the row is flagged cancel_at_period_end and keeps its status. Once there is nothing left to run (a free plan, a lapsed
+ * end date, or a checkout that was never paid) the row is ENDED (or canceled when it was only pending). Repeating the event changes nothing.
+ */
+async function endSubscription(store: BillingStore, sub: SubscriptionRow, now: Date) {
+  if (sub.status === "pending") return store.patchSubscription(sub.id, { status: "canceled", cancelAtPeriodEnd: true })
+  if (sub.status === "canceled" || sub.status === "ended") return store.patchSubscription(sub.id, { cancelAtPeriodEnd: true })
+  const profile = await store.getProfilePlan(sub.userId)
+  const paidAhead = profile.plan === "pro" && profile.planUntil !== null && new Date(profile.planUntil).getTime() > now.getTime()
+  return store.patchSubscription(sub.id, paidAhead ? { cancelAtPeriodEnd: true } : { status: "ended", cancelAtPeriodEnd: true, graceUntil: null })
+}
+
+async function process(store: BillingStore, p: WebhookPayload, now: Date): Promise<Outcome> {
   const event = p.event as string
 
-  if (event === "SUBSCRIPTION_DELETED" || event === "SUBSCRIPTION_INACTIVATED") {
+  const subscriptionEnded = event === "SUBSCRIPTION_DELETED" || event === "SUBSCRIPTION_INACTIVATED" || (event === "SUBSCRIPTION_UPDATED" && ENDED_STATUSES.has(String(p.subscription?.status)))
+  if (subscriptionEnded) {
     const sub = p.subscription?.id ? await store.subscriptionByAsaasId(p.subscription.id) : null
-    if (!sub) return "ignored"
-    // The recurrence ends; what was paid stays: Pro runs until plan_until (nothing is cut short, nothing is deleted).
-    await store.patchSubscription(sub.id, sub.status === "pending" ? { status: "canceled", cancelAtPeriodEnd: true } : { cancelAtPeriodEnd: true })
+    if (!sub) return { ignored: "unknown_subscription" }
+    await endSubscription(store, sub, now)
     return "ok"
   }
 
   const payment = p.payment
-  if (!payment?.id || !event.startsWith("PAYMENT_")) return "ignored"
+  if (!payment?.id || !event.startsWith("PAYMENT_")) return { ignored: "unsupported_event" }
   const existing = await store.invoiceByAsaasPaymentId(payment.id)
   const sub = payment.subscription ? await store.subscriptionByAsaasId(payment.subscription) : existing?.asaasSubscriptionId ? await store.subscriptionByAsaasId(existing.asaasSubscriptionId) : null
   const userId = existing?.userId ?? sub?.userId
-  if (!userId) return "ignored"
+  if (!userId) return { ignored: "unknown_payment_owner" }
 
   const upsert = (status: string, paidAt: string | null = existing?.paidAt ?? null) =>
     store.upsertInvoice({
@@ -128,7 +152,7 @@ async function process(store: BillingStore, p: WebhookPayload, now: Date): Promi
     }
 
     default:
-      return "ignored"
+      return { ignored: "unsupported_event" }
   }
 }
 

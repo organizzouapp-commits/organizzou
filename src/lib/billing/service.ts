@@ -63,6 +63,30 @@ const fail = (error: string, status = 400): Fail => ({ ok: false, error, status 
 const METHOD_OF: Record<string, PayMethod> = { CREDIT_CARD: "card", PIX: "pix", BOLETO: "boleto" }
 export const methodOf = (billingType: string | undefined): PayMethod | null => (billingType ? (METHOD_OF[billingType] ?? null) : null)
 
+/**
+ * Is this subscription really still billing at Asaas? "gone": deleted, inactive, expired, not found (or we never had its id). "unreachable":
+ * Asaas could not be asked, so nothing can be concluded. Our row alone is not trusted: it can be stale (a cancel in the Asaas panel, an admin).
+ */
+export async function subscriptionAtAsaas(asaas: Pick<AsaasClient, "getSubscription">, id: string | null): Promise<"live" | "gone" | "unreachable"> {
+  if (!id) return "gone"
+  try {
+    const remote = await asaas.getSubscription(id)
+    return remote.deleted === true || remote.status !== "ACTIVE" ? "gone" : "live"
+  } catch (error) {
+    if (error instanceof AsaasError && error.status === 404) return "gone"
+    return "unreachable"
+  }
+}
+
+/**
+ * The launch price is for someone who NEVER paid. It is decided by PAID INVOICES only (billing_invoices), never by subscription rows: an account
+ * whose subscription was canceled and ended, or abandoned unpaid checkouts, still gets it; one that paid once (even if refunded later) does not,
+ * however many times it subscribes again.
+ */
+export const isLaunchEligible = async (store: Pick<BillingStore, "hasPaidInvoice">, userId: string): Promise<boolean> => !(await store.hasPaidInvoice(userId))
+
+export const UNREACHABLE_MESSAGE = "Não consegui confirmar sua assinatura agora. Tente de novo em instantes."
+
 export type CheckoutResult =
   | { ok: true; kind: "pix"; paymentId: string; qrImage: string; payload: string; expiresAt: string; amountCents: number; dueDate: string }
   | { ok: true; kind: "redirect"; paymentId: string; url: string; amountCents: number }
@@ -74,7 +98,14 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
 
   try {
     const previous = await store.latestSubscription(user.id)
-    if (previous && previous.status === "active" && !previous.cancelAtPeriodEnd) return fail("Você já tem uma assinatura ativa.", 409)
+    if (previous && (previous.status === "active" || previous.status === "overdue") && !previous.cancelAtPeriodEnd) {
+      // Ask Asaas before refusing: a subscription canceled there (the panel, an admin) must not lock the person out for good.
+      const state = await subscriptionAtAsaas(asaas, previous.asaasSubscriptionId)
+      if (state === "live") return fail("Você já tem uma assinatura ativa.", 409)
+      if (state === "unreachable") return fail(UNREACHABLE_MESSAGE, 503)
+      // Self-heal: it is over at Asaas, so our row is too, and the new checkout goes on.
+      await store.patchSubscription(previous.id, { status: "ended", cancelAtPeriodEnd: true, graceUntil: null })
+    }
     // Retries are idempotent: a subscription an earlier failed attempt left behind (an open orphan) is cleaned first, and so is an abandoned
     // pending checkout. If one cannot be removed, no second subscription is created on top of it.
     for (const orphan of await store.openOrphans(user.id)) {
@@ -86,7 +117,7 @@ export async function startCheckout(deps: Deps, user: BillingUser, input: { peri
       await store.patchSubscription(previous.id, { status: "canceled" })
     }
 
-    const firstTime = !(await store.hasPaidInvoice(user.id))
+    const firstTime = await isLaunchEligible(store, user.id)
     const q = quote(input.period, input.method, today, firstTime)
     // Fail fast: a value Asaas would refuse never leaves this server.
     assertQuoteChargeable(q)

@@ -10,11 +10,22 @@ const h = vi.hoisted(() => ({
   /** The update "succeeds" but the database keeps nothing (what a silent policy or trigger would look like). */
   dropWrites: false,
   updateError: null as string | null,
+  /** What ending the paid subscription answers (the billing module has its own tests). */
+  revoke: { ok: true, ended: false, subscriptionId: null } as { ok: true; ended: boolean; subscriptionId: string | null } | { ok: false; error: string },
+  revokeCalls: 0,
 }))
 
 vi.mock("server-only", () => ({}))
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }))
 vi.mock("@/lib/admin/data", () => ({ listUsers: vi.fn(), waitlistList: vi.fn() }))
+vi.mock("@/lib/billing/revoke", () => ({
+  endSubscriptionForRevoke: async () => {
+    h.revokeCalls++
+    return h.revoke
+  },
+}))
+vi.mock("@/lib/billing/asaas", () => ({ asaasFromEnv: () => null }))
+vi.mock("@/lib/billing/store", () => ({ supabaseBillingStore: () => ({}) }))
 vi.mock("@/lib/admin/guard", () => ({ requireAdminForAction: async () => ({ adminId: "admin-1", email: "admin@organizzou.app" }) }))
 vi.mock("@/lib/admin/audit", () => ({
   logAdminAction: vi.fn(async (_c: unknown, entry: unknown) => {
@@ -62,6 +73,8 @@ beforeEach(() => {
   h.audit = []
   h.dropWrites = false
   h.updateError = null
+  h.revoke = { ok: true, ended: false, subscriptionId: null }
+  h.revokeCalls = 0
 })
 
 describe("changePlan", () => {
@@ -71,7 +84,7 @@ describe("changePlan", () => {
     expect(result).toEqual({ ok: true, message: "Plano Pro ativado." })
     expect(h.profiles.get(USER)?.plan).toBe("pro")
     expect(h.history).toHaveLength(1)
-    expect(h.audit).toEqual([expect.objectContaining({ action: "plan.change", targetUserId: USER, payload: { plan: "pro", until: null } })])
+    expect(h.audit).toEqual([expect.objectContaining({ action: "plan.change", targetUserId: USER, payload: { plan: "pro", until: null, subscription_ended: false } })])
   })
 
   it("an account with NO profile row gets one (the root cause of 'Pro does not stick'), and the plan really changes", async () => {
@@ -120,5 +133,46 @@ describe("changePlan", () => {
     const result = await changePlan({ userId: USER, plan: "pro", until: "2020-01-01" })
     expect(result.ok).toBe(false)
     expect(h.profiles.get(USER)?.plan).toBeNull()
+  })
+})
+
+describe("changePlan and the paid subscription", () => {
+  it("going back to Free cancels the subscription first, audits it, and says so", async () => {
+    h.profiles.set(USER, { plan: "pro", plan_until: null })
+    h.revoke = { ok: true, ended: true, subscriptionId: "sub_1" }
+    const result = await changePlan({ userId: USER, plan: "free" })
+    expect(result).toEqual({ ok: true, message: "Plano alterado para Gratuito e a assinatura foi cancelada no Asaas." })
+    expect(h.profiles.get(USER)?.plan).toBe("free")
+    expect(h.audit.map((a) => (a as { action: string }).action)).toEqual(["billing.subscription_end", "plan.change"])
+    expect(h.audit[1]).toMatchObject({ payload: { plan: "free", until: null, subscription_ended: true } })
+    // the payload of the cancel entry holds the Asaas subscription id and the reason, nothing personal
+    expect((h.audit[0] as { payload: unknown }).payload).toEqual({ subscription: "sub_1", via: "revoke_pro" })
+  })
+  it("if the subscription cannot be cancelled the plan is NOT changed and the admin reads why", async () => {
+    h.profiles.set(USER, { plan: "pro", plan_until: null })
+    h.revoke = { ok: false, error: "O Asaas não aceitou cancelar a assinatura (status 500). Nada foi alterado: o plano e a assinatura continuam como estavam." }
+    const result = await changePlan({ userId: USER, plan: "free" })
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("Nada foi alterado") })
+    expect(h.profiles.get(USER)?.plan).toBe("pro")
+    expect(h.history).toHaveLength(0)
+    expect(h.audit).toHaveLength(0)
+  })
+  it("if the plan write fails AFTER the subscription ended, the admin is told what was done", async () => {
+    h.profiles.set(USER, { plan: "pro", plan_until: null })
+    h.revoke = { ok: true, ended: true, subscriptionId: "sub_1" }
+    h.dropWrites = true
+    const result = await changePlan({ userId: USER, plan: "free" })
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("A assinatura já foi cancelada no Asaas e marcada como encerrada, mas o plano continua como estava.") })
+    expect(h.audit.map((a) => (a as { action: string }).action)).toEqual(["billing.subscription_end"])
+  })
+  it("granting Pro by hand never touches the subscription", async () => {
+    h.profiles.set(USER, { plan: null, plan_until: null })
+    h.revoke = { ok: false, error: "must not be asked" }
+    expect((await changePlan({ userId: USER, plan: "pro" })).ok).toBe(true)
+    expect(h.revokeCalls).toBe(0)
+  })
+  it("a Free person with no subscription goes back to Free as before", async () => {
+    h.profiles.set(USER, { plan: "pro", plan_until: null })
+    expect(await changePlan({ userId: USER, plan: "free" })).toEqual({ ok: true, message: "Plano alterado para Gratuito." })
   })
 })

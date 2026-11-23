@@ -54,4 +54,10 @@ describe("billing configuration and secrets", () => {
     for (const header of ["X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy"]) expect(config).toContain(header)
     expect(config).toContain("camera=()")
   })
+  it("the README lists the subscription states and how to reset a test account", () => {
+    const readme = read("README.md")
+    for (const state of ["`pending`", "`active`", "`overdue`", "`canceled`", "`ended`"]) expect(readme).toContain(state)
+    expect(readme).toContain("Reset a test account for repeated sandbox tests")
+    expect(readme).toContain("Pro manual")
+  })
 })

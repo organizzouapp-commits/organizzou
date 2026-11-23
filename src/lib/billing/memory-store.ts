@@ -1,6 +1,6 @@
 import type { SubscriptionRow } from "@/features/billing/types"
 
-import type { BillingStore, InvoiceRecord, OrphanRecord } from "./store"
+import { type BillingStore, type InvoiceRecord, type OrphanRecord, PAID_STATUSES } from "./store"
 
 /** An in-memory BillingStore, for tests only. */
 export function memoryBillingStore() {
@@ -26,7 +26,7 @@ export function memoryBillingStore() {
       const i = subscriptions.findIndex((s) => s.id === id)
       if (i >= 0) subscriptions[i] = { ...subscriptions[i], ...patch }
     },
-    hasPaidInvoice: async (userId) => invoices.some((i) => i.userId === userId && ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(i.status)),
+    hasPaidInvoice: async (userId) => invoices.some((i) => i.userId === userId && ((PAID_STATUSES as readonly string[]).includes(i.status) || i.paidAt !== null)),
     upsertInvoice: async (inv) => {
       const i = invoices.findIndex((x) => x.asaasPaymentId === inv.asaasPaymentId)
       if (i >= 0) invoices[i] = { ...invoices[i], ...inv }

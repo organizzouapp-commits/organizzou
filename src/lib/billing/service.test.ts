@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-import { AsaasError, type AsaasClient, type AsaasPayment } from "./asaas"
+import { AsaasError, type AsaasClient, type AsaasPayment, type AsaasSubscription } from "./asaas"
 import { memoryBillingStore } from "./memory-store"
-import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, ORPHAN_MESSAGE, startCheckout, type BillingUser, type Deps } from "./service"
+import { cancelSubscription, changePlan, deleteSubscriptionReliably, getStatus, isLaunchEligible, ORPHAN_MESSAGE, startCheckout, subscriptionAtAsaas, UNREACHABLE_MESSAGE, type BillingUser, type Deps } from "./service"
 
 const USER: BillingUser = { id: "u1", email: "ana@exemplo.com", name: "Ana" }
 const NOW = new Date("2026-11-20T15:00:00Z")
@@ -17,6 +17,7 @@ function fakeAsaas(over: Partial<Record<keyof AsaasClient, unknown>> = {}) {
   const first: AsaasPayment = { id: "pay_1", status: "PENDING", value: 24.9, dueDate: "2026-11-20", invoiceUrl: "https://asaas.test/i/pay_1", bankSlipUrl: "https://asaas.test/b/pay_1", billingType: "CREDIT_CARD" }
   const client = {
     createCustomer: log("createCustomer", { id: "cus_1" }),
+    getSubscription: log("getSubscription", { id: "sub_old", status: "ACTIVE", value: 24.9, nextDueDate: "2026-12-20", cycle: "MONTHLY", billingType: "PIX", customer: "cus_1" }),
     createSubscription: log("createSubscription", { id: "sub_1", status: "ACTIVE", value: 24.9, nextDueDate: "2026-11-20", cycle: "MONTHLY", billingType: "CREDIT_CARD", customer: "cus_1" }),
     updateSubscription: log("updateSubscription", {}),
     deleteSubscription: log("deleteSubscription", { deleted: true, id: "sub_1" }),
@@ -298,5 +299,97 @@ describe("cleanup after a failed checkout", () => {
     expect(sleeps).toEqual([300, 1200])
     expect(await deleteSubscriptionReliably({ deleteSubscription: async () => Promise.reject(new AsaasError("x", 0)) } as never, "sub_x", sleep)).toEqual({ ok: false, status: 0 })
     expect(await deleteSubscriptionReliably({ deleteSubscription: async () => ({ deleted: true, id: "sub_x" }) } as never, "sub_x", sleep)).toEqual({ ok: true })
+  })
+})
+
+describe("the 'already active' guard asks Asaas before it refuses", () => {
+  const remote = (over: Record<string, unknown>) => ({ id: "sub_old", status: "ACTIVE", value: 24.9, nextDueDate: "2026-12-20", cycle: "MONTHLY", billingType: "PIX", customer: "cus_1", ...over }) as AsaasSubscription
+  async function withActiveRow(over: Partial<Record<keyof AsaasClient, unknown>>) {
+    const t = setup(over)
+    const row = await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_old", planPeriod: "monthly", method: "pix", status: "active" })
+    return { ...t, row }
+  }
+
+  it("active in our database and active at Asaas: refused, nothing created", async () => {
+    const t = await withActiveRow({ getSubscription: async () => remote({}) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: false, status: 409, error: "Você já tem uma assinatura ativa." })
+    expect(t.calls.some((c) => c.op === "createSubscription")).toBe(false)
+    expect(t.subscriptions[0].status).toBe("active")
+  })
+  it("active in our database but deleted at Asaas: the row is healed to ended and the new checkout goes on", async () => {
+    for (const body of [remote({ deleted: true }), remote({ status: "INACTIVE" }), remote({ status: "EXPIRED" })]) {
+      const t = await withActiveRow({ getSubscription: async () => body })
+      const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+      expect(result).toMatchObject({ ok: true, kind: "pix" })
+      expect(t.subscriptions.find((s) => s.id === t.row.id)).toMatchObject({ status: "ended", cancelAtPeriodEnd: true })
+    }
+  })
+  it("not found at Asaas counts as gone", async () => {
+    const t = await withActiveRow({ getSubscription: async () => Promise.reject(new AsaasError("x", 404)) })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+    expect(t.subscriptions.find((s) => s.id === t.row.id)?.status).toBe("ended")
+  })
+  it("Asaas unreachable: the guard stays, with a friendly retry message, and nothing is created or changed", async () => {
+    for (const failure of [new AsaasError("x", 500), new AsaasError("x", 0), new Error("boom")]) {
+      console.error = vi.fn()
+      const t = await withActiveRow({ getSubscription: async () => Promise.reject(failure) })
+      expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toEqual({ ok: false, status: 503, error: UNREACHABLE_MESSAGE })
+      expect(t.calls.some((c) => c.op === "createSubscription" || c.op === "createCustomer")).toBe(false)
+      expect(t.subscriptions[0].status).toBe("active")
+    }
+  })
+  it("an overdue subscription is checked the same way, and a row without an Asaas id counts as gone", async () => {
+    const overdue = await withActiveRow({ getSubscription: async () => remote({ deleted: true }) })
+    await overdue.store.patchSubscription(overdue.row.id, { status: "overdue" })
+    expect(await startCheckout(overdue.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+
+    const noId = setup()
+    await noId.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "", planPeriod: "monthly", method: "pix", status: "active" })
+    expect(await subscriptionAtAsaas({ getSubscription: async () => remote({}) }, null)).toBe("gone")
+    expect(await subscriptionAtAsaas({ getSubscription: async () => remote({}) }, "sub_old")).toBe("live")
+  })
+  it("a subscription already flagged to end at the period end does not block a new one", async () => {
+    const t = await withActiveRow({ getSubscription: async () => remote({}) })
+    await t.store.patchSubscription(t.row.id, { cancelAtPeriodEnd: true })
+    expect(await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })).toMatchObject({ ok: true })
+    expect(t.calls.some((c) => c.op === "getSubscription")).toBe(false)
+  })
+})
+
+describe("the launch price depends on paid invoices, not on subscription rows", () => {
+  const paid = (over: Partial<Parameters<ReturnType<typeof memoryBillingStore>["store"]["upsertInvoice"]>[0]> = {}) => ({ userId: "u1", asaasSubscriptionId: "sub_old", asaasPaymentId: "pay_old", amountCents: 500, status: "RECEIVED", method: "pix", dueDate: "2026-10-01", paidAt: "2026-10-01T12:00:00Z", invoiceUrl: null, description: null, ...over })
+
+  it("a new account is eligible", async () => {
+    expect(await isLaunchEligible(memoryBillingStore().store, "u1")).toBe(true)
+  })
+  it("canceled or ended subscriptions with NO paid invoice (abandoned checkouts, a deleted test subscription) still get the launch price", async () => {
+    const t = setup()
+    for (const status of ["canceled", "ended", "pending"] as const) await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: `sub_${status}`, planPeriod: "monthly", method: "pix", status })
+    await t.store.upsertInvoice(paid({ status: "PENDING", paidAt: null, asaasPaymentId: "pay_unpaid" }))
+    await t.store.upsertInvoice(paid({ status: "OVERDUE", paidAt: null, asaasPaymentId: "pay_overdue" }))
+    expect(await isLaunchEligible(t.store, "u1")).toBe(true)
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: true, amountCents: 500 })
+  })
+  it("a cancelled-then-reactivated account is treated the same every time: after one paid invoice, full price", async () => {
+    const t = setup()
+    await t.store.insertSubscription({ userId: "u1", asaasSubscriptionId: "sub_old", planPeriod: "monthly", method: "pix", status: "ended" })
+    await t.store.upsertInvoice(paid())
+    expect(await isLaunchEligible(t.store, "u1")).toBe(false)
+    const result = await startCheckout(t.deps, USER, { period: "monthly", method: "pix", cpfCnpj: CPF })
+    expect(result).toMatchObject({ ok: true, amountCents: 2490 })
+    expect(t.calls.some((c) => c.op === "updatePayment")).toBe(false)
+  })
+  it("a paid status or a payment date both count, and a refunded invoice was still paid once", async () => {
+    for (const over of [{ status: "CONFIRMED", paidAt: null }, { status: "RECEIVED_IN_CASH", paidAt: null }, { status: "REFUNDED", paidAt: "2026-10-01T12:00:00Z" }]) {
+      const t = setup()
+      await t.store.upsertInvoice(paid(over))
+      expect(await isLaunchEligible(t.store, "u1")).toBe(false)
+    }
+  })
+  it("someone else's paid invoice changes nothing", async () => {
+    const t = setup()
+    await t.store.upsertInvoice(paid({ userId: "u2" }))
+    expect(await isLaunchEligible(t.store, "u1")).toBe(true)
   })
 })
